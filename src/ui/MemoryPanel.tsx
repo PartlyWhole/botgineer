@@ -64,8 +64,11 @@ export function MemoryPanel({ steps, index, onIndex, solutionStartLine, solution
           step {index + 1} / {steps.length}
         </span>
         <span className={`where ${inSolution ? 'in-solution' : ''}`}>
-          {step.event} · line {step.location.line}
-          {inSolution ? ' (your code)' : ''}
+          {/* The event word is only worth showing when it is not the
+              ordinary line-by-line one. */}
+          {step.event === 'line' ? '' : `${step.event} · `}
+          line {step.location.line}
+          {inSolution ? ' · your code' : ''}
         </span>
       </div>
 

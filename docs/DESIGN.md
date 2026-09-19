@@ -33,8 +33,8 @@ de-risk the *seams*, not to be a game.
 
 Explicitly out of scope for this prototype, and not to be smuggled in:
 
-- **No block/graphical code editor.** Text only. The visual-program path is a
-  later milestone (§15).
+- **No block/graphical code editor.** Text, in a real code editor. The
+  visual-program path is a later milestone (§15).
 - **No pygame-host.** The engine cannot trace pygame code, and tracing is the
   point. The scene is rendered by the host, not by Python.
 - **No accounts, backend, or teacher dashboard.** Static site, nothing behind it.
@@ -73,7 +73,7 @@ at*), a value out, and a scene reaction that is checkable.
 │  (Pyodide 314.0.2)       │────────>│  memory panel   } same step snapshot │
 └──────────────────────────┘         │  scene + characters                  │
          ▲                           │                                      │
-         │ run(source, stdinLines)   │  editor (3 regions)                  │
+         │ run(source, stdinLines)   │  editor (one locked-region doc)      │
          └───────────────────────────│  grader  ──> event bus ──> director  │
                                      └──────────────────────────────────────┘
 ```
@@ -100,7 +100,7 @@ literals, plus a `report()` helper.
 
 ```python
 # --- the situation (you can read this, but not change it) ---
-parcels = [("A7", 3.2), ("B1", 7.4), ("C2", 1.1), ("D3", 9.8), ("E5", 4.9)]
+parcels = [("A7", 3.2), ("B1", 7.4), ("C2", 1.1), ("D3", 9.8), ("E5", 5.0)]
 LIMIT = 5.0
 
 def report(answer):
@@ -115,9 +115,9 @@ and the data cannot drift.
 NPC *speech* that the program must read would arrive via `stdinLines` (or live
 `provideInput`); the MVP scenario uses neither, and §14 records why.
 
-### 6.2 The player's program — three regions
+### 6.2 The player's program — one document, two locked regions
 
-The editor presents one document in three regions:
+A single CodeMirror document holds the whole program:
 
 | Region | Editable | Content |
 |---|---|---|
@@ -125,9 +125,21 @@ The editor presents one document in three regions:
 | **Solution** | **yes** | the player's `def respond(...)` |
 | Harness | no | `answer = respond(parcels, LIMIT)` then `report(answer)` |
 
-Assembled top-to-bottom into a single source string; exactly one PyTrace run
-per attempt. Line offsets are tracked so that trace `location.line` maps back
-to the right region for editor highlighting.
+The two locked regions are protected by a change filter, not hidden and not
+split into separate widgets. One document buys three things a split editor
+cannot:
+
+- **The line numbers on screen are the line numbers Python reports.**
+- **The trace can highlight the executing line in place**, and scrubbing
+  scrolls it into view (but never while the player is typing).
+- **The program the player reads is literally the string that runs** —
+  `assembleProgram` returns the exact `head`/`tail` the editor locks.
+
+Editing affordances are not optional in a tool people type Python into:
+Tab / Shift-Tab indent and dedent across a multi-line selection, `Mod-/`
+toggles comments on a selection, Enter keeps Python's indentation, and
+Escape releases the editor so a keyboard user is never trapped by the Tab
+binding.
 
 The trailing `report(answer)` line is load-bearing: `line` events fire *before*
 the line executes, so a final statement guarantees at least one snapshot in
@@ -238,6 +250,22 @@ The MVP scenario needs no live `input()`, so it works in degraded mode too. The
 shim is still installed, because the first scenario that wants a conversation
 will need it and the posture must be tested from day one.
 
+## 9a. Layout
+
+Three panes in one column always squeezes something. Rather than pick a
+compromise, the split is the player's: draggable gutters between the scene
+and the workspace, and between editor, terminal and memory. Sizes are
+remembered in `localStorage`, which is a preference — a blocked or empty
+store is not an error.
+
+Gutters are `role="separator"`, focusable, and moved with the arrow keys. A
+layout you can only change with a mouse is a layout some people cannot
+change at all. Below 900px the gutters disappear and the panes stack at
+readable fixed heights, because there is neither a pointer nor room to drag.
+
+Each pane scrolls internally; the page itself does not scroll on a desktop
+window.
+
 ## 10. Scene and characters
 
 SVG, six expressions per character, driven entirely by the event bus:
@@ -279,7 +307,9 @@ public/runtime/             pyodide 314.0.2 + pytrace wheel/schema/browser (vend
 public/coi-serviceworker.js isolation shim
 src/runtime/                session wrapper, record types, value decoder
 src/game/                   scenario types, grader, event bus, director
-src/ui/                     editor (3 regions), terminal, memory panel, scene
+src/ui/CodeEditor.tsx       one locked-region CodeMirror document
+src/ui/Split.tsx            draggable, keyboard-operable, remembered gutters
+src/ui/                     terminal, memory panel, scene, characters
 content/scenarios/          heavy-parcels.ts
 tests/semantics/            reference solutions run in real Pyodide (the answer key)
 tests/browser/              one end-to-end journey, run against the built site
@@ -303,8 +333,11 @@ The MVP is done when, on the deployed Pages URL:
 7. Reloading a deep link works (hash routing).
 8. A semantic test proves `expected` equals what the reference solution really
    produces in Pyodide.
-9. CI type-checks, tests, builds at the project sub-path, runs the browser
-   journey against that build, deploys, and smoke-tests the live URL.
+9. Tab / Shift-Tab indent and dedent a multi-line selection; `Mod-/` toggles
+   comments on one; typing inside the preamble or harness changes nothing.
+10. The panes resize from the keyboard and the split survives a reload.
+11. CI type-checks, tests, builds at the project sub-path, runs the browser
+   journeys against that build, deploys, and smoke-tests the live URL.
 
 ## 14. Risks
 

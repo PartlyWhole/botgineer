@@ -27,7 +27,9 @@ npm run test:browser  # playwright against the PRODUCTION build at /botgineer/
 | `src/game/grader.ts` | lifts `answer` from the trace, decodes, compares, diagnoses |
 | `src/game/events.ts` | semantic event bus — the seam between runtime and scene |
 | `src/game/director.ts` | events → character moods. Cosmetic; drives nothing |
-| `src/ui/` | editor, terminal, memory panel, scene, characters |
+| `src/ui/CodeEditor.tsx` | ONE CodeMirror document holding the whole program; preamble and harness protected by `EditorState.changeFilter`, not hidden. `head`/`tail` come from `assembleProgram` so the editor and the runtime share one string |
+| `src/ui/Split.tsx` | draggable, keyboard-operable gutters; sizes remembered in localStorage |
+| `src/ui/` | terminal, memory panel, scene, characters |
 | `content/scenarios/` | the encounters |
 | `public/runtime/pytrace/` | vendored engine. `browser/worker.mjs` is **patched** to resolve Pyodide relative to itself (`../../pyodide/`) so it works under a sub-path |
 | `public/runtime/pyodide/` | copied from the pinned npm package at build time; gitignored |
@@ -60,7 +62,14 @@ npm run test:browser  # playwright against the PRODUCTION build at /botgineer/
 8. **Decode partially, fail cleanly.** Unsupported value kinds and
    budget-elided values return sentinels that can never compare equal.
    "Too big to check" is reported differently from "wrong".
-9. **Tests run like production.** Playwright serves the built site at the
+9. **The editor document IS the program.** `assembleProgram` returns the
+   exact `head`/`tail` the editor locks, so on-screen line numbers are the
+   line numbers Python reports. Changing one without the other silently
+   makes every reported line wrong.
+10. **`window.botgineer` is the test surface.** Browser tests drive
+   `setSolution`/`getSolution`/`run`/`state` rather than typing into a
+   contenteditable. Keep the shape stable.
+11. **Tests run like production.** Playwright serves the built site at the
    sub-path with **no** isolation headers, so the `coi-serviceworker` path is
    what gets exercised. Do not add COOP/COEP to the test server.
 

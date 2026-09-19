@@ -28,7 +28,7 @@ worker; after that it is cached.
 ```bash
 npm run typecheck
 npm run test          # semantic tests: real CPython via Pyodide
-npm run test:browser  # 8 journeys against the production build
+npm run test:browser  # 14 journeys against the production build
 ```
 
 `npm run test` is the important one. Every scenario ships an `expected`
@@ -72,7 +72,7 @@ repository variable `BASE_PATH` to `/`.
 ```
 src/runtime/      session wrapper, wire-format types, value decoder
 src/game/         scenario shape, grader, event bus, director
-src/ui/           three-region editor, terminal, memory panel, scene, characters
+src/ui/           code editor, terminal, memory panel, scene, characters, gutters
 content/scenarios/ the encounters
 public/runtime/   vendored PyTrace; Pyodide copied in at build time
 ```
@@ -95,7 +95,8 @@ Four rules carry most of the weight:
 
 - **One scenario.** "Heavy Parcels". The rest is scaffolding for content that
   does not exist yet, and that is the honest risk.
-- **No block editor.** Text only. Visual code that emits Python is a later
+- **No block editor.** Text, in a real editor (CodeMirror, Python syntax,
+  indent/dedent, comment toggling). Visual code that emits Python is a later
   milestone with its own program-tree and emitter work.
 - **No beginner tracebacks.** PyTrace reports an exception's type and origin
   line; it never calls a user `__repr__`, so there is no message to quote.

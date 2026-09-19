@@ -62,18 +62,32 @@ export function parcelsLiteral(parcels: Parcel[]): string {
   return `[${items.join(', ')}]`
 }
 
-/** Assembles the three regions into the single source string the engine runs.
- *  Line offsets let trace locations map back to the region that owns them. */
-export function assembleProgram(
-  scenario: Scenario,
-  solution: string,
-): { source: string; solutionStartLine: number; solutionEndLine: number } {
-  const preambleLines = scenario.preamble.split('\n').length
-  const solutionLines = solution.split('\n').length
-  const solutionStartLine = preambleLines + 1
+export type Program = {
+  /** Exact text before the editable region, including its trailing newline. */
+  head: string
+  /** Exact text after the editable region, including its leading newline. */
+  tail: string
+  /** head + solution + tail. This exact string is what the engine runs AND
+   *  what the editor displays, so the line numbers on screen are the line
+   *  numbers Python reports. */
+  source: string
+  /** 1-based line of the solution's first line within `source`. */
+  solutionStartLine: number
+  solutionEndLine: number
+}
+
+/** Assembles the three regions into the single source string the engine
+ *  runs. `head`/`tail` are returned so the editor can lock exactly the
+ *  ranges the runtime treats as not-the-player's. */
+export function assembleProgram(scenario: Scenario, solution: string): Program {
+  const head = `${scenario.preamble}\n`
+  const tail = `\n${scenario.harness}`
+  const solutionStartLine = head.split('\n').length
   return {
-    source: `${scenario.preamble}\n${solution}\n${scenario.harness}`,
+    head,
+    tail,
+    source: head + solution + tail,
     solutionStartLine,
-    solutionEndLine: solutionStartLine + solutionLines - 1,
+    solutionEndLine: solutionStartLine + solution.split('\n').length - 1,
   }
 }
