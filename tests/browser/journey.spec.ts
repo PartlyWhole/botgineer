@@ -35,7 +35,8 @@ const solutionOf = (page: Page) => page.evaluate(() => window.botgineer.getSolut
 /** Waits for the eager boot run to finish. Nothing can be attempted before
  *  the runtime reports ready. */
 async function boot(page: Page) {
-  await page.goto('./')
+  // The tutorial is the default route; these journeys are the scenario.
+  await page.goto('./#/parcels')
   await expect(page.getByTestId('boot-badge')).toContainText('Python ready', { timeout: 60_000 })
 }
 
@@ -259,7 +260,7 @@ test('cross-origin isolation is obtained without server headers', async ({ page 
 })
 
 test('the degraded posture is still a working app', async ({ page }) => {
-  await page.goto('./?nonisolated')
+  await page.goto('./?nonisolated#/parcels')
   await expect(page.getByTestId('boot-badge')).toContainText('Python ready', { timeout: 60_000 })
   await attempt(page, CORRECT)
   await expect(page.getByTestId('feedback')).toHaveAttribute('data-status', 'passed')

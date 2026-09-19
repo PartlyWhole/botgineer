@@ -25,6 +25,9 @@ npm run test:browser  # playwright against the PRODUCTION build at /botgineer/
 | `src/runtime/decode.ts` | tagged values → comparable JS; deliberately partial |
 | `src/game/scenario.ts` | scenario shape; assembles preamble + solution + harness |
 | `src/game/grader.ts` | lifts `answer` from the trace, decodes, compares, diagnoses |
+| `src/game/repl.ts` | tutorial session: builds the whole program from the entries so far, reads the object bank out of the trace |
+| `src/app/router.ts` | hash routes — `#/tutorial` (default), `#/parcels` |
+| `src/runtime/shared.ts` | the one session for the page; boot is a module-level promise so React's dev double-invoke cannot start two |
 | `src/game/events.ts` | semantic event bus — the seam between runtime and scene |
 | `src/game/director.ts` | events → character moods. Cosmetic; drives nothing |
 | `src/ui/CodeEditor.tsx` | ONE CodeMirror document holding the whole program; preamble and harness protected by `EditorState.changeFilter`, not hidden. `head`/`tail` come from `assembleProgram` so the editor and the runtime share one string |
@@ -69,7 +72,15 @@ npm run test:browser  # playwright against the PRODUCTION build at /botgineer/
 10. **`window.botgineer` is the test surface.** Browser tests drive
    `setSolution`/`getSolution`/`run`/`state` rather than typing into a
    contenteditable. Keep the shape stable.
-11. **Tests run like production.** Playwright serves the built site at the
+11. **The tutorial's bank is deliberate, and admitted.** Unnamed objects
+   are collected immediately, so the robot holds them in `__memory` to make
+   them visible. The crow says so. Never present them as surviving on their
+   own. Entries are parenthesised on purpose (statement → SyntaxError, not
+   a confusing TypeError), and a failed entry is never committed.
+12. **Identity is the engine's to give.** Show an id chip only where a
+   value came back as a heap `ref`. Scalars have no uid, and inventing one
+   would teach a lie about interning.
+13. **Tests run like production.** Playwright serves the built site at the
    sub-path with **no** isolation headers, so the `coi-serviceworker` path is
    what gets exercised. Do not add COOP/COEP to the test server.
 

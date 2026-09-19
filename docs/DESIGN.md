@@ -41,7 +41,7 @@ Explicitly out of scope for this prototype, and not to be smuggled in:
 - **No collaboration.** No Automerge, no WebRTC.
 - **No i18n.** English strings inline, but see §14 for the extraction risk.
 - **No Rive.** SVG characters with discrete expressions (§10).
-- **One scenario.** Not two. Not a chapter.
+- **Two lessons at most.** The tutorial and one scenario. Not a chapter.
 
 ## 4. The slice: "Heavy Parcels"
 
@@ -284,6 +284,38 @@ Rive is the upgrade path (it is what Duolingo uses) and the event-bus seam is
 what makes it a swap rather than a rewrite. It is not in the MVP because
 authoring state machines is a design job, not an engineering one.
 
+## 10a. The tutorial mode — "First Objects"
+
+A second screen, and the default route. No customer and no request: the
+player is alone with a crow and an empty robot. They type values at a
+`>>>` prompt and watch objects appear.
+
+**The honest problem.** CPython collects an object the instant nothing
+refers to it. `10` on its own is built and thrown away before anyone could
+look at it. To *show* an unnamed object persisting, something has to hold
+it — so the robot does, in a list. The crow says this out loud rather than
+letting the player believe objects linger by themselves, because "why did
+my object disappear" is the next lesson, not a bug to hide.
+
+**Each entry re-runs the whole session.** There is no incremental
+interpreter state to keep in sync, the trace always describes the whole
+session, and a line that fails is simply not committed, so it cannot leave
+debris that breaks every later entry. A tutorial is a few dozen lines.
+
+**Entries are parenthesised.** `__memory.append(x = 5)` is a legal keyword
+argument that fails later as a baffling TypeError; `append((x = 5))` is the
+SyntaxError it actually is, which the crow can then explain.
+
+**Identity comes from the engine, not from us.** Scalars arrive as inline
+tagged values with no uid; containers arrive as heap `ref`s with one. So a
+tile shows an identity chip exactly where sharing is real, and stays silent
+where CPython's interning of small ints and short strings would otherwise
+teach something false. The closing beat — two equal lists that are not the
+same object — is the payoff, and it is true because the interpreter said so.
+
+The guide is a crow rather than a person: the player is learning to program
+the robot, so the teacher should be neither.
+
 ## 11. Event vocabulary
 
 Extends the PLP bus. Runtime events are emitted by the runner; scene events by
@@ -311,6 +343,9 @@ src/ui/CodeEditor.tsx       one locked-region CodeMirror document
 src/ui/Split.tsx            draggable, keyboard-operable, remembered gutters
 src/ui/                     terminal, memory panel, scene, characters
 content/scenarios/          heavy-parcels.ts
+content/tutorial/           first-objects.ts (the crow's beats)
+src/game/repl.ts            session assembly, object extraction
+src/app/router.ts           hash routes: #/tutorial (default), #/parcels
 tests/semantics/            reference solutions run in real Pyodide (the answer key)
 tests/browser/              one end-to-end journey, run against the built site
 .github/workflows/deploy.yml

@@ -2,15 +2,19 @@
 
 **<https://partlywhole.github.io/botgineer/>**
 
-Learn Python by programming a robot. People come to the depot desk with
-requests; you write the code the robot answers with.
+Learn Python by programming a robot. A crow teaches you to fill the robot's
+memory with objects; later, people come to the depot desk with requests and
+you write the code the robot answers with.
 
 Every answer is produced by **real CPython 3.14**, running in a Web Worker in
 your browser. The memory panel is a rendering of what that interpreter
 actually did — not a drawing of what it would have done. No accounts, no
 backend, nothing leaves the page.
 
-This is a prototype: **one** scenario, end to end, to prove the seams.
+This is a prototype: two lessons — **First Objects** (a `>>>` prompt, and
+every value you type appears in the robot's memory as the object Python
+really built) and **Heavy Parcels** (a customer, a function to write, a
+contract to satisfy).
 [`docs/DESIGN.md`](docs/DESIGN.md) is the design of record.
 
 ## Run it
@@ -28,7 +32,7 @@ worker; after that it is cached.
 ```bash
 npm run typecheck
 npm run test          # semantic tests: real CPython via Pyodide
-npm run test:browser  # 14 journeys against the production build
+npm run test:browser  # 24 journeys against the production build
 ```
 
 `npm run test` is the important one. Every scenario ships an `expected`
@@ -71,9 +75,9 @@ repository variable `BASE_PATH` to `/`.
 
 ```
 src/runtime/      session wrapper, wire-format types, value decoder
-src/game/         scenario shape, grader, event bus, director
+src/game/         scenario shape, grader, REPL session, event bus, director
 src/ui/           code editor, terminal, memory panel, scene, characters, gutters
-content/scenarios/ the encounters
+content/          the encounters and the tutorial beats
 public/runtime/   vendored PyTrace; Pyodide copied in at build time
 ```
 
@@ -93,8 +97,11 @@ Four rules carry most of the weight:
 
 ## What this release is not
 
-- **One scenario.** "Heavy Parcels". The rest is scaffolding for content that
-  does not exist yet, and that is the honest risk.
+- **Two lessons.** The rest is scaffolding for content that does not exist
+  yet, and that is the honest risk.
+- **The tutorial's objects are held, not immortal.** Python collects an
+  unnamed object immediately; the robot keeps a reference so you can see it,
+  and the crow says so rather than letting you believe otherwise.
 - **No block editor.** Text, in a real editor (CodeMirror, Python syntax,
   indent/dedent, comment toggling). Visual code that emits Python is a later
   milestone with its own program-tree and emitter work.
