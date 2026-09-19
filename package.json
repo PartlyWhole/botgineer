@@ -1,0 +1,33 @@
+{
+  "name": "botgineer",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Learn Python by programming a robot. Real CPython in the browser; no backend.",
+  "scripts": {
+    "dev": "node scripts/copy-runtime.mjs && vite",
+    "build": "node scripts/copy-runtime.mjs && tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:browser": "playwright test",
+    "serve:subpath": "node scripts/serve-subpath.mjs"
+  },
+  "dependencies": {
+    "@xterm/addon-fit": "^0.10.0",
+    "@xterm/xterm": "^5.5.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "@types/node": "^24.13.3",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "pyodide": "314.0.2",
+    "typescript": "~6.0.2",
+    "vite": "^8.3.0",
+    "vitest": "^5.0.1"
+  }
+}

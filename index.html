@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>BotGineer</title>
+    <meta name="description" content="Learn Python by programming a robot. Real CPython in the browser, no backend." />
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <script>
+      // Cross-origin isolation via service worker: GitHub Pages cannot send
+      // COOP/COEP headers, and SharedArrayBuffer is what gives PyTrace live
+      // input and cooperative interrupt. `?nonisolated` opts out into the
+      // engine's documented degraded mode.
+      if (!new URLSearchParams(location.search).has('nonisolated')) {
+        document.write('<script src="./coi-serviceworker.js"><\/script>')
+      } else if ('serviceWorker' in navigator) {
+        navigator.serviceWorker
+          .getRegistrations()
+          .then((rs) => rs.forEach((r) => r.unregister()))
+      }
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

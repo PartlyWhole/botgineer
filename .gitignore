@@ -1,0 +1,11 @@
+node_modules/
+# Root build output only: the vendored engine has its own dist/ holding
+# the pytrace wheel, which MUST be committed.
+/dist/
+test-results/
+playwright-report/
+.DS_Store
+# Copied from the pinned npm package at build time by scripts/copy-runtime.mjs.
+public/runtime/pyodide/
+public/runtime/runtime-version.json
+*.tsbuildinfo

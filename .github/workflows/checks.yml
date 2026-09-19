@@ -1,0 +1,30 @@
+# Pull-request checks. Same work as the deploy build, publishing nothing.
+name: Checks
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    env:
+      VITE_BASE: ${{ vars.BASE_PATH || format('/{0}/', github.event.repository.name) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run test
+      - run: npm run build
+      - run: |
+          npx playwright install --with-deps chromium
+          npm run test:browser
+        env:
+          BASE_PATH: ${{ env.VITE_BASE }}
