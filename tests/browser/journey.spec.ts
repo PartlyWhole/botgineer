@@ -66,7 +66,13 @@ test('a correct solution passes, the robot speaks, and the crates light up', asy
 
   // The memory panel renders a trace the interpreter produced.
   await expect(page.getByTestId('step-label')).toContainText('/')
-  await expect(page.getByTestId('names')).toContainText('parcels')
+  const names = page.getByTestId('names')
+  await expect(names).toContainText('parcels')
+  await expect(names).toContainText('answer')
+  // Python prints 5.0, not 5. The whole scenario turns on that boundary, so
+  // the memory panel must spell floats the way the interpreter does.
+  await expect(names).toContainText('LIMIT')
+  await expect(names).toContainText("('E5', 5.0)")
 })
 
 test('a >= mistake gets the specific diagnosis, not a shrug', async ({ page }) => {

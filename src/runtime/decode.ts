@@ -8,6 +8,11 @@
  */
 import type { HeapNode, TraceValue } from './types'
 
+/** A Python float. Kept distinct from an int so the memory panel can print
+ *  `5.0` rather than `5` — this tool's whole premise is showing what Python
+ *  really did, and `5` vs `5.0` is exactly the kind of detail a learner is
+ *  being asked to notice. Equality still follows Python, where `5 == 5.0`. */
+export type DecodedFloat = { __float: number }
 /** A Python tuple — distinct from a list, because returning the wrong one is
  *  a real mistake worth diagnosing. */
 export type DecodedTuple = { __tuple: Decoded[] }
@@ -28,6 +33,7 @@ export type Decoded =
   | boolean
   | number
   | string
+  | DecodedFloat
   | Decoded[]
   | DecodedTuple
   | DecodedDict
@@ -35,6 +41,17 @@ export type Decoded =
   | DecodedOpaque
   | DecodedElided
   | DecodedCycle
+
+export const isFloat = (d: Decoded): d is DecodedFloat =>
+  typeof d === 'object' && d !== null && '__float' in d
+
+/** Python-side numeric value of an int or a float, or null if it is neither.
+ *  Used for both comparison and display. */
+export function asNumber(d: Decoded): number | null {
+  if (typeof d === 'number') return d
+  if (isFloat(d)) return d.__float
+  return null
+}
 
 export const isElided = (d: Decoded): d is DecodedElided =>
   typeof d === 'object' && d !== null && '__elided' in d
@@ -81,10 +98,10 @@ function decode(
     }
     case 'float': {
       const v = value as { decimal?: string; special?: string }
-      if (v.special === 'Infinity') return Infinity
-      if (v.special === '-Infinity') return -Infinity
-      if (v.special === 'NaN') return NaN
-      return v.decimal === undefined ? { __opaque: 'float' } : Number(v.decimal)
+      if (v.special === 'Infinity') return { __float: Infinity }
+      if (v.special === '-Infinity') return { __float: -Infinity }
+      if (v.special === 'NaN') return { __float: NaN }
+      return v.decimal === undefined ? { __opaque: 'float' } : { __float: Number(v.decimal) }
     }
     case 'str':
       return (value as { value: string }).value
@@ -153,10 +170,16 @@ function decodeNode(
  *  sets compare without order, tuples never equal lists, dict entry order is
  *  ignored. */
 export function decodedEquals(a: Decoded, b: Decoded): boolean {
+  // Numbers are checked BEFORE the identity shortcut: Python equates ints
+  // and floats (`5 == 5.0`), and NaN equals nothing — not even the same NaN
+  // object, which an identity fast path would wrongly call equal.
+  const na = asNumber(a)
+  const nb = asNumber(b)
+  if (na !== null && nb !== null) return na === nb
+  if (na !== null || nb !== null) return false
+
   if (a === b) return true
-  if (typeof a === 'number' && typeof b === 'number') {
-    return Number.isNaN(a) && Number.isNaN(b) ? false : a === b
-  }
+
   if (Array.isArray(a) || Array.isArray(b)) {
     if (!Array.isArray(a) || !Array.isArray(b)) return false
     return a.length === b.length && a.every((x, i) => decodedEquals(x, b[i] as Decoded))
@@ -190,13 +213,24 @@ function unorderedEquals(a: Decoded[], b: Decoded[]): boolean {
   })
 }
 
+/** `repr()` of a Python float: always a decimal point, and Python's own
+ *  spellings for the specials. */
+function pythonFloat(n: number): string {
+  if (Number.isNaN(n)) return 'nan'
+  if (n === Infinity) return 'inf'
+  if (n === -Infinity) return '-inf'
+  if (Number.isInteger(n)) return Object.is(n, -0) ? '-0.0' : `${n}.0`
+  return String(n)
+}
+
 /** Renders a decoded value the way Python would print it. Used for the
  *  robot's speech and for feedback, so what the player reads matches what
  *  they would see in a terminal. */
 export function formatDecoded(d: Decoded): string {
   if (d === null) return 'None'
   if (typeof d === 'boolean') return d ? 'True' : 'False'
-  if (typeof d === 'number') return Object.is(d, -0) ? '-0.0' : String(d)
+  if (typeof d === 'number') return String(d)
+  if (isFloat(d)) return pythonFloat(d.__float)
   if (typeof d === 'string') return JSON.stringify(d).replace(/^"|"$/g, "'")
   if (Array.isArray(d)) return `[${d.map(formatDecoded).join(', ')}]`
   if ('__tuple' in d) {

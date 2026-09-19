@@ -5,7 +5,7 @@
  * structured data in, a list built by a loop (which is what makes the memory
  * panel worth looking at), a value out, and a reaction that is checkable.
  */
-import type { Decoded } from '../../src/runtime/decode'
+import { asNumber, type Decoded } from '../../src/runtime/decode'
 import { parcelsLiteral, pyFloat, type Scenario, type World } from '../../src/game/scenario'
 
 const world: World = {
@@ -92,7 +92,8 @@ export const heavyParcels: Scenario = {
       },
       {
         id: 'returned-weights',
-        when: (got) => Array.isArray(got) && got.length > 0 && got.every((x) => typeof x === 'number'),
+        when: (got) =>
+          Array.isArray(got) && got.length > 0 && got.every((x) => asNumber(x) !== null),
         say: 'Those are the weights. Mira needs the parcel *ids* — that is `parcel[0]`, not `parcel[1]`.',
       },
       {
