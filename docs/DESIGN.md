@@ -230,9 +230,17 @@ Rules that are not optional:
 - **Every run reaches a terminal state on every path.** Success, throw and
   interrupt all end the attempt and re-enable the controls.
 
-Budgets are raised deliberately from the defaults (`max_steps` 1000,
-`wall_clock_s` 10) because a loop over five parcels plus function-call overhead
-sits comfortably under 5000 steps, and a runaway loop should still stop fast.
+Budgets are set deliberately per scenario. **`max_steps` is what actually
+bounds a runaway**; `wall_clock_s` is a second line of defence, because it
+is a main-thread timer and a page busy rendering a fast record stream can
+starve it.
+
+Per-step cost scales with the reachable heap — every step is a complete
+snapshot — so the budget is not free headroom. Measured, not guessed: a
+runaway in this scenario reaches 5,000 steps in minutes on a loaded
+machine and 2,000 in about a minute, while the intended solution takes 28
+steps and a nested-loop version takes a few hundred. 2,000 it is, and Stop
+is available throughout.
 
 ## 9. Isolation and hosting
 
@@ -287,8 +295,19 @@ authoring state machines is a design job, not an engineering one.
 ## 10a. The tutorial mode — "First Objects"
 
 A second screen, and the default route. No customer and no request: the
-player is alone with a crow and an empty robot. They type values at a
-`>>>` prompt and watch objects appear.
+player is alone with a crow and an empty robot. They **talk to the robot**
+— in Python — and watch the objects it builds appear.
+
+**Three voices, never interchangeable.** The player writes Python. The
+robot *reports*: what it built, or which error Python stopped it with, and
+nothing more. The crow *teaches*: every word of interpretation, praise,
+nudge and explanation. Blurring the two would make the robot an oracle,
+and the whole game is about learning to drive it.
+
+The frame is a conversation; the content is still real Python. What the
+player types is rendered as code, because it is code — the point is that
+writing Python is how you talk to this machine, not that the Python has
+been hidden behind a chat toy.
 
 **The honest problem.** CPython collects an object the instant nothing
 refers to it. `10` on its own is built and thrown away before anyone could
@@ -363,8 +382,8 @@ The MVP is done when, on the deployed Pages URL:
    misconception message, not a generic one.
 5. A **crashing** solution ends at `uncaught_exception`, shows the traceback,
    and leaves the controls usable.
-6. An **infinite loop** hits `step_limit` or `wall_clock_s`, ends, and leaves
-   the controls usable.
+6. An **infinite loop** hits `step_limit`, ends, and leaves the controls
+   usable. Stop is available throughout.
 7. Reloading a deep link works (hash routing).
 8. A semantic test proves `expected` equals what the reference solution really
    produces in Pyodide.

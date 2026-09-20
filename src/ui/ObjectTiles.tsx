@@ -6,17 +6,9 @@
  * containers, where sharing is real — and never on a plain number or
  * string, where CPython's interning would teach something false.
  */
-import { sharesIdentity, type MemoryObject } from '../game/repl'
+import { identityLabels, sharesIdentity, type MemoryObject } from '../game/repl'
 
 const SCALARS = new Set(['int', 'float', 'str', 'bool', 'NoneType'])
-
-/** Short, stable label for a heap identity. The engine's uids are not
- *  meaningful across runs, so this is a within-session nickname, not an
- *  address the player should read anything into. */
-function idLabel(uid: string, order: string[]): string {
-  const n = order.indexOf(uid)
-  return `#${n < 0 ? '?' : n + 1}`
-}
 
 export function ObjectTiles({
   objects,
@@ -28,12 +20,12 @@ export function ObjectTiles({
   if (objects.length === 0) {
     return (
       <div className="tiles empty">
-        <p>Nothing here yet. Whatever you type at the prompt turns up in this space.</p>
+        <p>Nothing here yet. Whatever you ask the robot to make turns up in this space.</p>
       </div>
     )
   }
 
-  const order = [...new Set(objects.map((o) => o.uid).filter((u): u is string => u !== null))]
+  const labels = identityLabels(objects)
 
   return (
     <div className="tiles" data-testid="tiles">
@@ -50,14 +42,14 @@ export function ObjectTiles({
           >
             <figcaption className="tile-type">
               {o.typeName}
-              {o.uid !== null && (
+              {labels.has(o.slot) && (
                 <span className="tile-id" title="This object has its own identity">
-                  {idLabel(o.uid, order)}
+                  {labels.get(o.slot)}
                 </span>
               )}
             </figcaption>
             <div className="tile-value">{o.text}</div>
-            {twin && <p className="tile-note">same object as {idLabel(twin.uid ?? '', order)}</p>}
+            {twin && <p className="tile-note">same object as {labels.get(twin.slot)}</p>}
           </figure>
         )
       })}

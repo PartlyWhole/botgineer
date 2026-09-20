@@ -110,6 +110,24 @@ export function readMemory(steps: StepRecord[]): MemoryObject[] {
   return []
 }
 
+/** Within-session nicknames for the objects that have a heap identity.
+ *
+ *  One source, used by both the memory tiles and the robot's replies, so
+ *  the two can never disagree about which object is which. The engine's
+ *  uids are not meaningful across runs, so these are labels for this
+ *  session only — not addresses to read anything into. */
+export function identityLabels(objects: MemoryObject[]): Map<number, string> {
+  const order: string[] = []
+  const labels = new Map<number, string>()
+  for (const o of objects) {
+    if (o.uid === null) continue
+    let n = order.indexOf(o.uid)
+    if (n < 0) n = order.push(o.uid) - 1
+    labels.set(o.slot, `#${n + 1}`)
+  }
+  return labels
+}
+
 /** Two slots hold the very same object. Only ever true for values the
  *  engine gave a heap identity, which is exactly where sharing is real. */
 export function sharesIdentity(a: MemoryObject, b: MemoryObject): boolean {

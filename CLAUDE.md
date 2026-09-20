@@ -90,7 +90,13 @@ npm run test:browser  # playwright against the PRODUCTION build at /botgineer/
   a user `__repr__`, so the exception object comes back `opaque` and there is
   no message. The origin line comes from the first `exception` **step**, and
   is reported relative to the player's own code.
-- `max_steps` (default 1000) and `wall_clock_s` (default 10) are raised per
-  scenario. A budget terminal keeps the truncated trace.
+- `max_steps` (default 1000) and `wall_clock_s` (default 10) are set per
+  scenario. A budget terminal keeps the truncated trace. **`max_steps` is
+  what actually bounds a runaway**: `wall_clock_s` is a main-thread timer
+  and a page busy rendering records can starve it, so do not rely on it as
+  the first line of defence. Per-step cost scales with the reachable heap,
+  so raising `max_steps` makes an endless loop feel like a hang — measured,
+  not guessed (5,000 steps with the scenario's data in scope ran for
+  minutes; 2,000 is ~70x the intended solution's 28 steps).
 - Live `input()` and cooperative interrupt need `crossOriginIsolated`.
   Drive capability UI from `header.host.capabilities`, never from a guess.

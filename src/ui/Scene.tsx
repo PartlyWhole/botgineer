@@ -4,6 +4,7 @@
  * The crates are generated from the same `world` object as the Python
  * preamble, so the picture and the data cannot drift apart.
  */
+import { memo } from 'react'
 import { Courier, Robot } from './Characters'
 import type { Cast } from '../game/director'
 import type { World } from '../game/scenario'
@@ -17,7 +18,18 @@ type Props = {
   highlighted: string[]
 }
 
-export function Scene({ cast, npcName, npcLine, robotLine, world, highlighted }: Props) {
+/** Memoised: the frame pump re-renders the screen once per animation frame
+ *  while a trace streams, and re-diffing two full SVG characters and the
+ *  belt 60 times a second is pure waste — none of this changes during a
+ *  run. Callers must keep `highlighted` referentially stable. */
+export const Scene = memo(function Scene({
+  cast,
+  npcName,
+  npcLine,
+  robotLine,
+  world,
+  highlighted,
+}: Props) {
   const picked = new Set(highlighted)
   return (
     <section className="scene" aria-label="The depot desk">
@@ -60,4 +72,4 @@ export function Scene({ cast, npcName, npcLine, robotLine, world, highlighted }:
       </div>
     </section>
   )
-}
+})

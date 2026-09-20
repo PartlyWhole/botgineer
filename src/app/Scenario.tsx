@@ -48,7 +48,13 @@ export function Scenario() {
   // The editor owns the program text after mount, so the head/tail it locks
   // must be the same strings the runtime runs. Both come from here.
   const program = useMemo(() => assembleProgram(scenario, solution), [solution])
-  const { head, tail, source, solutionStartLine, solutionEndLine } = program
+  const { head, tail, solutionStartLine, solutionEndLine } = program
+  // What gets RUN is assembled from the editor's live document, not from
+  // React state. Closing over the rendered program meant a caller that set
+  // the solution and ran in the same tick — which the debug API makes easy
+  // — would silently run the previous program and be graded on it.
+  const solutionRef = useRef(solution)
+  solutionRef.current = solution
 
   // The runtime boots once for the whole page; this screen only opens the
   // encounter when it is up.
@@ -65,6 +71,8 @@ export function Scenario() {
 
   const run = useCallback(async () => {
     if (running || boot.state !== 'ready') return
+    const live = editorRef.current?.read() ?? solutionRef.current
+    const { source, solutionStartLine: firstLine } = assembleProgram(scenario, live)
 
     // Reset per-run state only after we know we are allowed to run.
     setRunning(true)
@@ -125,12 +133,12 @@ export function Scenario() {
     // stderr, so the console would otherwise stay silent on a crash.
     if (terminal?.reason === 'uncaught_exception') {
       term.write(
-        `\n${describeException(terminal.exception, stepsRef.current, solutionStartLine)}\n`,
+        `\n${describeException(terminal.exception, stepsRef.current, firstLine)}\n`,
         'stderr',
       )
     }
 
-    const v = grade(scenario, stepsRef.current, terminal, solutionStartLine)
+    const v = grade(scenario, stepsRef.current, terminal, firstLine)
     setVerdict(v)
     if (terminal) {
       events.emit({
@@ -145,7 +153,7 @@ export function Scenario() {
       passed: v.status === 'passed',
       misconception: v.status === 'failed' ? v.misconception : null,
     })
-  }, [attempt, boot.state, running, solutionStartLine, source, term])
+  }, [attempt, boot.state, running, term])
 
   const steps = stepsRef.current
   const shown = Math.min(index, Math.max(0, steps.length - 1))
@@ -159,7 +167,7 @@ export function Scenario() {
   useEffect(() => {
     const api = {
       setSolution: (text: string) => editorRef.current?.replace(text),
-      getSolution: () => solution,
+      getSolution: () => editorRef.current?.read() ?? solutionRef.current,
       run: () => run(),
       state: () => ({
         boot: boot.state,
@@ -174,9 +182,12 @@ export function Scenario() {
   const answer = verdict && 'answer' in verdict ? verdict.answer : null
   const robotLine =
     answer === null ? null : `These are over ${scenario.world.limit} kg: ${formatDecoded(answer)}`
-  const highlighted = Array.isArray(answer)
-    ? answer.filter((x): x is string => typeof x === 'string')
-    : []
+  // Referentially stable so the memoised Scene can skip the frame pump's
+  // re-renders; a fresh array every frame would defeat the memo entirely.
+  const highlighted = useMemo(
+    () => (Array.isArray(answer) ? answer.filter((x): x is string => typeof x === 'string') : []),
+    [answer],
+  )
 
   return (
     <>

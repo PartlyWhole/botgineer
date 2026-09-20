@@ -1,52 +1,59 @@
 /**
- * The tutorial screen: a prompt, a crow, and the robot's memory.
+ * The tutorial screen: a conversation with the robot, and its memory.
  *
- * No customer and no request. The player types values, Python builds
- * objects, and the objects appear. Nothing is bound to a name — that is
- * the point, and it is also why the robot has to hold them (see
+ * No customer and no request. The player tells the robot to make things,
+ * Python builds them, and the objects appear. Nothing is bound to a name —
+ * that is the point, and it is also why the robot has to hold them (see
  * `src/game/repl.ts`).
+ *
+ * Three voices, and the split is deliberate: the player writes Python, the
+ * robot reports what it did, the crow teaches. The robot is never an
+ * oracle; every word of interpretation belongs to the crow.
  */
 import { useCallback, useRef, useState } from 'react'
 import { session, useRuntime } from '../runtime/shared'
 import type { StepRecord, TerminalRecord } from '../runtime/types'
-import { buildProgram, readMemory, type MemoryObject } from '../game/repl'
+import { buildProgram, identityLabels, readMemory, type MemoryObject } from '../game/repl'
+import { crowOnError, GREETING, robotMade, robotRefused } from '../game/robotVoice'
 import { events } from '../game/events'
 import { useCast } from '../game/director'
 import { closing, firstObjects } from '../../content/tutorial/first-objects'
 import { Crow } from '../ui/Crow'
+import { richText } from '../ui/richText'
 import { ObjectTiles } from '../ui/ObjectTiles'
-import { Repl, type ReplLine } from '../ui/Repl'
+import { Conversation, type Message } from '../ui/Conversation'
 import { Gutter, useRemembered } from '../ui/Split'
-
-const OPENING: ReplLine[] = [
-  { kind: 'note', text: 'Python 3.14 — the robot is listening.' },
-]
 
 /** A tutorial line is short. The budget only has to stop a runaway. */
 const OPTIONS = { max_steps: 2000, wall_clock_s: 15 }
+
+const opening = (): Message[] => [
+  { from: 'robot', text: GREETING },
+  { from: 'crow', text: firstObjects[0]?.say ?? '' },
+]
 
 export function Tutorial() {
   const boot = useRuntime()
   const cast = useCast()
   const [entries, setEntries] = useState<string[]>([])
-  const [lines, setLines] = useState<ReplLine[]>(OPENING)
+  const [messages, setMessages] = useState<Message[]>(opening)
   const [memory, setMemory] = useState<MemoryObject[]>([])
   const [beatIndex, setBeatIndex] = useState(0)
   const [busy, setBusy] = useState(false)
   const attemptRef = useRef(0)
 
-  const [tilesH, setTilesH] = useRemembered('botgineer.tutorial.tiles', 300)
+  const [tilesH, setTilesH] = useRemembered('botgineer.tutorial.tiles', 280)
 
   const beat = firstObjects[beatIndex] ?? null
   const done = beatIndex >= firstObjects.length
 
-  const say = useCallback((line: ReplLine) => setLines((ls) => [...ls, line]), [])
+  const push = useCallback((...added: Message[]) => setMessages((m) => [...m, ...added]), [])
 
-  const submit = useCallback(
+  const send = useCallback(
     async (source: string) => {
       if (busy || boot.state !== 'ready') return
       setBusy(true)
-      say({ kind: 'input', text: source })
+      push({ from: 'you', code: source })
 
       attemptRef.current += 1
       events.emit({
@@ -75,7 +82,14 @@ export function Tutorial() {
       if (failure !== null || terminal?.reason !== 'completed') {
         // A line that did not work is never committed, so the session
         // cannot accumulate debris that breaks every later entry.
-        say({ kind: 'error', text: failure ?? describeFailure(terminal) })
+        const errorType =
+          terminal?.reason === 'uncaught_exception'
+            ? (terminal.exception?.type_name ?? null)
+            : null
+        push(
+          { from: 'robot', text: robotRefused(errorType), tone: 'error' },
+          { from: 'crow', text: failure ?? crowOnError(errorType) },
+        )
         events.emit({
           type: 'attempt-graded',
           scenarioId: 'first-objects',
@@ -90,7 +104,11 @@ export function Tutorial() {
       const made = next[next.length - 1]
       setEntries((e) => [...e, source])
       setMemory(next)
-      if (made) say({ kind: 'result', text: made.text })
+
+      if (made) {
+        const label = identityLabels(next).get(made.slot) ?? null
+        push({ from: 'robot', text: robotMade(made, label), code: made.text })
+      }
 
       // Beat checking. An object that is not what this beat asked for is
       // still a real object: it stays in memory, and the crow just asks
@@ -99,13 +117,12 @@ export function Tutorial() {
       if (beat && made) {
         if (beat.accepts(made, next)) {
           passed = true
-          say({ kind: 'note', text: beat.praise })
           const after = beatIndex + 1
           setBeatIndex(after)
-          if (after >= firstObjects.length) say({ kind: 'note', text: closing })
-          else say({ kind: 'note', text: firstObjects[after]?.say ?? '' })
+          push({ from: 'crow', text: beat.praise })
+          push({ from: 'crow', text: after >= firstObjects.length ? closing : (firstObjects[after]?.say ?? '') })
         } else {
-          say({ kind: 'note', text: beat.nudge })
+          push({ from: 'crow', text: beat.nudge })
         }
       }
 
@@ -117,30 +134,25 @@ export function Tutorial() {
       })
       setBusy(false)
     },
-    [beat, beatIndex, boot.state, busy, done, entries, say],
+    [beat, beatIndex, boot.state, busy, done, entries, push],
   )
 
   const restart = () => {
     setEntries([])
     setMemory([])
-    setLines(OPENING)
+    setMessages(opening())
     setBeatIndex(0)
   }
 
   return (
-    <main className="layout tutorial" style={{ ['--left-w' as string]: '400px' }}>
+    <main className="layout tutorial" style={{ ['--left-w' as string]: '300px' }}>
       <div className="column left">
         <section className="scene guide">
-          <div className="guide-top">
-            {/* The crow occupies the cast's non-player slot: the same bus
-                events that move a character's face move this one. */}
-            <Crow mood={cast.npc} />
-            <div className="bubbles">
-              <p className="bubble npc" data-testid="crow-line">
-                {done ? closing : (beat?.say ?? '')}
-              </p>
-            </div>
-          </div>
+          <Crow mood={cast.npc} />
+          <h2 className="guide-name">Your guide</h2>
+          <p className="guide-task" data-testid="crow-line">
+            {done ? 'Lesson complete.' : richText(beat?.say ?? '')}
+          </p>
 
           <div className="progress" data-testid="progress">
             <span className="quiet">
@@ -148,7 +160,10 @@ export function Tutorial() {
             </span>
             <span className="pips" aria-hidden="true">
               {firstObjects.map((b, i) => (
-                <i key={b.id} className={i < beatIndex ? 'pip done' : i === beatIndex ? 'pip now' : 'pip'} />
+                <i
+                  key={b.id}
+                  className={i < beatIndex ? 'pip done' : i === beatIndex ? 'pip now' : 'pip'}
+                />
               ))}
             </span>
             <button type="button" onClick={restart} data-testid="restart">
@@ -163,13 +178,15 @@ export function Tutorial() {
       <div className="column right">
         <section className="pane grow">
           <div className="pane-head">
-            <span className="pane-title">Prompt</span>
-            <span className="pane-note">type a value, press Enter</span>
+            <span className="pane-title">Talking to the robot</span>
+            <span className="pane-note">in Python — every value you name, it builds</span>
           </div>
-          <Repl
-            lines={lines}
-            onSubmit={(s) => void submit(s)}
-            busy={busy || boot.state !== 'ready'}
+          <Conversation
+            messages={messages}
+            onSend={(s) => void send(s)}
+            busy={busy}
+            disabled={boot.state !== 'ready'}
+            crowMood={cast.npc}
             suggestion={done ? null : (beat?.suggestion ?? null)}
           />
         </section>
@@ -198,23 +215,4 @@ export function Tutorial() {
       </div>
     </main>
   )
-}
-
-/** Turns a non-completed run into something worth reading at a prompt. */
-function describeFailure(terminal: TerminalRecord | null): string {
-  if (!terminal) return 'The robot did not answer. Try again.'
-  if (terminal.reason === 'uncaught_exception') {
-    const type = terminal.exception?.type_name ?? 'Error'
-    if (type === 'SyntaxError') {
-      return 'SyntaxError — that is not an expression. This lesson is about making objects, so type a value like 10 or "John".'
-    }
-    if (type === 'NameError') {
-      return 'NameError — nothing here has a name yet. Type a value rather than a word.'
-    }
-    return `${type} — that did not make an object.`
-  }
-  if (terminal.reason === 'step_limit' || terminal.reason === 'trace_limit') {
-    return 'That took too many steps to finish. Try something smaller.'
-  }
-  return `The run stopped (${terminal.reason}).`
 }

@@ -61,6 +61,10 @@ type Props = {
 export type EditorApi = {
   /** Replaces the editable region, leaving the locked regions alone. */
   replace: (next: string) => void
+  /** The editable region as it is RIGHT NOW. The editor owns the text, so
+   *  anything that needs the current program asks here rather than waiting
+   *  for React to re-render with it. */
+  read: () => string
   focus: () => void
 }
 
@@ -223,6 +227,11 @@ export function CodeEditor({
     viewRef.current = view
     onReadyRef.current?.({
       replace: (next) => replaceSolution(view, boundsRef.current.head, boundsRef.current.tail, next),
+      read: () => {
+        const { head: h, tail: tl } = boundsRef.current
+        const doc = view.state.doc.toString()
+        return doc.slice(h.length, doc.length - tl.length)
+      },
       focus: () => view.focus(),
     })
     return () => {

@@ -119,8 +119,15 @@ Four rules carry most of the weight:
 
 ## Known limits
 
-- A run is bounded: 5,000 trace steps and 20 seconds. Exceeding either stops
-  the run, keeps what was recorded, and says so.
+- A run is bounded by its step budget — 2,000 for the scenario, about 70x
+  what the intended solution needs. Exceeding it stops the run, keeps what
+  was recorded, and says so.
+- **A runaway loop is slow to stop, not instant.** Every step serializes the
+  whole reachable heap, so an endless loop in the scenario takes on the
+  order of a minute to reach its budget on a loaded machine. The
+  `wall_clock_s` budget is a second line of defence rather than the first:
+  it is a main-thread timer, and a page busy rendering a fast record stream
+  can starve it. Stop is available throughout.
 - The value decoder is deliberately partial. Anything outside
   `None`/`bool`/`int`/`float`/`str`/`list`/`tuple`/`dict`/`set` fails grading
   cleanly instead of growing the decoder.

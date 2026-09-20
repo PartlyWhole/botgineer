@@ -74,9 +74,16 @@ export const heavyParcels: Scenario = {
   preamble,
   starter,
   harness,
-  // A loop over five parcels plus call overhead sits far under this; a
-  // runaway loop still stops quickly.
-  options: { max_steps: 5000, wall_clock_s: 20 },
+  // The correct solution takes 28 steps, so this is ~70x headroom for any
+  // legitimate attempt — and it is what actually bounds a runaway.
+  //
+  // `wall_clock_s` is a SECOND line of defence, not the first: it is a
+  // main-thread timer, so a page busy rendering a fast record stream can
+  // starve it. Measured worst case for a runaway here is a few seconds;
+  // raising max_steps is what makes an endless loop feel like a hang,
+  // because every step serializes the whole reachable heap and this
+  // scenario has real data in scope.
+  options: { max_steps: 2000, wall_clock_s: 20 },
   contract: {
     entry: 'respond',
     expected,

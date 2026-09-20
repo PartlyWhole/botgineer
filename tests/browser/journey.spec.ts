@@ -118,6 +118,10 @@ test('a crash is reported with the line in the player own numbering', async ({ p
 })
 
 test('an endless loop stops on the step budget and leaves the page usable', async ({ page }) => {
+  // Inherently the longest journey here: it deliberately runs a program to
+  // its 5,000-step budget and then runs a second one, so it needs more
+  // headroom than a test that just clicks something.
+  test.slow()
   await boot(page)
   await attempt(page, FOREVER)
 
