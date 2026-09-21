@@ -53,13 +53,20 @@ npm run test:browser  # playwright against the PRODUCTION build at /botgineer/
    memory is — that is exactly what this revamp removed.
 3. **`extract.ts` is the only translation.** No panel may import
    `runtime/types` to read a `StepRecord` directly.
-4. **Identity is the engine's to give.** `reference` objects get a badge;
-   `value` objects never do. Values are keyed by type+value so two `10`s
-   are one entry, and the UI must never invite an `is` comparison on them.
-   This runs all the way through the wording: a collection *holds values*
-   and *points at objects*, and a value object is "used by" its holders
-   rather than "pointed at by" them. A pointer points at an identity, and
-   value objects deliberately have none.
+4. **Everything is an object; every slot is a pointer.** Each object gets
+   a handle (`obj1`, `obj2`, …), primitives included, and a collection's
+   elements are pointers to handles: `['x', 'y']` shows as
+   `[obj3, obj4]`. Never inline a literal into its container — that draws
+   a model Python does not have, and it was the first thing to get
+   corrected here.
+   Handles are assigned on first sight and kept for the whole run
+   (`useHandles`), because a handle that renumbers as you scrub is worse
+   than no handle. `value` objects are keyed by type+value, so two `10`s
+   are one object; `reference` objects are keyed by the engine's uid. The
+   two still *look* different, because the difference is real. The stated
+   cost: two equal values CPython did not intern show as one object, so
+   do not build an `is`-on-scalars lesson on this without changing the
+   keying.
 5. **Runs.** Reject a concurrent run **before** resetting per-run state.
    **Every run reaches a terminal state on every path** — success, throw,
    interrupt. A run that never ends wedges every control.

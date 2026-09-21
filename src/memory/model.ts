@@ -12,23 +12,32 @@
  * one module (`extract.ts`) knows how to turn one into the other, so a
  * change to the engine touches one file and every panel keeps working.
  *
- * ## The one judgement call: identity for primitives
+ * ## Everything is an object, and every slot is a pointer
  *
- * The engine gives heap objects a uid and gives scalars none — deliberately,
- * because CPython interns small ints and short strings, and inventing a
- * per-occurrence identity for them would teach a lie about `is`.
+ * `['x', 'y']` is not a box containing two letters; it is a list holding
+ * two pointers, each leading to a `str` object whose value happens to be a
+ * single character. The panel shows it that way — `[obj3, obj4]` — because
+ * that is the model Python actually has, and a diagram that inlines
+ * literals into their container teaches a different, wrong one.
  *
- * But a model with no entry for `10` cannot show "these two names point at
- * the same value", which is the first thing a memory diagram is for. So
- * every value gets an entry here, in two clearly different flavours:
+ * So every object gets a **handle** (`obj1`, `obj2`, …), primitives
+ * included, and a collection's elements are pointers to handles.
  *
- * - `value` objects (int, float, str, bool, None) are keyed by type and
- *   value. Two `10`s are one entry, because for an immutable that is what
- *   Python's semantics let you observe. They carry **no identity badge**,
- *   and the UI must never invite an `is` comparison on them.
- * - `reference` objects (list, dict, set, instance, …) are keyed by the
- *   engine's uid. They carry an identity badge, because for these, sharing
- *   is real and observable.
+ * ## The one judgement call: how values are keyed
+ *
+ * `reference` objects (list, dict, set, instance, …) are keyed by the
+ * engine's uid, which is the truth: sharing is real and observable.
+ *
+ * `value` objects (int, float, str, bool, None) get no uid from the engine,
+ * deliberately — it never invites an `is` comparison on an interned value.
+ * They are keyed here by **type and value**, so two `10`s are one object
+ * with one handle. That is what CPython does for interned values and it is
+ * what makes "these two names point at the same thing" visible.
+ *
+ * The cost, stated plainly: two equal values that CPython did *not* intern
+ * are shown as one object when they are really two. The model cannot tell,
+ * because the engine does not say. Do not build an `is`-on-scalars lesson
+ * on top of this without changing the keying first.
  */
 
 export type ObjectId = string
@@ -98,15 +107,22 @@ export function holdersOf(snapshot: MemorySnapshot, id: ObjectId): PyObject[] {
   )
 }
 
-/** Stable display label for a reference object's identity. Within-session
- *  only: the engine's uids mean nothing across runs, so this is a nickname,
- *  not an address. Value objects get none, by design. */
-export function identityBadges(snapshot: MemorySnapshot): Record<ObjectId, string> {
-  const badges: Record<ObjectId, string> = {}
-  let n = 0
-  for (const id of Object.keys(snapshot.objects).sort()) {
-    const o = snapshot.objects[id]
-    if (o?.kind === 'reference') badges[id] = `#${++n}`
-  }
-  return badges
+/**
+ * Object ids in a stable, readable order for handing out handles.
+ *
+ * References first, by the engine's own uid, so they are numbered in
+ * creation order and a later run never renumbers an earlier object.
+ * Values after them, by type then value, so the order does not depend on
+ * which name happened to mention one first.
+ */
+export function orderedObjectIds(snapshot: MemorySnapshot): ObjectId[] {
+  const rank = (o: PyObject) => (o.kind === 'reference' ? 0 : 1)
+  const uid = (id: ObjectId) => Number(id.slice(2)) || 0
+  return Object.keys(snapshot.objects).sort((a, b) => {
+    const oa = snapshot.objects[a]!
+    const ob = snapshot.objects[b]!
+    if (rank(oa) !== rank(ob)) return rank(oa) - rank(ob)
+    if (oa.kind === 'reference') return uid(a) - uid(b)
+    return oa.type.localeCompare(ob.type) || oa.repr.localeCompare(ob.repr)
+  })
 }

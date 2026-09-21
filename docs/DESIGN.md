@@ -48,28 +48,32 @@ Element  = { label: string | null, target: ObjectId }   // a POINTER
 `extract.ts` is the only module that knows both this and the wire format.
 Change the engine and one file moves.
 
-### 2.1 The judgement call: identity for primitives
+### 2.1 Everything is an object; every slot is a pointer
 
-The engine gives heap objects a uid and gives scalars none — deliberately,
-because CPython interns small ints and short strings, and inventing a
-per-occurrence identity would teach a lie about `is`.
+`['x', 'y']` is not a box with two letters in it. It is a list holding two
+pointers, each leading to a `str` object whose value happens to be one
+character. The panel shows `[obj7, obj8]`, because that is the model
+Python has — and a diagram that inlines literals into their container
+draws a different, wrong one.
 
-But a model with no entry for `10` cannot show *"these two names point at
-the same value"*, which is the first thing a memory diagram is for. So
-every value gets an entry, in two visibly different flavours:
+So every object gets a **handle** (`obj1`, `obj2`, …), primitives
+included. Handles are assigned on first sight and kept for the whole run:
+numbering each snapshot afresh renumbers objects as you scrub, and a
+handle that moves is worse than no handle.
 
-| | keyed by | identity badge | shown as |
-|---|---|---|---|
-| **value** — int, float, str, bool, None | type + value | **no** | green chip |
-| **reference** — list, dict, set, instance, … | the engine's uid | **yes**, `#1` | amber chip |
+| | keyed by | shown as |
+|---|---|---|
+| **value** — int, float, str, bool, None | type + value | green pill |
+| **reference** — list, dict, set, instance, … | the engine's uid | amber pill |
 
-Two `10`s are one entry, because for an immutable that is all Python lets
-you observe. Two equal lists are two entries, because they really are two.
-**The UI must never invite an `is` comparison on a value object**, and the
-absence of a badge is how it says so.
+Two `10`s are one object with one handle, which is what CPython does for
+an interned value and what makes *"these two names point at the same
+thing"* visible. Two equal lists are two objects, because they are.
 
-Badges are within-session nicknames. The engine's uids mean nothing across
-runs and must never be shown as addresses.
+**The cost, stated plainly:** two equal values CPython did *not* intern are
+shown as one object when they are really two. The engine does not say
+which, so the model cannot tell. Do not build an `is`-on-scalars lesson on
+top of this without changing the keying first.
 
 ## 3. The panels
 
@@ -129,14 +133,11 @@ From there the object shows what it holds and what holds it, and
 following a pointer moves the selection, so the graph is *walked* rather
 than dumped. Escape, or the button, puts it back.
 
-**A slot is not automatically a pointer.** `['x', 'y']` holds two string
-*values*, shown as the literals they are; `[[1], [2]]` holds two
-*pointers*, shown as the objects they lead to, with their identities; a
-mixed collection says so. Labelling both "pointers" was wrong in a way
-that mattered — this panel refuses value objects an identity precisely
-because CPython interns them, and a pointer is a thing that points at an
-identity. For the same reason a value object is "used by" its holders,
-never "pointed at by" them.
+**Every slot is a pointer**, and shows the handle it leads to with the
+target's type and value trailing behind as a reading aid: `0 → obj7
+str 'x'`. Showing the literal *instead of* the handle made `['x', 'y']`
+look like a container with two letters inside, which is exactly the
+misconception the panel exists to prevent.
 
 An object nothing points at is drawn dashed and dimmed, because "held by
 nothing" is a fact worth seeing.

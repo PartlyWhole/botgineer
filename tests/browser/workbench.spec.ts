@@ -89,14 +89,19 @@ test('two names for one value share an object; two equal lists do not', async ({
   expect(await targetOf(page, 'xs')).not.toBe(await targetOf(page, 'zs'))
 })
 
-test('only reference objects carry an identity badge', async ({ page }) => {
+test('every object carries a handle, primitives included', async ({ page }) => {
   await open(page, 'sandbox')
   await send(page, 'n = 7\nxs = [7]\n')
 
+  // A collection points at objects, so the primitives it points at need
+  // handles to be pointed at by.
   const intChip = page.locator('.chip.object.value[data-type="int"]')
   const listChip = page.locator('.chip.object.reference[data-type="list"]')
-  await expect(intChip.locator('.badge')).toHaveCount(0)
-  await expect(listChip.locator('.badge')).toHaveCount(1)
+  await expect(intChip.locator('.handle')).toHaveText(/^obj\d+$/)
+  await expect(listChip.locator('.handle')).toHaveText(/^obj\d+$/)
+  // Values and references still look different, because they are.
+  await expect(intChip).toHaveCount(1)
+  await expect(listChip).toHaveCount(1)
 })
 
 test('picking a name pulls it out, with the object it points at', async ({ page }) => {
@@ -130,50 +135,65 @@ test('picking an object pulls out just the object', async ({ page }) => {
   await expect(page.locator('.points-at')).toHaveCount(0)
 })
 
-test('a slot holding a value is not called a pointer', async ({ page }) => {
+test("a list of strings points at objects, it does not contain letters", async ({ page }) => {
   await open(page, 'sandbox')
   await send(page, "letters = ['x', 'y']\n")
   await page.getByTestId('name-letters').click()
 
-  // ['x', 'y'] holds two string VALUES. Calling them pointers contradicts
-  // the rule that value objects have no identity to point at.
-  await expect(page.getByTestId('slots-heading')).toHaveText('holds 2 values')
-  await expect(page.getByTestId('element-0')).toHaveAttribute('data-slot', 'value')
-  await expect(page.getByTestId('element-0')).toContainText("'x'")
-  await expect(page.getByTestId('element-0')).not.toContainText('→')
+  // ['x', 'y'] is a list of two POINTERS to str objects. Drawing the
+  // literals inside the list would be a model Python does not have.
+  await expect(page.getByTestId('slots-heading')).toHaveText('points at 2 objects')
+  for (const i of [0, 1]) {
+    const slot = page.getByTestId(`element-${i}`)
+    await expect(slot).toHaveAttribute('data-target', /^obj\d+$/)
+    await expect(slot.locator('.handle')).toHaveText(/^obj\d+$/)
+    await expect(slot).toContainText('→')
+  }
+  // Different letters are different objects.
+  const a = await page.getByTestId('element-0').getAttribute('data-target')
+  const b = await page.getByTestId('element-1').getAttribute('data-target')
+  expect(a).not.toBe(b)
 })
 
-test('a slot holding an object is a pointer, and says which object', async ({ page }) => {
+test('a slot points at the same handle the object cloud shows', async ({ page }) => {
   await open(page, 'sandbox')
   await send(page, 'nested = [[1], [2]]\n')
   await page.getByTestId('name-nested').click()
 
-  await expect(page.getByTestId('slots-heading')).toHaveText('points at 2 objects')
-  await expect(page.getByTestId('element-0')).toHaveAttribute('data-slot', 'pointer')
-  await expect(page.getByTestId('element-0')).toContainText('list')
-  await expect(page.getByTestId('element-0').locator('.badge')).toHaveCount(1)
+  const target = await page.getByTestId('element-0').getAttribute('data-target')
+  await page.getByTestId('element-0').click()
+  // Following the pointer lands on exactly that object.
+  await expect(page.getByTestId('focus-object').locator('.handle')).toHaveText(target!)
 })
 
-test('a mixed collection says exactly what it holds', async ({ page }) => {
+test('equal values in two collections are the same object', async ({ page }) => {
   await open(page, 'sandbox')
-  await send(page, 'mixed = [1, [2]]\n')
-  await page.getByTestId('name-mixed').click()
-  await expect(page.getByTestId('slots-heading')).toHaveText(
-    'holds 1 value and points at 1 object',
-  )
-})
+  await send(page, "a = ['x']\nb = ['x']\n")
 
-test('a value is used by, not pointed at by', async ({ page }) => {
-  await open(page, 'sandbox')
-  await send(page, "n = 10\nm = 10\nxs = [1]\n")
-
-  await page.getByTestId('name-n').click()
-  await expect(page.getByTestId('object-card').locator('.held-by')).toContainText('used by')
-  await expect(page.getByTestId('object-card').locator('.held-by')).toContainText('m')
-
+  await page.getByTestId('name-a').click()
+  const first = await page.getByTestId('element-0').getAttribute('data-target')
   await page.getByTestId('dismiss').click()
-  await page.getByTestId('name-xs').click()
-  await expect(page.getByTestId('object-card').locator('.held-by')).toContainText('pointed at by')
+  await page.getByTestId('name-b').click()
+  const second = await page.getByTestId('element-0').getAttribute('data-target')
+  // Two separate lists, one interned string: the lists are different
+  // objects, what they point at is not.
+  expect(first).toBe(second)
+})
+
+test('a handle keeps its meaning while you scrub', async ({ page }) => {
+  await open(page, 'sandbox')
+  await send(page, "first = 'a'\nsecond = 'b'\nthird = 'c'\n")
+
+  const scrubber = page.getByTestId('scrubber')
+  await scrubber.fill((await scrubber.getAttribute('max')) ?? '0')
+  await page.getByTestId('name-first').click()
+  const atEnd = await page.getByTestId('focus-object').locator('.handle').innerText()
+
+  // Stepping back must not renumber an object that was already on screen.
+  await page.getByTestId('dismiss').click()
+  await scrubber.fill('2')
+  await page.getByTestId('name-first').click()
+  await expect(page.getByTestId('focus-object').locator('.handle')).toHaveText(atEnd)
 })
 
 test('following a pointer moves the selection to that object', async ({ page }) => {
@@ -184,7 +204,7 @@ test('following a pointer moves the selection to that object', async ({ page }) 
   await page.getByTestId('element-1').click()
   await expect(page.getByTestId('focus-object')).toContainText('str')
   await expect(page.getByTestId('focus-object')).toContainText("'q'")
-  await expect(page.getByTestId('object-card')).toContainText('A value')
+  await expect(page.getByTestId('object-card')).toContainText('An immutable value')
 })
 
 test('Escape and the button both put it back in the cloud', async ({ page }) => {

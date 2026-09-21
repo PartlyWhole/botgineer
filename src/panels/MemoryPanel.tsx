@@ -12,12 +12,18 @@
  * measured in the cloud, rendered at its destination, and animated from
  * the difference — so it is the same element arriving, not a copy fading
  * in somewhere else.
+ *
+ * **Every object has a handle, and every slot of a collection is a
+ * pointer to one.** `['x', 'y']` shows as `[obj3, obj4]`, not as two
+ * letters sitting in a box: the strings are objects the list points at.
+ * Inlining a literal into its container draws a model Python does not
+ * have.
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
   holdersOf,
-  identityBadges,
   namesFor,
+  orderedObjectIds,
   unreferenced,
   type Binding,
   type MemorySnapshot,
@@ -32,25 +38,48 @@ type Focus = {
   objectId: ObjectId
 }
 
+type Handles = Map<ObjectId, string>
+
 const reduced = () =>
   typeof window !== 'undefined' &&
   window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true
 
 const nameKey = (b: { scope: string; name: string }) => `${b.scope}:${b.name}`
 
-export function MemoryPanel({ snapshot }: { snapshot: MemorySnapshot }) {
+/**
+ * Handles are assigned on first sight and kept for the whole run.
+ *
+ * Numbering each snapshot from scratch would renumber objects as you
+ * scrub — `obj3` becoming `obj4` because something new appeared earlier in
+ * the sort — and a handle that moves is worse than no handle at all.
+ */
+function useHandles(snapshot: MemorySnapshot, runKey: string): Handles {
+  const store = useRef({ run: runKey, map: new Map<ObjectId, string>(), next: 1 })
+  return useMemo(() => {
+    if (store.current.run !== runKey) {
+      store.current = { run: runKey, map: new Map(), next: 1 }
+    }
+    const s = store.current
+    for (const id of orderedObjectIds(snapshot)) {
+      if (!s.map.has(id)) s.map.set(id, `obj${s.next++}`)
+    }
+    return new Map(s.map)
+  }, [snapshot, runKey])
+}
+
+export function MemoryPanel({
+  snapshot,
+  runKey = 'one',
+}: {
+  snapshot: MemorySnapshot
+  runKey?: string
+}) {
   const [focus, setFocus] = useState<Focus | null>(null)
-  const badges = useMemo(() => identityBadges(snapshot), [snapshot])
+  const handles = useHandles(snapshot, runKey)
   const orphans = useMemo(() => new Set(unreferenced(snapshot)), [snapshot])
 
   const objects = useMemo(
-    () =>
-      Object.values(snapshot.objects).sort(
-        (a, b) =>
-          a.kind.localeCompare(b.kind) ||
-          a.type.localeCompare(b.type) ||
-          a.repr.localeCompare(b.repr),
-      ),
+    () => orderedObjectIds(snapshot).map((id) => snapshot.objects[id]!),
     [snapshot],
   )
 
@@ -82,17 +111,17 @@ export function MemoryPanel({ snapshot }: { snapshot: MemorySnapshot }) {
 
   /** Moving inside the stage: re-fly from wherever that object sits now. */
   const goToObject = useCallback((id: ObjectId) => {
-    flight.current = { name: null, object: rectOf(`object-${id}`) ?? objectPillRef.current?.getBoundingClientRect() ?? null }
+    flight.current = {
+      name: null,
+      object: rectOf(`object-${id}`) ?? objectPillRef.current?.getBoundingClientRect() ?? null,
+    }
     setFocus({ name: null, objectId: id })
   }, [])
 
-  const goToName = useCallback(
-    (b: Binding) => {
-      flight.current = { name: rectOf(`name-${b.name}`), object: rectOf(`object-${b.target}`) }
-      setFocus({ name: { name: b.name, scope: b.scope }, objectId: b.target })
-    },
-    [],
-  )
+  const goToName = useCallback((b: Binding) => {
+    flight.current = { name: rectOf(`name-${b.name}`), object: rectOf(`object-${b.target}`) }
+    setFocus({ name: { name: b.name, scope: b.scope }, objectId: b.target })
+  }, [])
 
   // The FLIP itself: measure the destination, animate in from the
   // difference. Nothing is duplicated — the pill in the cloud is a gap.
@@ -128,9 +157,7 @@ export function MemoryPanel({ snapshot }: { snapshot: MemorySnapshot }) {
     const gone =
       !snapshot.objects[focus.objectId] ||
       (focus.name !== null &&
-        !snapshot.bindings.some(
-          (b) => b.name === focus.name?.name && b.scope === focus.name.scope,
-        ))
+        !snapshot.bindings.some((b) => b.name === focus.name?.name && b.scope === focus.name.scope))
     if (gone) setFocus(null)
   }, [focus, snapshot])
 
@@ -164,9 +191,9 @@ export function MemoryPanel({ snapshot }: { snapshot: MemorySnapshot }) {
     dataType: o.type,
     content: (
       <>
+        <span className="handle">{handles.get(o.id)}</span>
         <span className="type">{o.type}</span>
         <span className="repr">{o.repr}</span>
-        {badges[o.id] && <span className="badge">{badges[o.id]}</span>}
       </>
     ),
   }))
@@ -180,7 +207,11 @@ export function MemoryPanel({ snapshot }: { snapshot: MemorySnapshot }) {
   }
 
   return (
-    <div className={`memory ${focused ? 'focused' : ''}`} data-testid="memory" data-focused={focused ? 'yes' : 'no'}>
+    <div
+      className={`memory ${focused ? 'focused' : ''}`}
+      data-testid="memory"
+      data-focused={focused ? 'yes' : 'no'}
+    >
       <div className="clouds">
         <Cloud
           title="Names"
@@ -218,13 +249,18 @@ export function MemoryPanel({ snapshot }: { snapshot: MemorySnapshot }) {
                 ref={objectPillRef}
                 data-testid="focus-object"
               >
+                <span className="handle">{handles.get(object.id)}</span>
                 <span className="type">{object.type}</span>
                 <span className="repr">{object.repr}</span>
-                {badges[object.id] && <span className="badge">{badges[object.id]}</span>}
               </div>
             )}
 
-            <button type="button" className="dismiss" onClick={() => setFocus(null)} data-testid="dismiss">
+            <button
+              type="button"
+              className="dismiss"
+              onClick={() => setFocus(null)}
+              data-testid="dismiss"
+            >
               Back to the cloud
             </button>
           </div>
@@ -233,84 +269,13 @@ export function MemoryPanel({ snapshot }: { snapshot: MemorySnapshot }) {
             <ObjectDetail
               object={object}
               snapshot={snapshot}
-              badges={badges}
+              handles={handles}
               onObject={goToObject}
               onName={goToName}
             />
           )}
         </div>
       )}
-    </div>
-  )
-}
-
-/**
- * What a collection holds.
- *
- * A slot is not automatically a pointer. `['x', 'y']` holds two string
- * *values*, shown as the literals they are; `[[1], [2]]` holds two
- * *pointers*, shown as the objects they lead to, with their identities.
- *
- * Labelling both "pointers" was wrong, and wrong in a way that mattered:
- * this panel refuses to give value objects an identity precisely because
- * CPython interns them, and a pointer is a thing that points at an
- * identity. The distinction the model is built on has to be the one the
- * structure view shows.
- */
-function Slots({
-  object,
-  snapshot,
-  badges,
-  onObject,
-}: {
-  object: PyObject
-  snapshot: MemorySnapshot
-  badges: Record<ObjectId, string>
-  onObject: (id: ObjectId) => void
-}) {
-  const slots = (object.elements ?? []).map((e) => ({ e, target: snapshot.objects[e.target] }))
-  const refs = slots.filter((s) => s.target?.kind === 'reference').length
-  const values = slots.length - refs
-  const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
-
-  const heading =
-    slots.length === 0
-      ? 'holds nothing'
-      : refs === 0
-        ? `holds ${plural(values, 'value', 'values')}`
-        : values === 0
-          ? `points at ${plural(refs, 'object', 'objects')}`
-          : `holds ${plural(values, 'value', 'values')} and points at ${plural(refs, 'object', 'objects')}`
-
-  return (
-    <div className="elements">
-      <h4 data-testid="slots-heading">{heading}</h4>
-      <div className="row">
-        {slots.map(({ e, target }, i) => {
-          const isRef = target?.kind === 'reference'
-          return (
-            <button
-              key={i}
-              type="button"
-              className={`chip element ${isRef ? 'reference' : 'value'}`}
-              data-testid={`element-${i}`}
-              data-slot={isRef ? 'pointer' : 'value'}
-              onClick={() => onObject(e.target)}
-            >
-              {e.label !== null && <span className="slot">{e.label}</span>}
-              {isRef && (
-                <span className="to" aria-hidden="true">
-                  →
-                </span>
-              )}
-              <span className="repr">
-                {isRef ? `${target?.type ?? '?'} ${target?.repr ?? ''}` : (target?.repr ?? '?')}
-              </span>
-              {badges[e.target] && <span className="badge">{badges[e.target]}</span>}
-            </button>
-          )
-        })}
-      </div>
     </div>
   )
 }
@@ -330,16 +295,72 @@ function PointsAt() {
   )
 }
 
+/**
+ * What a collection holds: pointers, always.
+ *
+ * A slot shows the handle it leads to, with the target's type and value
+ * behind it as a reading aid. Showing the literal *instead* of the handle
+ * made `['x', 'y']` look like a box with two letters in it, which is a
+ * model Python does not have — the list holds two pointers, and what they
+ * lead to happens to be a pair of one-character strings.
+ */
+function Slots({
+  object,
+  snapshot,
+  handles,
+  onObject,
+}: {
+  object: PyObject
+  snapshot: MemorySnapshot
+  handles: Handles
+  onObject: (id: ObjectId) => void
+}) {
+  const slots = object.elements ?? []
+  const n = slots.length
+
+  return (
+    <div className="elements">
+      <h4 data-testid="slots-heading">
+        {n === 0 ? 'points at nothing' : `points at ${n} object${n === 1 ? '' : 's'}`}
+      </h4>
+      <div className="row">
+        {slots.map((e, i) => {
+          const target = snapshot.objects[e.target]
+          return (
+            <button
+              key={i}
+              type="button"
+              className={`chip element ${target?.kind ?? 'value'}`}
+              data-testid={`element-${i}`}
+              data-target={handles.get(e.target)}
+              onClick={() => onObject(e.target)}
+            >
+              {e.label !== null && <span className="slot">{e.label}</span>}
+              <span className="to" aria-hidden="true">
+                →
+              </span>
+              <span className="handle">{handles.get(e.target) ?? '?'}</span>
+              <span className="preview">
+                {target ? `${target.type} ${target.repr}` : 'unknown'}
+              </span>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 function ObjectDetail({
   object,
   snapshot,
-  badges,
+  handles,
   onObject,
   onName,
 }: {
   object: PyObject
   snapshot: MemorySnapshot
-  badges: Record<ObjectId, string>
+  handles: Handles
   onObject: (id: ObjectId) => void
   onName: (b: Binding) => void
 }) {
@@ -350,11 +371,13 @@ function ObjectDetail({
     <div className="detail" data-testid="object-card">
       <p className="kind-note">
         {object.kind === 'value'
-          ? 'A value. Equal values are the same entry, and it has no identity of its own.'
+          ? 'An immutable value. Two of these that are equal are one object here, the way an interned value is in Python.'
           : 'An object with its own identity — two of these can look the same and still be different.'}
       </p>
 
-      {object.elements !== null && <Slots object={object} snapshot={snapshot} badges={badges} onObject={onObject} />}
+      {object.elements !== null && (
+        <Slots object={object} snapshot={snapshot} handles={handles} onObject={onObject} />
+      )}
 
       {object.partial && (
         <p className="warn">
@@ -363,10 +386,7 @@ function ObjectDetail({
       )}
 
       <div className="held-by">
-        {/* A value has no identity of its own, so nothing can point *at*
-            it in the sense a reference is pointed at. Saying so would
-            contradict the rule the rest of the panel follows. */}
-        <span className="quiet">{object.kind === 'value' ? 'used by' : 'pointed at by'}</span>
+        <span className="quiet">pointed at by</span>
         {names.length === 0 && holders.length === 0 && <span className="none">nothing</span>}
         {names.map((b) => (
           <button
@@ -382,11 +402,11 @@ function ObjectDetail({
           <button
             key={h.id}
             type="button"
-            className="chip object small"
+            className={`chip object small ${h.kind}`}
             onClick={() => onObject(h.id)}
           >
+            <span className="handle">{handles.get(h.id)}</span>
             <span className="type">{h.type}</span>
-            {badges[h.id] && <span className="badge">{badges[h.id]}</span>}
           </button>
         ))}
       </div>

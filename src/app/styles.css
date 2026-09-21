@@ -1052,8 +1052,9 @@ button.tidy:hover {
   border-color: var(--line);
 }
 
-/* A slot holding a value looks like the value; a slot pointing at an
-   object looks like the object. The difference is the lesson. */
+/* A slot is a pointer. The handle it leads to is the content; the target's
+   type and value trail behind it as a reading aid, never as the thing the
+   collection contains. */
 .chip.element.value {
   background: var(--value-bg);
   border-color: var(--value-line);
@@ -1067,6 +1068,22 @@ button.tidy:hover {
 }
 
 .chip.element .to {
-  opacity: 0.6;
+  opacity: 0.55;
   font-size: 11px;
+}
+
+.chip .handle {
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.chip.element .preview {
+  opacity: 0.62;
+  font-size: 11.5px;
+}
+
+.focus-pill .handle {
+  font-weight: 800;
+  font-size: 15px;
+  opacity: 0.85;
 }

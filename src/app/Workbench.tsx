@@ -30,6 +30,9 @@ export function Workbench({ activity }: { activity: Activity }) {
   const [busy, setBusy] = useState(false)
   const [index, setIndex] = useState(0)
   const [transcript, setTranscript] = useState<Transcript[]>([])
+  /** Bumped per run. Object handles are assigned on first sight and kept
+   *  for a whole run, so they must start over when a new one does. */
+  const [runSeq, setRunSeq] = useState(0)
   const [, rerender] = useReducer((x: number) => x + 1, 0)
 
   const [sceneW, setSceneW] = useRemembered('botgineer.wb.scene', 560)
@@ -73,6 +76,7 @@ export function Workbench({ activity }: { activity: Activity }) {
     followingRef.current = true
     setIndex(0)
     setTranscript([])
+    setRunSeq((n) => n + 1)
     events.emit({ type: 'attempt-started', scenarioId: activity.id, attempt: 1 })
 
     const pending: Transcript[] = []
@@ -215,7 +219,7 @@ export function Workbench({ activity }: { activity: Activity }) {
               : `names and objects, as they were at line ${snapshot.line}`}
           </span>
         </div>
-        <MemoryPanel snapshot={snapshot} />
+        <MemoryPanel snapshot={snapshot} runKey={`${activity.id}:${runSeq}`} />
       </section>
     </main>
   )
