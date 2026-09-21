@@ -408,12 +408,6 @@ button.route.current {
   background: var(--surface);
 }
 
-.stage-foot .caption {
-  margin: 0;
-  font-size: 13px;
-  color: var(--ink-soft);
-}
-
 .waiting {
   margin: 6px 0 0;
   padding-left: 18px;

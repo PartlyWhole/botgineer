@@ -61,8 +61,6 @@ export type Watch = {
 export type SceneSpec = {
   id: string
   title: string
-  /** One line telling the player what the scene is. */
-  caption: string
   actors: Actor[]
   watches: Watch[]
 }

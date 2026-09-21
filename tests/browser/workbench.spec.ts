@@ -75,6 +75,8 @@ test('two panels, with memory as a view of the robot', async ({ page }) => {
 
 test('the scene says what it is waiting for, then reacts to memory', async ({ page }) => {
   await open(page, 'wake')
+  // The footer exists only while something is unbound, and says what.
+  await expect(page.locator('.stage-foot')).toHaveCount(1)
   await expect(page.getByTestId('waiting')).toContainText('power')
   await expect(page.getByTestId('actor-lamp')).toHaveAttribute('data-lit', 'no')
 
@@ -85,6 +87,7 @@ test('the scene says what it is waiting for, then reacts to memory', async ({ pa
   await expect(page.locator('[data-testid="actor-nameplate"] .sign-body')).toHaveText('Bolt')
   await expect(page.locator('.gauge-text')).toHaveText('72%')
   await expect(page.getByTestId('waiting')).toHaveCount(0)
+  await expect(page.locator('.stage-foot')).toHaveCount(0)
 })
 
 test('a list in memory picks actors out of the scene', async ({ page }) => {
@@ -376,6 +379,8 @@ test('nothing advertises the runtime working, or the other activities', async ({
   await expect(page.getByTestId('brief')).toHaveCount(0)
   await expect(page.locator('.editor-hint')).toHaveCount(0)
   await expect(page.locator('.pane-note')).toHaveCount(0)
+  // The scene describes itself with its contents, not with a line of prose.
+  await expect(page.locator('.stage-foot')).toHaveCount(0)
 })
 
 test('activities are separate scenes and each deep-links', async ({ page }) => {

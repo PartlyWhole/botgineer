@@ -38,7 +38,6 @@ function memory(
 const spec: SceneSpec = {
   id: 's',
   title: 'test',
-  caption: '',
   actors: [
     { id: 'lamp', kind: 'lamp', x: 0, y: 0 },
     { id: 'sign', kind: 'sign', x: 0, y: 0, label: 'unnamed' },

@@ -32,16 +32,18 @@ export function ScenePanel({
         ))}
       </div>
 
-      <div className="stage-foot">
-        <p className="caption">{spec.caption}</p>
-        {view.waitingFor.length > 0 && (
+      {/* Only when the scene is actually waiting for something. With the
+          description gone there is otherwise nothing to put here, and an
+          empty bar is worse than no bar. */}
+      {view.waitingFor.length > 0 && (
+        <div className="stage-foot">
           <ul className="waiting" data-testid="waiting">
             {view.waitingFor.map((w) => (
               <li key={w.name}>{richText(w.hint)}</li>
             ))}
           </ul>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   )
 }

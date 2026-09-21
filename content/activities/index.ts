@@ -32,7 +32,6 @@ const wakeTheRobot: Activity = {
   scene: {
     id: 'bay',
     title: 'Charging bay',
-    caption: 'A robot on a plinth, waiting to be told about itself.',
     actors: [
       { id: 'plinth', kind: 'plinth', x: 50, y: 74, w: 42 },
       { id: 'robot', kind: 'robot', x: 50, y: 44, w: 26 },
@@ -75,7 +74,6 @@ for parcel in parcels:
   scene: {
     id: 'depot',
     title: 'Depot belt',
-    caption: 'Parcels the robot will lift the moment you name them.',
     actors: [
       { id: 'robot', kind: 'robot', x: 12, y: 40, w: 20 },
       { id: 'A7', kind: 'crate', x: 34, y: 66, w: 12, label: 'A7', group: 'parcels' },
@@ -112,7 +110,6 @@ counts = {"x": 1, "y": 2}
   scene: {
     id: 'workshop',
     title: 'Workshop',
-    caption: 'A crow, a robot, and whatever you decide to build.',
     actors: [
       { id: 'crow', kind: 'crow', x: 30, y: 48, w: 20 },
       { id: 'robot', kind: 'robot', x: 68, y: 48, w: 22 },
