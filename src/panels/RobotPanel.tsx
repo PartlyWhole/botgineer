@@ -2,16 +2,28 @@
  * (B) The robot interface: where the player writes the robot's
  * instructions, runs them, and reads what came back.
  *
- * This is the only panel that *causes* anything. The other two are views
- * of the snapshot it produces. It is also the transport: Run, Stop, and
- * the step slider that moves every panel through the trace together.
+ * This is the only panel that *causes* anything. It is also the transport:
+ * Run, Stop, and the step slider that moves the scene and the memory view
+ * through the trace together.
+ *
+ * Memory is a **view of this panel**, not a panel of its own — the code
+ * and the memory it produced are the same subject, and giving memory its
+ * own box meant the two competed for height and both lost. Both views are
+ * kept mounted, so switching back does not throw away where the graph's
+ * nodes had settled; the hidden one is simply not displayed.
+ *
+ * The transport and the transcript stay put across both views, so a run
+ * can be started and scrubbed while looking at either.
  */
+import type { ReactNode } from 'react'
 import { CodeEditor, type EditorApi } from '../ui/CodeEditor'
 
 export type Transcript =
   | { kind: 'out'; text: string }
   | { kind: 'err'; text: string }
   | { kind: 'note'; text: string }
+
+export type RobotView = 'code' | 'memory'
 
 type Props = {
   program: string
@@ -28,6 +40,8 @@ type Props = {
   onIndex: (i: number) => void
   /** Line the trace is on, highlighted in the editor. */
   traceLine: number | null
+  view: RobotView
+  memory: ReactNode
 }
 
 export function RobotPanel({
@@ -43,16 +57,25 @@ export function RobotPanel({
   total,
   onIndex,
   traceLine,
+  view,
+  memory,
 }: Props) {
   return (
     <div className="robot-panel" data-testid="robot-panel" data-busy={busy ? 'yes' : 'no'}>
-      <CodeEditor
-        solution={program}
-        onSolution={onProgram}
-        onReady={onReady}
-        traceLine={traceLine}
-        disabled={busy}
-      />
+      <div className="views" data-view={view}>
+        <div className="view" hidden={view !== 'code'}>
+          <CodeEditor
+            solution={program}
+            onSolution={onProgram}
+            onReady={onReady}
+            traceLine={traceLine}
+            disabled={busy}
+          />
+        </div>
+        <div className="view" hidden={view !== 'memory'}>
+          {memory}
+        </div>
+      </div>
 
       <div className="transport">
         <button
@@ -82,20 +105,16 @@ export function RobotPanel({
           />
         </label>
         <span className="step-label quiet" data-testid="step-label">
-          {total === 0 ? 'no run yet' : `step ${Math.min(index + 1, total)} / ${total}`}
+          {total === 0 ? '—' : `${Math.min(index + 1, total)} / ${total}`}
         </span>
       </div>
 
       <div className="transcript" data-testid="transcript" aria-live="polite">
-        {transcript.length === 0 ? (
-          <p className="none">Nothing said yet.</p>
-        ) : (
-          transcript.map((t, i) => (
-            <p key={i} className={`t-line ${t.kind}`}>
-              {t.text}
-            </p>
-          ))
-        )}
+        {transcript.map((t, i) => (
+          <p key={i} className={`t-line ${t.kind}`}>
+            {t.text}
+          </p>
+        ))}
       </div>
     </div>
   )

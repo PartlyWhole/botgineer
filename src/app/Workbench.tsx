@@ -18,7 +18,7 @@ import { useCast } from '../game/director'
 import type { Activity } from '../../content/activities'
 import { ScenePanel } from '../panels/ScenePanel'
 import { MemoryPanel } from '../panels/MemoryPanel'
-import { RobotPanel, type Transcript } from '../panels/RobotPanel'
+import { RobotPanel, type RobotView, type Transcript } from '../panels/RobotPanel'
 import type { EditorApi } from '../ui/CodeEditor'
 import { Gutter, useRemembered } from '../ui/Split'
 
@@ -36,8 +36,7 @@ export function Workbench({ activity }: { activity: Activity }) {
   const [, rerender] = useReducer((x: number) => x + 1, 0)
 
   const [sceneW, setSceneW] = useRemembered('botgineer.wb.scene', 560)
-  // The graph needs room to be a graph; a strip of it is unreadable.
-  const [memoryH, setMemoryH] = useRemembered('botgineer.wb.memory2', 430)
+  const [view, setView] = useState<RobotView>('code')
 
   const stepsRef = useRef<StepRecord[]>([])
   const followingRef = useRef(true)
@@ -154,11 +153,10 @@ export function Workbench({ activity }: { activity: Activity }) {
   }, [boot.state, busy, run, snapshot])
 
   return (
-    <main className="workbench" style={{ ['--scene-w' as string]: `${sceneW}px`, ['--memory-h' as string]: `${memoryH}px` }}>
+    <main className="workbench" style={{ ['--scene-w' as string]: `${sceneW}px` }}>
       <section className="pane scene-pane">
         <div className="pane-head">
           <span className="pane-title">Scene</span>
-          <span className="pane-note">{activity.scene.title}</span>
         </div>
         <ScenePanel spec={activity.scene} snapshot={snapshot} mood={cast.robot} />
       </section>
@@ -175,12 +173,25 @@ export function Workbench({ activity }: { activity: Activity }) {
       <section className="pane robot-pane">
         <div className="pane-head">
           <span className="pane-title">Robot</span>
-          <span className="pane-note">tell it what to do, in Python</span>
+          <span className="spacer" />
+          <div className="views-switch" role="group" aria-label="Robot view">
+            {(['code', 'memory'] as RobotView[]).map((v) => (
+              <button
+                key={v}
+                type="button"
+                className={v === view ? 'current' : ''}
+                aria-pressed={v === view}
+                data-testid={`view-${v}`}
+                onClick={() => setView(v)}
+              >
+                {v === 'code' ? 'Code' : 'Memory'}
+              </button>
+            ))}
+          </div>
         </div>
-        <p className="brief" data-testid="brief">
-          {activity.brief}
-        </p>
         <RobotPanel
+          view={view}
+          memory={<MemoryPanel snapshot={snapshot} runKey={`${activity.id}:${runSeq}`} />}
           program={program}
           onProgram={setProgram}
           onReady={(api) => {
@@ -199,28 +210,6 @@ export function Workbench({ activity }: { activity: Activity }) {
           }}
           traceLine={traceLine}
         />
-      </section>
-
-      <Gutter
-        orientation="horizontal"
-        value={memoryH}
-        onChange={setMemoryH}
-        min={220}
-        max={760}
-        invert
-        label="Resize memory"
-      />
-
-      <section className="pane memory-pane">
-        <div className="pane-head">
-          <span className="pane-title">Memory</span>
-          <span className="pane-note">
-            {snapshot.line === null
-              ? 'names, and the objects they point at'
-              : `names and objects, as they were at line ${snapshot.line}`}
-          </span>
-        </div>
-        <MemoryPanel snapshot={snapshot} runKey={`${activity.id}:${runSeq}`} />
       </section>
     </main>
   )

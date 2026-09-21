@@ -18,14 +18,27 @@ is a *view* of that model:
 │  PyTrace + CPython 3.14   │ records  │  memory/extract  ── snapshot ──┐  │
 │  Pyodide 314, self-hosted │ ───────► │                                │  │
 └───────────────────────────┘          │   (A) scene ◄──────────────────┤  │
-        ▲                              │   (C) memory ◄─────────────────┘  │
-        │  run(source, options)        │   (B) robot ── causes it ─────────┤
+        ▲                              │   (B) robot ── causes it ──────┤  │
+        │  run(source, options)        │       └ Code | Memory ◄────────┘  │
         └──────────────────────────────┴───────────────────────────────────┘
 ```
 
-Only **(B)** causes anything. **(A)** and **(C)** render what it produced,
-from the same data, so they cannot disagree — and the step slider moves all
-three together, so scrubbing rewinds the picture as well as the diagram.
+Only **(B)** causes anything. The scene and the memory view render what it
+produced, from the same data, so they cannot disagree — and the step slider
+moves all of them together, so scrubbing rewinds the picture as well as the
+diagram.
+
+**Two panels, not three.** Memory is a *view* of the robot panel, switched
+with Code. As a third panel it competed with the editor for height until
+both were strips, and the code and the memory it produced are the same
+subject anyway. Both views stay mounted, so switching back does not throw
+away where the graph's nodes had settled.
+
+**The chrome is deliberately thin.** No tabs (the sandbox is the starting
+point; the other activities are reachable by hash and advertised nowhere),
+no readiness badge — the runtime's state is a data attribute, because a
+working runtime announcing that it works is noise, and failure still gets
+an alert — and no panel descriptions, briefs or editor hints.
 
 ## 2. The memory model
 

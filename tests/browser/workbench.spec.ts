@@ -26,7 +26,16 @@ declare global {
 
 async function open(page: Page, activity: string) {
   await page.goto(`./#/${activity}`)
-  await expect(page.getByTestId('boot-badge')).toContainText('Python ready', { timeout: 60_000 })
+  // The runtime does not announce that it works; it announces failure.
+  // The shell carries its state as data so there is still something to
+  // wait on without putting a badge on screen.
+  await expect(page.locator('.app')).toHaveAttribute('data-boot', 'ready', { timeout: 60_000 })
+}
+
+/** Memory is a view of the robot panel, so it has to be brought up. */
+async function showMemory(page: Page) {
+  await page.getByTestId('view-memory').click()
+  await expect(page.getByTestId('memory')).toBeVisible()
 }
 
 /** Sends a program and waits for the run to settle. The panel's own busy
@@ -48,13 +57,18 @@ const targetOf = (page: Page, name: string) =>
 
 /* ---------------------------- the three panels ---------------------------- */
 
-test('all three panels are present and the runtime is isolated', async ({ page }) => {
+test('two panels, with memory as a view of the robot', async ({ page }) => {
   await open(page, 'sandbox')
   await expect(page.getByTestId('scene')).toBeVisible()
   await expect(page.getByTestId('robot-panel')).toBeVisible()
-  await expect(page.getByTestId('memory')).toBeVisible()
+  // Memory is not a panel of its own, and Code is what opens.
+  await expect(page.getByTestId('memory')).toBeHidden()
+  await expect(page.getByTestId('editor')).toBeVisible()
+  await showMemory(page)
+  await expect(page.getByTestId('editor')).toBeHidden()
   // GitHub Pages cannot send COOP/COEP; the service-worker shim must.
   await expect.poll(() => page.evaluate(() => window.crossOriginIsolated)).toBe(true)
+  await expect(page.locator('.app')).toHaveAttribute('data-isolated', 'yes')
 })
 
 /* ------------------------------ (A) the scene ------------------------------ */
@@ -112,6 +126,7 @@ async function stillness(page: Page) {
 test('memory is one field of nodes and edges, not two boxes', async ({ page }) => {
   await open(page, 'sandbox')
   await send(page, "letters = ['x', 'y']\nsame = letters\nn = 10\nm = n\n")
+  await showMemory(page)
   await stillness(page)
 
   // 4 names + 4 objects (list, 'x', 'y', 10)
@@ -126,6 +141,7 @@ test('memory is one field of nodes and edges, not two boxes', async ({ page }) =
 test('names settle to the left of objects', async ({ page }) => {
   await open(page, 'sandbox')
   await send(page, "a = 1\nb = 2\nc = 3\n")
+  await showMemory(page)
   await stillness(page)
 
   const mid = async (sel: string) => {
@@ -140,6 +156,7 @@ test('names settle to the left of objects', async ({ page }) => {
 test('every object carries a handle, primitives included', async ({ page }) => {
   await open(page, 'sandbox')
   await send(page, 'n = 7\nxs = [7]\n')
+  await showMemory(page)
   await stillness(page)
 
   // A collection points at objects, so the primitives it points at need
@@ -153,6 +170,7 @@ test('every object carries a handle, primitives included', async ({ page }) => {
 test('picking a name zooms in on it and lights the connection', async ({ page }) => {
   await open(page, 'sandbox')
   await send(page, "letters = ['x', 'y']\nsame = letters\nspare = 99\n")
+  await showMemory(page)
   await stillness(page)
   const before = await zoom(page)
 
@@ -166,12 +184,15 @@ test('picking a name zooms in on it and lights the connection', async ({ page })
   await expect(page.locator('.edge.lit')).toHaveCount(1)
   await expect(page.getByTestId('node-spare')).toHaveClass(/dimmed/)
   await expect(page.getByTestId('node-letters')).not.toHaveClass(/dimmed/)
-  await expect(page.getByTestId('caption')).toContainText('letters points at obj')
+  // The picked node says what it is; there is no prose underneath.
+  await expect(page.getByTestId('node-letters')).toHaveClass(/picked/)
+  await expect(page.getByTestId('caption')).toHaveCount(0)
 })
 
 test("a list points at objects — it does not contain letters", async ({ page }) => {
   await open(page, 'sandbox')
   await send(page, "letters = ['x', 'y']\n")
+  await showMemory(page)
   await stillness(page)
 
   const listId = await page.evaluate(() => {
@@ -185,12 +206,12 @@ test("a list points at objects — it does not contain letters", async ({ page }
   await expect(page.locator('.edge.lit')).toHaveCount(3)
   // The pointers are labelled by index, and only while relevant.
   await expect(page.locator('.edge-label')).toHaveCount(2)
-  await expect(page.getByTestId('caption')).toContainText('Points at 2 objects')
 })
 
 test('clicking a neighbour walks the graph', async ({ page }) => {
   await open(page, 'sandbox')
   await send(page, "letters = ['x', 'y']\n")
+  await showMemory(page)
   await stillness(page)
 
   await page.getByTestId('node-letters').click()
@@ -202,7 +223,6 @@ test('clicking a neighbour walks the graph', async ({ page }) => {
   await stillness(page)
   const second = await page.getByTestId('graph').getAttribute('data-picked')
   expect(second).not.toBe(first)
-  await expect(page.getByTestId('caption')).toContainText('own identity')
 })
 
 test('equal values in two collections are the same object', async ({ page }) => {
@@ -221,6 +241,7 @@ test('equal values in two collections are the same object', async ({ page }) => 
 test('Escape zooms back out and clears the selection', async ({ page }) => {
   await open(page, 'sandbox')
   await send(page, "xs = [1, 2, 3]\nother = 'q'\n")
+  await showMemory(page)
   await stillness(page)
 
   await page.getByTestId('node-xs').click()
@@ -232,12 +253,12 @@ test('Escape zooms back out and clears the selection', async ({ page }) => {
   expect(await zoom(page)).toBeLessThan(zoomedIn)
   await expect(page.getByTestId('graph')).toHaveAttribute('data-picked', '')
   await expect(page.locator('.node.dimmed')).toHaveCount(0)
-  await expect(page.getByTestId('caption')).toContainText('Drag to rearrange')
 })
 
 test('a handle keeps its meaning while you scrub', async ({ page }) => {
   await open(page, 'sandbox')
   await send(page, "first = 'a'\nsecond = 'b'\nthird = 'c'\n")
+  await showMemory(page)
   await stillness(page)
 
   const handleOf = async (name: string) => {
@@ -259,6 +280,7 @@ test('a handle keeps its meaning while you scrub', async ({ page }) => {
 test('dragging a node moves it, and its neighbours follow', async ({ page }) => {
   await open(page, 'sandbox')
   await send(page, "xs = [1, 2]\nloner = 'z'\n")
+  await showMemory(page)
   await stillness(page)
 
   const centre = async (t: string) => {
@@ -347,15 +369,25 @@ test('output reaches the transcript', async ({ page }) => {
 
 /* -------------------------------- activities ------------------------------- */
 
+test('nothing advertises the runtime working, or the other activities', async ({ page }) => {
+  await open(page, 'sandbox')
+  await expect(page.locator('.routes')).toHaveCount(0)
+  await expect(page.getByTestId('boot-badge')).toHaveCount(0)
+  await expect(page.getByTestId('brief')).toHaveCount(0)
+  await expect(page.locator('.editor-hint')).toHaveCount(0)
+  await expect(page.locator('.pane-note')).toHaveCount(0)
+})
+
 test('activities are separate scenes and each deep-links', async ({ page }) => {
   await open(page, 'belt')
-  await expect(page.getByTestId('brief')).toContainText('parcels')
+  await expect(page.getByTestId('actor-B1')).toBeVisible()
   await page.reload()
   await expect(page.getByTestId('actor-A7')).toBeVisible()
 
-  await page.getByTestId('route-wake').click()
+  // No tabs: the other activities are reachable by hash and nothing else.
+  await page.goto('./#/wake')
   await expect(page.getByTestId('actor-lamp')).toBeVisible()
   expect(page.url()).toContain('#/wake')
   // Switching activities starts that one fresh.
-  await expect(page.getByTestId('step-label')).toContainText('no run yet')
+  await expect(page.getByTestId('step-label')).toHaveText('—')
 })

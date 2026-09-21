@@ -171,35 +171,19 @@ button.route.current {
   font-weight: 600;
 }
 
-/* ---------------- workbench: three panels ---------------- */
+/* ---------------- workbench: two panels ---------------- */
 
+/* Memory used to be a third panel here and it competed with the editor
+   for height until both were strips. It is a view of the robot panel now. */
 .workbench {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: var(--scene-w, 560px) var(--gutter) minmax(340px, 1fr);
-  grid-template-rows: minmax(200px, 1fr) var(--gutter) var(--memory-h, 330px);
-  grid-template-areas:
-    'scene  vgut robot'
-    'hgut   hgut hgut'
-    'memory memory memory';
+  grid-template-columns: var(--scene-w, 560px) var(--gutter) minmax(360px, 1fr);
+  /* The single row must be told to fill: an implicit `auto` row sizes to
+     its content, which leaves both panes floating in a tall window. */
+  grid-template-rows: minmax(0, 1fr);
   padding: 12px;
-}
-
-.scene-pane {
-  grid-area: scene;
-}
-.robot-pane {
-  grid-area: robot;
-}
-.memory-pane {
-  grid-area: memory;
-}
-.workbench > .gutter.vertical {
-  grid-area: vgut;
-}
-.workbench > .gutter.horizontal {
-  grid-area: hgut;
 }
 
 .pane {
@@ -446,14 +430,44 @@ button.route.current {
   flex-direction: column;
 }
 
-.brief {
-  flex: none;
-  margin: 0;
-  padding: 9px 12px;
-  font-size: 13.5px;
-  line-height: 1.5;
+/* Both views stay mounted so switching back does not throw away where the
+   graph's nodes had settled. */
+.views {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+}
+
+.views .view {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.views .view[hidden] {
+  display: none;
+}
+
+.views-switch {
+  display: flex;
+  gap: 2px;
+}
+
+.views-switch button {
+  padding: 2px 11px;
+  font-size: 12px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--ink-soft);
+}
+
+.views-switch button.current {
   background: var(--brand-soft);
-  border-bottom: 1px solid var(--brand-line);
+  border-color: var(--brand-line);
+  color: var(--brand);
+  font-weight: 600;
 }
 
 .robot-panel .editor {
@@ -471,16 +485,6 @@ button.route.current {
 
 .cm-host .cm-editor {
   height: 100%;
-}
-
-.editor-hint {
-  flex: none;
-  margin: 0;
-  padding: 4px 12px;
-  font-size: 11px;
-  color: var(--ink-soft);
-  border-top: 1px solid var(--line);
-  background: #fafbff;
 }
 
 kbd {
@@ -561,16 +565,6 @@ kbd {
   display: block;
   padding: 14px;
   color: var(--ink-soft);
-}
-
-.memory .caption {
-  flex: none;
-  margin: 0;
-  padding: 7px 12px;
-  font-size: 12.5px;
-  color: var(--ink-soft);
-  border-top: 1px solid var(--line);
-  background: var(--surface);
 }
 
 /* ---- the field ---- */
@@ -869,8 +863,7 @@ code.inline {
      there is neither, so the panels stack at readable fixed heights. */
   .workbench {
     grid-template-columns: 1fr;
-    grid-template-rows: auto auto auto;
-    grid-template-areas: 'scene' 'robot' 'memory';
+    grid-template-rows: auto auto;
     gap: 12px;
   }
 
@@ -881,22 +874,9 @@ code.inline {
   .scene-pane {
     height: 340px;
   }
+
   .robot-pane {
-    height: 520px;
-  }
-  .memory-pane {
-    height: 460px;
-  }
-
-  .memory {
-    grid-template-columns: 1fr;
-  }
-
-  .inspector {
-    border-left: 0;
-    border-top: 1px solid var(--line);
-    padding-left: 0;
-    padding-top: 12px;
+    height: 640px;
   }
 }
 

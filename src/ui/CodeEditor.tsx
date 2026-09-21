@@ -268,10 +268,6 @@ export function CodeEditor({
   return (
     <div className="editor">
       <div className="cm-host" ref={hostRef} data-testid="editor" />
-      <p className="editor-hint">
-        <kbd>Tab</kbd> / <kbd>Shift</kbd>+<kbd>Tab</kbd> indent · <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+
-        <kbd>/</kbd> comment · <kbd>Esc</kbd> leaves the editor
-      </p>
     </div>
   )
 }

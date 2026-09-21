@@ -6,10 +6,15 @@ a Web Worker via PyTrace + Pyodide. Deploys as a **project site**
 
 Design of record: [docs/DESIGN.md](docs/DESIGN.md).
 
-**The one idea: one snapshot, three panels.** The worker produces records;
+**The one idea: one snapshot, several views.** The worker produces records;
 `memory/extract.ts` turns the current one into a `MemorySnapshot`; the
-scene and the memory panel are both views of it; the robot panel is the
+scene and the memory graph are both views of it; the robot panel is the
 only thing that causes anything.
+
+Two panels on screen: **Scene** and **Robot**. Memory is a view *of* the
+robot panel (`Code | Memory`), not a panel of its own. Keep the chrome
+thin — no tabs, no readiness badge (the shell carries `data-boot`), no
+panel notes or briefs.
 
 ## Commands
 
@@ -32,7 +37,7 @@ npm run test:browser  # playwright against the PRODUCTION build at /botgineer/
 | `src/memory/extract.ts` | the ONLY module that knows both the wire format and the model |
 | `src/scene/spec.ts` | a scene is data, and a view of memory: watches map global names to visual effects |
 | `src/panels/ScenePanel.tsx` | (A) the situation, drawn from the snapshot |
-| `src/panels/RobotPanel.tsx` | (B) editor + Run/Stop + step slider + transcript |
+| `src/panels/RobotPanel.tsx` | (B) the Code/Memory views + Run/Stop + step slider + transcript. Both views stay mounted; the hidden one reports zero size, which every measurement has to guard against |
 | `src/panels/MemoryPanel.tsx` | (C) thin: owns the handles, the selection, and one caption line |
 | `src/panels/MemoryGraph.tsx` | the live field. SVG edges + DOM pills sharing one camera; writes transforms straight to the elements in the animation loop, never through React |
 | `src/panels/graphLayout.ts` | the force simulation and the camera. Pure and unit-tested. Read its header before changing it: relaxation, spiral packing and row packing were all tried here and the reasons each was dropped are measured, not remembered |
@@ -82,7 +87,8 @@ npm run test:browser  # playwright against the PRODUCTION build at /botgineer/
    complete.
 10. **`window.botgineer` is the test surface.** Browser tests drive
    `setProgram`/`getProgram`/`run`/`snapshot`/`state` rather than typing
-   into a contenteditable. Keep the shape stable.
+   into a contenteditable. Keep the shape stable. Readiness is
+   `.app[data-boot="ready"]`, not a visible badge.
 11. **The graph settles because `alpha` decays, not because the forces
    agree.** Anything that can inject energy is scaled by `alpha`;
    collision is positional and unscaled so it still works at rest. Do not

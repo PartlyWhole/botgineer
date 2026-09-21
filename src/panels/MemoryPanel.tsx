@@ -1,24 +1,21 @@
 /**
  * (C) The memory panel.
  *
- * One live field, not two boxes and a stage. Names and objects are nodes;
- * bindings and pointers are edges; picking something flies the camera to
- * frame it with everything it touches. There is no second view to switch
- * to, because switching views is what made the old panel disjoint: you
- * lost sight of the clouds exactly when you wanted to see where the thing
- * you picked sat in them.
+ * One live field. Names and objects are nodes; bindings and pointers are
+ * edges; picking something flies the camera to frame it with everything it
+ * touches. Nothing here opens a second view *of memory* — that is what
+ * made the old panel disjoint, because you lost sight of the clouds
+ * exactly when you wanted to see where the thing you picked sat in them.
  *
- * All this component owns is the handles, the selection, and one line of
- * text summarising it. The graph owns everything else.
+ * Memory itself is a view of the robot panel, which is where it is
+ * mounted; see `RobotPanel`.
+ *
+ * All this component owns is the handles and the selection. The graph
+ * owns everything else — including the description of what is selected,
+ * which lives on the node itself rather than in prose underneath.
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
-import {
-  holdersOf,
-  namesFor,
-  orderedObjectIds,
-  type MemorySnapshot,
-  type ObjectId,
-} from '../memory/model'
+import { orderedObjectIds, type MemorySnapshot, type ObjectId } from '../memory/model'
 import { MemoryGraph, type GraphPick } from './MemoryGraph'
 
 /**
@@ -54,7 +51,8 @@ export function MemoryPanel({
 
   const objectCount = Object.keys(snapshot.objects).length
 
-  // A selection the program no longer has would linger as a dead caption.
+  // A selection the program no longer has would leave a node highlighted
+  // that is not there any more.
   useEffect(() => {
     if (!picked) return
     const alive =
@@ -89,60 +87,7 @@ export function MemoryPanel({
         picked={picked}
         onPick={setPicked}
       />
-      <p className="caption" data-testid="caption">
-        {caption(snapshot, handles, picked, objectCount)}
-      </p>
     </div>
   )
 }
 
-/**
- * One line, and a summary rather than a copy of the graph. The graph
- * already shows *which* things are connected; this says how many, which
- * is the thing a picture of a hub is bad at.
- */
-function caption(
-  snapshot: MemorySnapshot,
-  handles: Map<ObjectId, string>,
-  picked: GraphPick,
-  objectCount: number,
-): string {
-  if (picked === null) {
-    return `${snapshot.bindings.length} name${plural(snapshot.bindings.length)} and ${objectCount} object${plural(objectCount)}. Drag to rearrange, click to follow a connection.`
-  }
-
-  if (picked.kind === 'name') {
-    const binding = snapshot.bindings.find(
-      (b) => b.name === picked.name && b.scope === picked.scope,
-    )
-    const object = binding ? snapshot.objects[binding.target] : undefined
-    if (!object) return `${picked.name} points at nothing the robot can show.`
-    return `${picked.name} points at ${handles.get(object.id)} — ${object.type} ${object.repr}.`
-  }
-
-  const object = snapshot.objects[picked.id]
-  if (!object) return 'That object is gone.'
-  const out = object.elements?.length ?? 0
-  const names = namesFor(snapshot, picked.id).length
-  const holders = holdersOf(snapshot, picked.id).length
-  const inbound = names + holders
-  const kind =
-    object.kind === 'value'
-      ? 'an immutable value — equal values are one object here'
-      : 'an object with its own identity'
-
-  return [
-    `${handles.get(object.id)} is ${kind}.`,
-    object.elements === null
-      ? ''
-      : `Points at ${out} object${plural(out)}.`,
-    `Pointed at by ${inbound} thing${plural(inbound)}` +
-      (names > 0 ? ` (${names} name${plural(names)})` : '') +
-      '.',
-    object.partial ? 'The robot could not show all of it.' : '',
-  ]
-    .filter(Boolean)
-    .join(' ')
-}
-
-const plural = (n: number) => (n === 1 ? '' : 's')

@@ -97,6 +97,8 @@ for parcel in parcels:
 const sandbox: Activity = {
   id: 'sandbox',
   title: 'Sandbox',
+  /** Kept as data, rendered nowhere: the starting point does not need to
+   *  be introduced. Activities with something to solve will want it. */
   brief:
     'Nothing to solve. Make objects and watch memory fill up — names on the left, the objects they point at on the right.',
   starter: `a = 10
@@ -120,7 +122,10 @@ counts = {"x": 1, "y": 2}
   },
 }
 
-export const ACTIVITIES: Activity[] = [wakeTheRobot, parcelBelt, sandbox]
+/** Sandbox first: it is the starting point, and `ACTIVITIES[0]` is what
+ *  the router opens with. The other two are reachable by hash but are not
+ *  offered anywhere yet. */
+export const ACTIVITIES: Activity[] = [sandbox, wakeTheRobot, parcelBelt]
 
 export const activityById = (id: string): Activity | null =>
   ACTIVITIES.find((a) => a.id === id) ?? null

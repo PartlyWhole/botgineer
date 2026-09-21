@@ -69,6 +69,10 @@ export function MemoryGraph({ snapshot, handles, runKey, picked, onPick }: Props
   const camera = useRef<Camera>({ x: 400, y: 150, k: 1 })
   const target = useRef<Camera>({ x: 400, y: 150, k: 1 })
   const raf = useRef<number | null>(null)
+  /** Which nodes the camera is framing. Held in a ref so the loop can
+   *  re-aim as they move: a target computed once at pick time describes
+   *  where they were, and the field is usually still settling. */
+  const framedIds = useRef<Set<string> | null>(null)
   const run = useRef(runKey)
   const [, bump] = useState(0)
 
@@ -118,6 +122,9 @@ export function MemoryGraph({ snapshot, handles, runKey, picked, onPick }: Props
     for (const [id, el] of pillRefs.current) {
       const n = byId.current.get(id)
       if (!n) continue
+      // A hidden view reports zero. Keeping the last real size is right:
+      // measuring zero would collapse every node and the layout with it.
+      if (el.offsetWidth === 0) continue
       n.w = el.offsetWidth
       n.h = el.offsetHeight
     }
@@ -156,7 +163,12 @@ export function MemoryGraph({ snapshot, handles, runKey, picked, onPick }: Props
     const step = () => {
       const g = graphRef.current
       const v = viewport.current
-      if (g.alpha > 0) tick(g, v)
+      if (g.alpha > 0) {
+        tick(g, v)
+        const want = framedIds.current
+        const subject = want === null ? g.nodes : g.nodes.filter((n) => want.has(n.id))
+        target.current = frame(subject.length > 0 ? subject : g.nodes, v)
+      }
       const far = cameraDistance(camera.current, target.current, v) > 0.6
       if (far) camera.current = approach(camera.current, target.current)
       paint()
@@ -170,7 +182,8 @@ export function MemoryGraph({ snapshot, handles, runKey, picked, onPick }: Props
   }, [paint])
 
   const aim = useCallback(
-    (nodes: GraphNode[]) => {
+    (nodes: GraphNode[], ids: Set<string> | null) => {
+      framedIds.current = ids
       target.current = frame(nodes, viewport.current)
       if (reduced()) camera.current = target.current
       loop()
@@ -183,7 +196,9 @@ export function MemoryGraph({ snapshot, handles, runKey, picked, onPick }: Props
   useLayoutEffect(() => {
     const host = hostRef.current
     if (!host) return
-    viewport.current = { w: host.clientWidth, h: host.clientHeight }
+    // Same reason: a hidden view has no size, and a zero viewport would
+    // seed every node on top of every other.
+    if (host.clientWidth > 0) viewport.current = { w: host.clientWidth, h: host.clientHeight }
 
     // A new run is a new memory: positions and camera start over.
     if (run.current !== runKey) {
@@ -204,7 +219,7 @@ export function MemoryGraph({ snapshot, handles, runKey, picked, onPick }: Props
         fresh.push(n)
       }
       const el = pillRefs.current.get(spec.id)
-      if (el) {
+      if (el && el.offsetWidth > 0) {
         n.w = el.offsetWidth
         n.h = el.offsetHeight
       }
@@ -221,7 +236,7 @@ export function MemoryGraph({ snapshot, handles, runKey, picked, onPick }: Props
       // First fill: lay the whole field out and frame it.
       seed(g, viewport.current)
       disturb(g, 1)
-      aim(g.nodes)
+      aim(g.nodes, null)
     } else if (fresh.length > 0) {
       // Newcomers drop into their lane and the field makes room.
       seed({ nodes: fresh, edges: [], alpha: 1 }, viewport.current)
@@ -240,12 +255,12 @@ export function MemoryGraph({ snapshot, handles, runKey, picked, onPick }: Props
     if (near === null) {
       measure()
       disturb(g, 0.3)
-      aim(g.nodes)
+      aim(g.nodes, null)
       return
     }
     measure()
-    const framed = g.nodes.filter((n) => near.has(n.id))
-    aim(framed.length > 0 ? framed : g.nodes)
+    const subject = g.nodes.filter((n) => near.has(n.id))
+    aim(subject.length > 0 ? subject : g.nodes, near)
     // The picked pill just changed size, so the field has to make room.
     disturb(g, 0.4)
   }, [aim, measure, near])
@@ -260,6 +275,7 @@ export function MemoryGraph({ snapshot, handles, runKey, picked, onPick }: Props
         near === null
           ? graphRef.current.nodes
           : graphRef.current.nodes.filter((n) => near.has(n.id)),
+        near,
       )
     })
     ro.observe(host)
