@@ -112,58 +112,60 @@ program printed.
 state — the editor owns the text, and asking React for it runs whatever was
 last rendered.
 
-### (C) Memory — `src/panels/MemoryPanel.tsx`, `src/panels/Cloud.tsx`
+### (C) Memory — `src/panels/MemoryGraph.tsx`, `src/panels/graphLayout.ts`
 
-Two clouds — names and objects — and a stage.
+**One live field, and no second view.** Names and objects are nodes;
+bindings and pointers are edges. Names are pulled gently left, objects
+gently right, so the two collections read as two clouds without being two
+containers — the pieces are all in one space and they move in response to
+each other. Drag one and its neighbours follow; drop it and it stays,
+while the field arranges around it (`loosen` hands everything back).
 
-Neither collection is a list, because neither is ordered and a list would
-teach a sequence that is not there. Pills are laid out as **centred ragged
-rows filled from the middle outwards**, are draggable, and re-pack around
-whatever you move.
+Picking a node does not open a panel. The **camera** flies to frame that
+node *together with everything it is connected to*, the node grows in
+place, its edges light up and are labelled with the index or key, and
+everything else steps back without moving. Zooming in *is* the detail
+view, which is the whole point: the previous design replaced the clouds
+with a separate stage, so you lost sight of where the thing you picked sat
+in them at exactly the moment you wanted to see it.
 
-Picking a pill **pulls it out**: the clouds shrink back and blur, the pill
-flies from exactly where it sat into the middle at full size, the object
-it points at is pulled out of the other cloud the same way, and an arrow
-is drawn between them. It is a FLIP — measured in the cloud, rendered at
-its destination, animated from the difference — so it is the same element
-arriving, not a copy fading in elsewhere. Its place in the cloud is left
-as a gap.
+Clicking a neighbour re-picks it, so the structure is walked. Escape or a
+press on the background zooms back out. One line of text under the field
+summarises the selection — *how many* things point at it, which a picture
+of a hub is bad at — and that is the only prose.
 
-From there the object shows what it holds and what holds it, and
-following a pointer moves the selection, so the graph is *walked* rather
-than dumped. Escape, or the button, puts it back.
+Two layers share one camera transform: SVG for the edges, DOM for the
+pills. Text stays real text, so it is selectable and reachable by a screen
+reader, while the arrows get to be SVG. The animation loop writes
+`transform` straight to the elements; React renders the graph's *shape*
+and is never asked to render its motion.
 
-**Every slot is a pointer**, and shows the handle it leads to with the
-target's type and value trailing behind as a reading aid: `0 → obj7
-str 'x'`. Showing the literal *instead of* the handle made `['x', 'y']`
-look like a container with two letters inside, which is exactly the
-misconception the panel exists to prevent.
+#### Why this one settles
 
-An object nothing points at is drawn dashed and dimmed, because "held by
-nothing" is a fact worth seeing.
+A force layout's rules genuinely disagree — springs pull together,
+repulsion pushes apart, lanes pull sideways. An earlier relaxation in this
+repo oscillated forever for exactly that reason, so convergence here is
+**structural rather than negotiated**: everything that can inject energy
+is scaled by `alpha`, and `alpha` decays to nothing. Whatever the forces
+want, the system stops. Collision is the exception — positional, never
+scaled — so pile-ups still resolve at rest without adding energy.
 
-#### The layout, and two approaches that did not work
+What it promises: it settles, it never produces NaN, names end left of
+objects, connected nodes end nearer each other **on average**, and the
+same graph lays out the same way twice regardless of enumeration order.
 
-`cloudLayout.ts` packs rows. Two earlier attempts are recorded there
-because both looked right and were not:
+What it does not promise: pairwise proximity. A hub with several name
+edges sits in among the names, so an unrelated name can legitimately end
+up nearer it than its own object does — asserting otherwise was asserting
+a property a force layout has never had.
 
-- **Relaxation** (drift to the centre, push apart on overlap): the rules
-  fought, pairs jammed against the edges, and pushing a pill out of one
-  collision shoved it into the next. Measured: 15px overlaps at 43% full.
-- **Spiral packing** (the usual word-cloud algorithm): scatters pills at
-  arbitrary `y`, and since these pills are all one height that fragments
-  the vertical space into unusable slivers. Measured: 5 of 20 pills had
-  nowhere to go at 61% full.
-
-Rows have neither failure mode and are simpler. Measured: no overlaps up
-to 90% full.
-
-A **dropped pill stays where it was put** and the rest packs around it —
-releasing it back into the layout sent it straight home, because packing
-is deterministic, so dragging accomplished nothing. `tidy` clears the
-pins. A pinned pill carves its row into runs, and a row's capacity is its
-widest free run: budgeting "row width minus the pill's width" ignored the
-split and overlapped the last item.
+Two numbers were measured rather than guessed. Spring strength: with
+weaker springs the lanes won and connectivity stopped showing at all
+(mean edge length 0.88 of mean non-edge length, barely a signal); the
+current values give 0.82 while leaving the clouds ~165px apart. And the
+spring's rest length is a clearance between node *edges*, not centres — a
+fixed centre distance put a wide node's neighbours inside it, hiding the
+very connection picking it was meant to reveal.
 
 ## 4. Execution
 

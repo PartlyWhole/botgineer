@@ -28,13 +28,14 @@ rendering of what it did. No accounts, no backend, nothing leaves the page.
   takes no commands, so it cannot show something the program did not do.
 - **(B) Robot** — where you write the robot's instructions. The only panel
   that causes anything. Also the transport: Run, Stop, and a step slider.
-- **(C) Memory** — two clouds of draggable pills. Names on one side,
-  objects on the other. Pick one and it *pulls out*: the clouds shrink
-  back and blur, the pill flies from where it sat into the middle, the
-  object it points at comes out of the other cloud the same way, and an
-  arrow is drawn between them. From there you can follow a pointer and
-  walk the graph. Drag a pill and it stays where you put it; `tidy` puts
-  everything back.
+- **(C) Memory** — one live field. Names and objects are nodes, bindings
+  and pointers are edges; names drift left and objects right, so the two
+  collections read as two clouds in one space. Drag a node and its
+  neighbours follow. Pick one and the *camera* flies to frame it with
+  everything it touches, its edges light up and get labelled, and the rest
+  steps back — zooming in is the detail view, so you never lose sight of
+  where the thing sits. Click a neighbour to walk the structure; Escape
+  zooms back out.
 
 Because both views read the same snapshot, the step slider rewinds the
 scene as well as the diagram.
@@ -72,8 +73,8 @@ First load downloads about 13 MB of Python runtime; after that it is cached.
 
 ```bash
 npm run typecheck
-npm run test          # 70 unit tests
-npm run test:browser  # 16 journeys against the production build
+npm run test          # 74 unit tests
+npm run test:browser  # 17 journeys against the production build
 ```
 
 `npm run test:browser` builds the site, serves it at a repository sub-path

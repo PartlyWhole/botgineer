@@ -8,7 +8,16 @@ declare global {
       run(): Promise<void>
       snapshot(): {
         bindings: { name: string; scope: string; target: string }[]
-        objects: Record<string, { id: string; type: string; kind: string; repr: string }>
+        objects: Record<
+          string,
+          {
+            id: string
+            type: string
+            kind: string
+            repr: string
+            elements: { label: string | null; target: string }[] | null
+          }
+        >
       }
       state(): { boot: string; busy: boolean; steps: number }
     }
@@ -77,226 +86,223 @@ test('a list in memory picks actors out of the scene', async ({ page }) => {
 
 /* ------------------------------ (C) the memory ----------------------------- */
 
-test('two names for one value share an object; two equal lists do not', async ({ page }) => {
-  await open(page, 'sandbox')
-  await send(page, 'a = 10\nb = a\nxs = [1]\nys = xs\nzs = [1]\n')
+/** The camera's zoom, read off the shared transform. */
+const zoom = (page: Page) =>
+  page.evaluate(() => {
+    const el = document.querySelector('.graph .world')
+    if (!el) return 0
+    return +new DOMMatrix(getComputedStyle(el).transform).a.toFixed(3)
+  })
 
-  // Equal immutables are one entry — that is what Python lets you observe.
-  expect(await targetOf(page, 'a')).toBe(await targetOf(page, 'b'))
-  // Aliasing is real and shared.
-  expect(await targetOf(page, 'xs')).toBe(await targetOf(page, 'ys'))
-  // An equal list is a different object, because it really is.
-  expect(await targetOf(page, 'xs')).not.toBe(await targetOf(page, 'zs'))
+/** Waits for the field and the camera to stop moving, so a measurement is
+ *  of where things ended rather than where they were passing through. */
+async function stillness(page: Page) {
+  let last = ''
+  for (let i = 0; i < 40; i++) {
+    const now = await page.evaluate(() =>
+      [...document.querySelectorAll('.node')].map((n) => (n as HTMLElement).style.transform).join('|') +
+      (document.querySelector('.graph .world') as HTMLElement | null)?.style.transform,
+    )
+    if (now === last) return
+    last = now
+    await page.waitForTimeout(120)
+  }
+}
+
+test('memory is one field of nodes and edges, not two boxes', async ({ page }) => {
+  await open(page, 'sandbox')
+  await send(page, "letters = ['x', 'y']\nsame = letters\nn = 10\nm = n\n")
+  await stillness(page)
+
+  // 4 names + 4 objects (list, 'x', 'y', 10)
+  await expect(page.locator('.node.name')).toHaveCount(4)
+  await expect(page.locator('.node.object')).toHaveCount(4)
+  // 4 bindings + 2 list pointers
+  await expect(page.locator('.edge path')).toHaveCount(6)
+  // There is no separate stage to switch to.
+  await expect(page.locator('.stage-focus')).toHaveCount(0)
+})
+
+test('names settle to the left of objects', async ({ page }) => {
+  await open(page, 'sandbox')
+  await send(page, "a = 1\nb = 2\nc = 3\n")
+  await stillness(page)
+
+  const mid = async (sel: string) => {
+    const boxes = await page.locator(sel).evaluateAll((els) =>
+      els.map((e) => e.getBoundingClientRect().left + e.getBoundingClientRect().width / 2),
+    )
+    return boxes.reduce((t, x) => t + x, 0) / boxes.length
+  }
+  expect(await mid('.node.name')).toBeLessThan(await mid('.node.object'))
 })
 
 test('every object carries a handle, primitives included', async ({ page }) => {
   await open(page, 'sandbox')
   await send(page, 'n = 7\nxs = [7]\n')
+  await stillness(page)
 
   // A collection points at objects, so the primitives it points at need
   // handles to be pointed at by.
-  const intChip = page.locator('.chip.object.value[data-type="int"]')
-  const listChip = page.locator('.chip.object.reference[data-type="list"]')
-  await expect(intChip.locator('.handle')).toHaveText(/^obj\d+$/)
-  await expect(listChip.locator('.handle')).toHaveText(/^obj\d+$/)
-  // Values and references still look different, because they are.
-  await expect(intChip).toHaveCount(1)
-  await expect(listChip).toHaveCount(1)
+  const value = page.locator('.node.object.value[data-type="int"]')
+  const reference = page.locator('.node.object.reference[data-type="list"]')
+  await expect(value.locator('.handle')).toHaveText(/^obj\d+$/)
+  await expect(reference.locator('.handle')).toHaveText(/^obj\d+$/)
 })
 
-test('picking a name pulls it out, with the object it points at', async ({ page }) => {
+test('picking a name zooms in on it and lights the connection', async ({ page }) => {
   await open(page, 'sandbox')
-  await send(page, 'xs = ["p", "q"]\nalias = xs\n')
-  await expect(page.getByTestId('memory')).toHaveAttribute('data-focused', 'no')
+  await send(page, "letters = ['x', 'y']\nsame = letters\nspare = 99\n")
+  await stillness(page)
+  const before = await zoom(page)
 
-  await page.getByTestId('name-xs').click()
+  await page.getByTestId('node-letters').click()
+  await stillness(page)
 
-  // Both pills come out of their clouds, with an arrow between them.
-  await expect(page.getByTestId('memory')).toHaveAttribute('data-focused', 'yes')
-  await expect(page.getByTestId('focus-name')).toHaveText('xs')
-  await expect(page.getByTestId('focus-object')).toContainText('list')
-  await expect(page.getByTestId('focus-object')).toContainText('2 items')
-  await expect(page.locator('.points-at')).toHaveCount(1)
-
-  // Both names that point at it are listed, including the one not picked.
-  await expect(page.getByTestId('object-card').locator('.held-by')).toContainText('alias')
-  // The pill is lifted out, not duplicated: its place in the cloud is a gap.
-  await expect(page.getByTestId('name-xs')).toHaveClass(/lifted/)
-  await expect(page.getByTestId('object-o:1')).toHaveClass(/lifted/)
+  // The camera moved in, rather than a panel opening somewhere else.
+  expect(await zoom(page)).toBeGreaterThan(before)
+  await expect(page.getByTestId('graph')).toHaveAttribute('data-picked', /letters$/)
+  // Its own edge is lit; unrelated nodes step back but stay where they are.
+  await expect(page.locator('.edge.lit')).toHaveCount(1)
+  await expect(page.getByTestId('node-spare')).toHaveClass(/dimmed/)
+  await expect(page.getByTestId('node-letters')).not.toHaveClass(/dimmed/)
+  await expect(page.getByTestId('caption')).toContainText('letters points at obj')
 })
 
-test('picking an object pulls out just the object', async ({ page }) => {
-  await open(page, 'sandbox')
-  await send(page, 'n = 7\n')
-  await page.locator('.chip.object.value').first().click()
-  await expect(page.getByTestId('focus-object')).toContainText('int')
-  // No name was picked, so there is nothing for an arrow to point from.
-  await expect(page.getByTestId('focus-name')).toHaveCount(0)
-  await expect(page.locator('.points-at')).toHaveCount(0)
-})
-
-test("a list of strings points at objects, it does not contain letters", async ({ page }) => {
+test("a list points at objects — it does not contain letters", async ({ page }) => {
   await open(page, 'sandbox')
   await send(page, "letters = ['x', 'y']\n")
-  await page.getByTestId('name-letters').click()
+  await stillness(page)
 
-  // ['x', 'y'] is a list of two POINTERS to str objects. Drawing the
-  // literals inside the list would be a model Python does not have.
-  await expect(page.getByTestId('slots-heading')).toHaveText('points at 2 objects')
-  for (const i of [0, 1]) {
-    const slot = page.getByTestId(`element-${i}`)
-    await expect(slot).toHaveAttribute('data-target', /^obj\d+$/)
-    await expect(slot.locator('.handle')).toHaveText(/^obj\d+$/)
-    await expect(slot).toContainText('→')
-  }
-  // Different letters are different objects.
-  const a = await page.getByTestId('element-0').getAttribute('data-target')
-  const b = await page.getByTestId('element-1').getAttribute('data-target')
-  expect(a).not.toBe(b)
+  const listId = await page.evaluate(() => {
+    const s = window.botgineer.snapshot()
+    return s.bindings.find((b) => b.name === 'letters')!.target
+  })
+  await page.getByTestId(`node-${listId}`).click()
+  await stillness(page)
+
+  // One edge in from the name, two out to the str objects it points at.
+  await expect(page.locator('.edge.lit')).toHaveCount(3)
+  // The pointers are labelled by index, and only while relevant.
+  await expect(page.locator('.edge-label')).toHaveCount(2)
+  await expect(page.getByTestId('caption')).toContainText('Points at 2 objects')
 })
 
-test('a slot points at the same handle the object cloud shows', async ({ page }) => {
+test('clicking a neighbour walks the graph', async ({ page }) => {
   await open(page, 'sandbox')
-  await send(page, 'nested = [[1], [2]]\n')
-  await page.getByTestId('name-nested').click()
+  await send(page, "letters = ['x', 'y']\n")
+  await stillness(page)
 
-  const target = await page.getByTestId('element-0').getAttribute('data-target')
-  await page.getByTestId('element-0').click()
-  // Following the pointer lands on exactly that object.
-  await expect(page.getByTestId('focus-object').locator('.handle')).toHaveText(target!)
+  await page.getByTestId('node-letters').click()
+  await stillness(page)
+  const first = await page.getByTestId('graph').getAttribute('data-picked')
+
+  // The object it points at is a neighbour, so it is right there to click.
+  await page.locator('.node.object.reference').click()
+  await stillness(page)
+  const second = await page.getByTestId('graph').getAttribute('data-picked')
+  expect(second).not.toBe(first)
+  await expect(page.getByTestId('caption')).toContainText('own identity')
 })
 
 test('equal values in two collections are the same object', async ({ page }) => {
   await open(page, 'sandbox')
   await send(page, "a = ['x']\nb = ['x']\n")
 
-  await page.getByTestId('name-a').click()
-  const first = await page.getByTestId('element-0').getAttribute('data-target')
-  await page.getByTestId('dismiss').click()
-  await page.getByTestId('name-b').click()
-  const second = await page.getByTestId('element-0').getAttribute('data-target')
-  // Two separate lists, one interned string: the lists are different
-  // objects, what they point at is not.
-  expect(first).toBe(second)
+  const targets = await page.evaluate(() => {
+    const s = window.botgineer.snapshot()
+    const list = (n: string) => s.objects[s.bindings.find((b) => b.name === n)!.target]!
+    return [list('a').elements![0]!.target, list('b').elements![0]!.target]
+  })
+  // Two separate lists, one interned string.
+  expect(targets[0]).toBe(targets[1])
+})
+
+test('Escape zooms back out and clears the selection', async ({ page }) => {
+  await open(page, 'sandbox')
+  await send(page, "xs = [1, 2, 3]\nother = 'q'\n")
+  await stillness(page)
+
+  await page.getByTestId('node-xs').click()
+  await stillness(page)
+  const zoomedIn = await zoom(page)
+
+  await page.keyboard.press('Escape')
+  await stillness(page)
+  expect(await zoom(page)).toBeLessThan(zoomedIn)
+  await expect(page.getByTestId('graph')).toHaveAttribute('data-picked', '')
+  await expect(page.locator('.node.dimmed')).toHaveCount(0)
+  await expect(page.getByTestId('caption')).toContainText('Drag to rearrange')
 })
 
 test('a handle keeps its meaning while you scrub', async ({ page }) => {
   await open(page, 'sandbox')
   await send(page, "first = 'a'\nsecond = 'b'\nthird = 'c'\n")
+  await stillness(page)
+
+  const handleOf = async (name: string) => {
+    const id = await page.evaluate(
+      (n) => window.botgineer.snapshot().bindings.find((b) => b.name === n)!.target,
+      name,
+    )
+    return page.getByTestId(`node-${id}`).locator('.handle').innerText()
+  }
+  const atEnd = await handleOf('first')
 
   const scrubber = page.getByTestId('scrubber')
-  await scrubber.fill((await scrubber.getAttribute('max')) ?? '0')
-  await page.getByTestId('name-first').click()
-  const atEnd = await page.getByTestId('focus-object').locator('.handle').innerText()
-
-  // Stepping back must not renumber an object that was already on screen.
-  await page.getByTestId('dismiss').click()
   await scrubber.fill('2')
-  await page.getByTestId('name-first').click()
-  await expect(page.getByTestId('focus-object').locator('.handle')).toHaveText(atEnd)
+  await stillness(page)
+  // Stepping back must not renumber an object that was already on screen.
+  expect(await handleOf('first')).toBe(atEnd)
 })
 
-test('following a pointer moves the selection to that object', async ({ page }) => {
+test('dragging a node moves it, and its neighbours follow', async ({ page }) => {
   await open(page, 'sandbox')
-  await send(page, 'xs = ["p", "q"]\n')
+  await send(page, "xs = [1, 2]\nloner = 'z'\n")
+  await stillness(page)
 
-  await page.getByTestId('name-xs').click()
-  await page.getByTestId('element-1').click()
-  await expect(page.getByTestId('focus-object')).toContainText('str')
-  await expect(page.getByTestId('focus-object')).toContainText("'q'")
-  await expect(page.getByTestId('object-card')).toContainText('An immutable value')
-})
-
-test('Escape and the button both put it back in the cloud', async ({ page }) => {
-  await open(page, 'sandbox')
-  await send(page, 'xs = [1]\n')
-
-  await page.getByTestId('name-xs').click()
-  await expect(page.getByTestId('memory')).toHaveAttribute('data-focused', 'yes')
-  await page.keyboard.press('Escape')
-  await expect(page.getByTestId('memory')).toHaveAttribute('data-focused', 'no')
-
-  await page.getByTestId('name-xs').click()
-  await page.getByTestId('dismiss').click()
-  await expect(page.getByTestId('memory')).toHaveAttribute('data-focused', 'no')
-  await expect(page.getByTestId('stage')).toHaveCount(0)
-})
-
-/* -------------------------------- the clouds ------------------------------- */
-
-/** Rendered pill rectangles for one cloud, so overlap is measured on what
- *  is actually on screen rather than on the layout's own numbers. */
-const pillBoxes = (page: Page, cloud: string) =>
-  page.locator(`[aria-label="${cloud}"] .chip`).evaluateAll((els) =>
-    els.map((e) => {
-      const r = e.getBoundingClientRect()
-      return { l: r.left, t: r.top, r: r.right, b: r.bottom }
-    }),
-  )
-
-function overlapping(boxes: { l: number; t: number; r: number; b: number }[]): number {
-  let n = 0
-  for (let i = 0; i < boxes.length; i++) {
-    for (let j = i + 1; j < boxes.length; j++) {
-      const a = boxes[i]!
-      const b = boxes[j]!
-      if (a.l < b.r - 1 && b.l < a.r - 1 && a.t < b.b - 1 && b.t < a.b - 1) n++
-    }
+  const centre = async (t: string) => {
+    const b = (await page.getByTestId(t).boundingBox())!
+    return { x: b.x + b.width / 2, y: b.y + b.height / 2 }
   }
-  return n
-}
-
-test('the clouds lay pills out without any of them overlapping', async ({ page }) => {
-  await open(page, 'sandbox')
-  await send(
-    page,
-    'parcels = [("A7", 3.2), ("B1", 7.4), ("C2", 1.1), ("D3", 9.8), ("E5", 5.0)]\n' +
-      'heavy = ["B1", "D3"]\nn = 1\nm = 2.5\nflag = True\nd = {"a": 1}\n',
+  const listId = await page.evaluate(
+    () => window.botgineer.snapshot().bindings.find((b) => b.name === 'xs')!.target,
   )
-  const names = await pillBoxes(page, 'Names')
-  const objects = await pillBoxes(page, 'Objects')
-  expect(names.length).toBeGreaterThan(3)
-  expect(objects.length).toBeGreaterThan(8)
-  expect(overlapping(names)).toBe(0)
-  expect(overlapping(objects)).toBe(0)
-})
 
-test('a pill can be dragged, and the cloud reorganises around it', async ({ page }) => {
-  await open(page, 'sandbox')
-  await send(page, 'aa = 1\nbb = 2\ncc = 3\ndd = 4\n')
+  const from = await centre('node-xs')
+  const neighbourBefore = await centre(`node-${listId}`)
+  const lonerBefore = await centre('node-loner')
 
-  const pill = page.getByTestId('name-aa')
-  const before = (await pill.boundingBox())!
-  await page.mouse.move(before.x + before.width / 2, before.y + before.height / 2)
+  await page.mouse.move(from.x, from.y)
   await page.mouse.down()
-  await page.mouse.move(before.x + 90, before.y - 40, { steps: 12 })
+  await page.mouse.move(from.x - 40, from.y + 110, { steps: 14 })
   await page.mouse.up()
-  await page.waitForTimeout(600)
+  await stillness(page)
 
-  // A dropped pill stays where it was put — otherwise dragging does
-  // nothing, because packing would send it straight back.
-  const after = (await pill.boundingBox())!
-  expect(Math.hypot(after.x - before.x, after.y - before.y)).toBeGreaterThan(20)
-  // Everything still readable: dragging must not pile pills on top of each other.
-  expect(overlapping(await pillBoxes(page, 'Names'))).toBe(0)
+  const moved = (a: { x: number; y: number }, b: { x: number; y: number }) =>
+    Math.hypot(a.x - b.x, a.y - b.y)
+
+  // It went where it was put, and stayed: releasing it back to the
+  // simulation would send it home and make dragging pointless.
+  expect(moved(await centre('node-xs'), from)).toBeGreaterThan(30)
+
+  // The field responded — the rest of the graph is not a static backdrop.
+  // Only that it *moved* is asserted here: on a graph this small a dragged
+  // node physically displaces whatever it passes through, so an unrelated
+  // node can easily travel further than a neighbour. That the pull is
+  // *selective* is a property of the springs, and it is tested in
+  // tests/unit/graphLayout.test.ts where the graph can be controlled.
+  expect(moved(await centre(`node-${listId}`), neighbourBefore)).toBeGreaterThan(8)
+  void lonerBefore
+
   // And a drag is not a click.
-  await expect(page.getByTestId('memory')).toHaveAttribute('data-focused', 'no')
+  await expect(page.getByTestId('graph')).toHaveAttribute('data-picked', '')
 
-  // Tidy puts everything back in the cloud.
-  await page.getByTestId('tidy-names').click()
-  await page.waitForTimeout(600)
-  const tidied = (await pill.boundingBox())!
-  expect(Math.hypot(tidied.x - before.x, tidied.y - before.y)).toBeLessThan(3)
-  expect(overlapping(await pillBoxes(page, 'Names'))).toBe(0)
-})
-
-test('a collection holding itself does not hang the panel', async ({ page }) => {
-  await open(page, 'sandbox')
-  await send(page, 'xs = []\nxs.append(xs)\n')
-  await page.getByTestId('name-xs').click()
-  await expect(page.getByTestId('object-card')).toContainText('1 item')
-  await page.getByTestId('element-0').click()
-  await expect(page.getByTestId('object-card')).toContainText('list')
+  // Loosen hands the dropped node back to the field.
+  await expect(page.getByTestId('loosen')).toBeVisible()
+  await page.getByTestId('loosen').click()
+  await stillness(page)
+  await expect(page.getByTestId('loosen')).toHaveCount(0)
 })
 
 /* ------------------------ one snapshot, three panels ----------------------- */

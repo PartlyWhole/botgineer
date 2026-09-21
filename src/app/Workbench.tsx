@@ -36,7 +36,8 @@ export function Workbench({ activity }: { activity: Activity }) {
   const [, rerender] = useReducer((x: number) => x + 1, 0)
 
   const [sceneW, setSceneW] = useRemembered('botgineer.wb.scene', 560)
-  const [memoryH, setMemoryH] = useRemembered('botgineer.wb.memory', 330)
+  // The graph needs room to be a graph; a strip of it is unreadable.
+  const [memoryH, setMemoryH] = useRemembered('botgineer.wb.memory2', 430)
 
   const stepsRef = useRef<StepRecord[]>([])
   const followingRef = useRef(true)
@@ -204,8 +205,8 @@ export function Workbench({ activity }: { activity: Activity }) {
         orientation="horizontal"
         value={memoryH}
         onChange={setMemoryH}
-        min={180}
-        max={720}
+        min={220}
+        max={760}
         invert
         label="Resize memory"
       />

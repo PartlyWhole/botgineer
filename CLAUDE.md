@@ -33,9 +33,9 @@ npm run test:browser  # playwright against the PRODUCTION build at /botgineer/
 | `src/scene/spec.ts` | a scene is data, and a view of memory: watches map global names to visual effects |
 | `src/panels/ScenePanel.tsx` | (A) the situation, drawn from the snapshot |
 | `src/panels/RobotPanel.tsx` | (B) editor + Run/Stop + step slider + transcript |
-| `src/panels/MemoryPanel.tsx` | (C) two clouds and the pull-out stage; owns the FLIP |
-| `src/panels/Cloud.tsx` | a draggable cloud of pills; writes transforms straight to the DOM in the animation loop, never through React |
-| `src/panels/cloudLayout.ts` | row packing. Pure and unit-tested. Read its header before changing it: relaxation and spiral packing were both tried and both measurably failed |
+| `src/panels/MemoryPanel.tsx` | (C) thin: owns the handles, the selection, and one caption line |
+| `src/panels/MemoryGraph.tsx` | the live field. SVG edges + DOM pills sharing one camera; writes transforms straight to the elements in the animation loop, never through React |
+| `src/panels/graphLayout.ts` | the force simulation and the camera. Pure and unit-tested. Read its header before changing it: relaxation, spiral packing and row packing were all tried here and the reasons each was dropped are measured, not remembered |
 | `src/ui/CodeEditor.tsx` | CodeMirror; `head`/`tail` optionally lock regions (unused by the workbench) |
 | `src/ui/Split.tsx` | draggable, keyboard-operable gutters; sizes remembered in localStorage |
 | `src/app/Workbench.tsx` | the wiring: owns the run, the steps, the index, the snapshot |
@@ -83,12 +83,19 @@ npm run test:browser  # playwright against the PRODUCTION build at /botgineer/
 10. **`window.botgineer` is the test surface.** Browser tests drive
    `setProgram`/`getProgram`/`run`/`snapshot`/`state` rather than typing
    into a contenteditable. Keep the shape stable.
-11. **Cloud layout is decided by `pack`, not by the animation.**
-   `pack` sets targets and `advance` eases toward them, so correctness
-   never depends on a frame rate. A dropped pill is `pinned` and keeps its
-   place; a row's capacity is its widest free run, because a pinned pill
-   splits the row.
-12. **Tests run like production.** Playwright serves the built site at the
+11. **The graph settles because `alpha` decays, not because the forces
+   agree.** Anything that can inject energy is scaled by `alpha`;
+   collision is positional and unscaled so it still works at rest. Do not
+   add an unscaled force. A dropped node keeps `fixed` and the field packs
+   around it. Spring rest length is a clearance between node *edges*, so
+   a wide node never swallows its own neighbours. Sizes are re-measured
+   when the selection changes, because the picked pill grows.
+12. **Picking moves the camera, not the layout.** There is no second view:
+   nodes stay where they are, the camera frames the picked node plus its
+   neighbours, and unrelated nodes dim in place. Never replace the field
+   with a detail panel — losing sight of the clouds is the thing this
+   replaced.
+13. **Tests run like production.** Playwright serves the built site at the
    sub-path with **no** isolation headers, so the `coi-serviceworker` path
    is what gets exercised. Do not add COOP/COEP to the test server.
 
