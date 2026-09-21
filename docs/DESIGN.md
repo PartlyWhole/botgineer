@@ -125,9 +125,18 @@ its destination, animated from the difference — so it is the same element
 arriving, not a copy fading in elsewhere. Its place in the cloud is left
 as a gap.
 
-From there the object shows its pointers and everything holding it, and
+From there the object shows what it holds and what holds it, and
 following a pointer moves the selection, so the graph is *walked* rather
 than dumped. Escape, or the button, puts it back.
+
+**A slot is not automatically a pointer.** `['x', 'y']` holds two string
+*values*, shown as the literals they are; `[[1], [2]]` holds two
+*pointers*, shown as the objects they lead to, with their identities; a
+mixed collection says so. Labelling both "pointers" was wrong in a way
+that mattered — this panel refuses value objects an identity precisely
+because CPython interns them, and a pointer is a thing that points at an
+identity. For the same reason a value object is "used by" its holders,
+never "pointed at by" them.
 
 An object nothing points at is drawn dashed and dimmed, because "held by
 nothing" is a fact worth seeing.

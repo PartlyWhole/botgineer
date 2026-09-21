@@ -1051,3 +1051,22 @@ button.tidy:hover {
   background: var(--surface);
   border-color: var(--line);
 }
+
+/* A slot holding a value looks like the value; a slot pointing at an
+   object looks like the object. The difference is the lesson. */
+.chip.element.value {
+  background: var(--value-bg);
+  border-color: var(--value-line);
+  color: var(--value);
+}
+
+.chip.element.reference {
+  background: var(--ref-bg);
+  border-color: var(--ref-line);
+  color: var(--ref);
+}
+
+.chip.element .to {
+  opacity: 0.6;
+  font-size: 11px;
+}

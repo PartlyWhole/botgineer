@@ -244,6 +244,77 @@ export function MemoryPanel({ snapshot }: { snapshot: MemorySnapshot }) {
   )
 }
 
+/**
+ * What a collection holds.
+ *
+ * A slot is not automatically a pointer. `['x', 'y']` holds two string
+ * *values*, shown as the literals they are; `[[1], [2]]` holds two
+ * *pointers*, shown as the objects they lead to, with their identities.
+ *
+ * Labelling both "pointers" was wrong, and wrong in a way that mattered:
+ * this panel refuses to give value objects an identity precisely because
+ * CPython interns them, and a pointer is a thing that points at an
+ * identity. The distinction the model is built on has to be the one the
+ * structure view shows.
+ */
+function Slots({
+  object,
+  snapshot,
+  badges,
+  onObject,
+}: {
+  object: PyObject
+  snapshot: MemorySnapshot
+  badges: Record<ObjectId, string>
+  onObject: (id: ObjectId) => void
+}) {
+  const slots = (object.elements ?? []).map((e) => ({ e, target: snapshot.objects[e.target] }))
+  const refs = slots.filter((s) => s.target?.kind === 'reference').length
+  const values = slots.length - refs
+  const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
+
+  const heading =
+    slots.length === 0
+      ? 'holds nothing'
+      : refs === 0
+        ? `holds ${plural(values, 'value', 'values')}`
+        : values === 0
+          ? `points at ${plural(refs, 'object', 'objects')}`
+          : `holds ${plural(values, 'value', 'values')} and points at ${plural(refs, 'object', 'objects')}`
+
+  return (
+    <div className="elements">
+      <h4 data-testid="slots-heading">{heading}</h4>
+      <div className="row">
+        {slots.map(({ e, target }, i) => {
+          const isRef = target?.kind === 'reference'
+          return (
+            <button
+              key={i}
+              type="button"
+              className={`chip element ${isRef ? 'reference' : 'value'}`}
+              data-testid={`element-${i}`}
+              data-slot={isRef ? 'pointer' : 'value'}
+              onClick={() => onObject(e.target)}
+            >
+              {e.label !== null && <span className="slot">{e.label}</span>}
+              {isRef && (
+                <span className="to" aria-hidden="true">
+                  →
+                </span>
+              )}
+              <span className="repr">
+                {isRef ? `${target?.type ?? '?'} ${target?.repr ?? ''}` : (target?.repr ?? '?')}
+              </span>
+              {badges[e.target] && <span className="badge">{badges[e.target]}</span>}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 /** The arrow. It draws itself in, which is what makes the pair read as
  *  one relationship rather than two things that happen to be adjacent. */
 function PointsAt() {
@@ -283,33 +354,7 @@ function ObjectDetail({
           : 'An object with its own identity — two of these can look the same and still be different.'}
       </p>
 
-      {object.elements !== null && (
-        <div className="elements">
-          <h4>
-            {object.elements.length === 0
-              ? 'holds nothing'
-              : `holds ${object.elements.length} pointer${object.elements.length === 1 ? '' : 's'}`}
-          </h4>
-          <div className="row">
-            {object.elements.map((e, i) => {
-              const target = snapshot.objects[e.target]
-              return (
-                <button
-                  key={i}
-                  type="button"
-                  className="chip element"
-                  data-testid={`element-${i}`}
-                  onClick={() => onObject(e.target)}
-                >
-                  {e.label !== null && <span className="slot">{e.label}</span>}
-                  <span className="repr">{target ? target.repr : '?'}</span>
-                  {badges[e.target] && <span className="badge">{badges[e.target]}</span>}
-                </button>
-              )
-            })}
-          </div>
-        </div>
-      )}
+      {object.elements !== null && <Slots object={object} snapshot={snapshot} badges={badges} onObject={onObject} />}
 
       {object.partial && (
         <p className="warn">
@@ -318,7 +363,10 @@ function ObjectDetail({
       )}
 
       <div className="held-by">
-        <span className="quiet">pointed at by</span>
+        {/* A value has no identity of its own, so nothing can point *at*
+            it in the sense a reference is pointed at. Saying so would
+            contradict the rule the rest of the panel follows. */}
+        <span className="quiet">{object.kind === 'value' ? 'used by' : 'pointed at by'}</span>
         {names.length === 0 && holders.length === 0 && <span className="none">nothing</span>}
         {names.map((b) => (
           <button

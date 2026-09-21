@@ -56,6 +56,10 @@ npm run test:browser  # playwright against the PRODUCTION build at /botgineer/
 4. **Identity is the engine's to give.** `reference` objects get a badge;
    `value` objects never do. Values are keyed by type+value so two `10`s
    are one entry, and the UI must never invite an `is` comparison on them.
+   This runs all the way through the wording: a collection *holds values*
+   and *points at objects*, and a value object is "used by" its holders
+   rather than "pointed at by" them. A pointer points at an identity, and
+   value objects deliberately have none.
 5. **Runs.** Reject a concurrent run **before** resetting per-run state.
    **Every run reaches a terminal state on every path** — success, throw,
    interrupt. A run that never ends wedges every control.

@@ -130,6 +130,52 @@ test('picking an object pulls out just the object', async ({ page }) => {
   await expect(page.locator('.points-at')).toHaveCount(0)
 })
 
+test('a slot holding a value is not called a pointer', async ({ page }) => {
+  await open(page, 'sandbox')
+  await send(page, "letters = ['x', 'y']\n")
+  await page.getByTestId('name-letters').click()
+
+  // ['x', 'y'] holds two string VALUES. Calling them pointers contradicts
+  // the rule that value objects have no identity to point at.
+  await expect(page.getByTestId('slots-heading')).toHaveText('holds 2 values')
+  await expect(page.getByTestId('element-0')).toHaveAttribute('data-slot', 'value')
+  await expect(page.getByTestId('element-0')).toContainText("'x'")
+  await expect(page.getByTestId('element-0')).not.toContainText('→')
+})
+
+test('a slot holding an object is a pointer, and says which object', async ({ page }) => {
+  await open(page, 'sandbox')
+  await send(page, 'nested = [[1], [2]]\n')
+  await page.getByTestId('name-nested').click()
+
+  await expect(page.getByTestId('slots-heading')).toHaveText('points at 2 objects')
+  await expect(page.getByTestId('element-0')).toHaveAttribute('data-slot', 'pointer')
+  await expect(page.getByTestId('element-0')).toContainText('list')
+  await expect(page.getByTestId('element-0').locator('.badge')).toHaveCount(1)
+})
+
+test('a mixed collection says exactly what it holds', async ({ page }) => {
+  await open(page, 'sandbox')
+  await send(page, 'mixed = [1, [2]]\n')
+  await page.getByTestId('name-mixed').click()
+  await expect(page.getByTestId('slots-heading')).toHaveText(
+    'holds 1 value and points at 1 object',
+  )
+})
+
+test('a value is used by, not pointed at by', async ({ page }) => {
+  await open(page, 'sandbox')
+  await send(page, "n = 10\nm = 10\nxs = [1]\n")
+
+  await page.getByTestId('name-n').click()
+  await expect(page.getByTestId('object-card').locator('.held-by')).toContainText('used by')
+  await expect(page.getByTestId('object-card').locator('.held-by')).toContainText('m')
+
+  await page.getByTestId('dismiss').click()
+  await page.getByTestId('name-xs').click()
+  await expect(page.getByTestId('object-card').locator('.held-by')).toContainText('pointed at by')
+})
+
 test('following a pointer moves the selection to that object', async ({ page }) => {
   await open(page, 'sandbox')
   await send(page, 'xs = ["p", "q"]\n')
