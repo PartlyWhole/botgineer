@@ -99,18 +99,35 @@ test('only reference objects carry an identity badge', async ({ page }) => {
   await expect(listChip.locator('.badge')).toHaveCount(1)
 })
 
-test('selecting a name lifts it out and shows what it points at', async ({ page }) => {
+test('picking a name pulls it out, with the object it points at', async ({ page }) => {
   await open(page, 'sandbox')
   await send(page, 'xs = ["p", "q"]\nalias = xs\n')
+  await expect(page.getByTestId('memory')).toHaveAttribute('data-focused', 'no')
 
   await page.getByTestId('name-xs').click()
-  const card = page.getByTestId('object-card')
-  await expect(card).toContainText('list')
-  await expect(card).toContainText('2 items')
-  // Both names that point at it are listed, including the one not selected.
-  await expect(card.locator('footer')).toContainText('alias')
-  // The chip is lifted, not duplicated.
+
+  // Both pills come out of their clouds, with an arrow between them.
+  await expect(page.getByTestId('memory')).toHaveAttribute('data-focused', 'yes')
+  await expect(page.getByTestId('focus-name')).toHaveText('xs')
+  await expect(page.getByTestId('focus-object')).toContainText('list')
+  await expect(page.getByTestId('focus-object')).toContainText('2 items')
+  await expect(page.locator('.points-at')).toHaveCount(1)
+
+  // Both names that point at it are listed, including the one not picked.
+  await expect(page.getByTestId('object-card').locator('.held-by')).toContainText('alias')
+  // The pill is lifted out, not duplicated: its place in the cloud is a gap.
   await expect(page.getByTestId('name-xs')).toHaveClass(/lifted/)
+  await expect(page.getByTestId('object-o:1')).toHaveClass(/lifted/)
+})
+
+test('picking an object pulls out just the object', async ({ page }) => {
+  await open(page, 'sandbox')
+  await send(page, 'n = 7\n')
+  await page.locator('.chip.object.value').first().click()
+  await expect(page.getByTestId('focus-object')).toContainText('int')
+  // No name was picked, so there is nothing for an arrow to point from.
+  await expect(page.getByTestId('focus-name')).toHaveCount(0)
+  await expect(page.locator('.points-at')).toHaveCount(0)
 })
 
 test('following a pointer moves the selection to that object', async ({ page }) => {
@@ -119,10 +136,92 @@ test('following a pointer moves the selection to that object', async ({ page }) 
 
   await page.getByTestId('name-xs').click()
   await page.getByTestId('element-1').click()
-  const card = page.getByTestId('object-card')
-  await expect(card).toContainText('str')
-  await expect(card).toContainText("'q'")
-  await expect(card).toContainText('a value')
+  await expect(page.getByTestId('focus-object')).toContainText('str')
+  await expect(page.getByTestId('focus-object')).toContainText("'q'")
+  await expect(page.getByTestId('object-card')).toContainText('A value')
+})
+
+test('Escape and the button both put it back in the cloud', async ({ page }) => {
+  await open(page, 'sandbox')
+  await send(page, 'xs = [1]\n')
+
+  await page.getByTestId('name-xs').click()
+  await expect(page.getByTestId('memory')).toHaveAttribute('data-focused', 'yes')
+  await page.keyboard.press('Escape')
+  await expect(page.getByTestId('memory')).toHaveAttribute('data-focused', 'no')
+
+  await page.getByTestId('name-xs').click()
+  await page.getByTestId('dismiss').click()
+  await expect(page.getByTestId('memory')).toHaveAttribute('data-focused', 'no')
+  await expect(page.getByTestId('stage')).toHaveCount(0)
+})
+
+/* -------------------------------- the clouds ------------------------------- */
+
+/** Rendered pill rectangles for one cloud, so overlap is measured on what
+ *  is actually on screen rather than on the layout's own numbers. */
+const pillBoxes = (page: Page, cloud: string) =>
+  page.locator(`[aria-label="${cloud}"] .chip`).evaluateAll((els) =>
+    els.map((e) => {
+      const r = e.getBoundingClientRect()
+      return { l: r.left, t: r.top, r: r.right, b: r.bottom }
+    }),
+  )
+
+function overlapping(boxes: { l: number; t: number; r: number; b: number }[]): number {
+  let n = 0
+  for (let i = 0; i < boxes.length; i++) {
+    for (let j = i + 1; j < boxes.length; j++) {
+      const a = boxes[i]!
+      const b = boxes[j]!
+      if (a.l < b.r - 1 && b.l < a.r - 1 && a.t < b.b - 1 && b.t < a.b - 1) n++
+    }
+  }
+  return n
+}
+
+test('the clouds lay pills out without any of them overlapping', async ({ page }) => {
+  await open(page, 'sandbox')
+  await send(
+    page,
+    'parcels = [("A7", 3.2), ("B1", 7.4), ("C2", 1.1), ("D3", 9.8), ("E5", 5.0)]\n' +
+      'heavy = ["B1", "D3"]\nn = 1\nm = 2.5\nflag = True\nd = {"a": 1}\n',
+  )
+  const names = await pillBoxes(page, 'Names')
+  const objects = await pillBoxes(page, 'Objects')
+  expect(names.length).toBeGreaterThan(3)
+  expect(objects.length).toBeGreaterThan(8)
+  expect(overlapping(names)).toBe(0)
+  expect(overlapping(objects)).toBe(0)
+})
+
+test('a pill can be dragged, and the cloud reorganises around it', async ({ page }) => {
+  await open(page, 'sandbox')
+  await send(page, 'aa = 1\nbb = 2\ncc = 3\ndd = 4\n')
+
+  const pill = page.getByTestId('name-aa')
+  const before = (await pill.boundingBox())!
+  await page.mouse.move(before.x + before.width / 2, before.y + before.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(before.x + 90, before.y - 40, { steps: 12 })
+  await page.mouse.up()
+  await page.waitForTimeout(600)
+
+  // A dropped pill stays where it was put — otherwise dragging does
+  // nothing, because packing would send it straight back.
+  const after = (await pill.boundingBox())!
+  expect(Math.hypot(after.x - before.x, after.y - before.y)).toBeGreaterThan(20)
+  // Everything still readable: dragging must not pile pills on top of each other.
+  expect(overlapping(await pillBoxes(page, 'Names'))).toBe(0)
+  // And a drag is not a click.
+  await expect(page.getByTestId('memory')).toHaveAttribute('data-focused', 'no')
+
+  // Tidy puts everything back in the cloud.
+  await page.getByTestId('tidy-names').click()
+  await page.waitForTimeout(600)
+  const tidied = (await pill.boundingBox())!
+  expect(Math.hypot(tidied.x - before.x, tidied.y - before.y)).toBeLessThan(3)
+  expect(overlapping(await pillBoxes(page, 'Names'))).toBe(0)
 })
 
 test('a collection holding itself does not hang the panel', async ({ page }) => {

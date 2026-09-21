@@ -108,18 +108,52 @@ program printed.
 state — the editor owns the text, and asking React for it runs whatever was
 last rendered.
 
-### (C) Memory — `src/panels/MemoryPanel.tsx`
+### (C) Memory — `src/panels/MemoryPanel.tsx`, `src/panels/Cloud.tsx`
 
-Two clouds — names and objects — and an inspector.
+Two clouds — names and objects — and a stage.
 
-Selecting a chip **lifts it out** of its cloud (it dims in place; it is not
-duplicated) and opens it below. A name shows what it points at. An object
-shows its type, its value, its pointers, and everything currently holding
-it — both the names and the collections. Clicking a pointer moves the
-selection, so the graph is *walked* rather than dumped.
+Neither collection is a list, because neither is ordered and a list would
+teach a sequence that is not there. Pills are laid out as **centred ragged
+rows filled from the middle outwards**, are draggable, and re-pack around
+whatever you move.
+
+Picking a pill **pulls it out**: the clouds shrink back and blur, the pill
+flies from exactly where it sat into the middle at full size, the object
+it points at is pulled out of the other cloud the same way, and an arrow
+is drawn between them. It is a FLIP — measured in the cloud, rendered at
+its destination, animated from the difference — so it is the same element
+arriving, not a copy fading in elsewhere. Its place in the cloud is left
+as a gap.
+
+From there the object shows its pointers and everything holding it, and
+following a pointer moves the selection, so the graph is *walked* rather
+than dumped. Escape, or the button, puts it back.
 
 An object nothing points at is drawn dashed and dimmed, because "held by
 nothing" is a fact worth seeing.
+
+#### The layout, and two approaches that did not work
+
+`cloudLayout.ts` packs rows. Two earlier attempts are recorded there
+because both looked right and were not:
+
+- **Relaxation** (drift to the centre, push apart on overlap): the rules
+  fought, pairs jammed against the edges, and pushing a pill out of one
+  collision shoved it into the next. Measured: 15px overlaps at 43% full.
+- **Spiral packing** (the usual word-cloud algorithm): scatters pills at
+  arbitrary `y`, and since these pills are all one height that fragments
+  the vertical space into unusable slivers. Measured: 5 of 20 pills had
+  nowhere to go at 61% full.
+
+Rows have neither failure mode and are simpler. Measured: no overlaps up
+to 90% full.
+
+A **dropped pill stays where it was put** and the rest packs around it —
+releasing it back into the layout sent it straight home, because packing
+is deterministic, so dragging accomplished nothing. `tidy` clears the
+pins. A pinned pill carves its row into runs, and a row's capacity is its
+widest free run: budgeting "row width minus the pill's width" ignored the
+split and overlapped the last item.
 
 ## 4. Execution
 

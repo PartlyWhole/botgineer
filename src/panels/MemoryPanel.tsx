@@ -1,60 +1,175 @@
 /**
- * (C) The memory panel: two collections, and what connects them.
+ * (C) The memory panel: two clouds, and what connects them.
  *
- * Names on one side, objects on the other. A name is a label that points
- * at an object; an object has a type and a value, and a collection holds
- * *pointers* to other objects rather than copies of them. That is the
- * whole model, and the panel shows nothing that is not in it.
+ * Names in one cloud, objects in the other. Both are draggable and
+ * re-settle; neither is a list, because neither is ordered and pretending
+ * otherwise teaches a sequence that is not there.
  *
- * Selecting a chip lifts it out of its cloud and opens it below: a name
- * shows what it points at, an object shows its structure and everything
- * currently holding it. Following a pointer moves the selection, so the
- * graph is walked rather than dumped.
+ * Picking a pill *pulls it out*: the clouds shrink back and blur, the pill
+ * flies from exactly where it sat into the middle at full size, and the
+ * object it points at is pulled out of the other cloud the same way, with
+ * an arrow drawn between them. The animation is a FLIP — the pill is
+ * measured in the cloud, rendered at its destination, and animated from
+ * the difference — so it is the same element arriving, not a copy fading
+ * in somewhere else.
  */
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
   holdersOf,
   identityBadges,
   namesFor,
   unreferenced,
+  type Binding,
   type MemorySnapshot,
   type ObjectId,
   type PyObject,
 } from '../memory/model'
+import { Cloud, type CloudItem } from './Cloud'
 
-type Focus = { on: 'name'; name: string; scope: string } | { on: 'object'; id: ObjectId } | null
+type Focus = {
+  /** The name that was picked, when a name was picked. */
+  name: { name: string; scope: string } | null
+  objectId: ObjectId
+}
+
+const reduced = () =>
+  typeof window !== 'undefined' &&
+  window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true
+
+const nameKey = (b: { scope: string; name: string }) => `${b.scope}:${b.name}`
 
 export function MemoryPanel({ snapshot }: { snapshot: MemorySnapshot }) {
-  const [focus, setFocus] = useState<Focus>(null)
+  const [focus, setFocus] = useState<Focus | null>(null)
   const badges = useMemo(() => identityBadges(snapshot), [snapshot])
   const orphans = useMemo(() => new Set(unreferenced(snapshot)), [snapshot])
 
   const objects = useMemo(
     () =>
       Object.values(snapshot.objects).sort(
-        (a, b) => a.kind.localeCompare(b.kind) || a.type.localeCompare(b.type) || a.repr.localeCompare(b.repr),
+        (a, b) =>
+          a.kind.localeCompare(b.kind) ||
+          a.type.localeCompare(b.type) ||
+          a.repr.localeCompare(b.repr),
       ),
     [snapshot],
   )
 
-  // A selection that no longer exists would silently show nothing, so it
-  // is dropped rather than left dangling.
+  // Where the pills sat before the pull-out, for the FLIP.
+  const flight = useRef<{ name: DOMRect | null; object: DOMRect | null }>({
+    name: null,
+    object: null,
+  })
+  const namePillRef = useRef<HTMLDivElement | null>(null)
+  const objectPillRef = useRef<HTMLDivElement | null>(null)
+
+  const rectOf = (testId: string): DOMRect | null =>
+    document.querySelector(`[data-testid="${CSS.escape(testId)}"]`)?.getBoundingClientRect() ?? null
+
+  const pickName = useCallback(
+    (key: string, from: DOMRect) => {
+      const binding = snapshot.bindings.find((b) => nameKey(b) === key)
+      if (!binding) return
+      flight.current = { name: from, object: rectOf(`object-${binding.target}`) }
+      setFocus({ name: { name: binding.name, scope: binding.scope }, objectId: binding.target })
+    },
+    [snapshot],
+  )
+
+  const pickObject = useCallback((id: ObjectId, from: DOMRect) => {
+    flight.current = { name: null, object: from }
+    setFocus({ name: null, objectId: id })
+  }, [])
+
+  /** Moving inside the stage: re-fly from wherever that object sits now. */
+  const goToObject = useCallback((id: ObjectId) => {
+    flight.current = { name: null, object: rectOf(`object-${id}`) ?? objectPillRef.current?.getBoundingClientRect() ?? null }
+    setFocus({ name: null, objectId: id })
+  }, [])
+
+  const goToName = useCallback(
+    (b: Binding) => {
+      flight.current = { name: rectOf(`name-${b.name}`), object: rectOf(`object-${b.target}`) }
+      setFocus({ name: { name: b.name, scope: b.scope }, objectId: b.target })
+    },
+    [],
+  )
+
+  // The FLIP itself: measure the destination, animate in from the
+  // difference. Nothing is duplicated — the pill in the cloud is a gap.
+  useLayoutEffect(() => {
+    const pending = flight.current
+    flight.current = { name: null, object: null }
+    if (!focus || reduced()) return
+
+    const pairs: [HTMLElement | null, DOMRect | null][] = [
+      [namePillRef.current, pending.name],
+      [objectPillRef.current, pending.object],
+    ]
+    for (const [el, from] of pairs) {
+      if (!el || !from) continue
+      const to = el.getBoundingClientRect()
+      if (to.width === 0) continue
+      const dx = from.left + from.width / 2 - (to.left + to.width / 2)
+      const dy = from.top + from.height / 2 - (to.top + to.height / 2)
+      const s = Math.max(0.25, Math.min(1, from.width / to.width))
+      el.animate(
+        [
+          { transform: `translate(${dx}px, ${dy}px) scale(${s})`, opacity: 0.75 },
+          { transform: 'none', opacity: 1 },
+        ],
+        { duration: 440, easing: 'cubic-bezier(.2,.85,.25,1.1)' },
+      )
+    }
+  }, [focus])
+
+  // A selection the program no longer has would silently show nothing.
   useEffect(() => {
     if (!focus) return
-    const alive =
-      focus.on === 'object'
-        ? !!snapshot.objects[focus.id]
-        : snapshot.bindings.some((b) => b.name === focus.name && b.scope === focus.scope)
-    if (!alive) setFocus(null)
+    const gone =
+      !snapshot.objects[focus.objectId] ||
+      (focus.name !== null &&
+        !snapshot.bindings.some(
+          (b) => b.name === focus.name?.name && b.scope === focus.name.scope,
+        ))
+    if (gone) setFocus(null)
   }, [focus, snapshot])
 
-  const focusedObjectId =
-    focus?.on === 'object'
-      ? focus.id
-      : focus?.on === 'name'
-        ? (snapshot.bindings.find((b) => b.name === focus.name && b.scope === focus.scope)?.target ??
-          null)
-        : null
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setFocus(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
+  const focused = focus !== null
+  const object = focus ? (snapshot.objects[focus.objectId] ?? null) : null
+
+  const nameItems: CloudItem[] = snapshot.bindings.map((b) => ({
+    id: nameKey(b),
+    className: 'name',
+    testId: `name-${b.name}`,
+    content: (
+      <>
+        {b.scope !== 'global' && <span className="scope">{b.scope}</span>}
+        {b.name}
+      </>
+    ),
+  }))
+
+  const objectItems: CloudItem[] = objects.map((o) => ({
+    id: o.id,
+    className: `object ${o.kind} ${orphans.has(o.id) ? 'orphan' : ''}`,
+    testId: `object-${o.id}`,
+    dataType: o.type,
+    content: (
+      <>
+        <span className="type">{o.type}</span>
+        <span className="repr">{o.repr}</span>
+        {badges[o.id] && <span className="badge">{badges[o.id]}</span>}
+      </>
+    ),
+  }))
 
   if (snapshot.bindings.length === 0 && objects.length === 0) {
     return (
@@ -65,167 +180,108 @@ export function MemoryPanel({ snapshot }: { snapshot: MemorySnapshot }) {
   }
 
   return (
-    <div className="memory" data-testid="memory">
+    <div className={`memory ${focused ? 'focused' : ''}`} data-testid="memory" data-focused={focused ? 'yes' : 'no'}>
       <div className="clouds">
-        <section className="cloud names" aria-label="Names">
-          <h3>
-            Names <span className="count">{snapshot.bindings.length}</span>
-          </h3>
-          <div className="chips">
-            {snapshot.bindings.length === 0 && <p className="none">no names yet</p>}
-            {snapshot.bindings.map((b) => {
-              const lifted = focus?.on === 'name' && focus.name === b.name && focus.scope === b.scope
-              const points = focusedObjectId !== null && b.target === focusedObjectId
-              return (
-                <button
-                  key={`${b.scope}:${b.name}`}
-                  type="button"
-                  className={`chip name ${lifted ? 'lifted' : ''} ${points && !lifted ? 'related' : ''}`}
-                  data-testid={`name-${b.name}`}
-                  aria-pressed={lifted}
-                  onClick={() => setFocus(lifted ? null : { on: 'name', name: b.name, scope: b.scope })}
-                >
-                  {b.scope !== 'global' && <span className="scope">{b.scope}</span>}
-                  {b.name}
-                </button>
-              )
-            })}
-          </div>
-        </section>
-
-        <section className="cloud objects" aria-label="Objects">
-          <h3>
-            Objects <span className="count">{objects.length}</span>
-          </h3>
-          <div className="chips">
-            {objects.length === 0 && <p className="none">no objects yet</p>}
-            {objects.map((o) => (
-              <ObjectChip
-                key={o.id}
-                object={o}
-                badge={badges[o.id]}
-                lifted={focusedObjectId === o.id}
-                orphan={orphans.has(o.id)}
-                onClick={() =>
-                  setFocus(focus?.on === 'object' && focus.id === o.id ? null : { on: 'object', id: o.id })
-                }
-              />
-            ))}
-          </div>
-        </section>
+        <Cloud
+          title="Names"
+          items={nameItems}
+          onPick={pickName}
+          liftedId={focus?.name ? nameKey(focus.name) : null}
+          dimmed={focused}
+        />
+        <Cloud
+          title="Objects"
+          items={objectItems}
+          onPick={pickObject}
+          liftedId={focus?.objectId ?? null}
+          dimmed={focused}
+        />
       </div>
 
-      <div className="inspector" data-testid="inspector">
-        {focus === null ? (
-          <p className="none">Pick a name or an object to pull it out and see what it points at.</p>
-        ) : (
-          <Inspector
-            focus={focus}
-            focusedObjectId={focusedObjectId}
-            snapshot={snapshot}
-            badges={badges}
-            onFocus={setFocus}
-          />
-        )}
-      </div>
-    </div>
-  )
-}
+      {focus && (
+        <div className="stage-focus" data-testid="stage">
+          <div className="focus-row">
+            {focus.name && (
+              <>
+                <div className="focus-pill name" ref={namePillRef} data-testid="focus-name">
+                  {focus.name.name}
+                </div>
+                <PointsAt />
+              </>
+            )}
 
-function ObjectChip({
-  object,
-  badge,
-  lifted,
-  orphan,
-  onClick,
-}: {
-  object: PyObject
-  badge?: string | undefined
-  lifted: boolean
-  orphan: boolean
-  onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      className={`chip object ${object.kind} ${lifted ? 'lifted' : ''} ${orphan ? 'orphan' : ''}`}
-      data-testid={`object-${object.id}`}
-      data-type={object.type}
-      aria-pressed={lifted}
-      onClick={onClick}
-      title={orphan ? 'Nothing points at this any more' : undefined}
-    >
-      <span className="type">{object.type}</span>
-      <span className="repr">{object.repr}</span>
-      {/* Only reference objects get an identity. Values are equal-or-not,
-          never same-or-not, and a badge would invite the wrong question. */}
-      {badge && <span className="badge">{badge}</span>}
-    </button>
-  )
-}
+            {object === null ? (
+              <p className="none">This name points at nothing the robot can show.</p>
+            ) : (
+              <div
+                className={`focus-pill object ${object.kind}`}
+                ref={objectPillRef}
+                data-testid="focus-object"
+              >
+                <span className="type">{object.type}</span>
+                <span className="repr">{object.repr}</span>
+                {badges[object.id] && <span className="badge">{badges[object.id]}</span>}
+              </div>
+            )}
 
-function Inspector({
-  focus,
-  focusedObjectId,
-  snapshot,
-  badges,
-  onFocus,
-}: {
-  focus: NonNullable<Focus>
-  focusedObjectId: ObjectId | null
-  snapshot: MemorySnapshot
-  badges: Record<ObjectId, string>
-  onFocus: (f: Focus) => void
-}) {
-  const object = focusedObjectId === null ? null : (snapshot.objects[focusedObjectId] ?? null)
+            <button type="button" className="dismiss" onClick={() => setFocus(null)} data-testid="dismiss">
+              Back to the cloud
+            </button>
+          </div>
 
-  return (
-    <div className="pulled">
-      {focus.on === 'name' && (
-        <div className="pulled-name">
-          <span className="chip name lifted big">{focus.name}</span>
-          <span className="arrow" aria-label="points at">
-            →
-          </span>
+          {object && (
+            <ObjectDetail
+              object={object}
+              snapshot={snapshot}
+              badges={badges}
+              onObject={goToObject}
+              onName={goToName}
+            />
+          )}
         </div>
       )}
-
-      {object === null ? (
-        <p className="none">This name points at nothing the robot can show.</p>
-      ) : (
-        <ObjectCard object={object} snapshot={snapshot} badges={badges} onFocus={onFocus} />
-      )}
     </div>
   )
 }
 
-function ObjectCard({
+/** The arrow. It draws itself in, which is what makes the pair read as
+ *  one relationship rather than two things that happen to be adjacent. */
+function PointsAt() {
+  return (
+    <svg className="points-at" viewBox="0 0 80 24" role="img" aria-label="points at">
+      <defs>
+        <marker id="arrowhead" markerWidth="7" markerHeight="7" refX="5.5" refY="3" orient="auto">
+          <path d="M0,0 L6,3 L0,6 z" />
+        </marker>
+      </defs>
+      <line x1="4" y1="12" x2="66" y2="12" markerEnd="url(#arrowhead)" />
+    </svg>
+  )
+}
+
+function ObjectDetail({
   object,
   snapshot,
   badges,
-  onFocus,
+  onObject,
+  onName,
 }: {
   object: PyObject
   snapshot: MemorySnapshot
   badges: Record<ObjectId, string>
-  onFocus: (f: Focus) => void
+  onObject: (id: ObjectId) => void
+  onName: (b: Binding) => void
 }) {
   const names = namesFor(snapshot, object.id)
   const holders = holdersOf(snapshot, object.id)
 
   return (
-    <div className={`card ${object.kind}`} data-testid="object-card">
-      <header>
-        <span className="type">{object.type}</span>
-        {badges[object.id] && <span className="badge">{badges[object.id]}</span>}
-        <span className="kind-note">
-          {object.kind === 'value'
-            ? 'a value — equal values are the same entry'
-            : 'an object with its own identity'}
-        </span>
-      </header>
-
-      <div className="value">{object.repr}</div>
+    <div className="detail" data-testid="object-card">
+      <p className="kind-note">
+        {object.kind === 'value'
+          ? 'A value. Equal values are the same entry, and it has no identity of its own.'
+          : 'An object with its own identity — two of these can look the same and still be different.'}
+      </p>
 
       {object.elements !== null && (
         <div className="elements">
@@ -234,7 +290,7 @@ function ObjectCard({
               ? 'holds nothing'
               : `holds ${object.elements.length} pointer${object.elements.length === 1 ? '' : 's'}`}
           </h4>
-          <div className="chips">
+          <div className="row">
             {object.elements.map((e, i) => {
               const target = snapshot.objects[e.target]
               return (
@@ -243,7 +299,7 @@ function ObjectCard({
                   type="button"
                   className="chip element"
                   data-testid={`element-${i}`}
-                  onClick={() => onFocus({ on: 'object', id: e.target })}
+                  onClick={() => onObject(e.target)}
                 >
                   {e.label !== null && <span className="slot">{e.label}</span>}
                   <span className="repr">{target ? target.repr : '?'}</span>
@@ -261,15 +317,15 @@ function ObjectCard({
         </p>
       )}
 
-      <footer>
+      <div className="held-by">
         <span className="quiet">pointed at by</span>
         {names.length === 0 && holders.length === 0 && <span className="none">nothing</span>}
         {names.map((b) => (
           <button
-            key={`${b.scope}:${b.name}`}
+            key={nameKey(b)}
             type="button"
             className="chip name small"
-            onClick={() => onFocus({ on: 'name', name: b.name, scope: b.scope })}
+            onClick={() => onName(b)}
           >
             {b.name}
           </button>
@@ -279,13 +335,13 @@ function ObjectCard({
             key={h.id}
             type="button"
             className="chip object small"
-            onClick={() => onFocus({ on: 'object', id: h.id })}
+            onClick={() => onObject(h.id)}
           >
             <span className="type">{h.type}</span>
             {badges[h.id] && <span className="badge">{badges[h.id]}</span>}
           </button>
         ))}
-      </footer>
+      </div>
     </div>
   )
 }

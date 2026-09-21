@@ -33,7 +33,9 @@ npm run test:browser  # playwright against the PRODUCTION build at /botgineer/
 | `src/scene/spec.ts` | a scene is data, and a view of memory: watches map global names to visual effects |
 | `src/panels/ScenePanel.tsx` | (A) the situation, drawn from the snapshot |
 | `src/panels/RobotPanel.tsx` | (B) editor + Run/Stop + step slider + transcript |
-| `src/panels/MemoryPanel.tsx` | (C) two clouds and an inspector |
+| `src/panels/MemoryPanel.tsx` | (C) two clouds and the pull-out stage; owns the FLIP |
+| `src/panels/Cloud.tsx` | a draggable cloud of pills; writes transforms straight to the DOM in the animation loop, never through React |
+| `src/panels/cloudLayout.ts` | row packing. Pure and unit-tested. Read its header before changing it: relaxation and spiral packing were both tried and both measurably failed |
 | `src/ui/CodeEditor.tsx` | CodeMirror; `head`/`tail` optionally lock regions (unused by the workbench) |
 | `src/ui/Split.tsx` | draggable, keyboard-operable gutters; sizes remembered in localStorage |
 | `src/app/Workbench.tsx` | the wiring: owns the run, the steps, the index, the snapshot |
@@ -70,7 +72,12 @@ npm run test:browser  # playwright against the PRODUCTION build at /botgineer/
 10. **`window.botgineer` is the test surface.** Browser tests drive
    `setProgram`/`getProgram`/`run`/`snapshot`/`state` rather than typing
    into a contenteditable. Keep the shape stable.
-11. **Tests run like production.** Playwright serves the built site at the
+11. **Cloud layout is decided by `pack`, not by the animation.**
+   `pack` sets targets and `advance` eases toward them, so correctness
+   never depends on a frame rate. A dropped pill is `pinned` and keeps its
+   place; a row's capacity is its widest free run, because a pinned pill
+   splits the row.
+12. **Tests run like production.** Playwright serves the built site at the
    sub-path with **no** isolation headers, so the `coi-serviceworker` path
    is what gets exercised. Do not add COOP/COEP to the test server.
 
