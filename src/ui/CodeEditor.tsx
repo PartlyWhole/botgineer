@@ -44,10 +44,11 @@ import { python } from '@codemirror/lang-python'
 import { tags as t } from '@lezer/highlight'
 
 type Props = {
-  /** Exact text before the editable region, including its trailing newline. */
-  head: string
+  /** Exact text before the editable region, including its trailing
+   *  newline. Empty when the whole document is the player's. */
+  head?: string
   /** Exact text after the editable region, including its leading newline. */
-  tail: string
+  tail?: string
   solution: string
   onSolution: (next: string) => void
   /** 1-based line in the whole program currently shown by the trace. */
@@ -142,8 +143,8 @@ const editable = new Compartment()
 /* -------------------------------------------------------------------- */
 
 export function CodeEditor({
-  head,
-  tail,
+  head = '',
+  tail = '',
   solution,
   onSolution,
   traceLine,

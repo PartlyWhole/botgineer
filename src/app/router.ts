@@ -1,34 +1,31 @@
 /**
- * Hash routing.
+ * Hash routing over the activity list.
  *
  * GitHub Pages applies no rewrite rules, so a path route would 404 on
  * refresh. A hash route always requests the existing index.html, which
  * makes deep links and reloads work with no server configuration.
  */
 import { useEffect, useState } from 'react'
+import { ACTIVITIES, activityById, type Activity } from '../../content/activities'
 
-export const ROUTES = {
-  tutorial: 'First Objects',
-  parcels: 'Heavy Parcels',
-} as const
+const FALLBACK = ACTIVITIES[0] as Activity
 
-export type Route = keyof typeof ROUTES
-
-const DEFAULT: Route = 'tutorial'
-
-function read(): Route {
+function read(): Activity {
   const id = window.location.hash.replace(/^#\/?/, '')
-  return id in ROUTES ? (id as Route) : DEFAULT
+  return activityById(id) ?? FALLBACK
 }
 
-export function useRoute(): [Route, (next: Route) => void] {
-  const [route, setRoute] = useState<Route>(read)
+export function useActivity(): [Activity, (next: Activity) => void] {
+  const [activity, setActivity] = useState<Activity>(read)
   useEffect(() => {
-    const onHash = () => setRoute(read())
+    const onHash = () => setActivity(read())
     window.addEventListener('hashchange', onHash)
     return () => window.removeEventListener('hashchange', onHash)
   }, [])
-  return [route, (next) => {
-    window.location.hash = `#/${next}`
-  }]
+  return [
+    activity,
+    (next) => {
+      window.location.hash = `#/${next.id}`
+    },
+  ]
 }

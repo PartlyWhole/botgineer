@@ -1,18 +1,22 @@
 # BotGineer (repo guide)
 
-Static GitHub Pages site: a Python learning game. Real CPython 3.14 runs in a
-Web Worker via PyTrace + Pyodide; the memory panel renders the trace that
-interpreter produced. Deploys as a **project site**
+Static GitHub Pages site: a Python learning game. Real CPython 3.14 runs in
+a Web Worker via PyTrace + Pyodide. Deploys as a **project site**
 (`https://partlywhole.github.io/botgineer/`) — the sub-path is load-bearing.
 
 Design of record: [docs/DESIGN.md](docs/DESIGN.md).
+
+**The one idea: one snapshot, three panels.** The worker produces records;
+`memory/extract.ts` turns the current one into a `MemorySnapshot`; the
+scene and the memory panel are both views of it; the robot panel is the
+only thing that causes anything.
 
 ## Commands
 
 ```sh
 npm run dev           # vite, base '/'
 npm run typecheck
-npm run test          # semantic tests: real CPython via Pyodide (node)
+npm run test          # unit tests (node)
 npm run test:browser  # playwright against the PRODUCTION build at /botgineer/
 ```
 
@@ -20,20 +24,20 @@ npm run test:browser  # playwright against the PRODUCTION build at /botgineer/
 
 | Path | What |
 |---|---|
-| `src/runtime/types.ts` | `trace-engine/1` wire format. Four record kinds: header, step, diagnostic, terminal. **There is no console record** — output arrives as `stdout_delta`/`stderr_delta` on each step |
+| `src/runtime/types.ts` | `trace-engine/1` wire format. Four record kinds: header, step, diagnostic, terminal. **No console record** — output arrives as `stdout_delta`/`stderr_delta` on each step |
 | `src/runtime/session.ts` | typed wrapper over the vendored facade; owns the one-run-at-a-time guard |
-| `src/runtime/decode.ts` | tagged values → comparable JS; deliberately partial |
-| `src/game/scenario.ts` | scenario shape; assembles preamble + solution + harness |
-| `src/game/grader.ts` | lifts `answer` from the trace, decodes, compares, diagnoses |
-| `src/game/repl.ts` | tutorial session: builds the whole program from the entries so far, reads the object bank out of the trace |
-| `src/app/router.ts` | hash routes — `#/tutorial` (default), `#/parcels` |
 | `src/runtime/shared.ts` | the one session for the page; boot is a module-level promise so React's dev double-invoke cannot start two |
-| `src/game/events.ts` | semantic event bus — the seam between runtime and scene |
-| `src/game/director.ts` | events → character moods. Cosmetic; drives nothing |
-| `src/ui/CodeEditor.tsx` | ONE CodeMirror document holding the whole program; preamble and harness protected by `EditorState.changeFilter`, not hidden. `head`/`tail` come from `assembleProgram` so the editor and the runtime share one string |
+| `src/runtime/decode.ts` | tagged values → comparable JS; deliberately partial |
+| `src/memory/model.ts` | **the canonical model**: names bind to objects; objects have id/type/value; collections hold pointers |
+| `src/memory/extract.ts` | the ONLY module that knows both the wire format and the model |
+| `src/scene/spec.ts` | a scene is data, and a view of memory: watches map global names to visual effects |
+| `src/panels/ScenePanel.tsx` | (A) the situation, drawn from the snapshot |
+| `src/panels/RobotPanel.tsx` | (B) editor + Run/Stop + step slider + transcript |
+| `src/panels/MemoryPanel.tsx` | (C) two clouds and an inspector |
+| `src/ui/CodeEditor.tsx` | CodeMirror; `head`/`tail` optionally lock regions (unused by the workbench) |
 | `src/ui/Split.tsx` | draggable, keyboard-operable gutters; sizes remembered in localStorage |
-| `src/ui/` | terminal, memory panel, scene, characters |
-| `content/scenarios/` | the encounters |
+| `src/app/Workbench.tsx` | the wiring: owns the run, the steps, the index, the snapshot |
+| `content/activities/` | the activities: brief, scene, starter |
 | `public/runtime/pytrace/` | vendored engine. `browser/worker.mjs` is **patched** to resolve Pyodide relative to itself (`../../pyodide/`) so it works under a sub-path |
 | `public/runtime/pyodide/` | copied from the pinned npm package at build time; gitignored |
 
@@ -42,61 +46,42 @@ npm run test:browser  # playwright against the PRODUCTION build at /botgineer/
 1. **Serving.** Every URL relative or `import.meta.env.BASE_URL`-derived,
    never root-absolute — root-absolute breaks under `/botgineer/`. No CDN
    fetches (COEP `require-corp`). `public/.nojekyll` must exist.
-2. **Runs.** Reject a concurrent run **before** resetting per-run state, or
-   the rejection clobbers the live run's records. **Every run reaches a
-   terminal state on every path** — success, throw, interrupt. A run that
-   never ends leaves `running` true and wedges every control.
-3. **Never render inside `onRecord`.** Records arrive at thousands per
-   second. Steps are pushed to a ref; the rAF pump renders the latest and
-   flushes queued output at most once per frame.
-4. **Python owns the answer.** The host never computes what the robot should
-   say. `answer` is lifted out of the trace's snapshots and decoded.
-5. **The runtime initiates; the scene responds.** `provideInput` throws when
-   nothing is waiting. Nothing subscribed to the event bus may call into a
-   live run.
-6. **The director is cosmetic.** Deleting it must leave a working app. No
-   verdict is ever carried by a face or a colour alone; every verdict is also
-   text. `prefers-reduced-motion` is honoured.
-7. **The interpreter is the answer key.** A scenario's `expected` is data,
-   and `tests/semantics` runs the reference solution in real Python to prove
-   it. Misconceptions are asserted against really-executed wrong code. Do not
-   hand-write an expectation and do not "fix" a semantic test by editing the
-   expectation — that is a design change.
-8. **Decode partially, fail cleanly.** Unsupported value kinds and
-   budget-elided values return sentinels that can never compare equal.
-   "Too big to check" is reported differently from "wrong".
-9. **The editor document IS the program.** `assembleProgram` returns the
-   exact `head`/`tail` the editor locks, so on-screen line numbers are the
-   line numbers Python reports. Changing one without the other silently
-   makes every reported line wrong.
+2. **One snapshot, three panels.** The scene and the memory panel read the
+   same `MemorySnapshot`. Never give a panel its own parallel idea of what
+   memory is — that is exactly what this revamp removed.
+3. **`extract.ts` is the only translation.** No panel may import
+   `runtime/types` to read a `StepRecord` directly.
+4. **Identity is the engine's to give.** `reference` objects get a badge;
+   `value` objects never do. Values are keyed by type+value so two `10`s
+   are one entry, and the UI must never invite an `is` comparison on them.
+5. **Runs.** Reject a concurrent run **before** resetting per-run state.
+   **Every run reaches a terminal state on every path** — success, throw,
+   interrupt. A run that never ends wedges every control.
+6. **Never render inside `onRecord`.** Steps push to a ref; the rAF pump
+   renders the latest and flushes queued output at most once per frame.
+7. **The editor owns the program.** A run reads `editorRef.read()`, never
+   React state — state may lag a tick behind what is on screen, and a run
+   of the previous program is a silent wrong answer.
+8. **The scene causes nothing.** It declares watches and renders the
+   snapshot. No scene code may call into a run or hold state of its own.
+9. **Decode partially, fail cleanly.** Unsupported kinds and
+   budget-elided values are marked `partial` and said so, never shown as
+   complete.
 10. **`window.botgineer` is the test surface.** Browser tests drive
-   `setSolution`/`getSolution`/`run`/`state` rather than typing into a
-   contenteditable. Keep the shape stable.
-11. **The tutorial's bank is deliberate, and admitted.** Unnamed objects
-   are collected immediately, so the robot holds them in `__memory` to make
-   them visible. The crow says so. Never present them as surviving on their
-   own. Entries are parenthesised on purpose (statement → SyntaxError, not
-   a confusing TypeError), and a failed entry is never committed.
-12. **Identity is the engine's to give.** Show an id chip only where a
-   value came back as a heap `ref`. Scalars have no uid, and inventing one
-   would teach a lie about interning.
-13. **Tests run like production.** Playwright serves the built site at the
-   sub-path with **no** isolation headers, so the `coi-serviceworker` path is
-   what gets exercised. Do not add COOP/COEP to the test server.
+   `setProgram`/`getProgram`/`run`/`snapshot`/`state` rather than typing
+   into a contenteditable. Keep the shape stable.
+11. **Tests run like production.** Playwright serves the built site at the
+   sub-path with **no** isolation headers, so the `coi-serviceworker` path
+   is what gets exercised. Do not add COOP/COEP to the test server.
 
 ## Engine facts that shape the UI
 
-- An uncaught exception yields only a **type name**: the encoder never calls
-  a user `__repr__`, so the exception object comes back `opaque` and there is
-  no message. The origin line comes from the first `exception` **step**, and
-  is reported relative to the player's own code.
+- An uncaught exception yields only a **type name**: the encoder never
+  calls a user `__repr__`, so the exception object comes back `opaque`.
 - `max_steps` (default 1000) and `wall_clock_s` (default 10) are set per
-  scenario. A budget terminal keeps the truncated trace. **`max_steps` is
-  what actually bounds a runaway**: `wall_clock_s` is a main-thread timer
-  and a page busy rendering records can starve it, so do not rely on it as
-  the first line of defence. Per-step cost scales with the reachable heap,
-  so raising `max_steps` makes an endless loop feel like a hang — measured,
-  not guessed (5,000 steps with the scenario's data in scope ran for
-  minutes; 2,000 is ~70x the intended solution's 28 steps).
+  activity. **`max_steps` is what actually bounds a runaway**:
+  `wall_clock_s` is a main-thread timer and a page busy rendering records
+  can starve it. Per-step cost scales with the reachable heap, so raising
+  `max_steps` makes an endless loop feel like a hang.
 - Live `input()` and cooperative interrupt need `crossOriginIsolated`.
   Drive capability UI from `header.host.capabilities`, never from a guess.

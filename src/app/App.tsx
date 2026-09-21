@@ -1,31 +1,31 @@
 /**
- * The shell: the bar that is always there, and whichever screen the hash
- * selects. Each screen owns its own layout.
+ * The shell: the bar that is always there, and the workbench for whichever
+ * activity the hash selects.
  */
 import { useRuntime } from '../runtime/shared'
-import { Scenario } from './Scenario'
-import { Tutorial } from './Tutorial'
-import { ROUTES, useRoute, type Route } from './router'
+import { ACTIVITIES } from '../../content/activities'
+import { useActivity } from './router'
+import { Workbench } from './Workbench'
 
 export function App() {
-  const [route, go] = useRoute()
+  const [activity, go] = useActivity()
   const boot = useRuntime()
 
   return (
     <div className="app">
       <header className="topbar">
         <h1>BotGineer</h1>
-        <nav className="routes" aria-label="Lessons">
-          {(Object.keys(ROUTES) as Route[]).map((id) => (
+        <nav className="routes" aria-label="Activities">
+          {ACTIVITIES.map((a) => (
             <button
-              key={id}
+              key={a.id}
               type="button"
-              className={`route ${id === route ? 'current' : ''}`}
-              aria-current={id === route ? 'page' : undefined}
-              data-testid={`route-${id}`}
-              onClick={() => go(id)}
+              className={`route ${a.id === activity.id ? 'current' : ''}`}
+              aria-current={a.id === activity.id ? 'page' : undefined}
+              data-testid={`route-${a.id}`}
+              onClick={() => go(a)}
             >
-              {ROUTES[id]}
+              {a.title}
             </button>
           ))}
         </nav>
@@ -43,7 +43,8 @@ export function App() {
         </p>
       )}
 
-      {route === 'tutorial' ? <Tutorial /> : <Scenario />}
+      {/* Remounting per activity keeps each one's run state its own. */}
+      <Workbench key={activity.id} activity={activity} />
     </div>
   )
 }
