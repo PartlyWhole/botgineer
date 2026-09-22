@@ -117,24 +117,24 @@ export const primitives: Lesson = {
   id: 'primitives',
   steps: [
     {
-      say: 'Think of a whole number. Any one. Type it and press Enter.',
+      say: 'A whole number. Any one you like.',
       done: (e) => thoughtOfA(e, 'int'),
     },
     {
-      say: 'Now one with a decimal point. `2.5`, say.',
+      say: 'Now one with a dot. `2.5`',
       done: (e) => thoughtOfA(e, 'float'),
     },
     {
-      say: 'Now a word, in quotes: `"crow"`.',
+      say: 'A word next, in quotes. `"crow"`',
       done: (e) => thoughtOfA(e, 'str'),
     },
     {
-      say: 'Last kind. `True` — no quotes. It is either that or `False`.',
+      say: 'Last one: `True`. No quotes.',
       done: (e) => thoughtOfA(e, 'bool'),
     },
   ],
   outro:
-    'Four kinds of thing: `int`, `float`, `str`, `bool`. Look at the robot — it thought of each one and let it go. Its memory is still empty, because nothing had a name.',
+    'Four kinds: `int`, `float`, `str`, `bool`. All gone — none of them had a name.',
 }
 
 /* ------------------------------ lesson two ------------------------------ */
@@ -156,28 +156,28 @@ export const operations: Lesson = {
   id: 'operations',
   steps: [
     {
-      say: 'The robot can work things out. Ask it: `7 * 6`.',
+      say: 'It can work things out. Ask it `7 * 6`',
       done: (e) => worked(e, '42'),
     },
     {
-      say: 'Division always gives a decimal. Try `9 / 2`.',
+      say: 'Now `9 / 2`. Mind the dot.',
       done: (e) => worked(e, '4.5'),
     },
     {
-      say: 'Words add too, and they just run together. `"bot" + "gineer"`.',
+      say: 'Words join up too. `"bot" + "gineer"`',
       done: (e) => worked(e, "'botgineer'"),
     },
     {
-      say: 'And it can answer a question. Is three more than five? `3 > 5`',
+      say: 'Ask it a question. `3 > 5`',
       done: (e) => worked(e, 'False'),
     },
     {
-      say: 'One more, and this one it has to do in two parts: `(2 + 3) * 4`.',
+      say: 'Last one, in two parts. `(2 + 3) * 4`',
       done: (e) => worked(e, '20'),
     },
   ],
   outro:
-    'Twenty. And now it is gone — nobody but the robot ever knew it, it never reached memory, and if you want it again it has to work the whole thing out again. Rather annoying, that.',
+    'Twenty — and gone. Nobody else ever knew it. Ask again and it starts from scratch.',
 }
 
 /**
@@ -227,26 +227,26 @@ export const namesPoint: Lesson = {
   id: 'names-point',
   steps: [
     {
-      say: 'Tired of it forgetting? Give something a name and it stays. `x = 10`',
+      say: 'Tired of it forgetting? Try `x = 10`',
       // `ever`, not `snapshot`: the last step of this lesson moves `x`,
       // which would otherwise un-answer the first two.
       done: (e) => ever(e, (s) => points(s, 'x', '10')),
     },
     {
-      say: 'There it is in memory, with a name pointing at it. Now say just `x`.',
+      say: 'Look — memory. Now just say `x`',
       done: (e) => worked(e, '10'),
     },
     {
-      say: 'No recomputing — it was simply there. Now aim a second name at the *same* one: `y = x`.',
+      say: 'No working it out again. Now `y = x`',
       done: (e) => ever(e, (s) => sameObject(s, 'x', 'y')),
     },
     {
-      say: 'Last bit. Point `x` somewhere else: `x = 99`. Keep an eye on `y`.',
+      say: 'Now move it. `x = 99` — watch `y`.',
       done: ({ snapshot }) => points(snapshot, 'x', '99') && points(snapshot, 'y', '10'),
     },
   ],
   outro:
-    '`x` moved. `y` did not — it was never attached to `x`, it was pointing at the object, and it still is. A name is an arrow to a thing. Two arrows can land on the same thing, and moving one does not drag the other.',
+    '`x` moved. `y` did not. A name points at a thing — it never held it.',
 }
 
 /* ----------------------------- lesson three ----------------------------- */
@@ -274,17 +274,17 @@ export const takeAnOrder: Lesson = {
   steps: [
     {
       speaker: 'courier',
-      say: 'Afternoon. I am Ana — put me on the ticket, would you? `customer = "Ana"`',
+      say: 'Afternoon! Ana. Put me on the ticket. `customer = "Ana"`',
       done: ({ snapshot }) => points(snapshot, 'customer', "'Ana'"),
     },
     {
       speaker: 'courier',
-      say: 'And I am carrying 7 parcels today. `parcels = 7`',
+      say: 'Seven parcels today. `parcels = 7`',
       done: ({ snapshot }) => points(snapshot, 'parcels', '7'),
     },
     {
       speaker: 'courier',
-      say: 'One more thing — each parcel weighs 2 kilos. How much am I carrying in total? Work it out from what you kept.',
+      say: 'Two kilos each. How much am I carrying?',
       // Never said aloud by anyone, so it can only come from the stored
       // count. Asked of the robot's answers, not of its memory: replying
       // to a question leaves nothing behind in memory to check.
@@ -292,7 +292,7 @@ export const takeAnOrder: Lesson = {
     },
   ],
   outro:
-    'Fourteen kilos. Notice the robot never stored *that* — it stored 7, and worked the rest out when it was asked. Facts go in memory; answers get made on the spot.',
+    'Fourteen! It never stored that — it stored seven, and worked the rest out.',
 }
 
 export const LESSONS: Record<string, Lesson> = {

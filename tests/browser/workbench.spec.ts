@@ -524,7 +524,7 @@ test('the first lesson walks the four kinds of thing', async ({ page }) => {
 
   // Any int will do: the kind is what is being taught, not the value.
   await say(page, '41')
-  await expect(page.getByTestId('guide')).toContainText('decimal point')
+  await expect(page.getByTestId('guide')).toContainText('with a dot')
 
   await say(page, '2.5')
   await expect(page.getByTestId('guide')).toContainText('quotes')
@@ -535,7 +535,7 @@ test('the first lesson walks the four kinds of thing', async ({ page }) => {
   await expect(page.getByTestId('advance')).toHaveCount(0)
 
   await say(page, 'True')
-  await expect(page.getByTestId('guide')).toContainText('memory is still empty')
+  await expect(page.getByTestId('guide')).toContainText('none of them had a name')
   await expect(page.getByTestId('memory')).toContainText('Memory is empty')
   await expect(page.getByTestId('advance')).toBeVisible()
 })
@@ -555,7 +555,7 @@ test('the second lesson works things out and keeps none of them', async ({ page 
   await say(page, '(2 + 3) * 4')
 
   await expect(page.getByTestId('thought')).toHaveText('20')
-  await expect(page.getByTestId('guide')).toContainText('never reached memory')
+  await expect(page.getByTestId('guide')).toContainText('Nobody else ever knew it')
   // Five answers, and memory never held one of them.
   expect(await reprs(page)).toEqual([])
 })
@@ -598,7 +598,7 @@ test('the naming lesson teaches that a name is an arrow', async ({ page }) => {
   // Reading it back is a step of its own: the point is that it was simply
   // there, where the previous lesson would have had to recompute it.
   // Backticks in a lesson render as a code chip, so they are not in the text.
-  await expect(page.getByTestId('guide')).toContainText('There it is in memory')
+  await expect(page.getByTestId('guide')).toContainText('Look')
   await say(page, 'x')
   await expect(page.getByTestId('thought')).toHaveText('10')
   await say(page, 'y = x')
@@ -623,7 +623,7 @@ test('the naming lesson teaches that a name is an arrow', async ({ page }) => {
 
   // Rebinding x makes step one false again, so progress would slide back
   // to the start if it were read from the current snapshot alone.
-  await expect(page.getByTestId('guide')).toContainText('was never attached')
+  await expect(page.getByTestId('guide')).toContainText('it never held it')
 })
 
 test('finishing a lesson offers the next one, and only then', async ({ page }) => {
@@ -655,12 +655,12 @@ test('the courier asks, and the robot answers from what it stored', async ({ pag
   await expect(page.getByTestId('waiting')).toHaveCount(0)
 
   await say(page, 'parcels = 7')
-  await expect(page.getByTestId('guide')).toContainText('2 kilos')
+  await expect(page.getByTestId('guide')).toContainText('Two kilos')
 
   // The answer was never stored, and was never said out loud by anyone.
   await say(page, 'parcels * 2')
   await expect(page.getByTestId('echo').last()).toHaveText('14')
-  await expect(page.getByTestId('guide')).toContainText('Fourteen kilos')
+  await expect(page.getByTestId('guide')).toContainText('Fourteen')
 })
 
 /* ------------------------------- the floor ------------------------------- */
@@ -945,7 +945,7 @@ test('the last lesson offers somewhere to go, and only once it is done', async (
 
   // This used to be the end of the road: the crow said its piece and
   // there was nothing on screen to do next.
-  await expect(page.getByTestId('guide')).toContainText('Fourteen kilos')
+  await expect(page.getByTestId('guide')).toContainText('Fourteen')
   await page.getByTestId('advance').click()
   expect(page.url()).toContain('#/wake')
   await expect(page.locator('.app')).toHaveAttribute('data-boot', 'ready', { timeout: 60_000 })
@@ -1043,4 +1043,46 @@ test("the robot's thought is visible on the stage, not just in the DOM", async (
   // unanchored rail put this clean above the top edge.
   expect(geometry?.inside).toBe(true)
   expect(geometry?.clearsRobot).toBe(true)
+})
+
+test('the crow and the robot do not talk over each other', async ({ page }) => {
+  await open(page, 'operations')
+  await say(page, '7 * 6')
+
+  const boxes = await page.evaluate(() => {
+    const r = (sel: string) => {
+      const el = document.querySelector(sel)
+      if (!el) return null
+      const b = el.getBoundingClientRect()
+      return { l: b.left, t: b.top, r: b.right, b: b.bottom, w: Math.round(b.width) }
+    }
+    return { guide: r('[data-testid="guide"]'), thought: r('[data-testid="thought"]'), stage: r('.stage') }
+  })
+
+  const { guide, thought, stage } = boxes
+  expect(guide).not.toBeNull()
+  expect(thought).not.toBeNull()
+
+  // Two bubbles above two adjacent characters. They used to collide,
+  // because the thought stretched to the width of its rail.
+  const overlaps =
+    !(guide!.r <= thought!.l || thought!.r <= guide!.l || guide!.b <= thought!.t || thought!.b <= guide!.t)
+  expect(overlaps).toBe(false)
+
+  // `42` is two characters; its bubble should be small.
+  expect(thought!.w).toBeLessThan(stage!.w * 0.3)
+
+  // And it must be over the robot. Sizing it to its contents once cost
+  // it its centring, which put the robot's thought above the crow —
+  // a bug no overlap check would catch, because the two then stack.
+  const robot = await page.evaluate(() => {
+    const b = document.querySelector('[data-testid="actor-robot"]')?.getBoundingClientRect()
+    return b ? (b.left + b.right) / 2 : null
+  })
+  expect(Math.abs((thought!.l + thought!.r) / 2 - robot!)).toBeLessThan(40)
+  // And both stay on the stage.
+  for (const box of [guide!, thought!]) {
+    expect(box.l).toBeGreaterThanOrEqual(stage!.l)
+    expect(box.r).toBeLessThanOrEqual(stage!.r)
+  }
 })

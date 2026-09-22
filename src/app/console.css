@@ -160,18 +160,20 @@
   position: relative;
   margin: auto auto 0;
   width: max-content;
-  /* 58%, against a 31–69 clamp, leaves a 2% gutter at either edge even
+  /* 52%, against a 31–69 clamp, leaves a 5% gutter at either edge even
      when the panel is dragged to its 320px minimum and the percentage is
-     the binding constraint. */
-  max-width: min(280px, 58%);
+     the binding constraint. Narrower than it was, so the crow's bubble
+     and the robot's thought can share the space above their heads
+     without colliding. */
+  max-width: min(262px, 52%);
   pointer-events: auto;
-  padding: 9px 12px;
-  border-radius: 12px;
+  padding: 11px 15px;
+  border-radius: 14px;
   background: var(--surface);
-  border: 1px solid var(--line);
+  border: 1.5px solid var(--line);
   box-shadow: var(--shadow);
-  font-size: 12.5px;
-  line-height: 1.5;
+  font-size: 15px;
+  line-height: 1.45;
   color: var(--ink);
   z-index: 3;
 }
@@ -284,15 +286,25 @@
      and that lands within a pixel — so "touching" was the default and a
      rounding error either way. A gap is better drawing anyway. */
   margin-bottom: 15px;
-  display: inline-block;
-  max-width: 58%;
-  padding: 7px 14px;
+  /* Sized by its contents and centred, exactly like the guide's bubble.
+     As a flex item in a column rail the default `stretch` gave it the
+     rail's whole width and `max-width` only capped that, so a
+     two-character value drew a bubble more than half the stage wide.
+     `align-self: flex-start` fixed the width and broke the position:
+     `left` is an offset *from centre*, so starting at the rail's edge
+     put the robot's thought over the crow. Auto side margins centre it,
+     and then `left` means what it says. */
+  margin-left: auto;
+  margin-right: auto;
+  width: max-content;
+  max-width: 38%;
+  padding: 8px 15px;
   border-radius: 16px;
   background: var(--surface);
-  border: 1px solid var(--brand-line);
+  border: 1.5px solid var(--brand-line);
   box-shadow: var(--shadow);
   font-family: var(--mono);
-  font-size: 15px;
+  font-size: 17px;
   font-weight: 700;
   color: var(--brand-deep);
   white-space: nowrap;
