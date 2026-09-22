@@ -682,6 +682,22 @@ kbd {
   font-weight: 700;
 }
 
+/* A repr is as long as the value is, and one long value should not get to
+   set the size of the field. A 200-character string measured 2400px wide:
+   it ran off both sides of the pane, drew a line straight through every
+   other pill, and pushed the camera out until nothing else was legible
+   either. Capped, with an ellipsis — the value is not being hidden, it is
+   being said to continue, and the picked pill shows a good deal more. */
+.node.object .repr {
+  max-width: 24ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.node.object.picked .repr {
+  max-width: 46ch;
+}
+
 /* Values and references look different because they are: one has an
    identity that can be shared, the other only a value that can be equal. */
 .node.object.value {

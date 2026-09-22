@@ -532,6 +532,9 @@ function Pill({
       className={`node object ${object.kind} ${picked ? 'picked' : ''} ${dimmed ? 'dimmed' : ''}`}
       data-testid={`node-${id}`}
       data-type={object.type}
+      // The pill caps a long repr with an ellipsis, so the whole of it has
+      // to stay reachable somewhere.
+      title={`${object.type} ${object.repr}`}
     >
       <span className="handle">{handles.get(id)}</span>
       <span className="type">{object.type}</span>
