@@ -467,7 +467,8 @@ button.route.current {
 .views-switch button.current {
   background: var(--brand-soft);
   border-color: var(--brand-line);
-  color: var(--brand);
+  /* 12px at 600 is not large text: --brand on --brand-soft is 3.87:1. */
+  color: var(--brand-deep);
   font-weight: 600;
 }
 

@@ -63,8 +63,10 @@
   /* `>>>` is three characters and must never wrap to a second line. */
   white-space: nowrap;
   user-select: none;
-  color: var(--brand);
-  opacity: 0.75;
+  /* Not softened. `--brand` at 0.75 over white renders as #7892f8 and
+     measures 2.89:1 — and `>>>` is the whole of the console's invitation
+     to type. --brand-deep at full strength measures 6.45:1. */
+  color: var(--brand-deep);
 }
 
 .console .typed {
