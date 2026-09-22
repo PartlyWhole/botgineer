@@ -6,7 +6,8 @@
  * is noise — and the tests still need something to wait on.
  */
 import { useRuntime } from '../runtime/shared'
-import { useActivity } from './router'
+import { ACTIVITIES } from '../../content/activities'
+import { goTo, useActivity } from './router'
 import { Workbench } from './Workbench'
 
 export function App() {
@@ -21,6 +22,29 @@ export function App() {
     >
       <header className="topbar">
         <h1>BotGineer</h1>
+        <span className="spacer" />
+
+        {/* The progression, as a row of steps rather than a row of tabs.
+            Finishing a level offers the next one in the scene, but that
+            is a one-way door: with only that, there is no way back to a
+            level you want to redo and no way to see how many there are.
+            Named only to a screen reader, so the chrome stays quiet. */}
+        <nav className="steps" aria-label="Levels">
+          {ACTIVITIES.map((a, i) => (
+            <button
+              key={a.id}
+              type="button"
+              className={a.id === activity.id ? 'current' : ''}
+              aria-current={a.id === activity.id ? 'step' : undefined}
+              aria-label={`Level ${i + 1}: ${a.title}`}
+              title={a.title}
+              data-testid={`step-${a.id}`}
+              onClick={() => goTo(a.id)}
+            >
+              <span className="sr-only">{a.title}</span>
+            </button>
+          ))}
+        </nav>
       </header>
 
       {boot.state === 'failed' && (

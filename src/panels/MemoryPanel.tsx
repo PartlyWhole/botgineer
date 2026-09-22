@@ -14,39 +14,21 @@
  * owns everything else — including the description of what is selected,
  * which lives on the node itself rather than in prose underneath.
  */
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { orderedObjectIds, type MemorySnapshot, type ObjectId } from '../memory/model'
+import { useEffect, useState } from 'react'
+import type { MemorySnapshot, ObjectId } from '../memory/model'
 import { MemoryGraph, type GraphPick } from './MemoryGraph'
-
-/**
- * Handles are assigned on first sight and kept for the whole run.
- *
- * Numbering each snapshot from scratch would renumber objects as you
- * scrub — `obj3` becoming `obj4` because something new appeared earlier in
- * the sort — and a handle that moves is worse than no handle at all.
- */
-function useHandles(snapshot: MemorySnapshot, runKey: string): Map<ObjectId, string> {
-  const store = useRef({ run: runKey, map: new Map<ObjectId, string>(), next: 1 })
-  return useMemo(() => {
-    if (store.current.run !== runKey) {
-      store.current = { run: runKey, map: new Map(), next: 1 }
-    }
-    const s = store.current
-    for (const id of orderedObjectIds(snapshot)) {
-      if (!s.map.has(id)) s.map.set(id, `obj${s.next++}`)
-    }
-    return new Map(s.map)
-  }, [snapshot, runKey])
-}
 
 export function MemoryPanel({
   snapshot,
+  handles,
   runKey = 'one',
 }: {
   snapshot: MemorySnapshot
+  /** Owned by the workbench, so every view that shows a handle shows the
+   *  same one. See `memory/handles`. */
+  handles: Map<ObjectId, string>
   runKey?: string
 }) {
-  const handles = useHandles(snapshot, runKey)
   const [picked, setPicked] = useState<GraphPick>(null)
 
   const objectCount = Object.keys(snapshot.objects).length

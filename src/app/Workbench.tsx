@@ -23,6 +23,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'r
 import { session, useRuntime } from '../runtime/shared'
 import type { StepRecord, TerminalRecord } from '../runtime/types'
 import { extractMemory, keptValues } from '../memory/extract'
+import { useHandles } from '../memory/handles'
 import { EMPTY, type MemorySnapshot } from '../memory/model'
 import { buildProgram, isExpression, type Entry } from '../repl/program'
 import { events } from '../game/events'
@@ -32,6 +33,7 @@ import { LESSONS, guidance, progress } from '../../content/lessons'
 import { goTo } from './router'
 import { ScenePanel } from '../panels/ScenePanel'
 import { MemoryPanel } from '../panels/MemoryPanel'
+import { MemoryRail } from '../panels/MemoryRail'
 import { RobotPanel, type RobotView, type Transcript } from '../panels/RobotPanel'
 import type { Exchange } from '../ui/RobotConsole'
 import type { EditorApi } from '../ui/CodeEditor'
@@ -267,6 +269,14 @@ export function Workbench({ activity }: { activity: Activity }) {
 
   // The guide reads the same snapshot as everything else, so it rewinds
   // with the scrubber and cannot claim progress the robot does not have.
+  // One numbering for every view that shows a handle — the rail and the
+  // graph must not disagree about which object is `obj3`.
+  //
+  // A console session is one continuous memory, so handles have to
+  // survive each submission; only the editor starts over per run.
+  const runKey = talking ? `${activity.id}:talk` : `${activity.id}:${runSeq}`
+  const handles = useHandles(snapshot, runKey)
+
   const lesson = activity.lesson ? (LESSONS[activity.lesson] ?? null) : null
   // A step may ask the player to *retrieve* something, which leaves no
   // trace in memory — so the evidence includes everything the robot has
@@ -284,8 +294,11 @@ export function Workbench({ activity }: { activity: Activity }) {
   // is genuinely done. Derived like everything else, so scrubbing back
   // through the trace withdraws the offer too.
   const finished = lesson !== null && progress(lesson, evidence) === lesson.steps.length
+  // Offered whenever there is somewhere to go; the scene decides *when* to
+  // show it, because it is the thing that knows whether this activity is
+  // finished (a lesson's last step, or a satisfied set of watches).
   const nextId = activity.next
-  const onAdvance = finished && nextId ? () => goTo(nextId) : undefined
+  const onAdvance = nextId ? () => goTo(nextId) : undefined
 
   const currentStep = steps[shown]
   const traceLine = currentStep?.location.module === '__main__' ? currentStep.location.line : null
@@ -322,7 +335,9 @@ export function Workbench({ activity }: { activity: Activity }) {
           mood={cast.robot}
           guide={guide}
           onAdvance={onAdvance}
-          triumph={finished}
+          // `undefined` when there is no lesson, so the scene judges
+          // itself instead of being told it has finished nothing.
+          triumph={lesson ? finished : undefined}
         />
       </section>
 
@@ -357,14 +372,8 @@ export function Workbench({ activity }: { activity: Activity }) {
         <RobotPanel
           view={view}
           mode={activity.mode}
-          memory={
-            <MemoryPanel
-              snapshot={snapshot}
-              // A console session is one continuous memory, so handles have
-              // to survive each submission; only the editor starts over.
-              runKey={talking ? `${activity.id}:talk` : `${activity.id}:${runSeq}`}
-            />
-          }
+          memory={<MemoryPanel snapshot={snapshot} handles={handles} runKey={runKey} />}
+          rail={<MemoryRail snapshot={snapshot} handles={handles} />}
           program={program}
           onProgram={setProgram}
           onReady={(api) => {

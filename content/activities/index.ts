@@ -87,6 +87,9 @@ const takeAnOrder: Activity = {
   brief: 'A courier tells the robot two things, then asks it a question.',
   mode: 'console',
   lesson: 'take-an-order',
+  // Where the editor is unlocked: the next activity hands over a whole
+  // program instead of a line at a time.
+  next: 'wake',
   greeting: 'Someone is coming. Keep whatever she tells you — she will want it back.',
   starter: '',
   options: { max_steps: 3000, wall_clock_s: 15 },
@@ -117,6 +120,7 @@ const wakeTheRobot: Activity = {
   id: 'wake',
   title: 'Wake the Robot',
   mode: 'editor',
+  next: 'belt',
   brief:
     'The robot is asleep. It reads three things out of its own memory: whether it has power, what it should call itself, and how charged it is. Give those names values.',
   starter: '# Give the robot what it needs.\n# power, name, charge\n\n',

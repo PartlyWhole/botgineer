@@ -815,3 +815,95 @@ test('the cast does not move when the hint bar comes and goes', async ({ page })
   expect(done.robot).toEqual(waiting.robot)
   expect(done.floor).toEqual(waiting.floor)
 })
+
+/* ------------------------ memory while you instruct ----------------------- */
+
+test('an object appears in the rail without leaving the console', async ({ page }) => {
+  await open(page, 'sandbox')
+  // The point: no view switch anywhere in this test.
+  await expect(page.getByTestId('rail')).toBeVisible()
+  await expect(page.getByTestId('rail')).toContainText('Nothing in memory yet')
+
+  await say(page, '10')
+  await expect(page.getByTestId('rail')).toContainText('10')
+  await expect(page.getByTestId('memory')).toBeHidden()
+
+  // Nameless, which is the whole of the first lesson.
+  await expect(page.locator('.rail-cell.nameless')).toHaveCount(1)
+  await expect(page.locator('.rail-name')).toHaveCount(0)
+
+  await say(page, 'x = 5')
+  await expect(page.locator('.rail-name')).toHaveText(['x'])
+})
+
+test('the rail and the graph agree about which object is which', async ({ page }) => {
+  await open(page, 'names')
+  await say(page, 'x = 10')
+  await say(page, 'y = x')
+
+  // Two names on one object: both are on the rail, not just the first.
+  await expect(page.locator('.rail-name')).toHaveText(['x', 'y'])
+  await expect(page.locator('.rail-cell')).toHaveCount(1)
+
+  const railHandle = await page.locator('.rail-handle').first().innerText()
+  await showMemory(page)
+  await expect(page.getByTestId('memory')).toContainText(railHandle)
+})
+
+test('the rail keeps its height so the editor above it does not reflow', async ({ page }) => {
+  await open(page, EDITOR)
+  const railHeight = () =>
+    page.evaluate(() => Math.round(document.querySelector('.rail')!.getBoundingClientRect().height))
+  const empty = await railHeight()
+  await send(page, 'a = 1\nb = [1, 2, 3]\nc = {"k": 1}\n')
+  expect(await railHeight()).toBe(empty)
+})
+
+/* ------------------------------ getting around ----------------------------- */
+
+test('every level is reachable from the top, and says which one it is', async ({ page }) => {
+  await open(page, 'sandbox')
+  await expect(page.locator('.steps button')).toHaveCount(5)
+  await expect(page.getByTestId('step-sandbox')).toHaveAttribute('aria-current', 'step')
+
+  await page.getByTestId('step-order').click()
+  await expect(page.locator('.app')).toHaveAttribute('data-boot', 'ready', { timeout: 60_000 })
+  await expect(page.getByTestId('actor-courier')).toBeVisible()
+  await expect(page.getByTestId('step-order')).toHaveAttribute('aria-current', 'step')
+  await expect(page.getByTestId('step-sandbox')).not.toHaveAttribute('aria-current', 'step')
+
+  // And back, so it is not a one-way door like the in-scene Next.
+  await page.getByTestId('step-sandbox').click()
+  await expect(page.getByTestId('step-sandbox')).toHaveAttribute('aria-current', 'step')
+})
+
+test('the last lesson offers somewhere to go, and only once it is done', async ({ page }) => {
+  await open(page, 'order')
+  await expect(page.getByTestId('advance')).toHaveCount(0)
+
+  await say(page, 'customer = "Ana"')
+  await say(page, 'parcels = 7')
+  await expect(page.getByTestId('advance')).toHaveCount(0)
+  await say(page, 'parcels * 2')
+
+  // This used to be the end of the road: the crow said its piece and
+  // there was nothing on screen to do next.
+  await expect(page.getByTestId('guide')).toContainText('Fourteen kilos')
+  await page.getByTestId('advance').click()
+  expect(page.url()).toContain('#/wake')
+  await expect(page.locator('.app')).toHaveAttribute('data-boot', 'ready', { timeout: 60_000 })
+  // And the editor is what it hands over.
+  await expect(page.getByTestId('editor')).toBeVisible()
+})
+
+test('an editor level offers the next one when its scene is satisfied', async ({ page }) => {
+  await open(page, EDITOR)
+  await expect(page.getByTestId('advance')).toHaveCount(0)
+  await send(page, 'power = True\n')
+  await expect(page.getByTestId('advance')).toHaveCount(0)
+
+  await send(page, 'power = True\nname = "Bolt"\ncharge = 72\n')
+  await expect(page.getByTestId('advance')).toBeVisible()
+  await page.getByTestId('advance').click()
+  expect(page.url()).toContain('#/belt')
+})

@@ -52,6 +52,9 @@ type Props = {
   traceLine: number | null
   view: RobotView
   memory: ReactNode
+  /** A strip of memory, shown beside the thing that changes it. Only in
+   *  the code/talk view: the memory view already *is* memory. */
+  rail: ReactNode
 }
 
 export function RobotPanel({
@@ -73,6 +76,7 @@ export function RobotPanel({
   traceLine,
   view,
   memory,
+  rail,
 }: Props) {
   const talking = mode === 'console'
 
@@ -107,6 +111,8 @@ export function RobotPanel({
           {memory}
         </div>
       </div>
+
+      {view === 'code' && rail}
 
       {/* The console answers inline, so it needs no Run button and no step
           slider — pressing Enter is the transport. All it can still want is

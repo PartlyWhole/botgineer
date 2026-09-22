@@ -216,21 +216,39 @@
   }
 }
 
-/* The one piece of progression there is: the guide offering the next
-   lesson. It appears only once the current one is actually finished. */
-.stage .bubble .advance {
-  display: block;
-  margin: 9px 0 0;
-  padding: 4px 12px;
+/* The way on to the next level. Bottom-right of the stage, in the same
+   place in every activity, and only once this one is finished — a
+   student who cannot find it is stuck, which is exactly what happened
+   when it hid inside the guide's speech bubble. */
+.stage > .advance {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  z-index: 4;
+  padding: 7px 16px;
   border-radius: 999px;
-  border: 1px solid var(--brand-line);
+  border: 1px solid var(--brand);
   background: var(--brand);
   color: var(--brand-ink);
-  font: inherit;
-  font-size: 12px;
+  font-family: var(--sans, inherit);
+  font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
+  box-shadow: 0 4px 14px rgb(75 110 245 / 0.34);
 }
 
-.stage .bubble .advance:hover {
-  filter: brightness(1.08);
+.stage > .advance:hover {
+  filter: brightness(1.07);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .stage > .advance {
+    animation: advance-in 220ms ease-out;
+  }
+  @keyframes advance-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+  }
 }

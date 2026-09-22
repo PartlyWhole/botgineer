@@ -47,7 +47,9 @@ npm run test:browser  # playwright against the PRODUCTION build at /botgineer/
 | `src/scene/spec.ts` | a scene is data, and a view of memory: watches map global names to visual effects |
 | `src/panels/ScenePanel.tsx` | (A) the situation, drawn from the snapshot |
 | `src/panels/RobotPanel.tsx` | (B) the Code/Memory views + Run/Stop + step slider + transcript. Both views stay mounted; the hidden one reports zero size, which every measurement has to guard against |
-| `src/panels/MemoryPanel.tsx` | (C) thin: owns the handles, the selection, and one caption line |
+| `src/panels/MemoryPanel.tsx` | (C) thin: owns the selection; the graph does the rest |
+| `src/panels/MemoryRail.tsx` | memory beside the thing that changes it — a strip under the console, shown in the code/talk view. What exists and what is named; pointer structure is the graph's job |
+| `src/memory/handles.ts` | `obj1`, `obj2`, … Owned by the workbench so the rail and the graph never disagree |
 | `src/panels/MemoryGraph.tsx` | the live field. SVG edges + DOM pills sharing one camera; writes transforms straight to the elements in the animation loop, never through React |
 | `src/panels/graphLayout.ts` | the force simulation and the camera. Pure and unit-tested. Read its header before changing it: relaxation, spiral packing and row packing were all tried here and the reasons each was dropped are measured, not remembered |
 | `src/ui/CodeEditor.tsx` | CodeMirror; `head`/`tail` optionally lock regions (unused by the workbench) |
@@ -62,9 +64,11 @@ npm run test:browser  # playwright against the PRODUCTION build at /botgineer/
 1. **Serving.** Every URL relative or `import.meta.env.BASE_URL`-derived,
    never root-absolute — root-absolute breaks under `/botgineer/`. No CDN
    fetches (COEP `require-corp`). `public/.nojekyll` must exist.
-2. **One snapshot, three panels.** The scene and the memory panel read the
-   same `MemorySnapshot`. Never give a panel its own parallel idea of what
-   memory is — that is exactly what this revamp removed.
+2. **One snapshot, every view.** The scene, the memory graph and the
+   memory rail read the same `MemorySnapshot`. Several *renderings* are
+   fine; a second idea of what memory **is** is not, and removing one was
+   the point of this revamp. A handle means the same object in all of
+   them, which is why `useHandles` lives above the panels.
 3. **`extract.ts` is the only translation.** No panel may import
    `runtime/types` to read a `StepRecord` directly.
 4. **Everything is an object; every slot is a pointer.** Each object gets
@@ -115,7 +119,21 @@ npm run test:browser  # playwright against the PRODUCTION build at /botgineer/
    object needs no *name*, not that it needs no reference. `None` is
    skipped at both ends, so `print(...)` keeps nothing and echoes nothing.
 
-15. **A lesson's progress is derived, never stored.** It is the first step
+15. **Finishing is one thing or the other, never their disjunction.**
+   An activity with a lesson is finished when the lesson's last step is;
+   an activity without one is finished when its scene's watches are
+   satisfied (`SceneView.solved`). `triumph ?? view.solved`, not an OR:
+   `order` has both a lesson and a watch, and the watch is satisfied by
+   the lesson's *first* step, so an OR declared it complete a third of the
+   way through. Finishing drives both the celebration and the way on.
+
+16. **The way on belongs to the level, not to the guide.** The `Next`
+   button is the scene's own, in the same corner everywhere. It lived
+   inside the guide's speech bubble once, which meant the two activities
+   with no guide could not offer it at all and the last console lesson
+   simply dead-ended. Every activity except the last names its `next`.
+
+17. **A lesson's progress is derived, never stored.** It is the first step
    whose test the snapshot fails. That is why the guide cannot disagree
    with the robot, why replay makes progress monotonic for free, and why
    scrubbing walks the guide backwards. A step whose test cannot be

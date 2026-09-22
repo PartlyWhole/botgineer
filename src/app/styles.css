@@ -1122,3 +1122,166 @@ button.tidy:hover {
 .actor.standing.crate.picked {
   transform: translateX(-50%) translateY(-22px) rotate(-3deg);
 }
+
+/* ---------------- the memory rail ----------------
+
+   Memory beside the thing that changes it. The Memory view shows the
+   whole field, but you have to leave the console to look at it — and the
+   moment a beginner most needs to see an object appear is the moment they
+   made it. */
+
+.rail {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 84px;
+  padding: 8px 12px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  border-top: 1px solid var(--line);
+  background: linear-gradient(var(--surface), #f7f9ff);
+  scrollbar-width: thin;
+}
+
+/* Fixed height in both states, so the console does not resize itself as
+   objects appear — the editor above it would reflow on every line. */
+.rail.empty {
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-soft);
+  font-size: 12.5px;
+}
+
+.rail.empty p {
+  margin: 0;
+}
+
+.rail-cell {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+
+.rail-names {
+  display: flex;
+  gap: 3px;
+  min-height: 19px;
+  align-items: center;
+}
+
+.rail-name {
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--brand-line);
+  background: var(--brand-soft);
+  color: var(--brand-deep);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+/* An object nothing points at. The first lesson is entirely about these,
+   so they need a mark of their own rather than an empty gap. */
+.rail-unnamed {
+  color: #9aa6c0;
+  font-size: 13px;
+  line-height: 1;
+}
+
+.rail-object {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 4px 9px;
+  border-radius: 9px;
+  border: 1px solid var(--value-line);
+  background: var(--value-bg);
+  font-family: var(--mono);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+/* Values and references look different because the difference is real:
+   one is keyed by what it is, the other by the engine's own identity. */
+.rail-object.reference {
+  border-color: var(--ref-line);
+  background: var(--ref-bg);
+}
+
+.rail-handle {
+  font-weight: 700;
+  color: var(--value);
+}
+
+.rail-object.reference .rail-handle {
+  color: var(--ref);
+}
+
+.rail-type {
+  color: var(--ink-soft);
+  font-size: 11px;
+}
+
+.rail-repr {
+  color: var(--ink);
+}
+
+.rail-partial {
+  color: var(--warn);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .rail-cell {
+    animation: rail-in 200ms ease-out;
+  }
+  @keyframes rail-in {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+  }
+}
+
+/* ---------------- the progression ----------------
+
+   Steps, not tabs. The chrome here is deliberately quiet, and five named
+   tabs across the top was the thing that got removed; but with only the
+   in-scene "Next" there was no way back to a level, and no way to see
+   how many there were. A dot says both without saying a word. */
+
+.topbar .steps {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.topbar .steps button {
+  width: 11px;
+  height: 11px;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid var(--brand-line);
+  background: var(--surface);
+  cursor: pointer;
+  transition: background 140ms ease, transform 140ms ease;
+}
+
+.topbar .steps button:hover {
+  background: var(--brand-soft);
+  transform: scale(1.18);
+}
+
+.topbar .steps button.current {
+  background: var(--brand);
+  border-color: var(--brand);
+}
+
+/* Keyboard users need to see where they are, and an 11px dot has no room
+   for an inset ring. */
+.topbar .steps button:focus-visible {
+  outline: 2px solid var(--brand-deep);
+  outline-offset: 2px;
+}

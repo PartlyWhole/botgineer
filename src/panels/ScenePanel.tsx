@@ -42,14 +42,24 @@ export function ScenePanel({
    *  change what memory says. */
   onAdvance?: (() => void) | undefined
   /**
-   * The activity considers itself done — a guided lesson's last step.
+   * Whether the activity's *lesson* is complete, or `undefined` when it
+   * has no lesson and the scene should judge itself instead.
    *
-   * Scenes with watches judge themselves (`SceneView.solved`); a console
-   * lesson has nothing to watch, so its triumph is the lesson's own.
+   * The distinction matters: an activity with both a lesson and a watch
+   * must be judged by the lesson, because a watch can be satisfied long
+   * before the lesson is finished.
    */
   triumph?: boolean | undefined
 }) {
   const view = readScene(spec, snapshot)
+  // Finished, by whichever measure this activity has — and only one of
+  // them applies. A guided lesson is done when its last step is done; a
+  // scene with no lesson is done when its watches are satisfied.
+  //
+  // Not an OR of the two. `order` has both a lesson and a watch, and the
+  // watch is satisfied by its *first* step — so an OR would have declared
+  // the lesson complete a third of the way through it.
+  const done = triumph ?? view.solved
   const speaker =
     (guide?.speaker ? view.actors.find((a) => a.actor.id === guide.speaker) : undefined) ??
     view.actors.find((a) => a.actor.kind === 'crow') ??
@@ -68,13 +78,22 @@ export function ScenePanel({
           />
         )}
 
+        {/* The way on. It used to live inside the guide's bubble, which
+            meant the two activities with no guide — the editor ones — had
+            no way to offer it at all. It belongs to the level. */}
+        {onAdvance && done && (
+          <button type="button" className="advance" onClick={onAdvance} data-testid="advance">
+            Next
+          </button>
+        )}
+
         {view.actors.map((a) => (
           <ActorNode
             key={a.actor.id}
             view={a}
             mood={mood}
             floor={spec.floor}
-            pleased={view.solved || triumph === true}
+            pleased={done}
           />
         ))}
 
@@ -107,11 +126,6 @@ export function ScenePanel({
               aria-live="polite"
             >
               {richText(guide.text)}
-              {onAdvance && (
-                <button type="button" className="advance" onClick={onAdvance} data-testid="advance">
-                  Next
-                </button>
-              )}
             </div>
             <span className="bubble-tail" style={{ left: `${speaker.actor.x}%` }} />
           </div>
