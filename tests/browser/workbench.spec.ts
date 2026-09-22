@@ -781,3 +781,37 @@ test('the empty battery is a battery, not a blank box', async ({ page }) => {
   await expect(page.locator('.gauge-body')).toHaveAttribute('data-level', 'none')
   await expect(page.locator('.gauge-text')).toHaveText('—')
 })
+
+test('the cast does not move when the hint bar comes and goes', async ({ page }) => {
+  await open(page, EDITOR)
+  const geometry = () =>
+    page.evaluate(() => {
+      const box = (sel: string) => {
+        const el = document.querySelector(sel)
+        if (!el) return null
+        const b = el.getBoundingClientRect()
+        return { top: Math.round(b.top), bottom: Math.round(b.bottom) }
+      }
+      return {
+        stage: box('.stage'),
+        robot: box('[data-testid="actor-robot"]'),
+        floor: box('[data-testid="floor"]'),
+        hints: document.querySelectorAll('.stage-foot').length,
+      }
+    })
+
+  const waiting = await geometry()
+  expect(waiting.hints).toBe(1)
+
+  // Binding the last watched name removes the bar. In flow it took ~38px
+  // out of the stage on the way out, and since every actor is placed as a
+  // percentage of that height, the whole cast jumped — triggered by
+  // something with nothing to do with where anyone stands.
+  await send(page, 'power = True\nname = "Bolt"\ncharge = 72\n')
+  const done = await geometry()
+  expect(done.hints).toBe(0)
+
+  expect(done.stage).toEqual(waiting.stage)
+  expect(done.robot).toEqual(waiting.robot)
+  expect(done.floor).toEqual(waiting.floor)
+})

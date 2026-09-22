@@ -286,6 +286,8 @@ button.route.current {
   min-height: 0;
   display: flex;
   flex-direction: column;
+  /* The hint bar overlays the stage rather than sitting under it. */
+  position: relative;
 }
 
 .stage {
@@ -476,15 +478,35 @@ button.route.current {
   white-space: nowrap;
 }
 
+/* An overlay, not a row.
+   
+   In flow, this bar took its height out of the stage — so the moment the
+   last watched name was bound and the bar left, the stage grew by ~38px
+   and every actor in it moved, because their positions are percentages
+   of that height. The whole cast jumped, triggered by something that had
+   nothing to do with where anyone was standing. Reserving the height
+   instead would leave an empty bar on screen, which is the thing the
+   markup deliberately refuses to render.
+
+   So it floats over the bottom of the stage, which is floor in every
+   scene: the hints cover ground rather than characters. */
 .stage-foot {
-  flex: none;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  padding: 7px 12px 8px;
   border-top: 1px solid var(--line);
-  padding: 8px 12px;
-  background: var(--surface);
+  border-radius: 0 0 var(--radius) var(--radius);
+  background: rgb(255 255 255 / 0.93);
+  backdrop-filter: blur(3px);
+  /* Informational. It must never swallow a click meant for the scene. */
+  pointer-events: none;
 }
 
 .waiting {
-  margin: 6px 0 0;
+  margin: 0;
   padding-left: 18px;
   font-size: 12.5px;
   color: var(--warn);
