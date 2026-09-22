@@ -18,7 +18,9 @@ import {
   approach,
   cameraDistance,
   disturb,
+  CATCH_UP,
   frame,
+  isCalm,
   labelAt,
   makeNode,
   relax,
@@ -174,7 +176,12 @@ export function MemoryGraph({ snapshot, handles, runKey, picked, onPick }: Props
       const v = viewport.current
       let busy = false
       if (g.alpha > 0) {
-        tick(g, v)
+        // Once nothing is visibly moving, run through the rest of the
+        // simulation several ticks a frame rather than one. The tail is
+        // sub-pixel to watch but it is not idle — skipping it changes the
+        // arrangement — so it gets done quickly instead of skipped.
+        const ticks = isCalm(g) ? CATCH_UP : 1
+        for (let i = 0; i < ticks && g.alpha > 0; i++) tick(g, v)
         busy = true
       } else if (relaxLeft.current > 0) {
         // The forces are spent but pills may still be sitting on each

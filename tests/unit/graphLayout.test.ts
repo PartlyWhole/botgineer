@@ -12,12 +12,15 @@ import {
   distance,
   disturb,
   frame,
+  CATCH_UP,
+  isCalm,
   isFinitePosition,
   labelAt,
   laneX,
   makeNode,
   MAX_K,
   MIN_K,
+  MOTION_REST,
   neighboursOf,
   overlapCount,
   relax,
@@ -33,6 +36,8 @@ import {
 } from '../../src/panels/graphLayout'
 
 const V = { w: 900, h: 420 }
+/** More than the run of still ticks the layout needs before it calls it. */
+const CALM_TICKS_PROBE = 12
 
 /** `a, b → xs` plus a couple of loose objects, which is the shape of a
  *  real snapshot: a few names, a few objects, some sharing. */
@@ -79,6 +84,63 @@ describe('it stops', () => {
       expect(Math.abs(p[0]! - before[i]![0]!)).toBeLessThan(0.5)
       expect(Math.abs(p[1]! - before[i]![1]!)).toBeLessThan(0.5)
     })
+  })
+
+  it('says when there is nothing left worth watching', () => {
+    const g: Graph = {
+      nodes: [makeNode('n:x', 'name', 30, 26), makeNode('o:1', 'object', 90, 26)],
+      edges: [{ from: 'n:x', to: 'o:1', label: null }],
+      alpha: 1,
+    }
+    seed(g, V)
+    let n = 0
+    while (g.alpha > 0 && !isCalm(g) && n++ < 600) tick(g, V)
+    // Two nodes reach rest long before alpha's 342 ticks run out.
+    expect(isCalm(g)).toBe(true)
+    expect(n).toBeLessThan(200)
+  })
+
+  it('does not call a jam calm', () => {
+    // Everything on one spot with every force balanced: momentarily still,
+    // nowhere near arranged. A caller that sped through from here would be
+    // racing past the part that matters.
+    const g = sample()
+    for (const n of g.nodes) {
+      n.x = 300
+      n.y = 200
+      n.vx = 0
+      n.vy = 0
+    }
+    g.alpha = 1
+    g.calm = 0
+    for (let i = 0; i < CALM_TICKS_PROBE; i++) tick(g, V)
+    expect(isCalm(g)).toBe(false)
+  })
+
+  it('reaches the same arrangement whether the tail is hurried or not', () => {
+    // The whole reason the tail is run faster rather than dropped.
+    const slow = crowded()
+    settle(slow, V)
+
+    const fast = crowded()
+    let n = 0
+    while (fast.alpha > 0 && n++ < 600) {
+      const ticks = isCalm(fast) ? CATCH_UP : 1
+      for (let i = 0; i < ticks && fast.alpha > 0; i++) tick(fast, V)
+    }
+    for (let i = 0; i < RELAX_BUDGET; i++) if (relax(fast) <= RELAX_REST) break
+
+    slow.nodes.forEach((s, i) => {
+      expect(Math.hypot(s.x - fast.nodes[i]!.x, s.y - fast.nodes[i]!.y)).toBeLessThan(0.001)
+    })
+  })
+
+  it('reports how far the field last moved', () => {
+    const g = sample()
+    tick(g, V)
+    expect(g.motion).toBeGreaterThan(0)
+    settle(g, V)
+    expect(g.motion!).toBeLessThan(MOTION_REST)
   })
 
   it('can be woken up and settles again', () => {
@@ -407,12 +469,6 @@ describe('the camera', () => {
 })
 
 describe('the clouds are shaped like the pane', () => {
-  const spanOf = (g: Graph) => {
-    const xs = g.nodes.flatMap((n) => [n.x - n.w / 2, n.x + n.w / 2])
-    const ys = g.nodes.flatMap((n) => [n.y - n.h / 2, n.y + n.h / 2])
-    return { w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) }
-  }
-
   it('keeps the name band wholly left of the object band', () => {
     for (const v of [V, { w: 400, h: 900 }, { w: 1600, h: 400 }]) {
       const b = bands(crowded().nodes, v)

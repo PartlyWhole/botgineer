@@ -74,6 +74,11 @@ export type Graph = {
   edges: GraphEdge[]
   /** Energy budget. Decays to nothing, which is what makes this stop. */
   alpha: number
+  /** Largest distance any node moved in the last tick, px. Written by
+   *  `tick`; a caller can watch it, but nothing depends on it being set. */
+  motion?: number
+  /** Consecutive ticks in which `motion` was negligible. */
+  calm?: number
 }
 
 /* Tuned by measurement, not taste. With weaker springs the bands won and
@@ -95,6 +100,17 @@ const DAMPING = 0.86
 const ALPHA_DECAY = 0.018
 /** Below this, nothing that can inject energy is left. */
 export const ALPHA_REST = 0.002
+/** A tick that moves nothing further than this has nothing left to show. */
+export const MOTION_REST = 0.14
+/** How many such ticks in a row before the field is called settled. One is
+ *  too few: a node crossing the slowest part of its arc is briefly still. */
+const CALM_TICKS = 5
+/** ...and only once the energy is genuinely low. Early on, a field can be
+ *  jammed — every force balanced against another, nothing moving, the
+ *  arrangement nowhere near done — and freezing it there would be worse
+ *  than the tail this exists to cut. By the time alpha is this small the
+ *  arrangement is settled and what is left is sub-pixel drift. */
+const CALM_ALPHA = 0.2
 const GAP = 14
 
 export function makeNode(id: string, kind: NodeKind, w = 70, h = 26): GraphNode {
@@ -285,6 +301,7 @@ export function tick(graph: Graph, v: Viewport): number {
     }
   }
 
+  let motion = 0
   for (const n of nodes) {
     if (n.fixed) {
       n.vx = 0
@@ -295,15 +312,46 @@ export function tick(graph: Graph, v: Viewport): number {
     n.vy *= DAMPING
     n.x += n.vx
     n.y += n.vy
+    motion = Math.max(motion, Math.abs(n.vx), Math.abs(n.vy))
   }
 
   // Collision: positional, and never scaled by alpha. It cannot add
   // energy, so it can keep working after everything else has stopped.
-  separate(nodes)
+  motion = Math.max(motion, separate(nodes))
 
+  graph.motion = motion
+  graph.calm = motion < MOTION_REST ? (graph.calm ?? 0) + 1 : 0
   graph.alpha = alpha <= ALPHA_REST ? 0 : Math.max(0, alpha * (1 - ALPHA_DECAY))
   return graph.alpha
 }
+
+/**
+ * Is there anything left worth watching?
+ *
+ * Alpha decay is what makes the field stop, and it takes the same 342 ticks
+ * whatever the graph is — so every field, two nodes included, went on
+ * animating for the better part of six seconds, the last three of them
+ * sub-pixel. That does not read as settling, it reads as never quite
+ * finishing.
+ *
+ * What it does *not* mean is that the simulation is done. Abandoning the
+ * tail was tried and it changed the answer: on the nested-list fixture the
+ * last stretch is still doing real work, and cutting it left seven pairs of
+ * pills on top of each other. So a caller that sees this should run the
+ * remaining ticks *faster*, not skip them — the arrangement stays exactly
+ * the one the full run produces.
+ *
+ * `alpha` is part of the test because early on a field can be jammed, every
+ * force balanced against another and nothing moving, nowhere near arranged.
+ */
+export function isCalm(graph: Graph): boolean {
+  return (graph.calm ?? 0) >= CALM_TICKS && graph.alpha < CALM_ALPHA
+}
+
+/** Ticks to run per frame once the field is calm: enough to get through the
+ *  sub-pixel tail promptly, few enough that it still reads as movement
+ *  rather than as a jump to a different arrangement. */
+export const CATCH_UP = 8
 
 /**
  * Pushes overlapping nodes apart, along whichever axis needs least so
@@ -383,8 +431,11 @@ export function relax(graph: Graph): number {
 export const RELAX_REST = 0.08
 
 /** Frames of collision-only work a settled field is allowed. Bounded, so
- *  a pile-up that cannot resolve still comes to a stop. */
-export const RELAX_BUDGET = 180
+ *  a pile-up that cannot resolve still comes to a stop — and bounded low,
+ *  because the pass does nearly all its work early: on the 53-object
+ *  fixture it clears 36 overlapping pairs in 30 passes, 35 in 60, and is no
+ *  better at 400. The rest was a second of the field shuffling for nothing. */
+export const RELAX_BUDGET = 120
 
 /**
  * Pairs of nodes whose boxes (plus the gap) still intersect — what the
@@ -429,6 +480,9 @@ export function settle(graph: Graph, v: Viewport, maxTicks = 600): number {
 /** Wakes a settled graph so it responds to a change. */
 export function disturb(graph: Graph, to = 0.55): void {
   graph.alpha = Math.max(graph.alpha, to)
+  // Without this the stillness count survives the wake and the very next
+  // tick decides the field has already settled.
+  graph.calm = 0
 }
 
 /* ------------------------------ the camera ------------------------------ */
