@@ -649,10 +649,19 @@ kbd {
   overflow: hidden;
 }
 
-.memory.empty {
-  display: block;
+/* Laid over the graph, which stays mounted underneath so its positions
+   survive memory being briefly empty. */
+.memory {
+  position: relative;
+}
+
+.memory-empty {
+  position: absolute;
+  inset: 0;
+  margin: 0;
   padding: 14px;
   color: var(--ink-soft);
+  pointer-events: none;
 }
 
 /* ---- the field ---- */
@@ -662,13 +671,8 @@ kbd {
   flex: 1 1 auto;
   min-height: 0;
   overflow: hidden;
-  touch-action: none;
   background:
     radial-gradient(120% 90% at 30% 0%, #ffffff 0%, #f8faff 55%, #f3f6fd 100%);
-}
-
-.graph.dragging-node {
-  cursor: grabbing;
 }
 
 /* Both layers get the same camera transform, so an edge cannot drift away
@@ -739,7 +743,7 @@ kbd {
   font-size: 12.5px;
   border: 1px solid var(--line);
   background: var(--surface);
-  cursor: grab;
+  cursor: pointer;
   will-change: transform;
   transition:
     opacity 200ms ease,
@@ -872,6 +876,29 @@ kbd {
   opacity: 0.28;
 }
 
+/* A newcomer fades in where it belongs instead of flying in from where it
+   never was. `scale`, not `transform`: the transform is the position, and
+   it is written every frame by the graph. */
+@media (prefers-reduced-motion: no-preference) {
+  .node {
+    animation: node-in 260ms ease-out;
+  }
+  .edge path {
+    animation: edge-in 320ms ease-out;
+  }
+  @keyframes node-in {
+    from {
+      opacity: 0;
+      scale: 0.86;
+    }
+  }
+  @keyframes edge-in {
+    from {
+      opacity: 0;
+    }
+  }
+}
+
 .node .partial {
   font-size: 10px;
   text-transform: uppercase;
@@ -879,17 +906,6 @@ kbd {
   color: var(--warn);
 }
 
-button.loosen {
-  position: absolute;
-  right: 10px;
-  bottom: 10px;
-  padding: 2px 10px;
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--ink-soft);
-  background: var(--surface);
-}
 
 /* ---------------- characters ---------------- */
 

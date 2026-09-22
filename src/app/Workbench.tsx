@@ -105,13 +105,20 @@ export function Workbench({ activity }: { activity: Activity }) {
 
   const steps = stepsRef.current
   const shown = Math.min(index, Math.max(0, steps.length - 1))
-  const snapshot = useMemo(
+  const live = useMemo(
     () => (steps.length === 0 ? EMPTY : extractMemory(steps[shown])),
     // The array is mutated in place during a run; `rerender` is what makes
     // this recompute, so the length and index are the honest dependencies.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [steps.length, shown],
   )
+  // While the console replays, every view keeps showing memory as the last
+  // accepted line left it. The replay starts from nothing and rebuilds
+  // everything the player already has, one step at a time — true of the
+  // engine, and not something anyone asked to watch. Shown live, memory
+  // emptied and refilled on every Enter, and the scene flickered back to
+  // its unset state with it.
+  const snapshot = talking && busy ? (lineMemory[lineMemory.length - 1] ?? EMPTY) : live
 
   /**
    * Runs one program to completion.

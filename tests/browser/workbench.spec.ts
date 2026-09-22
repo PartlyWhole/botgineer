@@ -283,54 +283,97 @@ test('a handle keeps its meaning while you scrub', async ({ page }) => {
   expect(await handleOf('first')).toBe(atEnd)
 })
 
-test('dragging a node moves it, and its neighbours follow', async ({ page }) => {
-  await open(page, EDITOR)
-  await send(page, "xs = [1, 2]\nloner = 'z'\n")
-  await showMemory(page)
-  await stillness(page)
-
-  const centre = async (t: string) => {
-    const b = (await page.getByTestId(t).boundingBox())!
-    return { x: b.x + b.width / 2, y: b.y + b.height / 2 }
-  }
-  const listId = await page.evaluate(
-    () => window.botgineer.snapshot().bindings.find((b) => b.name === 'xs')!.target,
+/** Every card's layout position — the translate the graph wrote, not the
+ *  screen rect, so the camera's zoom and pan cannot confuse the reading. */
+const placements = (page: Page) =>
+  page.evaluate(() =>
+    Object.fromEntries(
+      [...document.querySelectorAll<HTMLElement>('.node')].map((n) => [n.dataset.testid, n.style.transform]),
+    ),
   )
 
-  const from = await centre('node-xs')
-  const neighbourBefore = await centre(`node-${listId}`)
-  const lonerBefore = await centre('node-loner')
-
-  await page.mouse.move(from.x, from.y)
-  await page.mouse.down()
-  await page.mouse.move(from.x - 40, from.y + 110, { steps: 14 })
-  await page.mouse.up()
+test("a list's elements are drawn in index order, beside it", async ({ page }) => {
+  await open(page, EDITOR)
+  await send(page, "xs = ['a', 'b', 'c']\n")
   await stillness(page)
 
-  const moved = (a: { x: number; y: number }, b: { x: number; y: number }) =>
-    Math.hypot(a.x - b.x, a.y - b.y)
+  const boxes = await page.evaluate(() => {
+    const snap = window.botgineer.snapshot()
+    const list = snap.objects[snap.bindings.find((b) => b.name === 'xs')!.target]!
+    const rect = (id: string) => document.querySelector(`[data-testid="node-${id}"]`)!.getBoundingClientRect()
+    return { list: rect(list.id), items: list.elements!.map((e) => rect(e.target)) }
+  })
+  // Top to bottom in index order, and all to the right of the list.
+  const tops = boxes.items.map((b) => b.top)
+  expect(tops).toEqual([...tops].sort((a, b) => a - b))
+  for (const b of boxes.items) expect(b.left).toBeGreaterThan(boxes.list.right)
+})
 
-  // It went where it was put, and stayed: releasing it back to the
-  // simulation would send it home and make dragging pointless.
-  expect(moved(await centre('node-xs'), from)).toBeGreaterThan(30)
-
-  // The field responded — the rest of the graph is not a static backdrop.
-  // Only that it *moved* is asserted here: on a graph this small a dragged
-  // node physically displaces whatever it passes through, so an unrelated
-  // node can easily travel further than a neighbour. That the pull is
-  // *selective* is a property of the springs, and it is tested in
-  // tests/unit/graphLayout.test.ts where the graph can be controlled.
-  expect(moved(await centre(`node-${listId}`), neighbourBefore)).toBeGreaterThan(8)
-  void lonerBefore
-
-  // And a drag is not a click.
-  await expect(page.getByTestId('graph')).toHaveAttribute('data-picked', '')
-
-  // Loosen hands the dropped node back to the field.
-  await expect(page.getByTestId('loosen')).toBeVisible()
-  await page.getByTestId('loosen').click()
+test('a new console line leaves everything already drawn where it was', async ({ page }) => {
+  // The complaint this layout exists to answer: every Enter replays the
+  // whole program, and the graph used to be rebuilt from nothing each
+  // time, so the whole picture jumped whenever anything was added.
+  await open(page, 'names')
+  await say(page, 'x = 10')
+  await say(page, 'y = x')
   await stillness(page)
-  await expect(page.getByTestId('loosen')).toHaveCount(0)
+  const before = await placements(page)
+
+  await say(page, 'z = [1, 2]')
+  await stillness(page)
+  const after = await placements(page)
+
+  for (const [id, t] of Object.entries(before)) expect(after[id], id).toBe(t)
+  expect(Object.keys(after).length).toBeGreaterThan(Object.keys(before).length)
+})
+
+test('memory never goes blank while a console line runs', async ({ page }) => {
+  await open(page, 'names')
+  await say(page, 'x = 10')
+  await say(page, 'y = x')
+
+  // Watch the whole of the next submission, including the replay.
+  await page.evaluate(() => {
+    const w = window as unknown as { fewest: number }
+    w.fewest = Infinity
+    const count = () => {
+      w.fewest = Math.min(w.fewest, document.querySelectorAll('.node').length)
+    }
+    new MutationObserver(count).observe(document.querySelector('.graph .world')!, { childList: true })
+  })
+  await say(page, 'z = 3')
+  const fewest = await page.evaluate(() => (window as unknown as { fewest: number }).fewest)
+  // x, y and 10 were there throughout; nothing was taken away to be put back.
+  expect(fewest === Infinity || fewest >= 3).toBe(true)
+})
+
+test('picking moves the camera, never a card', async ({ page }) => {
+  await open(page, EDITOR)
+  await send(page, "letters = ['x', 'y']\nsame = letters\nn = 10\n")
+  await stillness(page)
+  const before = await placements(page)
+  await page.getByTestId('node-letters').click()
+  await stillness(page)
+  expect(await placements(page)).toEqual(before)
+})
+
+test('a memory taller than the pane scrolls rather than shrinking', async ({ page }) => {
+  await open(page, EDITOR)
+  await send(page, Array.from({ length: 24 }, (_, i) => `v${i} = ${i}`).join('\n') + '\n')
+  await stillness(page)
+
+  // Readable: the overview never shrinks past 0.8.
+  expect(await zoom(page)).toBeGreaterThanOrEqual(0.8)
+  const last = page.getByTestId('node-v23')
+  const graph = page.getByTestId('graph')
+  const below = async () => (await last.boundingBox())!.y > (await graph.boundingBox())!.y + (await graph.boundingBox())!.height
+  expect(await below()).toBe(true)
+
+  const g = (await graph.boundingBox())!
+  await page.mouse.move(g.x + g.width / 2, g.y + g.height / 2)
+  await page.mouse.wheel(0, 4000)
+  await stillness(page)
+  expect(await below()).toBe(false)
 })
 
 /* ------------------------ one snapshot, three panels ----------------------- */

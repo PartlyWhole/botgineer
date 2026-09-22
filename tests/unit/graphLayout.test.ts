@@ -1,586 +1,308 @@
 /**
- * The graph layout. Its promises are listed in the module header, and
- * these tests are exactly those promises — in particular that it *stops*,
- * which an earlier relaxation in this repo did not.
+ * The grid layout. Its promises are in the module header, and these tests
+ * are those promises: names left, elements in index order, an object drawn
+ * once however many things point at it, and — the reason it replaced a
+ * force layout — nothing that was already there moves when something new
+ * arrives.
  */
 import { describe, expect, it } from 'vitest'
 import {
-  ALPHA_REST,
-  bands,
   approach,
   cameraDistance,
-  distance,
-  disturb,
+  COL_GAP,
+  curve,
+  ease,
   frame,
-  CATCH_UP,
-  isCalm,
-  isFinitePosition,
-  labelAt,
-  laneX,
-  makeNode,
+  grid,
   MAX_K,
   MIN_K,
-  MOTION_REST,
-  neighboursOf,
-  overlapCount,
-  relax,
-  RELAX_BUDGET,
-  RELAX_REST,
-  seed,
-  settle,
-  tick,
-  toWorld,
+  NAME_GAP,
+  orderNames,
+  overview,
+  overviewZoom,
+  OVERVIEW_MIN_K,
+  place,
+  scrolled,
   transformOf,
-  type Graph,
-  type GraphEdge,
+  type LayoutInput,
+  type Placed,
+  type Size,
 } from '../../src/panels/graphLayout'
 
 const V = { w: 900, h: 420 }
-/** More than the run of still ticks the layout needs before it calls it. */
-const CALM_TICKS_PROBE = 12
 
-/** `a, b → xs` plus a couple of loose objects, which is the shape of a
- *  real snapshot: a few names, a few objects, some sharing. */
-function sample(): Graph {
-  const nodes = [
-    makeNode('n:a', 'name', 46, 26),
-    makeNode('n:b', 'name', 46, 26),
-    makeNode('n:xs', 'name', 52, 26),
-    makeNode('o:1', 'object', 104, 26),
-    makeNode('o:2', 'object', 96, 26),
-    makeNode('v:int:10', 'object', 78, 26),
-  ]
-  const edges: GraphEdge[] = [
-    { from: 'n:a', to: 'v:int:10', label: null },
-    { from: 'n:b', to: 'v:int:10', label: null },
-    { from: 'n:xs', to: 'o:1', label: null },
-    { from: 'o:1', to: 'o:2', label: '0' },
-    { from: 'o:2', to: 'v:int:10', label: '0' },
-  ]
-  const graph: Graph = { nodes, edges, alpha: 1 }
-  seed(graph, V)
-  return graph
+type Mem = { names: [string, string][]; children?: Record<string, string[]>; scope?: Record<string, string> }
+
+/** A small memory, written as `[name, target]` pairs and a child list. */
+const input = (m: Mem): LayoutInput => ({
+  names: m.names.map(([n, t]) => ({ id: `n:${m.scope?.[n] ?? 'global'}:${n}`, scope: m.scope?.[n] ?? 'global', target: t })),
+  children: new Map(Object.entries(m.children ?? {})),
+})
+
+const nid = (n: string, scope = 'global') => `n:${scope}:${n}`
+
+/** Every node the same size unless it says otherwise, so the arithmetic in
+ *  a failure message is readable. */
+const sized = (ids: Iterable<string>, w = 60, h = 30, over: Record<string, Size> = {}) =>
+  new Map([...ids].map((id) => [id, over[id] ?? { w, h }]))
+
+const layout = (m: Mem, over: Record<string, Size> = {}) => {
+  const inp = input(m)
+  const cells = grid(inp)
+  return place(inp, sized(cells.keys(), 60, 30, over))
 }
 
-const byId = (g: Graph, id: string) => g.nodes.find((n) => n.id === id)!
-
-describe('it stops', () => {
-  it('runs alpha down to nothing', () => {
-    const g = sample()
-    const ticks = settle(g, V)
-    expect(g.alpha).toBe(0)
-    expect(ticks).toBeLessThan(600)
-  })
-
-  it('stops moving once it has stopped', () => {
-    const g = sample()
-    settle(g, V)
-    const before = g.nodes.map((n) => [n.x, n.y])
-    for (let i = 0; i < 50; i++) tick(g, V)
-    const after = g.nodes.map((n) => [n.x, n.y])
-    // Collision is still live at rest, so allow a hair of movement — but
-    // nothing that reads as drift or jitter.
-    after.forEach((p, i) => {
-      expect(Math.abs(p[0]! - before[i]![0]!)).toBeLessThan(0.5)
-      expect(Math.abs(p[1]! - before[i]![1]!)).toBeLessThan(0.5)
-    })
-  })
-
-  it('says when there is nothing left worth watching', () => {
-    const g: Graph = {
-      nodes: [makeNode('n:x', 'name', 30, 26), makeNode('o:1', 'object', 90, 26)],
-      edges: [{ from: 'n:x', to: 'o:1', label: null }],
-      alpha: 1,
-    }
-    seed(g, V)
-    let n = 0
-    while (g.alpha > 0 && !isCalm(g) && n++ < 600) tick(g, V)
-    // Two nodes reach rest long before alpha's 342 ticks run out.
-    expect(isCalm(g)).toBe(true)
-    expect(n).toBeLessThan(200)
-  })
-
-  it('does not call a jam calm', () => {
-    // Everything on one spot with every force balanced: momentarily still,
-    // nowhere near arranged. A caller that sped through from here would be
-    // racing past the part that matters.
-    const g = sample()
-    for (const n of g.nodes) {
-      n.x = 300
-      n.y = 200
-      n.vx = 0
-      n.vy = 0
-    }
-    g.alpha = 1
-    g.calm = 0
-    for (let i = 0; i < CALM_TICKS_PROBE; i++) tick(g, V)
-    expect(isCalm(g)).toBe(false)
-  })
-
-  it('reaches the same arrangement whether the tail is hurried or not', () => {
-    // The whole reason the tail is run faster rather than dropped.
-    const slow = crowded()
-    settle(slow, V)
-
-    const fast = crowded()
-    let n = 0
-    while (fast.alpha > 0 && n++ < 600) {
-      const ticks = isCalm(fast) ? CATCH_UP : 1
-      for (let i = 0; i < ticks && fast.alpha > 0; i++) tick(fast, V)
-    }
-    for (let i = 0; i < RELAX_BUDGET; i++) if (relax(fast) <= RELAX_REST) break
-
-    slow.nodes.forEach((s, i) => {
-      expect(Math.hypot(s.x - fast.nodes[i]!.x, s.y - fast.nodes[i]!.y)).toBeLessThan(0.001)
-    })
-  })
-
-  it('reports how far the field last moved', () => {
-    const g = sample()
-    tick(g, V)
-    expect(g.motion).toBeGreaterThan(0)
-    settle(g, V)
-    expect(g.motion!).toBeLessThan(MOTION_REST)
-  })
-
-  it('can be woken up and settles again', () => {
-    const g = sample()
-    settle(g, V)
-    disturb(g)
-    expect(g.alpha).toBeGreaterThan(ALPHA_REST)
-    settle(g, V)
-    expect(g.alpha).toBe(0)
-  })
-})
-
-/**
- * A list of 40 with a dozen loose names — the shape that actually crowds,
- * and the one where collision stopping early was visible as pills sitting
- * on top of each other with their text cut off mid-word.
- */
-function crowded(): Graph {
-  const nodes = [makeNode('o:list', 'object', 132, 26)]
-  const edges: GraphEdge[] = []
-  for (let i = 0; i < 40; i++) {
-    nodes.push(makeNode(`v:int:${i}`, 'object', 96, 26))
-    edges.push({ from: 'o:list', to: `v:int:${i}`, label: String(i) })
-  }
-  for (let i = 0; i < 12; i++) {
-    nodes.push(makeNode(`n:${i}`, 'name', 44, 26))
-    edges.push({ from: `n:${i}`, to: `v:int:${i}`, label: null })
-  }
-  const graph: Graph = { nodes, edges, alpha: 1 }
-  seed(graph, V)
-  return graph
+const at = (p: Map<string, Placed>, id: string) => {
+  const v = p.get(id)
+  if (!v) throw new Error(`${id} was not placed`)
+  return v
 }
 
-describe('collision finishes what the forces leave behind', () => {
-  it('keeps working after alpha is gone', () => {
-    const g = crowded()
-    while (g.alpha > 0) tick(g, V)
-    const stuck = overlapCount(g.nodes)
-    // The forces alone do not clear a crowd this dense.
-    expect(stuck).toBeGreaterThan(0)
-
-    let passes = 0
-    while (passes++ < RELAX_BUDGET && relax(g) > RELAX_REST) {
-      /* the collision-only tail the loop runs */
-    }
-    expect(overlapCount(g.nodes)).toBeLessThan(stuck)
+describe('the grid', () => {
+  it('puts every name in the first column and every object after it', () => {
+    const p = layout({ names: [['a', 'o:1'], ['b', 'o:2']], children: { 'o:1': ['o:3'] } })
+    for (const id of [nid('a'), nid('b')]) expect(at(p, id).col).toBe(0)
+    for (const id of ['o:1', 'o:2']) expect(at(p, id).col).toBe(1)
+    expect(at(p, 'o:3').col).toBe(2)
+    const rightmostName = Math.max(at(p, nid('a')).x, at(p, nid('b')).x) + 30
+    for (const id of ['o:1', 'o:2', 'o:3']) expect(at(p, id).x - 30).toBeGreaterThan(rightmostName)
   })
 
-  it('clears a third of what the forces leave, on the fixture that crowds', () => {
-    const forcesOnly = crowded()
-    while (forcesOnly.alpha > 0) tick(forcesOnly, V)
-    const before = overlapCount(forcesOnly.nodes)
-
-    const g = crowded()
-    settle(g, V)
-    // Not zero: 53 wide pills in this pane genuinely do not have room, and
-    // the header is honest that zero overlap is not promised. What is
-    // promised is that the pass does not give up while it is still working.
-    expect(overlapCount(g.nodes)).toBeLessThan(before * 0.75)
+  it('starts each name’s object in the name’s own row', () => {
+    const p = layout({ names: [['a', 'o:1'], ['b', 'o:2']] })
+    expect(at(p, 'o:1').row).toBe(at(p, nid('a')).row)
+    expect(at(p, 'o:2').row).toBe(at(p, nid('b')).row)
+    expect(at(p, 'o:1').y).toBe(at(p, nid('a')).y)
   })
 
-  it('comes to rest instead of creeping', () => {
-    const g = sample()
-    settle(g, V)
-    expect(overlapCount(g.nodes)).toBe(0)
-    // Pairs resting against each other still report a vanishing correction
-    // forever, so the promise is that it vanishes — not that it is 0.
-    const before = g.nodes.map((n) => [n.x, n.y] as const)
-    for (let i = 0; i < 1000; i++) expect(relax(g)).toBeLessThan(RELAX_REST)
-    g.nodes.forEach((n, i) => {
-      expect(Math.abs(n.x - before[i]![0])).toBeLessThan(0.5)
-      expect(Math.abs(n.y - before[i]![1])).toBeLessThan(0.5)
+  it('lays a list’s elements out in index order, top to bottom', () => {
+    const p = layout({ names: [['xs', 'o:L']], children: { 'o:L': ['v:a', 'v:b', 'v:c'] } })
+    const ys = ['v:a', 'v:b', 'v:c'].map((id) => at(p, id).y)
+    expect(ys).toEqual([...ys].sort((a, b) => a - b))
+    expect(new Set(ys).size).toBe(3)
+    // The list sits level with its first element, so that arrow is flat.
+    expect(at(p, 'o:L').y).toBe(at(p, 'v:a').y)
+  })
+
+  it('makes room below a nested list before the next name', () => {
+    const p = layout({
+      names: [['g', 'o:G'], ['next', 'o:N']],
+      children: { 'o:G': ['o:A', 'o:B'], 'o:A': ['v:1', 'v:2'], 'o:B': ['v:3'] },
     })
+    // [[1, 2], [3]] needs three rows; the next name takes the fourth.
+    expect(at(p, 'v:1').row).toBe(0)
+    expect(at(p, 'v:2').row).toBe(1)
+    expect(at(p, 'o:B').row).toBe(2)
+    expect(at(p, nid('next')).row).toBe(3)
   })
 
-  it('does not depend on the order the nodes are stored in', () => {
-    // The reason the pass used to accumulate instead of writing in place.
-    // It writes in place now, in id order, so this has to be proved.
-    const a = crowded()
-    settle(a, V)
-    const b = crowded()
-    b.nodes.reverse()
-    settle(b, V)
-    for (const n of a.nodes) {
-      const m = b.nodes.find((z) => z.id === n.id)!
-      expect(Math.hypot(n.x - m.x, n.y - m.y)).toBeLessThan(0.001)
-    }
+  it('draws a shared object once, where it was first reached', () => {
+    // a = 10; b = a
+    const inp = input({ names: [['a', 'v:10'], ['b', 'v:10']] })
+    const cells = grid(inp)
+    expect([...cells.keys()].filter((id) => id === 'v:10')).toHaveLength(1)
+    expect(cells.get('v:10')!.row).toBe(cells.get(nid('a'))!.row)
+    // The second name still gets a row of its own, and an arrow — which is
+    // what makes the sharing visible.
+    expect(cells.get(nid('b'))!.row).toBe(1)
   })
 
-  it('stops even when the crowd cannot possibly fit', () => {
-    // Every node the size of the viewport: there is no arrangement with no
-    // overlap, and the budget is the only thing that ends it.
-    const nodes = Array.from({ length: 12 }, (_, i) => makeNode(`o:${i}`, 'object', 400, 300))
-    const g: Graph = { nodes, edges: [], alpha: 1 }
-    seed(g, V)
-    const ticks = settle(g, V)
-    expect(Number.isFinite(ticks)).toBe(true)
-    for (const n of g.nodes) expect(isFinitePosition(n)).toBe(true)
+  it('draws an element shared between two slots once', () => {
+    // xs = [1, 1]
+    const p = layout({ names: [['xs', 'o:L']], children: { 'o:L': ['v:1', 'v:1'] } })
+    expect([...p.keys()].filter((id) => id === 'v:1')).toHaveLength(1)
   })
 
-  it('never moves a held node, however crowded it gets', () => {
-    const g = crowded()
-    const held = g.nodes[0]!
-    held.fixed = true
-    held.x = 123
-    held.y = 45
-    settle(g, V)
-    expect(held.x).toBe(123)
-    expect(held.y).toBe(45)
-  })
-})
-
-describe('it never produces nonsense', () => {
-  it('survives every node starting on the same spot', () => {
-    const g = sample()
-    for (const n of g.nodes) {
-      n.x = 100
-      n.y = 100
-    }
-    settle(g, V)
-    expect(g.nodes.every(isFinitePosition)).toBe(true)
+  it('survives a collection that holds itself', () => {
+    const p = layout({ names: [['xs', 'o:L']], children: { 'o:L': ['o:L', 'v:1'] } })
+    expect(at(p, 'o:L').col).toBe(1)
+    expect(at(p, 'v:1').col).toBe(2)
   })
 
-  it('survives a zero-size viewport', () => {
-    const g = sample()
-    seed(g, { w: 0, h: 0 })
-    settle(g, { w: 0, h: 0 })
-    expect(g.nodes.every(isFinitePosition)).toBe(true)
+  it('puts a function’s locals after the globals, with a gap', () => {
+    const p = layout({
+      names: [['g', 'v:1'], ['h', 'v:2'], ['n', 'v:3']],
+      scope: { n: 'f' },
+    })
+    const pitch = at(p, nid('h')).y - at(p, nid('g')).y
+    expect(at(p, nid('n', 'f')).y - at(p, nid('h')).y).toBeGreaterThan(pitch)
   })
 
-  it('survives an edge pointing at a node that is not there', () => {
-    const g = sample()
-    g.edges.push({ from: 'n:a', to: 'missing', label: null })
-    settle(g, V)
-    expect(g.nodes.every(isFinitePosition)).toBe(true)
-  })
-
-  it('survives a self-referential collection', () => {
-    const g = sample()
-    g.edges.push({ from: 'o:1', to: 'o:1', label: '0' })
-    settle(g, V)
-    expect(g.nodes.every(isFinitePosition)).toBe(true)
-  })
-
-  it('survives a graph with one node and no edges', () => {
-    const g: Graph = { nodes: [makeNode('only', 'name')], edges: [], alpha: 1 }
-    seed(g, V)
-    settle(g, V)
-    expect(isFinitePosition(g.nodes[0]!)).toBe(true)
-  })
-})
-
-describe('the arrangement means something', () => {
-  it('puts names left of objects', () => {
-    const g = sample()
-    settle(g, V)
-    const names = g.nodes.filter((n) => n.kind === 'name')
-    const objects = g.nodes.filter((n) => n.kind === 'object')
-    const avg = (ns: typeof names) => ns.reduce((t, n) => t + n.x, 0) / ns.length
-    expect(avg(names)).toBeLessThan(avg(objects))
-  })
-
-  it('draws connected nodes closer than unconnected ones, on average', () => {
-    // On average, and not pairwise: a hub with several name edges sits in
-    // among the names, so an unrelated name can legitimately end up
-    // nearer to it than its own object does. A force layout does not
-    // promise otherwise, and asserting it pairwise was asserting a
-    // property this has never had.
-    // On the crowded fixture, not the six-node one. With five linked pairs
-    // out of fifteen the toy's ratio is a coincidence of that toy: measured
-    // across the fixtures, the same layout scores 0.87 on it, 0.93 on
-    // `typical`, 0.88 on a hub and 0.65 here. Only the last is a signal, so
-    // that is what gets asserted.
-    const g = crowded()
-    settle(g, V)
-    const adjacent = new Set(g.edges.flatMap((e) => [`${e.from}|${e.to}`, `${e.to}|${e.from}`]))
-    const linked: number[] = []
-    const unlinked: number[] = []
-    for (let i = 0; i < g.nodes.length; i++) {
-      for (let j = i + 1; j < g.nodes.length; j++) {
-        const a = g.nodes[i]!
-        const b = g.nodes[j]!
-        ;(adjacent.has(`${a.id}|${b.id}`) ? linked : unlinked).push(distance(a, b))
-      }
-    }
-    const mean = (xs: number[]) => xs.reduce((t, x) => t + x, 0) / xs.length
-    expect(mean(linked) / mean(unlinked)).toBeLessThan(0.75)
-  })
-
-  it('puts two names that share an object on the same side of it', () => {
-    const g = sample()
-    settle(g, V)
-    const shared = byId(g, 'v:int:10')
-    const a = distance(byId(g, 'n:a'), shared)
-    const b = distance(byId(g, 'n:b'), shared)
-    // Neither name is parked much further from the object than the other.
-    expect(Math.abs(a - b)).toBeLessThan(220)
-  })
-
-  it('lays the same graph out the same way twice', () => {
-    const one = sample()
-    const two = sample()
-    settle(one, V)
-    settle(two, V)
-    expect(one.nodes.map((n) => [Math.round(n.x), Math.round(n.y)])).toEqual(
-      two.nodes.map((n) => [Math.round(n.x), Math.round(n.y)]),
+  it('right-aligns names and left-aligns objects, so arrows start and end in line', () => {
+    const p = layout(
+      { names: [['a', 'v:1'], ['longer_name', 'o:L']] },
+      { [nid('a')]: { w: 30, h: 30 }, [nid('longer_name')]: { w: 110, h: 30 }, 'o:L': { w: 90, h: 30 } },
     )
+    expect(at(p, nid('a')).x + 15).toBe(at(p, nid('longer_name')).x + 55)
+    expect(at(p, 'v:1').x - 30).toBe(at(p, 'o:L').x - 45)
+    // And the gap between them is the one declared.
+    expect(at(p, 'v:1').x - 30 - (at(p, nid('a')).x + 15)).toBe(NAME_GAP)
   })
 
-  it('does not depend on the order the nodes arrive in', () => {
-    const one = sample()
-    const two = sample()
-    two.nodes.reverse()
-    seed(two, V)
-    settle(one, V)
-    settle(two, V)
-    const place = (g: Graph) =>
-      [...g.nodes]
-        .sort((a, b) => a.id.localeCompare(b.id))
-        .map((n) => `${n.id}@${Math.round(n.x / 20)},${Math.round(n.y / 20)}`)
-    expect(place(two)).toEqual(place(one))
+  it('spaces object columns by the declared gap', () => {
+    const p = layout({ names: [['xs', 'o:L']], children: { 'o:L': ['v:1'] } })
+    expect(at(p, 'v:1').x - 30 - (at(p, 'o:L').x + 30)).toBe(COL_GAP)
+  })
+
+  it('lays the same memory out the same way twice', () => {
+    const m: Mem = { names: [['a', 'o:1'], ['b', 'o:1'], ['c', 'o:2']], children: { 'o:1': ['v:x', 'v:y'] } }
+    expect([...layout(m)]).toEqual([...layout(m)])
   })
 })
 
-describe('dragging', () => {
-  it('leaves a held node exactly where the pointer put it', () => {
-    const g = sample()
-    settle(g, V)
-    const held = byId(g, 'n:xs')
-    held.fixed = true
-    held.x = 700
-    held.y = 60
-    disturb(g)
-    settle(g, V)
-    expect([held.x, held.y]).toEqual([700, 60])
+describe('nothing already there moves when something new arrives', () => {
+  it('leaves every existing card where it was when a name is added', () => {
+    const before = layout({ names: [['a', 'o:1'], ['b', 'v:2']], children: { 'o:1': ['v:x', 'v:y'] } })
+    const after = layout({
+      names: [['a', 'o:1'], ['b', 'v:2'], ['c', 'o:3']],
+      children: { 'o:1': ['v:x', 'v:y'], 'o:3': ['v:z'] },
+    })
+    for (const [id, p] of before) expect(at(after, id)).toEqual(p)
   })
 
-  it('drags its neighbours along with it', () => {
-    const g = sample()
-    settle(g, V)
-    const held = byId(g, 'n:xs')
-    const neighbour = byId(g, 'o:1')
-    const wasAt = { x: neighbour.x, y: neighbour.y }
-
-    // Somewhere that is definitely far from where it was, rather than a
-    // direction that happens to move it *towards* its neighbour.
-    held.fixed = true
-    held.x = V.w - 30
-    held.y = V.h - 30
-    const stretched = distance(held, neighbour)
-    disturb(g)
-    settle(g, V)
-
-    // The neighbour followed, and ended nearer than the stretch left it.
-    expect(distance(held, neighbour)).toBeLessThan(stretched)
-    expect(Math.hypot(neighbour.x - wasAt.x, neighbour.y - wasAt.y)).toBeGreaterThan(30)
+  it('keeps a rebound name in its row', () => {
+    const seen = new Map<string, number>()
+    const names = (pairs: [string, string][]) => input({ names: pairs }).names
+    orderNames(names([['x', 'v:10'], ['y', 'v:10']]), seen)
+    // The engine may enumerate them in any order; the column does not care.
+    const later = orderNames(names([['y', 'v:10'], ['x', 'v:99']]), seen)
+    expect(later.map((n) => n.id)).toEqual([nid('x'), nid('y')])
   })
 
-  it('moves an unconnected node less than a connected one', () => {
-    const g = sample()
-    settle(g, V)
-    const unconnected = byId(g, 'n:a')
-    const connected = byId(g, 'o:1')
-    const wasU = { x: unconnected.x, y: unconnected.y }
-    const wasC = { x: connected.x, y: connected.y }
+  it('adds a new name at the bottom of its scope, not where the engine listed it', () => {
+    const seen = new Map<string, number>()
+    const names = (pairs: [string, string][]) => input({ names: pairs }).names
+    orderNames(names([['b', 'v:1'], ['c', 'v:2']]), seen)
+    const later = orderNames(names([['a', 'v:3'], ['b', 'v:1'], ['c', 'v:2']]), seen)
+    expect(later.map((n) => n.id)).toEqual([nid('b'), nid('c'), nid('a')])
+  })
 
-    const held = byId(g, 'n:xs')
-    held.fixed = true
-    held.x = V.w - 30
-    held.y = V.h - 30
-    disturb(g)
-    settle(g, V)
+  it('lists globals first even when a local was seen earlier', () => {
+    const seen = new Map<string, number>()
+    const inp = input({ names: [['n', 'v:1'], ['g', 'v:2']], scope: { n: 'f' } }).names
+    expect(orderNames(inp, seen).map((n) => n.scope)).toEqual(['global', 'f'])
+  })
+})
 
-    const moved = (n: { x: number; y: number }, was: { x: number; y: number }) =>
-      Math.hypot(n.x - was.x, n.y - was.y)
-    expect(moved(connected, wasC)).toBeGreaterThan(moved(unconnected, wasU))
+describe('the arrows', () => {
+  const box = (x: number, y: number, w = 60, h = 30) => ({ x, y, w, h })
+  const numbers = (d: string) => d.match(/-?\d+(\.\d+)?/g)!.map(Number)
+
+  it('goes from the right edge of one card to the left edge of the next', () => {
+    const [sx, sy, , , , , ex, ey] = numbers(curve(box(0, 0), box(200, 50)).d)
+    expect(sx).toBe(30)
+    expect(sy).toBe(0)
+    expect(ex).toBeLessThan(200 - 30)
+    expect(ex).toBeGreaterThan(200 - 30 - 8)
+    expect(ey).toBe(50)
+  })
+
+  it('comes into the right edge of something already drawn to its left', () => {
+    // A back-reference: a slot pointing at an object in an earlier column.
+    const [, , , , , , ex] = numbers(curve(box(300, 100), box(100, 0)).d)
+    expect(ex).toBeGreaterThan(100 + 30)
+  })
+
+  it('loops over the top of a collection that holds itself', () => {
+    const b = box(100, 100)
+    const d = numbers(curve(b, b).d)
+    expect(d.every(Number.isFinite)).toBe(true)
+    expect(d[d.length - 1]).toBeLessThan(100 - 15)
+  })
+
+  it('puts a label near the far end and above the line', () => {
+    const c = curve(box(0, 0), box(300, 0))
+    expect(c.label.x).toBeGreaterThan(150)
+    expect(c.label.y).toBeLessThan(0)
+  })
+})
+
+describe('the tween', () => {
+  it('arrives, and says so', () => {
+    const p = { x: 0, y: 0 }
+    let n = 0
+    while (ease(p, { x: 100, y: -40 }) > 0 && n < 200) n++
+    expect(p).toEqual({ x: 100, y: -40 })
+    // About a quarter of a second at 60fps, not the five the forces took.
+    expect(n).toBeLessThan(40)
+  })
+
+  it('does nothing to something already there', () => {
+    const p = { x: 5, y: 5 }
+    expect(ease(p, { x: 5, y: 5 })).toBe(0)
+    expect(p).toEqual({ x: 5, y: 5 })
+  })
+})
+
+describe('the overview', () => {
+  const card = (x: number, y: number) => ({ x, y, w: 60, h: 30 })
+
+  it('does not zoom with the amount of memory', () => {
+    const small = overview([card(0, 0)], V, null)
+    const big = overview(Array.from({ length: 40 }, (_, i) => card(0, i * 45)), V, null)
+    expect(small.k).toBe(big.k)
+    expect(small.k).toBe(overviewZoom(V))
+  })
+
+  it('shrinks only for a narrow pane, and not past readable', () => {
+    expect(overviewZoom({ w: 1200, h: 400 })).toBe(1)
+    expect(overviewZoom({ w: 320, h: 400 })).toBe(OVERVIEW_MIN_K)
+  })
+
+  it('is anchored at the top left, so growing memory moves nothing on screen', () => {
+    const one = overview([card(30, 15)], V, null)
+    const more = overview([card(30, 15), card(30, 60), card(200, 60)], V, one)
+    // The first card is at the same screen point in both.
+    const screen = (c: typeof one) => ({ x: (30 - c.x) * c.k + V.w / 2, y: (15 - c.y) * c.k + V.h / 2 })
+    expect(screen(more)).toEqual(screen(one))
+  })
+
+  it('scrolls to show something that arrived below the fold', () => {
+    const rows = Array.from({ length: 30 }, (_, i) => card(30, i * 45))
+    const top = overview(rows, V, null)
+    const last = rows[rows.length - 1]!
+    const shown = overview(rows, V, top, [last])
+    expect(last.y + last.h / 2).toBeLessThanOrEqual(shown.y + V.h / shown.k / 2)
+  })
+
+  it('scrolls inside what there is to see, and no further', () => {
+    const rows = Array.from({ length: 30 }, (_, i) => card(30, i * 45))
+    const top = overview(rows, V, null)
+    const up = scrolled(top, 0, -500, rows, V)
+    expect(up.y).toBe(top.y)
+    const down = scrolled(top, 0, 1e6, rows, V)
+    expect(down.y).toBeGreaterThan(top.y)
+    expect(scrolled(down, 0, 1e6, rows, V).y).toBe(down.y)
+  })
+
+  it('does not scroll a memory that fits', () => {
+    const one = overview([card(30, 15)], V, null)
+    expect(scrolled(one, 0, 300, [card(30, 15)], V)).toEqual(one)
   })
 })
 
 describe('the camera', () => {
-  it('frames a node and its neighbours, not the node alone', () => {
-    const g = sample()
-    settle(g, V)
-    const node = byId(g, 'n:xs')
-    const alone = frame([node], V)
-    const withNeighbours = frame([node, ...neighboursOf(g, 'n:xs')], V)
-    // Framing more must not zoom in further than framing less.
-    expect(withNeighbours.k).toBeLessThanOrEqual(alone.k)
-  })
-
-  it('keeps zoom inside its limits', () => {
-    const g = sample()
-    settle(g, V)
-    const tight = frame([byId(g, 'n:a')], V)
-    const everything = frame(g.nodes, V, 400)
-    expect(tight.k).toBeLessThanOrEqual(MAX_K)
-    expect(everything.k).toBeGreaterThanOrEqual(MIN_K)
+  it('frames what it is given, and keeps zoom inside its limits', () => {
+    const c = frame([{ x: 0, y: 0, w: 60, h: 30 }, { x: 400, y: 0, w: 60, h: 30 }], V)
+    expect(c.x).toBe(200)
+    expect(c.k).toBeGreaterThanOrEqual(MIN_K)
+    expect(c.k).toBeLessThanOrEqual(MAX_K)
+    expect(frame([{ x: 0, y: 0, w: 1, h: 1 }], V).k).toBe(MAX_K)
   })
 
   it('handles being asked to frame nothing', () => {
-    const c = frame([], V)
-    expect(Number.isFinite(c.x)).toBe(true)
-    expect(Number.isFinite(c.k)).toBe(true)
+    expect(frame([], V)).toEqual({ x: V.w / 2, y: V.h / 2, k: 1 })
+    expect(overview([], V, null)).toEqual({ x: V.w / 2, y: V.h / 2, k: 1 })
   })
 
   it('eases to its target and arrives', () => {
     let c = { x: 0, y: 0, k: 1 }
-    const target = { x: 400, y: 200, k: 1.8 }
-    for (let i = 0; i < 200; i++) c = approach(c, target)
-    expect(cameraDistance(c, target, V)).toBeLessThan(0.5)
-  })
-
-  it('round-trips a viewport point through the world', () => {
-    const c = { x: 300, y: 150, k: 1.4 }
-    // The viewport centre is, by definition, the camera's world point.
-    expect(toWorld(V.w / 2, V.h / 2, c, V)).toEqual({ x: 300, y: 150 })
-    const p = toWorld(100, 50, c, V)
-    expect(p.x).toBeCloseTo(300 + (100 - V.w / 2) / 1.4, 6)
+    const to = { x: 100, y: 50, k: 1.5 }
+    for (let i = 0; i < 120; i++) c = approach(c, to)
+    expect(cameraDistance(c, to, V)).toBeLessThan(0.6)
   })
 
   it('writes a transform both layers can share', () => {
-    const t = transformOf({ x: 100, y: 50, k: 2 }, V)
-    expect(t).toContain('scale(2)')
-    expect(t).toContain(`translate(${V.w / 2}px, ${V.h / 2}px)`)
-  })
-})
-
-describe('the clouds are shaped like the pane', () => {
-  it('keeps the name band wholly left of the object band', () => {
-    for (const v of [V, { w: 400, h: 900 }, { w: 1600, h: 400 }]) {
-      const b = bands(crowded().nodes, v)
-      expect(b.name.x1).toBeLessThan(b.object.x0)
-    }
-  })
-
-  it('sizes the pair to the pane it has to fit in', () => {
-    for (const v of [
-      { w: 844, h: 635 },
-      { w: 508, h: 480 },
-      { w: 1200, h: 400 },
-    ]) {
-      const b = bands(crowded().nodes, v)
-      const w = b.object.x1 - b.name.x0
-      const h = b.object.y1 - b.object.y0
-      expect(w / h).toBeGreaterThan((v.w / v.h) * 0.6)
-      expect(w / h).toBeLessThan((v.w / v.h) * 1.8)
-    }
-  })
-
-  it('grows the band as objects arrive, rather than stacking them', () => {
-    const few = bands(sample().nodes, V)
-    const many = bands(crowded().nodes, V)
-    expect(many.object.x1 - many.object.x0).toBeGreaterThan(few.object.x1 - few.object.x0)
-  })
-
-  it('settles a crowd into columns rather than a single stack', () => {
-    // The whole point. A pull toward a single x per kind gave the objects
-    // a cloud one or two pills across, so collision — which separates
-    // along whichever axis needs least, always the vertical one for pills
-    // this shape — could only pile them downward. In the pane that meant
-    // zooming to 0.35 and pill text at 3.7px.
-    const v = { w: 844, h: 635 }
-    const g = crowded()
-    seed(g, v)
-    settle(g, v)
-    const objects = g.nodes.filter((n) => n.kind === 'object')
-    const widest = Math.max(...objects.map((n) => n.w))
-    const across =
-      Math.max(...objects.map((n) => n.x + n.w / 2)) - Math.min(...objects.map((n) => n.x - n.w / 2))
-    expect(across / widest).toBeGreaterThan(3)
-  })
-
-  it('leaves a lone node alone in the middle of its band', () => {
-    const g: Graph = { nodes: [makeNode('o:1', 'object', 90, 26)], edges: [], alpha: 1 }
-    seed(g, V)
-    settle(g, V)
-    const b = bands(g.nodes, V)
-    expect(g.nodes[0]!.x).toBeGreaterThanOrEqual(b.object.x0 - 1)
-    expect(g.nodes[0]!.x).toBeLessThanOrEqual(b.object.x1 + 1)
-  })
-})
-
-describe('pointer labels', () => {
-  it('sits near the far end, not in the middle', () => {
-    const at = labelAt({ x: 0, y: 0 }, { x: 100, y: 0 })
-    expect(at.x).toBeGreaterThan(60)
-  })
-
-  it('spreads a hub\'s labels as far as the nodes they name', () => {
-    // The whole reason it moved off the midpoint. Forty pointers out of one
-    // list put 34 of their 40 labels within a text-height of another.
-    const hub = { x: 0, y: 0 }
-    const spokes = Array.from({ length: 40 }, (_, i) => {
-      const a = (i / 40) * Math.PI * 2
-      return { x: Math.cos(a) * 200, y: Math.sin(a) * 200 }
-    })
-    const near = (place: (s: { x: number; y: number }) => { x: number; y: number }) => {
-      const ps = spokes.map(place)
-      let crowded = 0
-      for (let i = 0; i < ps.length; i++) {
-        for (let j = 0; j < ps.length; j++) {
-          if (i === j) continue
-          if (Math.hypot(ps[i]!.x - ps[j]!.x, ps[i]!.y - ps[j]!.y) < 18) {
-            crowded++
-            break
-          }
-        }
-      }
-      return crowded
-    }
-    const midpoint = near((s) => ({ x: (hub.x + s.x) / 2, y: (hub.y + s.y) / 2 - 5 }))
-    const farEnd = near((s) => labelAt(hub, s))
-    expect(farEnd).toBeLessThan(midpoint)
-  })
-
-  it('always puts the text on the same side of the line', () => {
-    // Otherwise a label flips across its edge as the field turns.
-    for (let i = 0; i < 36; i++) {
-      const a = (i / 36) * Math.PI * 2
-      const to = { x: Math.cos(a) * 100, y: Math.sin(a) * 100 }
-      const at = labelAt({ x: 0, y: 0 }, to)
-      const onLine = { x: to.x * 0.78, y: to.y * 0.78 }
-      expect(at.y - onLine.y).toBeLessThanOrEqual(0.001)
-    }
-  })
-
-  it('survives an edge with no length', () => {
-    const at = labelAt({ x: 5, y: 5 }, { x: 5, y: 5 })
-    expect(Number.isFinite(at.x)).toBe(true)
-    expect(Number.isFinite(at.y)).toBe(true)
-  })
-})
-
-describe('lanes', () => {
-  it('puts the two clouds in different places', () => {
-    expect(laneX('name', V)).toBeLessThan(laneX('object', V))
-  })
-
-  it('scales with the viewport rather than using fixed pixels', () => {
-    const wide = { w: 1800, h: 420 }
-    expect(laneX('object', wide)).toBeGreaterThan(laneX('object', V))
+    expect(transformOf({ x: 10, y: 20, k: 2 }, V)).toBe('translate(450px, 210px) scale(2) translate(-10px, -20px)')
   })
 })

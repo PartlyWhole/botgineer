@@ -1,41 +1,40 @@
 /**
- * Memory as one live field.
+ * Memory, drawn as a grid.
  *
- * There is no second view. Names and objects are nodes in a single graph,
- * bindings and pointers are edges, and picking something does not open a
- * panel — the **camera** flies to frame that node together with everything
- * it is connected to. Zooming in *is* the detail view.
+ * Names in a column on the left, each one's object beside it, and a
+ * collection's elements to the right of it in index order — see
+ * `graphLayout` for the placement and for why it replaced a force layout.
+ * Bindings and pointers are curved arrows.
  *
- * Two layers share one camera transform: an SVG layer for the edges and a
- * DOM layer for the pills. Text stays real text — selectable, styleable,
+ * There is still no second view. Picking something does not open a panel:
+ * the **camera** flies to frame that node together with everything it is
+ * connected to, and everything else dims where it stands. Nothing moves
+ * because you picked it. Zooming in *is* the detail view.
+ *
+ * Two layers share one camera transform: an SVG layer for the arrows and a
+ * DOM layer for the cards. Text stays real text — selectable, styleable,
  * and reachable by a screen reader — while the arrows get to be SVG.
  *
- * The animation loop writes `transform` straight to the elements. React
- * renders the graph's *shape*; it is never asked to render its motion.
+ * React renders the graph's *shape*. The animation loop writes positions
+ * straight to the elements as they ease to where the placement put them;
+ * React is never asked to render the motion.
  */
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import {
   approach,
   cameraDistance,
-  disturb,
-  CATCH_UP,
+  curve,
+  ease,
   frame,
-  isCalm,
-  labelAt,
-  makeNode,
-  relax,
-  RELAX_BUDGET,
-  RELAX_REST,
-  seed,
+  orderNames,
+  overview,
+  place,
+  scrolled,
   svgTransformOf,
-  tick,
-  toWorld,
   transformOf,
-  trimTo,
   type Camera,
-  type Graph,
-  type GraphEdge,
-  type GraphNode,
+  type LayoutInput,
+  type Size,
   type Viewport,
 } from './graphLayout'
 import type { MemorySnapshot, ObjectId } from '../memory/model'
@@ -51,15 +50,16 @@ type Props = {
   onPick: (pick: GraphPick) => void
 }
 
+type Edge = { from: string; to: string; label: string | null; key: string }
+
 const nameId = (scope: string, name: string) => `n:${scope}:${name}`
-/** Joins the two ends of an edge into one key. A NUL byte was
- *  invisible in tooling; object ids never contain a pipe. */
-const EDGE_SEP = '|'
-const DRAG_SLOP = 4
 
 const reduced = () =>
   typeof window !== 'undefined' &&
   window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true
+
+/** Where a node is drawn now, where it is going, and how big it is. */
+type Body = { x: number; y: number; tx: number; ty: number; w: number; h: number }
 
 export function MemoryGraph({ snapshot, handles, runKey, picked, onPick }: Props) {
   const hostRef = useRef<HTMLDivElement | null>(null)
@@ -69,40 +69,43 @@ export function MemoryGraph({ snapshot, handles, runKey, picked, onPick }: Props
   const edgeRefs = useRef(new Map<string, SVGPathElement>())
   const labelRefs = useRef(new Map<string, SVGTextElement>())
 
-  const graphRef = useRef<Graph>({ nodes: [], edges: [], alpha: 0 })
-  const byId = useRef(new Map<string, GraphNode>())
+  const bodies = useRef(new Map<string, Body>())
+  /** Card sizes, measured unpicked. A picked card grows in place, and if
+   *  the placement used its grown size every column would widen and the
+   *  whole grid would shift — picking would move the layout, which is the
+   *  one thing it must not do. */
+  const sizes = useRef(new Map<string, Size>())
+  /** When each name was first seen, for the whole run. The name column's
+   *  order is this, so a rebound name keeps its row. */
+  const seen = useRef(new Map<string, number>())
   const viewport = useRef<Viewport>({ w: 800, h: 300 })
   const camera = useRef<Camera>({ x: 400, y: 150, k: 1 })
   const target = useRef<Camera>({ x: 400, y: 150, k: 1 })
   const raf = useRef<number | null>(null)
-  /** Collision-only frames still owed to the field after `alpha` dies.
-   *  Refilled by every `wake`, spent by the loop, and bounded so a pile-up
-   *  that cannot resolve still comes to a stop. */
-  const relaxLeft = useRef(0)
-  /** Which nodes the camera is framing. Held in a ref so the loop can
-   *  re-aim as they move: a target computed once at pick time describes
-   *  where they were, and the field is usually still settling. */
-  const framedIds = useRef<Set<string> | null>(null)
   const run = useRef(runKey)
-  const [, bump] = useState(0)
 
   /* ------------------------------ the shape ------------------------------ */
 
   const model = useMemo(() => {
-    const nodes: { id: string; kind: 'name' | 'object' }[] = []
-    const edges: GraphEdge[] = []
-
-    for (const b of snapshot.bindings) {
-      nodes.push({ id: nameId(b.scope, b.name), kind: 'name' })
-      edges.push({ from: nameId(b.scope, b.name), to: `o:${b.target}`, label: null })
-    }
+    const names = snapshot.bindings.map((b) => ({
+      id: nameId(b.scope, b.name),
+      scope: b.scope,
+      target: `o:${b.target}`,
+    }))
+    const objects = Object.values(snapshot.objects).map((o) => `o:${o.id}`)
+    const children = new Map<string, string[]>()
+    const edges: Edge[] = []
+    for (const n of names) edges.push({ from: n.id, to: n.target, label: null, key: `${n.id}>${n.target}` })
     for (const o of Object.values(snapshot.objects)) {
-      nodes.push({ id: `o:${o.id}`, kind: 'object' })
-      for (const e of o.elements ?? []) {
-        edges.push({ from: `o:${o.id}`, to: `o:${e.target}`, label: e.label })
-      }
+      const kids = (o.elements ?? []).map((e) => `o:${e.target}`)
+      children.set(`o:${o.id}`, kids)
+      ;(o.elements ?? []).forEach((e, i) => {
+        // Keyed by slot, not by target: `[1, 1]` is two pointers at one
+        // object, and both arrows have to exist.
+        edges.push({ from: `o:${o.id}`, to: `o:${e.target}`, label: e.label, key: `o:${o.id}#${i}` })
+      })
     }
-    return { nodes, edges }
+    return { names, objects, children, edges }
   }, [snapshot])
 
   const pickedId =
@@ -122,204 +125,183 @@ export function MemoryGraph({ snapshot, handles, runKey, picked, onPick }: Props
     }
     return ids
   }, [model.edges, pickedId])
+  const nearRef = useRef(near)
+  nearRef.current = near
 
   /* ------------------------------ the motion ------------------------------ */
 
-  /** Re-reads pill sizes from the DOM. A picked node grows, and a layout
-   *  working from stale sizes lets it sit on top of its own neighbours —
-   *  covering the connection that picking it was meant to reveal. */
-  const measure = useCallback(() => {
-    for (const [id, el] of pillRefs.current) {
-      const n = byId.current.get(id)
-      if (!n) continue
-      // A hidden view reports zero. Keeping the last real size is right:
-      // measuring zero would collapse every node and the layout with it.
-      if (el.offsetWidth === 0) continue
-      n.w = el.offsetWidth
-      n.h = el.offsetHeight
-    }
-  }, [])
+  const edgesRef = useRef(model.edges)
+  edgesRef.current = model.edges
 
-  const paint = useCallback(() => {
-    const world = worldRef.current
-    const layer = edgeLayerRef.current
+  const paint = () => {
     const v = viewport.current
-    const t = transformOf(camera.current, v)
-    if (world) world.style.transform = t
-    if (layer) layer.setAttribute('transform', svgTransformOf(camera.current, v))
+    if (worldRef.current) worldRef.current.style.transform = transformOf(camera.current, v)
+    edgeLayerRef.current?.setAttribute('transform', svgTransformOf(camera.current, v))
 
     for (const [id, el] of pillRefs.current) {
-      const n = byId.current.get(id)
-      if (n) el.style.transform = `translate(${n.x}px, ${n.y}px) translate(-50%, -50%)`
+      const b = bodies.current.get(id)
+      if (b) el.style.transform = `translate(${b.x}px, ${b.y}px) translate(-50%, -50%)`
     }
-
-    for (const [key, path] of edgeRefs.current) {
-      const [from, to] = key.split(EDGE_SEP)
-      const a = byId.current.get(from!)
-      const b = byId.current.get(to!)
-      if (!a || !b) continue
-      const end = trimTo(a, b)
-      path.setAttribute('d', `M ${a.x} ${a.y} L ${end.x} ${end.y}`)
-      const label = labelRefs.current.get(key)
+    for (const e of edgesRef.current) {
+      const path = edgeRefs.current.get(e.key)
+      const a = bodies.current.get(e.from)
+      const b = bodies.current.get(e.to)
+      if (!path || !a || !b) continue
+      const c = curve(a, b)
+      path.setAttribute('d', c.d)
+      const label = labelRefs.current.get(e.key)
       if (label) {
-        const at = labelAt(a, end)
-        label.setAttribute('x', String(at.x))
-        label.setAttribute('y', String(at.y))
+        label.setAttribute('x', String(c.label.x))
+        label.setAttribute('y', String(c.label.y))
       }
     }
-  }, [])
+  }
+  const paintRef = useRef(paint)
+  paintRef.current = paint
 
-  const loop = useCallback(() => {
+  /** Runs until every node has arrived and the camera with them. */
+  const loop = () => {
     if (raf.current !== null) return
     const step = () => {
-      const g = graphRef.current
+      let moving = false
+      for (const b of bodies.current.values()) {
+        const to = { x: b.tx, y: b.ty }
+        if (ease(b, to) > 0) moving = true
+      }
       const v = viewport.current
-      let busy = false
-      if (g.alpha > 0) {
-        // Once nothing is visibly moving, run through the rest of the
-        // simulation several ticks a frame rather than one. The tail is
-        // sub-pixel to watch but it is not idle — skipping it changes the
-        // arrangement — so it gets done quickly instead of skipped.
-        const ticks = isCalm(g) ? CATCH_UP : 1
-        for (let i = 0; i < ticks && g.alpha > 0; i++) tick(g, v)
-        busy = true
-      } else if (relaxLeft.current > 0) {
-        // The forces are spent but pills may still be sitting on each
-        // other. Collision is positional and unscaled precisely so it can
-        // carry on here; the budget is what guarantees this still stops.
-        relaxLeft.current--
-        if (relax(g) > RELAX_REST) busy = true
-        else relaxLeft.current = 0
-      }
-      if (busy) {
-        const want = framedIds.current
-        const subject = want === null ? g.nodes : g.nodes.filter((n) => want.has(n.id))
-        target.current = frame(subject.length > 0 ? subject : g.nodes, v)
-      }
       const far = cameraDistance(camera.current, target.current, v) > 0.6
-      if (far) camera.current = approach(camera.current, target.current)
-      paint()
-      if (busy || far) {
-        raf.current = requestAnimationFrame(step)
-      } else {
-        raf.current = null
-      }
+      camera.current = far ? approach(camera.current, target.current) : target.current
+      paintRef.current()
+      raf.current = moving || far ? requestAnimationFrame(step) : null
     }
     raf.current = requestAnimationFrame(step)
-  }, [paint])
+  }
+  const loopRef = useRef(loop)
+  loopRef.current = loop
 
-  /** Give the field energy *and* refill the collision budget. Every reason
-   *  to re-energise the field is also a reason overlap may reappear, so the
-   *  two always travel together. */
-  const wake = useCallback(
-    (to: number) => {
-      disturb(graphRef.current, to)
-      relaxLeft.current = RELAX_BUDGET
-      loop()
-    },
-    [loop],
-  )
+  /** Where the overview was last looking, so a new line or an unpick
+   *  comes back to the same part of a memory too tall to show at once. */
+  const scroll = useRef<{ x: number; y: number } | null>(null)
 
-  const aim = useCallback(
-    (nodes: GraphNode[], ids: Set<string> | null) => {
-      framedIds.current = ids
-      target.current = frame(nodes, viewport.current)
-      if (reduced()) camera.current = target.current
-      loop()
-    },
-    [loop],
-  )
+  const boxes = (ids: Set<string> | null) =>
+    [...bodies.current.entries()]
+      .filter(([id]) => ids === null || ids.has(id))
+      .map(([, b]) => ({ x: b.tx, y: b.ty, w: b.w, h: b.h }))
 
-  /* --------------------------- reconcile & measure --------------------------- */
+  /** Frames the picked node's neighbourhood, or the overview. Aimed at
+   *  where the nodes are *going*, so the camera heads straight for the
+   *  final picture instead of chasing the tween. `reveal` are nodes that
+   *  just arrived, which the overview scrolls to if it has to. */
+  const aim = (reveal: string[] = []) => {
+    const ids = nearRef.current
+    if (ids === null) {
+      const show = boxes(new Set(reveal))
+      target.current = overview(boxes(null), viewport.current, scroll.current, show)
+      scroll.current = { x: target.current.x, y: target.current.y }
+    } else {
+      target.current = frame(boxes(ids), viewport.current, 60)
+    }
+    if (reduced()) camera.current = target.current
+  }
+  const aimRef = useRef(aim)
+  aimRef.current = aim
+
+  /* ------------------------------ placement ------------------------------ */
 
   useLayoutEffect(() => {
     const host = hostRef.current
-    if (!host) return
-    // Same reason: a hidden view has no size, and a zero viewport would
-    // seed every node on top of every other.
-    if (host.clientWidth > 0) viewport.current = { w: host.clientWidth, h: host.clientHeight }
+    if (host && host.clientWidth > 0) viewport.current = { w: host.clientWidth, h: host.clientHeight }
 
-    // A new run is a new memory: positions and camera start over.
-    if (run.current !== runKey) {
+    // A new run is a new memory: order and positions start over.
+    const fresh = run.current !== runKey
+    if (fresh) {
       run.current = runKey
-      byId.current.clear()
-      graphRef.current = { nodes: [], edges: [], alpha: 0 }
+      bodies.current.clear()
+      seen.current.clear()
     }
 
-    const live = new Set(model.nodes.map((n) => n.id))
-    for (const id of [...byId.current.keys()]) if (!live.has(id)) byId.current.delete(id)
+    // Measure before placing: a column is as wide as its widest card.
+    for (const [id, el] of pillRefs.current) {
+      if (id === pickedId) continue
+      // A hidden view reports zero; keeping the last real size is right.
+      if (el.offsetWidth > 0) sizes.current.set(id, { w: el.offsetWidth, h: el.offsetHeight })
+    }
 
-    const fresh: GraphNode[] = []
-    for (const spec of model.nodes) {
-      let n = byId.current.get(spec.id)
-      if (!n) {
-        n = makeNode(spec.id, spec.kind)
-        byId.current.set(spec.id, n)
-        fresh.push(n)
+    const input: LayoutInput = {
+      names: orderNames(model.names, seen.current),
+      children: model.children,
+    }
+    const placed = place(input, sizes.current)
+
+    const live = new Set(placed.keys())
+    for (const id of [...bodies.current.keys()]) if (!live.has(id)) bodies.current.delete(id)
+
+    const first = bodies.current.size === 0
+    if (first) scroll.current = null
+    const arrived: string[] = []
+    const snap = reduced()
+    for (const [id, p] of placed) {
+      const s = sizes.current.get(id) ?? { w: 70, h: 26 }
+      const b = bodies.current.get(id)
+      if (b) {
+        b.tx = p.x
+        b.ty = p.y
+        b.w = s.w
+        b.h = s.h
+        if (snap) {
+          b.x = p.x
+          b.y = p.y
+        }
+      } else {
+        // A newcomer appears where it belongs — it fades in there (CSS),
+        // rather than flying in from somewhere it never was.
+        bodies.current.set(id, { x: p.x, y: p.y, tx: p.x, ty: p.y, ...s })
+        arrived.push(id)
       }
-      const el = pillRefs.current.get(spec.id)
-      if (el && el.offsetWidth > 0) {
-        n.w = el.offsetWidth
-        n.h = el.offsetHeight
-      }
     }
 
-    const g: Graph = {
-      nodes: [...byId.current.values()],
-      edges: model.edges,
-      alpha: graphRef.current.alpha,
-    }
-    graphRef.current = g
-
-    if (fresh.length === g.nodes.length) {
-      // First fill: lay the whole field out and frame it.
-      seed(g, viewport.current)
-      relaxLeft.current = RELAX_BUDGET
-      disturb(g, 1)
-      aim(g.nodes, null)
-    } else if (fresh.length > 0) {
-      // Newcomers drop into their lane and the field makes room.
-      seed({ nodes: fresh, edges: [], alpha: 1 }, viewport.current)
-      wake(0.6)
-    } else {
-      loop()
-    }
-    paint()
-  }, [aim, loop, model, paint, runKey])
+    aimRef.current(first ? [] : arrived)
+    if (first) camera.current = target.current
+    paintRef.current()
+    loopRef.current()
+  }, [model, runKey, pickedId])
 
   // Picking moves the camera, and nothing else changes place.
   useLayoutEffect(() => {
-    const g = graphRef.current
-    if (g.nodes.length === 0) return
-    if (near === null) {
-      measure()
-      wake(0.3)
-      aim(g.nodes, null)
-      return
-    }
-    measure()
-    const subject = g.nodes.filter((n) => near.has(n.id))
-    aim(subject.length > 0 ? subject : g.nodes, near)
-    // The picked pill just changed size, so the field has to make room.
-    wake(0.4)
-  }, [aim, measure, near])
+    aimRef.current()
+    loopRef.current()
+  }, [near])
 
   useEffect(() => {
     const host = hostRef.current
     if (!host || typeof ResizeObserver === 'undefined') return
     const ro = new ResizeObserver(() => {
+      if (host.clientWidth === 0) return
       viewport.current = { w: host.clientWidth, h: host.clientHeight }
-      wake(0.3)
-      aim(
-        near === null
-          ? graphRef.current.nodes
-          : graphRef.current.nodes.filter((n) => near.has(n.id)),
-        near,
-      )
+      aimRef.current()
+      loopRef.current()
     })
     ro.observe(host)
-    return () => ro.disconnect()
-  }, [aim, near])
+
+    // A memory taller than the pane scrolls. Not passive, because the page
+    // must not scroll along with it.
+    const onWheel = (e: WheelEvent) => {
+      if (nearRef.current !== null) return
+      const next = scrolled(target.current, e.deltaX, e.deltaY, boxes(null), viewport.current)
+      if (next.x === target.current.x && next.y === target.current.y) return
+      e.preventDefault()
+      target.current = next
+      camera.current = next
+      scroll.current = { x: next.x, y: next.y }
+      loopRef.current()
+    }
+    host.addEventListener('wheel', onWheel, { passive: false })
+    return () => {
+      ro.disconnect()
+      host.removeEventListener('wheel', onWheel)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(
     () => () => {
@@ -328,57 +310,11 @@ export function MemoryGraph({ snapshot, handles, runKey, picked, onPick }: Props
       // Clearing the handle is the whole point. React's dev double-invoke
       // tears these effects down and runs them again against the *same*
       // refs, so a handle left behind makes `loop`'s re-entry guard reject
-      // every later start: the field never ticks, and what you see is the
-      // seed positions painted once. That is a dev-only wedge, which is
-      // why the production browser tests never caught it.
+      // every later start and nothing would ever move again.
       raf.current = null
     },
     [],
   )
-
-  /* ------------------------------- dragging ------------------------------- */
-
-  const onPointerDown = (id: string) => (e: React.PointerEvent<HTMLButtonElement>) => {
-    const node = byId.current.get(id)
-    const host = hostRef.current
-    if (!node || !host) return
-
-    const start = { x: e.clientX, y: e.clientY }
-    let dragged = false
-    node.fixed = true
-    e.currentTarget.setPointerCapture(e.pointerId)
-
-    const move = (ev: PointerEvent) => {
-      if (!dragged && Math.hypot(ev.clientX - start.x, ev.clientY - start.y) < DRAG_SLOP) return
-      dragged = true
-      host.classList.add('dragging-node')
-      const box = host.getBoundingClientRect()
-      const w = toWorld(ev.clientX - box.left, ev.clientY - box.top, camera.current, viewport.current)
-      node.x = w.x
-      node.y = w.y
-      // Neighbours respond while the node is still moving.
-      wake(0.35)
-    }
-
-    const up = () => {
-      host.classList.remove('dragging-node')
-      window.removeEventListener('pointermove', move)
-      window.removeEventListener('pointerup', up)
-      if (dragged) {
-        // Dropped nodes stay put and the field arranges around them.
-        // Releasing them back to the simulation sent them home, which
-        // makes dragging pointless.
-        wake(0.4)
-        bump((n) => n + 1)
-      } else {
-        node.fixed = false
-        pick(id)
-      }
-    }
-
-    window.addEventListener('pointermove', move)
-    window.addEventListener('pointerup', up)
-  }
 
   const pick = (id: string) => {
     if (id === pickedId) {
@@ -394,15 +330,12 @@ export function MemoryGraph({ snapshot, handles, runKey, picked, onPick }: Props
     }
   }
 
-  const loosen = () => {
-    for (const n of byId.current.values()) n.fixed = false
-    wake(0.8)
-    bump((n) => n + 1)
-  }
-
-  const anyPinned = [...byId.current.values()].some((n) => n.fixed)
-
   /* ------------------------------- rendering ------------------------------- */
+
+  const nodes = [
+    ...model.names.map((n) => ({ id: n.id, kind: 'name' as const })),
+    ...model.objects.map((id) => ({ id, kind: 'object' as const })),
+  ]
 
   return (
     <div
@@ -423,22 +356,21 @@ export function MemoryGraph({ snapshot, handles, runKey, picked, onPick }: Props
         </defs>
         <g ref={edgeLayerRef}>
           {model.edges.map((e) => {
-            const key = `${e.from}${EDGE_SEP}${e.to}`
             const lit = pickedId !== null && (e.from === pickedId || e.to === pickedId)
             return (
-              <g key={`${key}:${e.label ?? ''}`} className={`edge ${lit ? 'lit' : ''}`}>
+              <g key={e.key} className={`edge ${lit ? 'lit' : ''}`}>
                 <path
                   ref={(el) => {
-                    if (el) edgeRefs.current.set(key, el)
-                    else edgeRefs.current.delete(key)
+                    if (el) edgeRefs.current.set(e.key, el)
+                    else edgeRefs.current.delete(e.key)
                   }}
                   markerEnd="url(#tip)"
                 />
                 {lit && e.label !== null && (
                   <text
                     ref={(el) => {
-                      if (el) labelRefs.current.set(key, el)
-                      else labelRefs.current.delete(key)
+                      if (el) labelRefs.current.set(e.key, el)
+                      else labelRefs.current.delete(e.key)
                     }}
                     className="edge-label"
                   >
@@ -452,7 +384,7 @@ export function MemoryGraph({ snapshot, handles, runKey, picked, onPick }: Props
       </svg>
 
       <div className="world" ref={worldRef}>
-        {model.nodes.map((spec) => (
+        {nodes.map((spec) => (
           <Pill
             key={spec.id}
             spec={spec}
@@ -460,8 +392,7 @@ export function MemoryGraph({ snapshot, handles, runKey, picked, onPick }: Props
             handles={handles}
             picked={pickedId === spec.id}
             dimmed={near !== null && !near.has(spec.id)}
-            onPointerDown={onPointerDown(spec.id)}
-            onKeyPick={() => pick(spec.id)}
+            onPick={() => pick(spec.id)}
             register={(el) => {
               if (el) pillRefs.current.set(spec.id, el)
               else pillRefs.current.delete(spec.id)
@@ -469,12 +400,6 @@ export function MemoryGraph({ snapshot, handles, runKey, picked, onPick }: Props
           />
         ))}
       </div>
-
-      {anyPinned && (
-        <button type="button" className="loosen" onClick={loosen} data-testid="loosen">
-          loosen
-        </button>
-      )}
     </div>
   )
 }
@@ -485,8 +410,7 @@ function Pill({
   handles,
   picked,
   dimmed,
-  onPointerDown,
-  onKeyPick,
+  onPick,
   register,
 }: {
   spec: { id: string; kind: 'name' | 'object' }
@@ -494,21 +418,15 @@ function Pill({
   handles: Map<ObjectId, string>
   picked: boolean
   dimmed: boolean
-  onPointerDown: (e: React.PointerEvent<HTMLButtonElement>) => void
-  onKeyPick: () => void
+  onPick: () => void
   register: (el: HTMLButtonElement | null) => void
 }) {
   const common = {
     ref: register,
     type: 'button' as const,
     className: '',
-    onPointerDown,
-    onKeyDown: (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault()
-        onKeyPick()
-      }
-    },
+    // A button already answers Enter and Space with a click.
+    onClick: onPick,
     'aria-pressed': picked,
   }
 

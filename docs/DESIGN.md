@@ -19,7 +19,7 @@ is a *view* of that model:
 │  Pyodide 314, self-hosted │ ───────► │                                │  │
 └───────────────────────────┘          │   (A) scene ◄──────────────────┤  │
         ▲                              │   (B) robot ── causes it ──────┤  │
-        │  run(source, options)        │       └ Code | Memory ◄────────┘  │
+        │  run(source, options)        │       └ memory, below ◄────────┘  │
         └──────────────────────────────┴───────────────────────────────────┘
 ```
 
@@ -127,58 +127,60 @@ last rendered.
 
 ### (C) Memory — `src/panels/MemoryGraph.tsx`, `src/panels/graphLayout.ts`
 
-**One live field, and no second view.** Names and objects are nodes;
-bindings and pointers are edges. Names are pulled gently left, objects
-gently right, so the two collections read as two clouds without being two
-containers — the pieces are all in one space and they move in response to
-each other. Drag one and its neighbours follow; drop it and it stays,
-while the field arranges around it (`loosen` hands everything back).
+**One grid, and no second view.** Memory is drawn the way Python Tutor
+draws frames and heap:
+
+- **Names** form one column on the left, in the order they were first
+  made. A function's locals follow the globals, after a gap.
+- Each name's **object** starts a row beside it. A collection's
+  **elements** follow in the next column, in index order, one row each,
+  and their own elements after them: a tree read left to right.
+- An object already drawn is **not drawn again**. A second name or slot
+  that points at it gets an arrow to where it already is, so aliasing reads
+  as two arrows converging on one card. An arrow into something to its
+  left loops round into that card's right edge, which is how "this was
+  already here" looks different from "this is new".
+
+Placement is a pure function of memory and first-seen order, so the same
+memory always draws the same way and a new line only ever *adds* rows. The
+component tweens cards to their places, about a quarter of a second, and
+fades newcomers in where they belong.
 
 Picking a node does not open a panel. The **camera** flies to frame that
 node *together with everything it is connected to*, the node grows in
-place, its edges light up and are labelled with the index or key, and
-everything else steps back without moving. Zooming in *is* the detail
-view, which is the whole point: the previous design replaced the clouds
-with a separate stage, so you lost sight of where the thing you picked sat
-in them at exactly the moment you wanted to see it.
+place, its arrows light up and are labelled with the index or key, and
+everything else dims without moving. Clicking a neighbour re-picks it,
+so the structure is walked. Escape or a press on the background returns
+to the overview.
 
-Clicking a neighbour re-picks it, so the structure is walked. Escape or a
-press on the background zooms back out. One line of text under the field
-summarises the selection — *how many* things point at it, which a picture
-of a hub is bad at — and that is the only prose.
+The overview is anchored top left, like a page, at a zoom that depends
+only on the pane's width. A memory taller than the pane scrolls rather
+than shrinking to fit.
 
-Two layers share one camera transform: SVG for the edges, DOM for the
-pills. Text stays real text, so it is selectable and reachable by a screen
+Two layers share one camera transform: SVG for the arrows, DOM for the
+cards. Text stays real text, so it is selectable and reachable by a screen
 reader, while the arrows get to be SVG. The animation loop writes
 `transform` straight to the elements; React renders the graph's *shape*
 and is never asked to render its motion.
 
-#### Why this one settles
+#### Why it is not a force layout any more
 
-A force layout's rules genuinely disagree — springs pull together,
-repulsion pushes apart, lanes pull sideways. An earlier relaxation in this
-repo oscillated forever for exactly that reason, so convergence here is
-**structural rather than negotiated**: everything that can inject energy
-is scaled by `alpha`, and `alpha` decays to nothing. Whatever the forces
-want, the system stops. Collision is the exception — positional, never
-scaled — so pile-ups still resolve at rest without adding energy.
+It was one, and it was the most complained-about thing on screen. Every
+console line replays the whole program, so memory arrived from nothing one
+step at a time and each step re-energised the field. Over an eight-line
+session, nodes landed up to 378px from where they had been; one added line
+moved existing nodes by up to 160px and took five seconds to settle. It
+knew nothing about order, so crossings grew with memory, twelve on the
+test fixture. Three things fixed it, and all three are needed:
 
-What it promises: it settles, it never produces NaN, names end left of
-objects, connected nodes end nearer each other **on average**, and the
-same graph lays out the same way twice regardless of enumeration order.
+1. **The grid keeps its mounted state.** It stays mounted when memory is
+   empty.
+2. **The console holds the picture during a replay.** It shows the last
+   accepted memory until the replay finishes.
+3. **The camera never moves on its own.** It neither centres nor zooms to
+   fit, either of which moves every card whenever memory grows.
 
-What it does not promise: pairwise proximity. A hub with several name
-edges sits in among the names, so an unrelated name can legitimately end
-up nearer it than its own object does — asserting otherwise was asserting
-a property a force layout has never had.
-
-Two numbers were measured rather than guessed. Spring strength: with
-weaker springs the lanes won and connectivity stopped showing at all
-(mean edge length 0.88 of mean non-edge length, barely a signal); the
-current values give 0.82 while leaving the clouds ~165px apart. And the
-spring's rest length is a clearance between node *edges*, not centres — a
-fixed centre distance put a wide node's neighbours inside it, hiding the
-very connection picking it was meant to reveal.
+What was given up: dragging, and the organic look.
 
 ## 4. Execution
 

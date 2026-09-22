@@ -1,488 +1,255 @@
 /**
- * Memory as one live graph.
+ * Memory as a grid: names in a column on the left, objects in rows to the
+ * right of them.
  *
- * Names and objects are nodes in a single field; bindings and pointers are
- * edges. Each kind is kept inside a *band* — names left, objects right — so
- * the two collections read as two clouds without being two containers: the
- * pieces are all in one space, and they move in response to each other. The
- * bands are sized to the pane's aspect ratio, because a cloud shaped
- * differently from the space it lives in is a cloud the camera has to shrink
- * (see `bands`).
+ * ## Why a grid, and not a field
  *
- * ## Why this settles (and the row packer did not have to)
+ * This file used to be a force simulation — springs, repulsion, collision
+ * and an energy budget that decayed so the field would stop. It did stop,
+ * eventually, and that was the problem. Every console line replays the
+ * whole program, so memory arrived from nothing one step at a time and
+ * each step re-energised the field: measured over an eight-line session,
+ * nodes landed up to 378px from where they had been, and adding a single
+ * line moved the *existing* nodes by up to 160px and took five seconds to
+ * settle. Nothing in it knew about order either, so a list's elements came
+ * out in whatever order the forces left them, and arrows crossed more as
+ * memory grew — twelve crossings on the test fixture.
  *
- * A force layout has rules that genuinely disagree: springs pull
- * neighbours together, repulsion pushes everything apart, lanes pull
- * sideways. An earlier relaxation in this repo oscillated forever for
- * exactly that reason, so convergence here is **structural, not
- * negotiated**: every force that can inject energy is scaled by `alpha`,
- * and `alpha` decays to nothing. Whatever the forces want, the system
- * stops.
+ * The layout is now **placed, not negotiated**. It is a pure function of
+ * what memory holds and the order things were first seen in, the way
+ * Python Tutor draws frames and heap:
  *
- * Collision is the exception. It is applied as a *positional* correction
- * and is never scaled, so pile-ups still resolve at rest — it cannot add
- * energy, only remove overlap.
+ *   - Names form one column, in the order they were made. A local frame's
+ *     names follow the globals, after a gap.
+ *   - Each name's object starts a row beside it. A collection's elements
+ *     follow in the next column, in index order, one row each, and their
+ *     own elements after them — a tree read left to right.
+ *   - An object already drawn is not drawn again. A second name, or a
+ *     second slot, that points at it gets an arrow to where it already is,
+ *     so aliasing reads as two arrows converging on one card — which is the
+ *     thing the whole panel exists to show.
  *
- * That "at rest" is load-bearing and was, for a while, a lie. The animation
- * loop stopped calling `tick` the moment `alpha` hit zero, so collision got
- * no frames after the forces died and whatever overlap was left simply
- * froze: the crowded fixture opened with 36 pairs of pills sitting on top of
- * each other, text cut off mid-word. `relax` is the pass on its own, for the
- * caller to keep running afterwards under a frame budget.
+ * So the same memory always draws the same way, the relative order of
+ * things never changes, and a new line only ever *adds* rows. What moves
+ * when it does is what had to make room, and it moves straight down, in
+ * the order it was already in. The component tweens between placements;
+ * there is no simulation left to settle.
  *
- * ## What this promises, and what it does not
- *
- * Promised: it settles, it never produces NaN, connected nodes end nearer
- * each other than unconnected ones, names end left of objects, and the
- * same graph lays out the same way twice.
- *
- * Not promised: zero overlap. This is a graph, not a tag cloud; nodes may
- * touch when a hub has many neighbours, and forcing them apart would
- * distort the distances that carry the meaning.
+ * What it costs: dragging, and the organic look. A card cannot be put
+ * somewhere by hand when its place is a property of the program.
  */
 
 export type NodeKind = 'name' | 'object'
 
-export type GraphNode = {
-  id: string
-  kind: NodeKind
-  /** Measured pill size, in px. */
-  w: number
-  h: number
-  x: number
-  y: number
-  vx: number
-  vy: number
-  /** Held by a pointer, or pinned after being dropped: exerts forces on
-   *  everything else and receives none. */
-  fixed: boolean
-  /** Positioned at least once. */
-  placed: boolean
+/** What the placement needs to know about memory, and nothing else. */
+export type LayoutInput = {
+  /** Names in the order they should be listed. */
+  names: { id: string; scope: string; target: string }[]
+  /** Each object's pointers, in element order. */
+  children: Map<string, string[]>
 }
 
-export type GraphEdge = {
-  from: string
-  to: string
-  /** List index or dict key, for a pointer out of a collection. */
-  label: string | null
-}
+export type Size = { w: number; h: number }
+
+export type Placed = { x: number; y: number; col: number; row: number }
 
 export type Viewport = { w: number; h: number }
 
-export type Graph = {
-  nodes: GraphNode[]
-  edges: GraphEdge[]
-  /** Energy budget. Decays to nothing, which is what makes this stop. */
-  alpha: number
-  /** Largest distance any node moved in the last tick, px. Written by
-   *  `tick`; a caller can watch it, but nothing depends on it being set. */
-  motion?: number
-  /** Consecutive ticks in which `motion` was negligible. */
-  calm?: number
-}
+/** Space between rows, px. */
+export const ROW_GAP = 10
+/** Space between the name column and the first object column: room for a
+ *  binding's arrow to be seen as an arrow. */
+export const NAME_GAP = 72
+/** Space between object columns. */
+export const COL_GAP = 56
+/** Rows left empty between one scope's names and the next scope's. */
+const SCOPE_GAP_ROWS = 0.5
 
-/* Tuned by measurement, not taste. With weaker springs the bands won and
- * connectivity stopped showing at all: the mean distance along an edge was
- * 0.88 of the mean distance between unconnected nodes, which is barely a
- * signal. On the 53-object fixture these values give 0.65, which is a
- * signal, while still leaving the two clouds plainly apart — that is the
- * trade the layout is actually making. (Measured on the six-node test graph
- * the same layout scores 0.96, but with five linked pairs out of fifteen
- * that number says more about the graph than about the layout.) */
-const LINK = 0.16
-/** Clearance between the *edges* of two connected nodes, not between their
- *  centres. A fixed centre-to-centre length put a wide node's neighbours
- *  inside it, which hid the very edge the picking was meant to show. */
-const LINK_CLEAR = 62
-const REPEL = 2600
-const REPEL_RANGE = 300
-const DAMPING = 0.86
-const ALPHA_DECAY = 0.018
-/** Below this, nothing that can inject energy is left. */
-export const ALPHA_REST = 0.002
-/** A tick that moves nothing further than this has nothing left to show. */
-export const MOTION_REST = 0.14
-/** How many such ticks in a row before the field is called settled. One is
- *  too few: a node crossing the slowest part of its arc is briefly still. */
-const CALM_TICKS = 5
-/** ...and only once the energy is genuinely low. Early on, a field can be
- *  jammed — every force balanced against another, nothing moving, the
- *  arrangement nowhere near done — and freezing it there would be worse
- *  than the tail this exists to cut. By the time alpha is this small the
- *  arrangement is settled and what is left is sub-pixel drift. */
-const CALM_ALPHA = 0.2
-const GAP = 14
-
-export function makeNode(id: string, kind: NodeKind, w = 70, h = 26): GraphNode {
-  return { id, kind, w, h, x: 0, y: 0, vx: 0, vy: 0, fixed: false, placed: false }
-}
-
-/** Where each cloud sits. Not a wall — a preference the springs can pull
- *  against, which is what lets a connection visibly cross the gap. */
-export const laneX = (kind: NodeKind, v: Viewport): number =>
-  kind === 'name' ? v.w * 0.24 : v.w * 0.7
-
-/** The patch of world a cloud is asked to stay inside. */
-export type Band = { x0: number; x1: number; y0: number; y1: number }
-
-/** How much of a band's area the pills in it actually claim. Below this the
- *  band is too tight and the cloud spills out of it; above it, the field is
- *  bigger than it needs to be and the camera has to zoom out. */
-const PACK = 0.6
-/** Clear world between the two bands. Wide enough that the clouds read as
- *  two, narrow enough that a binding still crosses in one glance. */
-const BAND_GAP = 80
-const BAND_PULL = 0.05
+const FALLBACK: Size = { w: 70, h: 26 }
 
 /**
- * Two rectangles, sized so that **together** they have the pane's aspect
- * ratio, and placed names-left of objects-right.
+ * The order names are listed in: scope by scope, globals first, and within
+ * a scope by when each name was first seen.
  *
- * This replaced a pull toward a single x per kind, and it is the difference
- * between a legible crowd and an illegible one. A line attractor can only
- * ever produce a column: the cloud's width is fixed by how hard the lane
- * pull fights repulsion, while its height grows freely with the node count.
- * On the 53-object fixture that column came out 513x600 in a 844x635 pane,
- * so the camera had to zoom to 0.35 and the pill text landed at 3.7px —
- * unreadable, in a pane that was two-thirds empty. Collision cannot rescue
- * it either: it separates along whichever axis needs least, and for pills
- * that are wide and short that is always the vertical one, so every pass
- * makes the column *taller*.
- *
- * Sizing the bands from the node count and the pane's aspect makes the
- * cloud the shape of the space it has to live in, and the width stops going
- * to waste.
+ * `seen` is kept by the caller for the whole run, like the object handles,
+ * and is added to here. Order of first sight is what makes the column
+ * stable: a name that is rebound keeps its place, and a new name joins at
+ * the bottom of its scope rather than wherever the engine happened to
+ * enumerate it.
  */
-export function bands(nodes: GraphNode[], v: Viewport): Record<NodeKind, Band> {
-  const shape = (kind: NodeKind) => {
-    let n = 0
-    let w = 0
-    let h = 0
-    let widest = 0
-    for (const node of nodes) {
-      if (node.kind !== kind) continue
-      n++
-      w += node.w + GAP
-      h += node.h + GAP
-      widest = Math.max(widest, node.w + GAP)
-    }
-    return n === 0
-      ? { n, area: 0, widest: 0 }
-      : { n, area: ((w / n) * (h / n) * n) / PACK, widest }
+export function orderNames<T extends { id: string; scope: string }>(names: T[], seen: Map<string, number>): T[] {
+  for (const n of names) if (!seen.has(n.id)) seen.set(n.id, seen.size)
+  const scopeRank = new Map<string, number>()
+  for (const n of [...names].sort((a, b) => seen.get(a.id)! - seen.get(b.id)!)) {
+    if (!scopeRank.has(n.scope)) scopeRank.set(n.scope, n.scope === 'global' ? -1 : scopeRank.size)
   }
-
-  const sn = shape('name')
-  const so = shape('object')
-  const total = sn.area + so.area
-  const r = v.h > 0 ? Math.max(0.25, v.w / v.h) : 1.33
-  // Solve for the shared height that gives the pair the pane's aspect,
-  // then give each band the width its own area needs at that height.
-  const h = Math.max(1, Math.sqrt(Math.max(total, 1) / r))
-
-  // ...but never narrower than two of the widest pills in it. The area
-  // solve assumes pills of average size, and on a handful of wide ones it
-  // asks for a band one column across: on the everyday fixture the seven
-  // objects got 235px for pills up to 165px wide, so they stacked and the
-  // overlap area went up fivefold — `str 'bolt'` sat across the middle of
-  // `dict 2 entries`. A band is only a place to be, not a push, so leaving
-  // room costs nothing when the room is not needed.
-  const fit = (s: { n: number; area: number; widest: number }) =>
-    s.n === 0 ? 0 : Math.max(s.area / h, s.n === 1 ? s.widest : s.widest * 2 + GAP)
-
-  const wn = fit(sn)
-  const wo = fit(so)
-  const spanW = wn + BAND_GAP + wo
-  const left = v.w / 2 - spanW / 2
-  const cy = v.h / 2
-  return {
-    name: { x0: left, x1: left + wn, y0: cy - h / 2, y1: cy + h / 2 },
-    object: { x0: left + wn + BAND_GAP, x1: left + spanW, y0: cy - h / 2, y1: cy + h / 2 },
-  }
-}
-
-/** Nearest point of a band, on one axis. Inside the band there is no pull
- *  at all — the band is a place to be, not a point to be at. */
-const towards = (p: number, lo: number, hi: number): number =>
-  p < lo ? lo - p : p > hi ? hi - p : 0
-
-/**
- * Deterministic starting positions: a golden-angle spiral inside each
- * lane. No randomness anywhere, because a diagram that lands differently
- * each time you run the same program is not a diagram.
- */
-export function seed(graph: Graph, v: Viewport): void {
-  const golden = Math.PI * (3 - Math.sqrt(5))
-  const byKind: Record<NodeKind, number> = { name: 0, object: 0 }
-  const counts = { name: 0, object: 0 }
-  for (const n of graph.nodes) counts[n.kind]++
-
-  // Slots are handed out in id order, not array order, so the layout
-  // depends on the graph and not on however the snapshot happened to
-  // enumerate it.
-  const inOrder = [...graph.nodes].sort((a, b) => a.id.localeCompare(b.id))
-  for (const n of inOrder) {
-    const i = byKind[n.kind]++
-    const total = Math.max(1, counts[n.kind])
-    const spread = Math.min(v.w * 0.2, v.h * 0.42)
-    const r = spread * Math.sqrt((i + 0.5) / total)
-    const a = i * golden
-    n.x = laneX(n.kind, v) + r * Math.cos(a)
-    n.y = v.h / 2 + r * Math.sin(a)
-    n.vx = 0
-    n.vy = 0
-    n.placed = true
-  }
-}
-
-/** One step. Returns the remaining alpha, so a caller can stop. */
-export function tick(graph: Graph, v: Viewport): number {
-  const { nodes, edges, alpha } = graph
-  const index = new Map(nodes.map((n) => [n.id, n]))
-
-  // Each cloud is kept inside its band, and left alone inside it.
-  const box = bands(nodes, v)
-  for (const n of nodes) {
-    if (n.fixed) continue
-    const b = box[n.kind]
-    n.vx += towards(n.x, b.x0, b.x1) * BAND_PULL * alpha
-    n.vy += towards(n.y, b.y0, b.y1) * BAND_PULL * alpha
-  }
-
-  // Repulsion. Capped by range so a big graph stays cheap, and the
-  // separation vector is never derived from a zero distance.
-  for (let i = 0; i < nodes.length; i++) {
-    const a = nodes[i]!
-    for (let j = i + 1; j < nodes.length; j++) {
-      const b = nodes[j]!
-      let dx = b.x - a.x
-      let dy = b.y - a.y
-      let d = Math.hypot(dx, dy)
-      if (d > REPEL_RANGE) continue
-      if (d < 0.01) {
-        // Coincident nodes have no direction to separate along. Nudging
-        // by index keeps it deterministic and keeps d out of the divisor.
-        dx = ((i % 7) - 3) * 0.5 || 0.5
-        dy = ((j % 5) - 2) * 0.5 || 0.5
-        d = Math.hypot(dx, dy)
-      }
-      const force = (REPEL / (d * d)) * alpha
-      const fx = (dx / d) * force
-      const fy = (dy / d) * force
-      if (!a.fixed) {
-        a.vx -= fx
-        a.vy -= fy
-      }
-      if (!b.fixed) {
-        b.vx += fx
-        b.vy += fy
-      }
-    }
-  }
-
-  // Springs.
-  for (const e of edges) {
-    const a = index.get(e.from)
-    const b = index.get(e.to)
-    if (!a || !b || a === b) continue
-    const dx = b.x - a.x
-    const dy = b.y - a.y
-    const d = Math.max(0.01, Math.hypot(dx, dy))
-    const want = (a.w + b.w) / 2 + LINK_CLEAR
-    const force = (d - want) * LINK * alpha
-    const fx = (dx / d) * force
-    const fy = (dy / d) * force
-    if (!a.fixed) {
-      a.vx += fx
-      a.vy += fy
-    }
-    if (!b.fixed) {
-      b.vx -= fx
-      b.vy -= fy
-    }
-  }
-
-  let motion = 0
-  for (const n of nodes) {
-    if (n.fixed) {
-      n.vx = 0
-      n.vy = 0
-      continue
-    }
-    n.vx *= DAMPING
-    n.vy *= DAMPING
-    n.x += n.vx
-    n.y += n.vy
-    motion = Math.max(motion, Math.abs(n.vx), Math.abs(n.vy))
-  }
-
-  // Collision: positional, and never scaled by alpha. It cannot add
-  // energy, so it can keep working after everything else has stopped.
-  motion = Math.max(motion, separate(nodes))
-
-  graph.motion = motion
-  graph.calm = motion < MOTION_REST ? (graph.calm ?? 0) + 1 : 0
-  graph.alpha = alpha <= ALPHA_REST ? 0 : Math.max(0, alpha * (1 - ALPHA_DECAY))
-  return graph.alpha
+  return [...names].sort(
+    (a, b) => scopeRank.get(a.scope)! - scopeRank.get(b.scope)! || seen.get(a.id)! - seen.get(b.id)!,
+  )
 }
 
 /**
- * Is there anything left worth watching?
+ * Assigns every node a column and a row.
  *
- * Alpha decay is what makes the field stop, and it takes the same 342 ticks
- * whatever the graph is — so every field, two nodes included, went on
- * animating for the better part of six seconds, the last three of them
- * sub-pixel. That does not read as settling, it reads as never quite
- * finishing.
+ * Walks the names in order. Each takes the next free row; if its object
+ * has not been drawn yet, the object starts in that same row, one column
+ * over, and its elements are laid out depth-first beside it. A parent sits
+ * level with its first child, so the arrow to element 0 is flat and the
+ * rest fan downward in index order.
  *
- * What it does *not* mean is that the simulation is done. Abandoning the
- * tail was tried and it changed the answer: on the nested-list fixture the
- * last stretch is still doing real work, and cutting it left seven pairs of
- * pills on top of each other. So a caller that sees this should run the
- * remaining ticks *faster*, not skip them — the arrangement stays exactly
- * the one the full run produces.
- *
- * `alpha` is part of the test because early on a field can be jammed, every
- * force balanced against another and nothing moving, nowhere near arranged.
+ * Returns grid cells, not pixels: see `place`.
  */
-export function isCalm(graph: Graph): boolean {
-  return (graph.calm ?? 0) >= CALM_TICKS && graph.alpha < CALM_ALPHA
-}
+export function grid(input: LayoutInput): Map<string, { col: number; row: number }> {
+  const cells = new Map<string, { col: number; row: number }>()
 
-/** Ticks to run per frame once the field is calm: enough to get through the
- *  sub-pixel tail promptly, few enough that it still reads as movement
- *  rather than as a jump to a different arrangement. */
-export const CATCH_UP = 8
-
-/**
- * Pushes overlapping nodes apart, along whichever axis needs least so
- * rows stay readable. Returns the largest correction it applied, in px.
- *
- * Each correction is applied **as the pass walks the pairs**, so the next
- * pair already sees it. Accumulating the whole pass and applying it at the
- * end — which is what this did — deadlocks in exactly the case it exists
- * for: in a dense crowd a node is told to move up by the neighbour above
- * and down by the one below, the two cancel, nothing moves, and the pass
- * reports itself finished. Measured on the 53-object fixture, accumulating
- * left 60 overlapping pairs and never got below it however long it ran;
- * applying in place leaves 35 in a tenth of the passes.
- *
- * The reason that was avoided is real and is handled here: written in
- * array order, in-place corrections make the result depend on however the
- * snapshot happened to enumerate the nodes. So the pass walks the pairs in
- * **id order**, which is a property of the graph. Reversing the array
- * moves no node by more than 0px — there is a test.
- */
-function separate(nodes: GraphNode[]): number {
-  const n = nodes.length
-  const order = orderByIdInto(nodes)
-  let worst = 0
-
-  for (let ii = 0; ii < n; ii++) {
-    const a = nodes[order[ii]!]!
-    for (let jj = ii + 1; jj < n; jj++) {
-      const b = nodes[order[jj]!]!
-      const gapX = b.x - a.x
-      const gapY = b.y - a.y
-      const needX = (a.w + b.w) / 2 + GAP - Math.abs(gapX)
-      const needY = (a.h + b.h) / 2 + GAP - Math.abs(gapY)
-      if (needX <= 0 || needY <= 0) continue
-      if (a.fixed && b.fixed) continue
-
-      const bothFree = !a.fixed && !b.fixed
-      if (needX < needY) {
-        const dir = gapX < 0 ? -1 : 1
-        const share = bothFree ? needX / 2 : needX
-        if (!a.fixed) a.x -= share * dir
-        if (!b.fixed) b.x += share * dir
-        worst = Math.max(worst, share)
-      } else {
-        const dir = gapY < 0 ? -1 : 1
-        const share = bothFree ? needY / 2 : needY
-        if (!a.fixed) a.y -= share * dir
-        if (!b.fixed) b.y += share * dir
-        worst = Math.max(worst, share)
-      }
+  // Returns the first row below everything this subtree placed.
+  const visit = (id: string, col: number, row: number): number => {
+    cells.set(id, { col, row })
+    let cursor = row
+    let any = false
+    for (const child of input.children.get(id) ?? []) {
+      if (cells.has(child)) continue // drawn already: an arrow, not a copy
+      cursor = visit(child, col + 1, cursor)
+      any = true
     }
+    return any ? cursor : row + 1
   }
-  return worst
-}
 
-/** Indices into `nodes`, sorted by id: the pair order the collision pass
- *  walks, so it depends on the graph and not on the array. */
-function orderByIdInto(nodes: GraphNode[]): number[] {
-  return nodes.map((_, i) => i).sort((p, q) => nodes[p]!.id.localeCompare(nodes[q]!.id))
+  let row = 0
+  let scope: string | null = null
+  for (const name of input.names) {
+    if (scope !== null && name.scope !== scope) row += SCOPE_GAP_ROWS
+    scope = name.scope
+    cells.set(name.id, { col: 0, row })
+    row = cells.has(name.target) ? row + 1 : visit(name.target, 1, row)
+  }
+  return cells
 }
 
 /**
- * One collision-only pass, for after the forces have stopped.
+ * Grid cells to pixels.
  *
- * This is the other half of the promise in the header. Collision is
- * positional and unscaled *so that* it can keep working once `alpha` is
- * gone — but it only actually does so if something keeps calling it. It
- * returns the largest correction it applied, in px, so a caller can stop
- * as soon as there is nothing left to fix; the caller also owns a frame
- * budget, so the field stops whether or not the overlaps resolve.
+ * Every row has the same pitch, the tallest card plus a gap, so rows line
+ * up across columns and read as rows. Each column is as wide as its widest
+ * card. Names are right-aligned against their column, so every binding's
+ * arrow starts at the same x; objects are left-aligned, so every arrow
+ * into a column ends at the same x.
+ *
+ * `x`/`y` are the card's centre, which is what the component positions by.
  */
-export function relax(graph: Graph): number {
-  return separate(graph.nodes)
+export function place(input: LayoutInput, sizes: Map<string, Size>): Map<string, Placed> {
+  const cells = grid(input)
+  const size = (id: string) => sizes.get(id) ?? FALLBACK
+
+  let pitch = 0
+  const widths: number[] = []
+  for (const [id, c] of cells) {
+    const s = size(id)
+    pitch = Math.max(pitch, s.h)
+    widths[c.col] = Math.max(widths[c.col] ?? 0, s.w)
+  }
+  pitch += ROW_GAP
+
+  const lefts: number[] = []
+  let x = 0
+  for (let c = 0; c < widths.length; c++) {
+    lefts[c] = x
+    x += (widths[c] ?? 0) + (c === 0 ? NAME_GAP : COL_GAP)
+  }
+
+  const out = new Map<string, Placed>()
+  for (const [id, c] of cells) {
+    const s = size(id)
+    const left = lefts[c.col] ?? 0
+    const cx = c.col === 0 ? left + (widths[0] ?? 0) - s.w / 2 : left + s.w / 2
+    out.set(id, { x: cx, y: c.row * pitch + pitch / 2, col: c.col, row: c.row })
+  }
+  return out
 }
 
-/** Below this much movement in a pass, collision has nothing left to do. */
-export const RELAX_REST = 0.08
+/* ------------------------------ the arrows ------------------------------ */
 
-/** Frames of collision-only work a settled field is allowed. Bounded, so
- *  a pile-up that cannot resolve still comes to a stop — and bounded low,
- *  because the pass does nearly all its work early: on the 53-object
- *  fixture it clears 36 overlapping pairs in 30 passes, 35 in 60, and is no
- *  better at 400. The rest was a second of the field shuffling for nothing. */
-export const RELAX_BUDGET = 120
+type Box = { x: number; y: number; w: number; h: number }
+
+export type Curve = {
+  /** SVG path data. */
+  d: string
+  /** Where a pointer's label goes. */
+  label: { x: number; y: number }
+}
+
+/** How close to its target a label sits along the curve, 0..1. Near the
+ *  far end, so a list's indices land next to the elements they name
+ *  instead of in a ring around the list. */
+const LABEL_T = 0.8
+/** Label height above the curve. */
+const LABEL_OFF = 8
+/** How far an arrowhead stops short of the card it points at. */
+const TIP = 4
+
+const cubic = (p0: number, p1: number, p2: number, p3: number, t: number) => {
+  const u = 1 - t
+  return u * u * u * p0 + 3 * u * u * t * p1 + 3 * u * t * t * p2 + t * t * t * p3
+}
 
 /**
- * Pairs of nodes whose boxes (plus the gap) still intersect — what the
- * collision pass exists to drive down.
+ * The arrow from one card to another.
  *
- * `slack` is why this is not a naive box test. Two pills that the pass has
- * pushed to exactly their clearance sit a hair inside it forever, because
- * each correction is a fraction of what is left; counting a 0.01px
- * encroachment as an overlap would report a perfectly separated field as a
- * pile-up. Resting in contact is not overlapping.
+ * Forward — the usual case, left to right — it leaves the source's right
+ * edge and enters the target's left edge, horizontal at both ends, so rows
+ * read as rows and an arrow's direction is never in doubt.
+ *
+ * Backward — to something already drawn in the same column or further
+ * left, which is what a shared object or a cycle produces — it loops out to
+ * the right and comes into the target's *right* edge. That arrow is
+ * different on purpose: it is the one that says "this was already here".
+ *
+ * A collection that holds itself gets a loop over its own top.
  */
-export function overlapCount(nodes: GraphNode[], gap = GAP, slack = 0.5): number {
-  let hits = 0
-  for (let i = 0; i < nodes.length; i++) {
-    const a = nodes[i]!
-    for (let j = i + 1; j < nodes.length; j++) {
-      const b = nodes[j]!
-      if (
-        (a.w + b.w) / 2 + gap - Math.abs(b.x - a.x) > slack &&
-        (a.h + b.h) / 2 + gap - Math.abs(b.y - a.y) > slack
-      ) {
-        hits++
-      }
-    }
+export function curve(a: Box, b: Box): Curve {
+  const ax = a.x + a.w / 2
+
+  if (a === b || (a.x === b.x && a.y === b.y)) {
+    const cx = a.x + a.w / 4
+    const top = a.y - a.h / 2
+    const d = `M ${ax} ${a.y} C ${ax + 44} ${a.y} ${cx + 10} ${top - 42} ${cx} ${top - TIP}`
+    return { d, label: { x: ax + 20, y: top - 22 } }
   }
-  return hits
+
+  const forward = b.x - b.w / 2 - TIP > ax + 8
+  const ex = forward ? b.x - b.w / 2 - TIP : b.x + b.w / 2 + TIP
+  const reach = forward ? Math.max(24, (ex - ax) * 0.5) : 56 + Math.abs(b.y - a.y) * 0.12
+  const c1x = ax + reach
+  const c2x = forward ? ex - reach : Math.max(ax, ex) + reach
+  const d = `M ${ax} ${a.y} C ${c1x} ${a.y} ${c2x} ${b.y} ${ex} ${b.y}`
+  const label = {
+    x: cubic(ax, c1x, c2x, ex, LABEL_T),
+    y: cubic(a.y, a.y, b.y, b.y, LABEL_T) - LABEL_OFF,
+  }
+  return { d, label }
 }
 
-/** Runs to rest without animating: the arrangement a fresh graph opens in.
- *  Includes the collision-only tail, so what this returns is the same
- *  arrangement the animated loop lands on. */
-export function settle(graph: Graph, v: Viewport, maxTicks = 600): number {
-  let n = 0
-  while (graph.alpha > 0 && n++ < maxTicks) tick(graph, v)
-  for (let i = 0; i < RELAX_BUDGET; i++) {
-    n++
-    if (relax(graph) <= RELAX_REST) break
-  }
-  return n
-}
+/* ------------------------------ the tween ------------------------------ */
 
-/** Wakes a settled graph so it responds to a change. */
-export function disturb(graph: Graph, to = 0.55): void {
-  graph.alpha = Math.max(graph.alpha, to)
-  // Without this the stillness count survives the wake and the very next
-  // tick decides the field has already settled.
-  graph.calm = 0
+/** Fraction of the remaining distance covered per frame. About 250ms to
+ *  arrive at 60fps, and it decelerates into place. */
+export const EASE = 0.2
+/** Closer than this, in px, and a node is simply where it is going. */
+export const ARRIVED = 0.3
+
+/** Moves `from` part of the way to `to`. Returns how far it still has to
+ *  go, so the caller can stop the loop. */
+export function ease(from: { x: number; y: number }, to: { x: number; y: number }, rate = EASE): number {
+  const dx = to.x - from.x
+  const dy = to.y - from.y
+  if (Math.abs(dx) < ARRIVED && Math.abs(dy) < ARRIVED) {
+    from.x = to.x
+    from.y = to.y
+    return 0
+  }
+  from.x += dx * rate
+  from.y += dy * rate
+  return Math.max(Math.abs(dx), Math.abs(dy)) * (1 - rate)
 }
 
 /* ------------------------------ the camera ------------------------------ */
@@ -492,14 +259,76 @@ export type Camera = { x: number; y: number; k: number }
 
 export const MIN_K = 0.35
 export const MAX_K = 2.2
+/**
+ * The overview's zoom, which depends on the pane and **never on memory**.
+ *
+ * Fitting the content was tried and it moved everything twice over. A
+ * two-card memory framed to fill the pane came out at 2.2x, cards the size
+ * of headlines; a twelve-row one in a short pane came out at 0.4x, where a
+ * card's text is 5px. And in between, every line that added a row changed
+ * the zoom, so every card on screen grew or shrank a little each time —
+ * motion caused by nothing that happened to it.
+ *
+ * So the overview is shown at natural size, shrunk only when the pane is
+ * too narrow to hold a couple of columns, and a memory bigger than the
+ * pane scrolls, the way Python Tutor's does.
+ */
+export const overviewZoom = (v: Viewport): number => clamp(v.w / OVERVIEW_WIDTH, OVERVIEW_MIN_K, 1)
+/** Pane width below which the overview starts to shrink. */
+const OVERVIEW_WIDTH = 560
+export const OVERVIEW_MIN_K = 0.8
 
-/** A camera that frames exactly these nodes. Focusing uses the node *and
- *  its neighbours*, because the point of focusing is to see what it is
- *  connected to, not to look at it alone. */
-export function frame(nodes: GraphNode[], v: Viewport, pad = 90): Camera {
-  if (nodes.length === 0 || v.w === 0 || v.h === 0) {
-    return { x: v.w / 2, y: v.h / 2, k: 1 }
+/**
+ * The overview camera: everything, if it fits at a readable size, and
+ * otherwise a readable window onto it that scrolls.
+ *
+ * `at` is where the caller last had the camera, in world coordinates; it
+ * is kept wherever it is still valid, so a new line does not throw the
+ * view back to the top. `reveal` are boxes that must be on screen — the
+ * nodes that just arrived — and the view moves the least it can to show
+ * them.
+ *
+ * Anchored at the top left, like a page, and not centred. Centring moved
+ * every card on screen whenever memory grew — a new column shifted the
+ * whole grid left by half its width — which is the very motion this layout
+ * exists to get rid of. Anchored, memory grows down and to the right and
+ * what was already there stays exactly where it was.
+ */
+export function overview(
+  nodes: Box[],
+  v: Viewport,
+  at: { x: number; y: number } | null,
+  reveal: Box[] = [],
+  pad = 40,
+): Camera {
+  if (nodes.length === 0 || v.w === 0 || v.h === 0) return { x: v.w / 2, y: v.h / 2, k: 1 }
+  const b = bounds(nodes)
+  const k = overviewZoom(v)
+  const span = (lo: number, hi: number, view: number, want: number | undefined, show: [number, number][]) => {
+    const min = lo - pad + view / 2
+    const max = Math.max(min, hi + pad - view / 2)
+    // Default to the start, where the first names are.
+    let c = want ?? min
+    for (const [a, z] of show) {
+      if (z + pad > c + view / 2) c = z + pad - view / 2
+      if (a - pad < c - view / 2) c = a - pad + view / 2
+    }
+    return clamp(c, min, max)
   }
+  return {
+    x: span(b.left, b.right, v.w / k, at?.x, reveal.map((r) => [r.x - r.w / 2, r.x + r.w / 2])),
+    y: span(b.top, b.bottom, v.h / k, at?.y, reveal.map((r) => [r.y - r.h / 2, r.y + r.h / 2])),
+    k,
+  }
+}
+
+/** Moves an overview camera by a scroll delta given in screen pixels,
+ *  kept inside what there is to see. */
+export function scrolled(c: Camera, dx: number, dy: number, nodes: Box[], v: Viewport, pad = 40): Camera {
+  return overview(nodes, v, { x: c.x + dx / c.k, y: c.y + dy / c.k }, [], pad)
+}
+
+function bounds(nodes: Box[]) {
   let left = Infinity
   let right = -Infinity
   let top = Infinity
@@ -510,14 +339,24 @@ export function frame(nodes: GraphNode[], v: Viewport, pad = 90): Camera {
     top = Math.min(top, n.y - n.h / 2)
     bottom = Math.max(bottom, n.y + n.h / 2)
   }
+  return { left, right, top, bottom }
+}
+
+/** A camera that frames exactly these boxes. Focusing uses the node *and
+ *  its neighbours*, because the point of focusing is to see what it is
+ *  connected to, not to look at it alone. */
+export function frame(nodes: Box[], v: Viewport, pad = 60, maxK = MAX_K): Camera {
+  if (nodes.length === 0 || v.w === 0 || v.h === 0) {
+    return { x: v.w / 2, y: v.h / 2, k: 1 }
+  }
+  const { left, right, top, bottom } = bounds(nodes)
   const w = Math.max(1, right - left + pad * 2)
   const h = Math.max(1, bottom - top + pad * 2)
-  const k = clamp(Math.min(v.w / w, v.h / h), MIN_K, MAX_K)
+  const k = clamp(Math.min(v.w / w, v.h / h), MIN_K, Math.min(MAX_K, maxK))
   return { x: (left + right) / 2, y: (top + bottom) / 2, k }
 }
 
-/** Eases the camera. Returns how far it still has to go, in viewport
- *  pixels, so the caller can stop the loop. */
+/** Eases the camera one frame towards its target. */
 export function approach(from: Camera, to: Camera, rate = 0.16): Camera {
   return {
     x: from.x + (to.x - from.x) * rate,
@@ -536,91 +375,9 @@ export function transformOf(c: Camera, v: Viewport): string {
   return `translate(${v.w / 2}px, ${v.h / 2}px) scale(${c.k}) translate(${-c.x}px, ${-c.y}px)`
 }
 
-/** The same transform in SVG's syntax, which takes no units. Both layers
- *  are given the same camera so edges and pills cannot drift apart. */
+/** The same transform in SVG's syntax, which takes no units. */
 export function svgTransformOf(c: Camera, v: Viewport): string {
   return `translate(${v.w / 2} ${v.h / 2}) scale(${c.k}) translate(${-c.x} ${-c.y})`
 }
-
-/** Where a line into `to` should stop so an arrowhead lands on the edge of
- *  the node rather than under it. */
-export function trimTo(
-  from: { x: number; y: number },
-  to: { x: number; y: number; w: number; h: number },
-  inset = 6,
-): { x: number; y: number } {
-  const dx = to.x - from.x
-  const dy = to.y - from.y
-  if (dx === 0 && dy === 0) return { x: to.x, y: to.y }
-  const halfW = to.w / 2 + inset
-  const halfH = to.h / 2 + inset
-  // How far along the segment we can go before leaving the target's box.
-  const tx = dx === 0 ? Infinity : halfW / Math.abs(dx)
-  const ty = dy === 0 ? Infinity : halfH / Math.abs(dy)
-  const t = Math.min(tx, ty)
-  return { x: to.x - dx * t, y: to.y - dy * t }
-}
-
-/** How far along the edge the label sits, measured from the source. */
-const LABEL_T = 0.78
-/** How far to the side of the line, so the text is beside it and not on it. */
-const LABEL_OFF = 9
-
-/**
- * Where a pointer's label (a list index, a dict key) goes.
- *
- * Not the midpoint, which is where it used to go. Every pointer out of a
- * collection leaves the *same* node, so at the midpoint all of a hub's
- * labels land in a tight ring around it: on a 40-element list, 34 of the 40
- * sat within one text-height of another and the whole thing read as a blue
- * smear. At the far end they inherit the spacing of the neighbours they
- * name, which collision has already spread out — and a label next to the
- * thing it names is the right place for it anyway.
- *
- * The sideways offset is always toward the top of the screen, so a label
- * does not flip from one side of its line to the other as the field turns.
- */
-export function labelAt(
-  from: { x: number; y: number },
-  to: { x: number; y: number },
-  t = LABEL_T,
-  off = LABEL_OFF,
-): { x: number; y: number } {
-  const dx = to.x - from.x
-  const dy = to.y - from.y
-  const len = Math.hypot(dx, dy)
-  const x = from.x + dx * t
-  const y = from.y + dy * t
-  if (len < 0.01) return { x, y: y - off }
-  let px = -dy / len
-  let py = dx / len
-  if (py > 0) {
-    px = -px
-    py = -py
-  }
-  return { x: x + px * off, y: y + py * off }
-}
-
-/** Viewport point → world point, for turning a pointer position into a
- *  node position while dragging. */
-export function toWorld(px: number, py: number, c: Camera, v: Viewport): { x: number; y: number } {
-  return { x: (px - v.w / 2) / c.k + c.x, y: (py - v.h / 2) / c.k + c.y }
-}
-
-/* ------------------------------ for tests ------------------------------ */
-
-export function neighboursOf(graph: Graph, id: string): GraphNode[] {
-  const ids = new Set<string>()
-  for (const e of graph.edges) {
-    if (e.from === id) ids.add(e.to)
-    if (e.to === id) ids.add(e.from)
-  }
-  return graph.nodes.filter((n) => ids.has(n.id))
-}
-
-export const distance = (a: GraphNode, b: GraphNode): number => Math.hypot(a.x - b.x, a.y - b.y)
-
-export const isFinitePosition = (n: GraphNode): boolean =>
-  Number.isFinite(n.x) && Number.isFinite(n.y) && Number.isFinite(n.vx) && Number.isFinite(n.vy)
 
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n))

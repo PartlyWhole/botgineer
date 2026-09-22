@@ -1,8 +1,8 @@
 /**
  * (C) The memory panel.
  *
- * One live field. Names and objects are nodes; bindings and pointers are
- * edges; picking something flies the camera to frame it with everything it
+ * One grid. Names and objects are cards; bindings and pointers are
+ * arrows; picking something flies the camera to frame it with everything it
  * touches. Nothing here opens a second view *of memory* — that is what
  * made the old panel disjoint, because you lost sight of the clouds
  * exactly when you wanted to see where the thing you picked sat in them.
@@ -52,16 +52,18 @@ export function MemoryPanel({
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  if (snapshot.bindings.length === 0 && objectCount === 0) {
-    return (
-      <div className="memory empty" data-testid="memory">
-        <p>Memory is empty. Send the robot some code and whatever it builds turns up here.</p>
-      </div>
-    )
-  }
+  const empty = snapshot.bindings.length === 0 && objectCount === 0
 
+  // The graph stays mounted when memory is empty. Unmounting it threw away
+  // every position, so the next thing to arrive rebuilt the whole picture
+  // from nothing — which, on a console that replays every line, was every
+  // line.
   return (
-    <div className="memory" data-testid="memory" data-picked={picked ? 'yes' : 'no'}>
+    <div
+      className={`memory ${empty ? 'empty' : ''}`}
+      data-testid="memory"
+      data-picked={picked ? 'yes' : 'no'}
+    >
       <MemoryGraph
         snapshot={snapshot}
         handles={handles}
@@ -69,7 +71,11 @@ export function MemoryPanel({
         picked={picked}
         onPick={setPicked}
       />
+      {empty && (
+        <p className="memory-empty">
+          Memory is empty. Send the robot some code and whatever it builds turns up here.
+        </p>
+      )}
     </div>
   )
 }
-

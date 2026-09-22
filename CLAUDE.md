@@ -53,8 +53,8 @@ npm run test:browser  # playwright against the PRODUCTION build at /botgineer/
 | `src/panels/RobotPanel.tsx` | (B) the instrument and memory, split by a gutter, + Run/Stop + step slider + transcript |
 | `src/panels/MemoryPanel.tsx` | (C) thin: owns the selection; the graph does the rest |
 | `src/memory/handles.ts` | `obj1`, `obj2`, … Owned by the workbench, so every view that shows a handle shows the same one |
-| `src/panels/MemoryGraph.tsx` | the live field. SVG edges + DOM pills sharing one camera; writes transforms straight to the elements in the animation loop, never through React |
-| `src/panels/graphLayout.ts` | the force simulation and the camera. Pure and unit-tested. Read its header before changing it: relaxation, spiral packing and row packing were all tried here and the reasons each was dropped are measured, not remembered |
+| `src/panels/MemoryGraph.tsx` | the memory grid. SVG arrows + DOM cards sharing one camera; tweens positions by writing transforms straight to the elements, never through React |
+| `src/panels/graphLayout.ts` | the grid placement, the arrows, the tween and the camera. Pure and unit-tested. Read its header before changing it: a force layout lived here first, and why it was retired is measured, not remembered |
 | `src/ui/CodeEditor.tsx` | CodeMirror; `head`/`tail` optionally lock regions (unused by the workbench) |
 | `src/ui/Split.tsx` | draggable, keyboard-operable gutters; sizes remembered in localStorage |
 | `src/app/Workbench.tsx` | the wiring: owns the run, the steps, the index, the snapshot |
@@ -166,27 +166,38 @@ npm run test:browser  # playwright against the PRODUCTION build at /botgineer/
    `.app[data-boot="ready"]`, not a visible badge. The editor journeys run
    against an activity that still has an editor (`EDITOR` in the spec),
    because the starting activity is a console.
-15. **The graph settles because `alpha` decays, not because the forces
-   agree.** Anything that can inject energy is scaled by `alpha`;
-   collision is positional and unscaled so it still works at rest. Do not
-   add an unscaled force. A dropped node keeps `fixed` and the field packs
-   around it. Spring rest length is a clearance between node *edges*, so
-   a wide node never swallows its own neighbours. Sizes are re-measured
-   when the selection changes, because the picked pill grows.
+15. **Memory is placed, not simulated.** `graphLayout.place` is a pure
+   function of what memory holds and the order names were first seen:
+   names in one column in that order, each name's object starting its
+   row, a collection's elements in the next column in index order, and an
+   object already drawn never drawn again, so aliasing is arrows
+   converging on one card. The component only *tweens* to those
+   positions. Two consequences are load-bearing. First, nothing already
+   drawn moves when a line adds something: the overview is anchored top
+   left and its zoom depends on the pane, **never on memory**. Centring,
+   or fitting the content, moved every card on every Enter. Second, the
+   graph stays mounted when memory is empty, and the console shows the
+   last accepted memory while it replays (`Workbench`), because
+   rebuilding from nothing on every submission was the whole of the
+   jitter. A memory bigger than the pane scrolls; it does not shrink past
+   `OVERVIEW_MIN_K`. There is no dragging: a card's place is a property
+   of the program. (It was a force layout until the rewrite; the header
+   of `graphLayout.ts` has the measurements that retired it.)
 16. **An object card has three tiers.** The value is what the object *is*,
    so it is centred and largest; the type qualifies it and sits in the
    corner, the way a trading card wears its element; the handle is
-   bookkeeping and only appears on hover, focus or picking. The handle is
-   positioned **absolutely**, not toggled in flow — the force layout
-   measures these pills, and a size that changed on hover would shove the
-   field around under the cursor. Its text still reaches a screen reader
-   through the card's `aria-label`.
+   bookkeeping and only appears on hover, focus or picking. The handle
+   sits in a strip whose height and width are **reserved in flow**, so
+   showing it never resizes the card — the grid measures these cards, and
+   a size that changed on hover would move a column under the cursor. Its
+   text still reaches a screen reader through the card's `aria-label`.
 
 17. **Picking moves the camera, not the layout.** There is no second view:
-   nodes stay where they are, the camera frames the picked node plus its
-   neighbours, and unrelated nodes dim in place. Never replace the field
-   with a detail panel — losing sight of the clouds is the thing this
-   replaced.
+   cards stay where they are, the camera frames the picked node plus its
+   neighbours, and unrelated cards dim in place. The placement measures
+   cards *unpicked*, so the picked one grows without widening its column.
+   Never replace the grid with a detail panel — losing sight of the rest
+   of memory is the thing this replaced.
 18. **Tests run like production.** Playwright serves the built site at the
    sub-path with **no** isolation headers, so the `coi-serviceworker` path
    is what gets exercised. Do not add COOP/COEP to the test server.
