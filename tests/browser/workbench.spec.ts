@@ -524,7 +524,7 @@ test('the first lesson walks the four kinds of thing', async ({ page }) => {
 
   // Any int will do: the kind is what is being taught, not the value.
   await say(page, '41')
-  await expect(page.getByTestId('guide')).toContainText('with a dot')
+  await expect(page.getByTestId('guide')).toContainText('Measuring needs a dot')
 
   await say(page, '2.5')
   await expect(page.getByTestId('guide')).toContainText('quotes')
@@ -555,7 +555,7 @@ test('the second lesson works things out and keeps none of them', async ({ page 
   await say(page, '(2 + 3) * 4')
 
   await expect(page.getByTestId('thought')).toHaveText('20')
-  await expect(page.getByTestId('guide')).toContainText('Nobody else ever knew it')
+  await expect(page.getByTestId('guide')).toContainText('nobody else ever knew it')
   // Five answers, and memory never held one of them.
   expect(await reprs(page)).toEqual([])
 })
@@ -598,7 +598,7 @@ test('the naming lesson teaches that a name is an arrow', async ({ page }) => {
   // Reading it back is a step of its own: the point is that it was simply
   // there, where the previous lesson would have had to recompute it.
   // Backticks in a lesson render as a code chip, so they are not in the text.
-  await expect(page.getByTestId('guide')).toContainText('Look')
+  await expect(page.getByTestId('guide')).toContainText('pointing at')
   await say(page, 'x')
   await expect(page.getByTestId('thought')).toHaveText('10')
   await say(page, 'y = x')
@@ -655,7 +655,7 @@ test('the courier asks, and the robot answers from what it stored', async ({ pag
   await expect(page.getByTestId('waiting')).toHaveCount(0)
 
   await say(page, 'parcels = 7')
-  await expect(page.getByTestId('guide')).toContainText('Two kilos')
+  await expect(page.getByTestId('guide')).toContainText('two kilos')
 
   // The answer was never stored, and was never said out loud by anyone.
   await say(page, 'parcels * 2')
@@ -1045,51 +1045,110 @@ test("the robot's thought is visible on the stage, not just in the DOM", async (
   expect(geometry?.clearsRobot).toBe(true)
 })
 
-test('the crow and the robot do not talk over each other', async ({ page }) => {
-  await open(page, 'operations')
-  // The worst case on purpose: the crow's longest line, which wraps to
-  // two lines, beside the longest value in the lesson. A short line and a
-  // two-digit number clear each other by luck, and testing that was how
-  // an overlap survived to the live site.
-  await say(page, '"bot" + "gineer"')
-  await expect(page.getByTestId('thought')).toHaveText("'botgineer'")
+/** The cloud's puffs and trail are drawn outside its box; this much
+ *  clearance around the box is what they need. */
+const PUFF = 10
 
-  const boxes = await page.evaluate(() => {
+/** The guide's and the thought's boxes, plus the robot's centre and the
+ *  stage, in one read. */
+const bubbleBoxes = (page: Page) =>
+  page.evaluate(() => {
     const r = (sel: string) => {
-      const el = document.querySelector(sel)
-      if (!el) return null
-      const b = el.getBoundingClientRect()
-      return { l: b.left, t: b.top, r: b.right, b: b.bottom, w: Math.round(b.width) }
+      const b = document.querySelector(sel)?.getBoundingClientRect()
+      return b ? { l: b.left, t: b.top, r: b.right, b: b.bottom, w: b.width } : null
     }
-    return { guide: r('[data-testid="guide"]'), thought: r('[data-testid="thought"]'), stage: r('.stage') }
+    return {
+      guide: r('[data-testid="guide"]'),
+      thought: r('[data-testid="thought"]'),
+      robot: r('[data-testid="actor-robot"]'),
+      stage: r('.stage'),
+    }
   })
 
-  const { guide, thought, stage } = boxes
-  expect(guide).not.toBeNull()
-  expect(thought).not.toBeNull()
+// At the default width and at the narrowest the gutter allows, where the
+// crow's outro wraps to five lines. A fixed gap between the two bubbles
+// passed at one of these and overlapped at the other.
+for (const width of [null, 320]) {
+  test(`the crow and the robot do not talk over each other${width ? ` at ${width}px` : ''}`, async ({
+    page,
+  }) => {
+    if (width) {
+      await page.addInitScript((w) => localStorage.setItem('botgineer.wb.scene', String(w)), width)
+    }
+    await open(page, 'operations')
 
-  // Two bubbles above two adjacent characters. They used to collide,
-  // because the thought stretched to the width of its rail — and then
-  // came out exactly flush, which let a sub-pixel decide the question.
-  // A real gap is asserted instead of mere non-overlap.
-  expect(Math.round(guide!.t - thought!.b)).toBeGreaterThanOrEqual(8)
+    // Two moments: the widest value beside a step line, and the crow's
+    // longest line — the outro — beside the last value. Asserting after
+    // the first line alone measured the lesson's shortest sentence.
+    const moments: [string[], string][] = [
+      [['7 * 6', '9 / 2', '"bot" + "gineer"'], "'botgineer'"],
+      [['3 > 5', '(2 + 3) * 4'], '20'],
+    ]
+    for (const [lines, value] of moments) {
+      for (const line of lines) await say(page, line)
+      await expect(page.getByTestId('thought')).toHaveText(value)
 
-  // The value is eleven characters; its bubble should still be modest.
-  expect(thought!.w).toBeLessThan(stage!.w * 0.3)
+      const { guide, thought, robot, stage } = await bubbleBoxes(page)
+      expect(guide && thought && robot && stage).toBeTruthy()
 
-  // And it must be over the robot. Sizing it to its contents once cost
-  // it its centring, which put the robot's thought above the crow —
-  // a bug no overlap check would catch, because the two then stack.
-  const robot = await page.evaluate(() => {
-    const b = document.querySelector('[data-testid="actor-robot"]')?.getBoundingClientRect()
-    return b ? (b.left + b.right) / 2 : null
+      // Clear of each other with room for the puffs, whether the thought
+      // is stacked above the speech or has come down beside it.
+      const apart =
+        guide!.t - thought!.b >= PUFF * 2 ||
+        guide!.l - thought!.r >= PUFF ||
+        thought!.l - guide!.r >= PUFF
+      expect(apart).toBe(true)
+
+      // Over the robot. Sizing the thought to its contents once cost it
+      // its centring, which put it above the crow — a bug no overlap
+      // check catches, because the two then simply stack.
+      expect(Math.abs((thought!.l + thought!.r) / 2 - (robot!.l + robot!.r) / 2)).toBeLessThan(40)
+      expect(thought!.w).toBeLessThan(stage!.w * 0.45)
+
+      // And both on the stage, which clips.
+      for (const box of [guide!, thought!]) {
+        expect(box.l).toBeGreaterThanOrEqual(stage!.l)
+        expect(box.r).toBeLessThanOrEqual(stage!.r)
+        expect(box.t).toBeGreaterThanOrEqual(stage!.t)
+      }
+    }
   })
-  expect(Math.abs((thought!.l + thought!.r) / 2 - robot!)).toBeLessThan(40)
-  // And both stay on the stage.
-  for (const box of [guide!, thought!]) {
-    expect(box.l).toBeGreaterThanOrEqual(stage!.l)
-    expect(box.r).toBeLessThanOrEqual(stage!.r)
-  }
+}
+
+test('the thought comes down to the robot when the speech is elsewhere', async ({ page }) => {
+  // The crow is at one end of the workshop and the robot at the other, so
+  // a short value does not need to be stacked above the crow's line —
+  // and stacked, it floated a whole speech bubble above the robot's head.
+  await open(page, 'operations')
+  await say(page, '7 * 6')
+  await expect(page.getByTestId('thought')).toHaveText('42')
+
+  const { thought, robot } = await bubbleBoxes(page)
+  // The trail's worth of air, and no more.
+  expect(robot!.t - thought!.b).toBeGreaterThanOrEqual(0)
+  expect(robot!.t - thought!.b).toBeLessThan(60)
+})
+
+test("a short speaker's tail reaches down to its own head", async ({ page }) => {
+  // Every bubble starts at the tallest actor's head, so the crow's is some
+  // way above the crow. Its tail used to stop at the bubble and point at
+  // the air.
+  await open(page, 'order')
+  await say(page, 'customer = "Ana"')
+  await say(page, 'parcels = 7')
+  await say(page, 'parcels * 2')
+  await expect(page.getByTestId('guide')).toHaveAttribute('data-speaker', 'crow')
+
+  const { tail, crow } = await page.evaluate(() => {
+    const r = (sel: string) => {
+      const b = document.querySelector(sel)?.getBoundingClientRect()
+      return b ? { top: b.top, bottom: b.bottom, x: (b.left + b.right) / 2 } : null
+    }
+    return { tail: r('.bubble-tail'), crow: r('[data-testid="actor-crow"]') }
+  })
+  expect(crow!.top - tail!.bottom).toBeGreaterThanOrEqual(0)
+  expect(crow!.top - tail!.bottom).toBeLessThan(10)
+  expect(Math.abs(tail!.x - crow!.x)).toBeLessThan(2)
 })
 
 test('no bubble covers a character, whoever is speaking', async ({ page }) => {

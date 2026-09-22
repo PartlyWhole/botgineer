@@ -127,30 +127,44 @@
 
 /* ------------------------------- guide ------------------------------- */
 
-/* The rail spans the stage and sits with its bottom edge on the
-   speaker's head; see ScenePanel for how the two axes are mixed. It
-   matters that it is full width: an absolutely positioned bubble anchored
-   at `left: 73%` can only ever be 27% of the stage wide, which turned
-   every right-hand speaker's line into a tower one word per line. */
+/* The rail spans the stage and sits with its bottom edge on the scene's
+   speech band; see ScenePanel for how the two axes are mixed. It matters
+   that it is full width: an absolutely positioned bubble anchored at
+   `left: 73%` can only ever be 27% of the stage wide, which turned every
+   right-hand speaker's line into a tower one word per line.
+
+   It holds the robot's thought and the speech, in that order, in one
+   column — so the speech can wrap to any height and the thought is
+   simply pushed up by it. */
 .stage .bubble-rail {
   position: absolute;
   left: 0;
   right: 0;
   /* Anchored at BOTH ends: `top: 0` and the inline `bottom`, so the rail
-     is the whole of the room above the speaker's head and no more. The
-     bubble takes the foot of it through `margin-top: auto`, which is what
-     makes a short stage safe — an auto margin resolves to zero when the
-     content does not fit, so an over-tall bubble slides down into view
-     instead of off the top. `overflow: hidden` on the stage gives no
+     is the whole of the room above the band and no more. The column takes
+     the foot of it through `margin-top: auto` on its first child, which
+     is what makes a short stage safe — an auto margin resolves to zero
+     when the content does not fit, so an over-tall stack slides down into
+     view instead of off the top. `overflow: hidden` on the stage gives no
      second chance: the stacked layout at a 900px viewport leaves the
      stage 263px tall, and there the lift is larger than the room. */
   top: 0;
   display: flex;
   flex-direction: column;
   min-height: 0;
-  padding-bottom: 14px;
   pointer-events: none;
   z-index: 3;
+}
+
+/* Room for the tail under the speech. */
+.stage .bubble-rail.with-speech {
+  padding-bottom: 14px;
+}
+
+/* One auto margin, on whichever comes first. Two would split the free
+   space between them and open a gap between the thought and the speech. */
+.stage .bubble-rail > :first-child {
+  margin-top: auto;
 }
 
 .stage .bubble {
@@ -158,13 +172,12 @@
      the width; `left` then slides that box towards the speaker without
      taking any room away from it. */
   position: relative;
-  margin: auto auto 0;
+  margin-left: auto;
+  margin-right: auto;
   width: max-content;
   /* 52%, against a 31–69 clamp, leaves a 5% gutter at either edge even
      when the panel is dragged to its 320px minimum and the percentage is
-     the binding constraint. Narrower than it was, so the crow's bubble
-     and the robot's thought can share the space above their heads
-     without colliding. */
+     the binding constraint. */
   max-width: min(262px, 52%);
   pointer-events: auto;
   padding: 11px 15px;
@@ -179,18 +192,44 @@
 }
 
 /* On the rail, at the speaker's own x — so it points at whoever is
-   talking even when the clamp has slid the body away from them. */
+   talking even when the clamp has slid the body away from them.
+
+   It starts just inside the bubble's bottom border, so its fill covers
+   that border, and reaches down to the speaker's head: `--drop` is how
+   far below the band that head is, as a percentage of the stage width,
+   and `padding-top` is the one vertical length a percentage resolves
+   against width for. Zero for the tallest actor, which leaves the short
+   tail it always had. */
 .stage .bubble-tail {
   position: absolute;
-  bottom: 8px;
+  top: calc(100% - 16px);
   left: 0;
-  width: 12px;
-  height: 12px;
-  margin-left: -6px;
-  background: var(--surface);
-  border-right: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
-  transform: rotate(45deg);
+  width: 16px;
+  height: 0;
+  padding-top: calc(12px + var(--drop, 0%));
+  margin-left: -8px;
+  z-index: 4;
+}
+
+.stage .bubble-tail svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.stage .bubble-tail polygon {
+  fill: var(--surface);
+}
+
+/* The two slanted sides only: the top edge is inside the bubble. */
+.stage .bubble-tail polyline {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 1.5px;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
 }
 
 .stage .bubble code {
@@ -261,104 +300,100 @@
    is: the robot thinks of it, the bubble shows it, and when the line ends
    the value is collected. Memory stays empty, which is the lesson. */
 
-/* Anchored at both ends, exactly like the guide's rail: `top: 0` and the
-   inline `bottom` make the rail the room above the robot's head, and the
-   bubble takes the foot of it with `margin-top: auto` — which resolves to
-   zero when there is no room, so a short stage slides the bubble down
-   into view instead of off the top. Without the `top: 0` and the column
-   the rail had no height to hand out, and the bubble was rendered clean
-   outside the stage, which clips. */
-.stage .thought-rail {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
-  display: flex;
-  flex-direction: column;
-  pointer-events: none;
-}
+/* A cloud rather than a box, because the robot is thinking this and not
+   saying it.
 
+   The silhouette is the body's pill plus a ring of puffs painted by one
+   pseudo-element's radial gradients, and the trail of shrinking puffs
+   below. The outline is not a border — a border cannot follow a union of
+   shapes — but four hairline drop-shadows of the whole element, which
+   trace whatever is drawn, puffs and trail included. */
 .stage .thought {
   position: relative;
-  margin-top: auto;
-  /* Lifted clear of the speech band, with the trail of dots rising
-     through the gap.
-     
-     Both bubbles hang from their own speaker's head, and the speakers
-     stand on the same floor — so a two-line speech bubble beside a long
-     value overlapped whatever the widths were. Since the robot is the
-     tallest actor, lifting its thought clear of the speech band
-     separates them in every scene, whoever is talking, without measuring
-     anything.
-     
-     The height of the tallest thing the crow says, plus daylight. At 82px
-     the two boxes came out exactly flush — bottom 327, top 327 — which
-     looked fine and made the no-overlap test decide on a sub-pixel. */
-  margin-bottom: 112px;
-  /* Sized by its contents and centred, exactly like the guide's bubble.
-     As a flex item in a column rail the default `stretch` gave it the
-     rail's whole width and `max-width` only capped that, so a
-     two-character value drew a bubble more than half the stage wide.
-     `align-self: flex-start` fixed the width and broke the position:
-     `left` is an offset *from centre*, so starting at the rail's edge
-     put the robot's thought over the crow. Auto side margins centre it,
-     and then `left` means what it says. */
-  margin-left: auto;
-  margin-right: auto;
+  /* Room below for the trail, which falls towards the robot's head, or
+     towards the speech when the crow is talking underneath. `--beside`
+     is set by the scene when the two would not collide sideways, and
+     brings the thought down level with the speech instead of above it. */
+  margin: 0 auto calc(42px - var(--beside, 0px));
   width: max-content;
   max-width: 38%;
-  padding: 8px 15px;
-  border-radius: 16px;
+  padding: 7px 16px;
+  border-radius: 999px;
   background: var(--surface);
-  border: 1.5px solid var(--brand-line);
-  box-shadow: var(--shadow);
+  filter: drop-shadow(1.5px 0 0 var(--brand-line)) drop-shadow(-1.5px 0 0 var(--brand-line))
+    drop-shadow(0 1.5px 0 var(--brand-line)) drop-shadow(0 -1.5px 0 var(--brand-line))
+    drop-shadow(0 6px 10px rgb(22 32 58 / 0.1));
   font-family: var(--mono);
   font-size: 17px;
   font-weight: 700;
   color: var(--brand-deep);
+}
+
+/* The puffs. Positions along the top and bottom are percentages, so a
+   short value gets a round little cloud and a long one a wide one; the
+   side puffs sit a fixed distance in, on the body's rounded ends. Behind
+   the text, inside the stacking context the filter makes. */
+.stage .thought::before {
+  content: '';
+  position: absolute;
+  inset: -9px -7px;
+  z-index: -1;
+  --p: var(--surface);
+  background:
+    radial-gradient(circle at 20% 13px, var(--p) 10px, transparent 10.5px),
+    radial-gradient(circle at 40% 9px, var(--p) 12.5px, transparent 13px),
+    radial-gradient(circle at 61% 10px, var(--p) 11.5px, transparent 12px),
+    radial-gradient(circle at 81% 13px, var(--p) 9.5px, transparent 10px),
+    radial-gradient(circle at 29% calc(100% - 12px), var(--p) 9.5px, transparent 10px),
+    radial-gradient(circle at 53% calc(100% - 9px), var(--p) 11.5px, transparent 12px),
+    radial-gradient(circle at 75% calc(100% - 12px), var(--p) 9.5px, transparent 10px),
+    radial-gradient(circle at 9px 50%, var(--p) 12.5px, transparent 13px),
+    radial-gradient(circle at calc(100% - 9px) 50%, var(--p) 12.5px, transparent 13px);
+}
+
+/* The value itself. Clipped here rather than on the cloud, which would
+   clip its own puffs. */
+.stage .thought-value {
+  position: relative;
+  display: block;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-/* Two shrinking circles instead of a tail: a thought, not speech. */
-/* The trail. Four dots shrinking towards the head, which is what says
-   "thinking" rather than "speaking" — and it now has a real gap to rise
-   through. */
-.stage .thought-tail {
+/* Three shrinking puffs, stepping down towards the thinker — the thing
+   that says "thought" rather than "speech" at a glance. */
+.stage .thought-trail {
   position: absolute;
-  bottom: 4px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  /* Short, because it lives in the daylight between the thought and
-     whatever the crow is saying below it — a long trail is simply drawn
-     behind the speech bubble and cannot be seen. */
-  justify-content: flex-start;
-  height: 20px;
-  gap: 3px;
-  transform: translateX(-50%);
+  top: 100%;
+  left: 50%;
 }
 
-.stage .thought-tail i {
-  border-radius: 999px;
+.stage .thought-trail i {
+  position: absolute;
+  border-radius: 50%;
   background: var(--surface);
-  border: 1px solid var(--brand-line);
 }
 
-.stage .thought-tail i:nth-child(1) {
+.stage .thought-trail i:nth-child(1) {
+  width: 11px;
+  height: 11px;
+  top: 10px;
+  left: -16px;
+}
+
+.stage .thought-trail i:nth-child(2) {
   width: 8px;
   height: 8px;
+  top: 24px;
+  left: -10px;
 }
 
-.stage .thought-tail i:nth-child(2) {
+.stage .thought-trail i:nth-child(3) {
   width: 5px;
   height: 5px;
-}
-
-/* Two is what fits the gap; the rest would be drawn behind the speech. */
-.stage .thought-tail i:nth-child(n + 3) {
-  display: none;
+  top: 34px;
+  left: -5px;
 }
 
 .stage .thought .dots {

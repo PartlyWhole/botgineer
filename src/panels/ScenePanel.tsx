@@ -6,6 +6,7 @@
  * takes no commands, so it cannot show something the program did not do —
  * and scrubbing the trace rewinds the picture for free.
  */
+import { useLayoutEffect, useRef } from 'react'
 import {
   placement,
   readScene,
@@ -79,6 +80,13 @@ export function ScenePanel({
     (guide?.speaker ? view.actors.find((a) => a.actor.id === guide.speaker) : undefined) ??
     view.actors.find((a) => a.actor.kind === 'crow') ??
     view.actors[0]
+  const guideShown = guide !== undefined && speaker !== undefined
+  const thoughtShown = (thinking === true || Boolean(thought)) && robot !== undefined
+  // The rail hangs from whoever is speaking, or from the robot when only
+  // the robot has something in mind.
+  const anchor = guideShown ? speaker : thoughtShown ? robot : undefined
+  const railRef = useRef<HTMLDivElement | null>(null)
+  useBeside(railRef, [guide?.text, speaker?.actor.id, thought, thinking])
 
   return (
     <div className="scene-panel" data-testid="scene">
@@ -102,28 +110,6 @@ export function ScenePanel({
           </button>
         )}
 
-        {/* The robot's own bubble, above its head. Anchored the same way
-            the guide's is — see `railAnchor` — so it clears the robot
-            rather than sitting on its face. */}
-        {(thinking || thought) && robot && (
-          <div className="thought-rail" style={railAnchor(robot.actor, spec.floor, lift)}>
-            <div
-              className={`thought ${thinking ? 'working' : ''}`}
-              style={{ left: `${bubbleX(robot.actor.x) - 50}%` }}
-              data-testid="thought"
-              aria-live="polite"
-            >
-              {thinking ? <span className="dots" aria-label="thinking" /> : thought}
-            </div>
-            {/* Two shrinking circles rather than a tail: a thought, not
-                speech. They sit in the gap above whatever is being said. */}
-            <span className="thought-tail" style={{ left: `${robot.actor.x}%` }}>
-              <i />
-              <i />
-            </span>
-          </div>
-        )}
-
         {view.actors.map((a) => (
           <ActorNode
             key={a.actor.id}
@@ -134,37 +120,85 @@ export function ScenePanel({
           />
         ))}
 
-        {guide && speaker && (
-          // A rail, not a free-floating box. Its bottom edge is the
-          // speaker's *top* edge — `bottom` in percent of the stage's
-          // height, then a percentage `margin-bottom`, which CSS resolves
-          // against the containing block's *width*, to add back half the
-          // speaker's own height. That is the only way to mix the two
-          // axes without measuring anything, and it is what keeps a
-          // bubble off the face of whoever is talking.
+        {(guideShown || thoughtShown) && anchor && (
+          // One rail for everything said or thought, in one column: the
+          // thought on top, the speech under it. Stacking them in flow is
+          // what keeps them apart — the speech can wrap to any number of
+          // lines and the thought is simply pushed up by it, where a fixed
+          // gap tuned to one line length overlapped the next longer one.
+          // When they are side by side anyway, `useBeside` lets the
+          // thought come back down to the robot's head.
           //
-          // The rail spans the stage, so the bubble's width is its
+          // The rail's bottom edge is the scene's speech band, the top of
+          // the tallest standing actor: `bottom` in percent of the stage's
+          // height, then a percentage `margin-bottom`, which CSS resolves
+          // against the containing block's *width*, to add the actor's
+          // drawn height. That mixes the two axes without measuring
+          // anything, and it is what keeps a bubble off every face.
+          //
+          // The rail spans the stage, so a bubble's width is its
           // `max-width` rather than whatever room happened to be left
           // between the speaker and the right-hand edge.
           <div
-            className="bubble-rail"
-            style={railAnchor(speaker.actor, spec.floor, lift)}
+            ref={railRef}
+            className={`bubble-rail ${guideShown ? 'with-speech' : ''}`}
+            style={railAnchor(anchor.actor, spec.floor, lift)}
           >
-            <div
-              className="bubble"
-              data-testid="guide"
-              data-speaker={speaker.actor.id}
-              // Kept inside the stage: a character near an edge would
-              // otherwise push half the sentence out of the panel, and
-              // the guide is the one thing that has to be readable. The
-              // body moves; the tail does not, so the clamp cannot make
-              // the bubble point at the wrong character.
-              style={{ left: `${bubbleX(speaker.actor.x) - 50}%` }}
-              aria-live="polite"
-            >
-              {richText(guide.text)}
-            </div>
-            <span className="bubble-tail" style={{ left: `${speaker.actor.x}%` }} />
+            {thoughtShown && (
+              // A cloud, not a speech bubble: the robot is thinking of
+              // this, not saying it. Centred over the robot, with a trail
+              // of shrinking puffs falling towards its head.
+              <div
+                className={`thought ${thinking ? 'working' : ''}`}
+                style={{ left: `${bubbleX(robot.actor.x) - 50}%` }}
+                data-testid="thought"
+                aria-live="polite"
+              >
+                <span className="thought-value">
+                  {thinking ? <span className="dots" aria-label="thinking" /> : thought}
+                </span>
+                <span className="thought-trail" aria-hidden="true">
+                  <i />
+                  <i />
+                  <i />
+                </span>
+              </div>
+            )}
+            {guideShown && (
+              <div
+                className="bubble"
+                data-testid="guide"
+                data-speaker={speaker.actor.id}
+                // Kept inside the stage: a character near an edge would
+                // otherwise push half the sentence out of the panel, and
+                // the guide is the one thing that has to be readable. The
+                // body moves; the tail does not, so the clamp cannot make
+                // the bubble point at the wrong character.
+                style={{ left: `${bubbleX(speaker.actor.x) - 50}%` }}
+                aria-live="polite"
+              >
+                {richText(guide.text)}
+              </div>
+            )}
+            {guideShown && (
+              // The band sits at the tallest actor's head, so a shorter
+              // speaker is some way below it. The tail reaches down that
+              // far (`--drop`, in the same width units as the band), or
+              // the bubble would point at the air above the crow.
+              <span
+                className="bubble-tail"
+                aria-hidden="true"
+                style={{
+                  left: `${speaker.actor.x}%`,
+                  ['--drop' as string]: `${speechDrop(speaker.actor, spec.floor, lift)}%`,
+                }}
+              >
+                <svg viewBox="0 0 16 10" preserveAspectRatio="none">
+                  <polygon points="0,0 16,0 8,10" />
+                  <polyline points="0,0 8,10 16,0" />
+                </svg>
+              </span>
+            )}
           </div>
         )}
       </div>
@@ -183,6 +217,52 @@ export function ScenePanel({
       )}
     </div>
   )
+}
+
+/**
+ * Lets the thought come down beside the speech when there is room.
+ *
+ * The rail stacks the thought above the speech, which can never overlap
+ * — but when the two are side by side anyway (the crow at one end of the
+ * stage, the robot at the other) it leaves the thought floating a whole
+ * speech bubble above the robot's head. Whether they clash sideways
+ * depends on how wide the text came out, which only layout knows, so it
+ * is measured.
+ *
+ * Written straight to the rail as `--beside`, never through React: this
+ * is drawing, and the scene still holds no state. Stacked is the default
+ * and the fallback, so a measurement that has not happened yet can only
+ * cost height, never an overlap. Only the thought moves, and only
+ * vertically, so the measurement cannot change its own answer.
+ */
+function useBeside(ref: { current: HTMLDivElement | null }, deps: unknown[]) {
+  useLayoutEffect(() => {
+    const rail = ref.current
+    if (!rail) return
+    const place = () => {
+      const thought = rail.querySelector('.thought')
+      const speech = rail.querySelector('.bubble')
+      if (!thought || !speech) {
+        rail.style.removeProperty('--beside')
+        return
+      }
+      const t = thought.getBoundingClientRect()
+      const b = speech.getBoundingClientRect()
+      // The puffs reach about 11px past the cloud's box; the rest is air.
+      const room = 20
+      const apart = t.right + room <= b.left || b.right + room <= t.left
+      // Everything from the top of the speech to the foot of the rail is
+      // what the thought can come down by.
+      const drop = rail.getBoundingClientRect().bottom - b.top
+      rail.style.setProperty('--beside', apart ? `${Math.round(drop)}px` : '0px')
+    }
+    place()
+    // A dragged gutter changes the stage's width, and with it both widths.
+    const watch = new ResizeObserver(place)
+    watch.observe(rail)
+    return () => watch.disconnect()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps)
 }
 
 /**
@@ -253,6 +333,18 @@ export function railAnchor(
     }
   }
   return { bottom: `${100 - actor.y}%`, marginBottom: `${halfHeightPct(actor)}%` }
+}
+
+/**
+ * How far below the speech band this speaker's head is, in percent of the
+ * stage width — the length the bubble's tail has to reach down.
+ *
+ * Zero for the tallest actor, whose head *is* the band, and for anyone
+ * not standing, whose rail hangs from them directly.
+ */
+export function speechDrop(actor: Actor, floor: Floor | undefined, lift = 0): number {
+  if (!(actor.stand && floor)) return 0
+  return Math.max(0, lift - halfHeightPct(actor) * 2)
 }
 
 function ActorNode({

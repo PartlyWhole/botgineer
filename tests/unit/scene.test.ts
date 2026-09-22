@@ -3,7 +3,7 @@
  * given what is bound, what does the picture show?
  */
 import { describe, expect, it } from 'vitest'
-import { bubbleX, halfHeightPct, railAnchor, speechLift } from '../../src/panels/ScenePanel'
+import { bubbleX, halfHeightPct, railAnchor, speechDrop, speechLift } from '../../src/panels/ScenePanel'
 import { placement, readScene, type Actor, type SceneSpec } from '../../src/scene/spec'
 import { ACTIVITIES } from '../../content/activities'
 import type { MemorySnapshot, PyObject } from '../../src/memory/model'
@@ -248,6 +248,18 @@ describe('standing on the floor', () => {
   it('never lowers a bubble below the speaker it belongs to', () => {
     // A lift smaller than the speaker's own height must not apply.
     expect(railAnchor(robot, floor, 1).marginBottom).toBe(`${halfHeightPct(robot) * 2}%`)
+  })
+
+  it("drops a short speaker's tail from the band to its own head", () => {
+    const crow: Actor = { id: 'crow', kind: 'crow', x: 13, y: 0, w: 13, stand: true }
+    const lift = speechLift({ id: 's', title: 's', floor, actors: [crow, robot], watches: [] })
+    // The band plus the drop lands exactly on the crow's head.
+    expect(speechDrop(crow, floor, lift) + halfHeightPct(crow) * 2).toBeCloseTo(lift)
+    // The tallest actor's head is the band, so its tail stays short.
+    expect(speechDrop(robot, floor, lift)).toBe(0)
+    // Nobody standing, nothing to reach down to.
+    expect(speechDrop(lamp, floor, lift)).toBe(0)
+    expect(speechDrop(crow, undefined, lift)).toBe(0)
   })
 
   it('ignores a floor for an actor that is not standing on it', () => {

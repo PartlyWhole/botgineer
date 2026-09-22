@@ -112,29 +112,35 @@ const sameObject = (snapshot: MemorySnapshot, a: string, b: string): boolean => 
  * Each step is judged on the *type* the robot thought of, not on a
  * particular value, so the player can pick their own number and their own
  * word. `10` and `7` are both ints, and either is a correct answer.
+ *
+ * Each kind is introduced by what it is *for* — an int counts, a float
+ * measures, a str is text, a bool answers yes or no — because a type
+ * name on its own explains nothing. Each step names the kind the
+ * previous one produced, which is safe because a step is only ever shown
+ * once every step before it is done.
  */
 export const primitives: Lesson = {
   id: 'primitives',
   steps: [
     {
-      say: 'A whole number. Any one you like.',
+      say: 'Let\'s see what it can think of. Counting first — give it a whole number, like `3` or `12`.',
       done: (e) => thoughtOfA(e, 'int'),
     },
     {
-      say: 'Now one with a dot. `2.5`',
+      say: 'Whole numbers are `int`s, for counting. Measuring needs a dot — `2.5` metres, say. Try one.',
       done: (e) => thoughtOfA(e, 'float'),
     },
     {
-      say: 'A word next, in quotes. `"crow"`',
+      say: 'Numbers with a dot are `float`s. Now some text: a word in quotes, like `"crow"`.',
       done: (e) => thoughtOfA(e, 'str'),
     },
     {
-      say: 'Last one: `True`. No quotes.',
+      say: 'Text is a `str`. The last kind answers a yes-or-no question: `True` or `False`. No quotes!',
       done: (e) => thoughtOfA(e, 'bool'),
     },
   ],
   outro:
-    'Four kinds: `int`, `float`, `str`, `bool`. All gone — none of them had a name.',
+    'Count, measure, text, yes-or-no: `int`, `float`, `str`, `bool`. All gone now — none of them had a name.',
 }
 
 /* ------------------------------ lesson two ------------------------------ */
@@ -156,28 +162,28 @@ export const operations: Lesson = {
   id: 'operations',
   steps: [
     {
-      say: 'It can work things out. Ask it `7 * 6`',
+      say: 'It can work things out, too. Seven crates, six bolts in each — how many bolts? `7 * 6`',
       done: (e) => worked(e, '42'),
     },
     {
-      say: 'Now `9 / 2`. Mind the dot.',
+      say: 'Now share 9 litres of oil between 2 robots: `9 / 2`. Watch what kind comes back.',
       done: (e) => worked(e, '4.5'),
     },
     {
-      say: 'Words join up too. `"bot" + "gineer"`',
+      say: 'Sharing out gives a measurement, so `/` always makes a `float`. Words add up too: `"bot" + "gineer"`',
       done: (e) => worked(e, "'botgineer'"),
     },
     {
-      say: 'Ask it a question. `3 > 5`',
+      say: '`+` glues text together. Now a yes-or-no question — is 3 more than 5? `3 > 5`',
       done: (e) => worked(e, 'False'),
     },
     {
-      say: 'Last one, in two parts. `(2 + 3) * 4`',
+      say: 'It answered with a `bool`. Last one, in two steps: `(2 + 3) * 4`. Brackets go first.',
       done: (e) => worked(e, '20'),
     },
   ],
   outro:
-    'Twenty — and gone. Nobody else ever knew it. Ask again and it starts from scratch.',
+    'Twenty. And it\'s gone already — nobody else ever knew it. Ask again and it starts from scratch.',
 }
 
 /**
@@ -227,26 +233,26 @@ export const namesPoint: Lesson = {
   id: 'names-point',
   steps: [
     {
-      say: 'Tired of it forgetting? Try `x = 10`',
+      say: 'Tired of it forgetting? Give a thing a name and the robot keeps it: `x = 10`',
       // `ever`, not `snapshot`: the last step of this lesson moves `x`,
       // which would otherwise un-answer the first two.
       done: (e) => ever(e, (s) => points(s, 'x', '10')),
     },
     {
-      say: 'Look — memory. Now just say `x`',
+      say: 'There — `x` in memory, pointing at `10`. Now ask for it back: just `x`.',
       done: (e) => worked(e, '10'),
     },
     {
-      say: 'No working it out again. Now `y = x`',
+      say: 'No working out — it just looked. Now point a second name at the same thing: `y = x`',
       done: (e) => ever(e, (s) => sameObject(s, 'x', 'y')),
     },
     {
-      say: 'Now move it. `x = 99` — watch `y`.',
+      say: 'Two names, one `10`. Now point `x` somewhere else with `x = 99`, and keep an eye on `y`.',
       done: ({ snapshot }) => points(snapshot, 'x', '99') && points(snapshot, 'y', '10'),
     },
   ],
   outro:
-    '`x` moved. `y` did not. A name points at a thing — it never held it.',
+    '`x` moved; `y` stayed put. A name points at a thing — it never held it.',
 }
 
 /* ----------------------------- lesson three ----------------------------- */
@@ -274,17 +280,17 @@ export const takeAnOrder: Lesson = {
   steps: [
     {
       speaker: 'courier',
-      say: 'Afternoon! Ana. Put me on the ticket. `customer = "Ana"`',
+      say: 'Afternoon! I\'m Ana, with a delivery. Put me on the ticket, would you? `customer = "Ana"`',
       done: ({ snapshot }) => points(snapshot, 'customer', "'Ana'"),
     },
     {
       speaker: 'courier',
-      say: 'Seven parcels today. `parcels = 7`',
+      say: 'Lovely. I\'ve brought seven parcels today — keep hold of that. `parcels = 7`',
       done: ({ snapshot }) => points(snapshot, 'parcels', '7'),
     },
     {
       speaker: 'courier',
-      say: 'Two kilos each. How much am I carrying?',
+      say: 'Each parcel weighs two kilos. So how much am I carrying? Work it out from what you kept.',
       // Never said aloud by anyone, so it can only come from the stored
       // count. Asked of the robot's answers, not of its memory: replying
       // to a question leaves nothing behind in memory to check.
@@ -292,7 +298,7 @@ export const takeAnOrder: Lesson = {
     },
   ],
   outro:
-    'Fourteen! It never stored that — it stored seven, and worked the rest out.',
+    'Fourteen kilos! It never stored that — it kept the seven and worked out the rest.',
 }
 
 export const LESSONS: Record<string, Lesson> = {

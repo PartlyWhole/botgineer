@@ -82,7 +82,7 @@ describe('the four kinds of thing', () => {
     expect(progress(primitives, thinking(th('int', '1'), th('float', '2.5'), th('str', "'crow'")))).toBe(3)
   })
 
-  it('finishes on a bool, and says memory is still empty', () => {
+  it('finishes on a bool, and says none of them was kept', () => {
     const e = thinking(th('int', '1'), th('float', '2.5'), th('str', "'x'"), th('bool', 'True'))
     expect(progress(primitives, e)).toBe(primitives.steps.length)
     expect(guidance(primitives, e).text).toMatch(/none of them had a name/)
@@ -126,7 +126,7 @@ describe('working things out', () => {
       th('int', '20'),
     )
     expect(progress(operations, e)).toBe(operations.steps.length)
-    expect(guidance(operations, e).text).toMatch(/Nobody else ever knew it/)
+    expect(guidance(operations, e).text).toMatch(/nobody else ever knew it/)
   })
 
   it('needs no memory at all to be completed', () => {
