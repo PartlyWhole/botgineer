@@ -3,8 +3,9 @@
  * given what is bound, what does the picture show?
  */
 import { describe, expect, it } from 'vitest'
-import { bubbleX, halfHeightPct } from '../../src/panels/ScenePanel'
-import { readScene, type SceneSpec } from '../../src/scene/spec'
+import { bubbleX, halfHeightPct, railAnchor } from '../../src/panels/ScenePanel'
+import { placement, readScene, type Actor, type SceneSpec } from '../../src/scene/spec'
+import { ACTIVITIES } from '../../content/activities'
 import type { MemorySnapshot, PyObject } from '../../src/memory/model'
 
 const value = (id: string, type: string, repr: string): PyObject => ({
@@ -177,5 +178,68 @@ describe('the guide bubble', () => {
     // little covers the thing that is talking.
     expect(halfHeightPct({ id: 's', kind: 'sign', x: 40, y: 84, w: 34 })).toBe(17)
     expect(halfHeightPct({ id: 'p', kind: 'plinth', x: 50, y: 92 })).toBe(8)
+  })
+})
+
+describe('standing on the floor', () => {
+  const floor = { at: 78 }
+  const robot: Actor = { id: 'robot', kind: 'robot', x: 66, y: 0, w: 24, stand: true }
+  const lamp: Actor = { id: 'lamp', kind: 'lamp', x: 78, y: 20, w: 9 }
+
+  it('anchors a standing actor by its feet, not its centre', () => {
+    // `bottom` is the complement of the floor, so the contact does not
+    // depend on how tall the actor turns out to be drawn.
+    expect(placement(robot, floor)).toEqual({ left: '66%', width: '24%', bottom: '22%' })
+    expect(placement(robot, floor).top).toBeUndefined()
+  })
+
+  it('leaves a mounted actor on its centre', () => {
+    expect(placement(lamp, floor)).toEqual({ left: '78%', width: '9%', top: '20%' })
+    expect(placement(lamp, floor).bottom).toBeUndefined()
+  })
+
+  it('falls back to the centre when a scene has no floor', () => {
+    // A scene with nothing to stand on must still render.
+    expect(placement(robot, undefined)).toEqual({ left: '66%', width: '24%', top: '0%' })
+  })
+
+  it('clears a standing speaker by a whole height, not half of one', () => {
+    // Half a height is right for a centred actor and puts the bubble
+    // through a standing one's face.
+    const centred = railAnchor({ ...robot, stand: false, y: 46 }, floor)
+    const standing = railAnchor(robot, floor)
+    expect(centred.marginBottom).toBe(`${halfHeightPct(robot)}%`)
+    expect(standing.marginBottom).toBe(`${halfHeightPct(robot) * 2}%`)
+    expect(standing.bottom).toBe('22%')
+  })
+
+  it('ignores a floor for an actor that is not standing on it', () => {
+    expect(railAnchor(lamp, floor).bottom).toBe('80%')
+  })
+})
+
+describe('every scene', () => {
+  it('stands its cast on a floor', () => {
+    // A character with no floor to stand on floats, which is the bug
+    // this replaced — so the invariant belongs here, not in a review.
+    const cast = new Set(['robot', 'crow', 'courier'])
+    for (const activity of ACTIVITIES) {
+      const scene = activity.scene
+      const people = scene.actors.filter((a) => cast.has(a.kind))
+      if (people.length === 0) continue
+      expect(scene.floor, `${scene.id} has cast but no floor`).toBeDefined()
+      for (const person of people) {
+        expect(person.stand, `${scene.id}/${person.id} does not stand`).toBe(true)
+      }
+    }
+  })
+
+  it('keeps every floor inside the stage', () => {
+    for (const activity of ACTIVITIES) {
+      const at = activity.scene.floor?.at
+      if (at === undefined) continue
+      expect(at).toBeGreaterThan(40)
+      expect(at).toBeLessThan(95)
+    }
   })
 })

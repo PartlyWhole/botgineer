@@ -6,7 +6,15 @@
  * takes no commands, so it cannot show something the program did not do —
  * and scrubbing the trace rewinds the picture for free.
  */
-import { readScene, type Actor, type ActorKind, type ActorView, type SceneSpec } from '../scene/spec'
+import {
+  placement,
+  readScene,
+  type Actor,
+  type ActorKind,
+  type ActorView,
+  type Floor,
+  type SceneSpec,
+} from '../scene/spec'
 import type { MemorySnapshot } from '../memory/model'
 import { Robot, Courier } from '../ui/Characters'
 import { Crow } from '../ui/Crow'
@@ -42,8 +50,18 @@ export function ScenePanel({
   return (
     <div className="scene-panel" data-testid="scene">
       <div className="stage" data-scene={spec.id}>
+        {/* Drawn before the cast, so everyone stands in front of it. */}
+        {spec.floor && (
+          <div
+            className="floor"
+            data-look={spec.floor.look ?? 'ground'}
+            data-testid="floor"
+            style={{ top: `${spec.floor.at}%` }}
+          />
+        )}
+
         {view.actors.map((a) => (
-          <ActorNode key={a.actor.id} view={a} mood={mood} />
+          <ActorNode key={a.actor.id} view={a} mood={mood} floor={spec.floor} />
         ))}
 
         {guide && speaker && (
@@ -60,10 +78,7 @@ export function ScenePanel({
           // between the speaker and the right-hand edge.
           <div
             className="bubble-rail"
-            style={{
-              bottom: `${100 - speaker.actor.y}%`,
-              marginBottom: `${halfHeightPct(speaker.actor)}%`,
-            }}
+            style={railAnchor(speaker.actor, spec.floor)}
           >
             <div
               className="bubble"
@@ -133,18 +148,43 @@ const ACTOR_RATIO: Partial<Record<ActorKind, number>> = {
 export const halfHeightPct = (actor: Actor): number =>
   ((actor.w ?? 16) * (ACTOR_RATIO[actor.kind] ?? 1)) / 2
 
-function ActorNode({ view, mood }: { view: ActorView; mood: Mood }) {
-  const { actor } = view
-  const style = {
-    left: `${actor.x}%`,
-    top: `${actor.y}%`,
-    width: `${actor.w ?? 16}%`,
+/**
+ * Where the bubble's rail sits, so its bottom edge is the speaker's top
+ * edge.
+ *
+ * A standing actor's top edge is the floor *minus its whole height*,
+ * where an actor placed by its centre is only half a height above it.
+ * Getting this wrong is not subtle — it puts the bubble through the
+ * speaker's face, which is the bug the rail was built to fix.
+ */
+export function railAnchor(
+  actor: Actor,
+  floor: Floor | undefined,
+): { bottom: string; marginBottom: string } {
+  const half = halfHeightPct(actor)
+  if (actor.stand && floor) {
+    return { bottom: `${100 - floor.at}%`, marginBottom: `${half * 2}%` }
   }
+  return { bottom: `${100 - actor.y}%`, marginBottom: `${half}%` }
+}
+
+function ActorNode({
+  view,
+  mood,
+  floor,
+}: {
+  view: ActorView
+  mood: Mood
+  floor: Floor | undefined
+}) {
+  const { actor } = view
+  const standing = actor.stand === true && floor !== undefined
 
   return (
     <div
-      className={`actor ${actor.kind} ${view.lit ? 'lit' : ''} ${view.picked ? 'picked' : ''}`}
-      style={style}
+      className={`actor ${actor.kind} ${standing ? 'standing' : ''} ${view.lit ? 'lit' : ''} ${view.picked ? 'picked' : ''}`}
+      style={placement(actor, floor)}
+      data-stand={standing ? 'yes' : 'no'}
       data-testid={`actor-${actor.id}`}
       data-lit={view.lit ? 'yes' : 'no'}
       data-picked={view.picked ? 'yes' : 'no'}

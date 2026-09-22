@@ -961,3 +961,74 @@ button.tidy:hover {
   font-size: 15px;
   opacity: 0.85;
 }
+
+/* ---------------- the floor ----------------
+
+   Characters used to be placed by their centres, which made the gap
+   between their feet and anything below a function of the panel's aspect
+   ratio: measured across ten panel shapes, every character floated, by
+   between 65 and 359 pixels. A standing actor is anchored by its bottom
+   edge instead (see `placement` in scene/spec), and this is what it
+   stands on. */
+
+.floor {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-top: 1px solid #bdc8e4;
+  background: linear-gradient(#d8e0f4, #c9d3ec);
+}
+
+/* A conveyor rather than a floor: same contact line, different object.
+   The rollers are background-repeat rather than elements, so the belt
+   costs nothing per crate and cannot get out of step with them.
+
+   A band, not a surface reaching the bottom of the stage: at full height
+   the roller stripes read as a fence behind the crates instead of a belt
+   under them. */
+.floor[data-look='belt'] {
+  bottom: auto;
+  height: 30px;
+  border: 1px solid #b3bedd;
+  border-radius: 7px;
+  background:
+    repeating-linear-gradient(90deg, #b9c5e4 0 2px, transparent 2px 20px),
+    linear-gradient(#e6ebfa, #ccd6ee);
+  box-shadow: 0 6px 14px rgb(40 58 100 / 0.1);
+}
+
+/* Contact. Without it a figure anchored to the floor still reads as
+   pasted on, because nothing in the picture agrees that it is resting
+   there. Drawn by ::before so it paints under the actor's own content
+   without needing a stacking context. */
+.actor.standing::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 62%;
+  height: 7px;
+  transform: translate(-50%, 55%);
+  border-radius: 50%;
+  background: rgb(52 70 112 / 0.17);
+  transition: opacity 260ms ease, width 260ms ease;
+}
+
+/* A lifted crate leaves its shadow behind and smaller, which is what
+   says it is off the belt rather than merely drawn higher up. */
+.actor.standing.crate.picked::before {
+  width: 42%;
+  opacity: 0.4;
+}
+
+/* Standing: the horizontal centring stays, the vertical shift must go —
+   a translate of -50% would lift the feet back off the floor by half the
+   actor's height, which is the whole bug. */
+.actor.standing {
+  transform: translateX(-50%);
+}
+
+.actor.standing.crate.picked {
+  transform: translateX(-50%) translateY(-22px) rotate(-3deg);
+}

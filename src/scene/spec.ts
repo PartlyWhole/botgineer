@@ -25,14 +25,63 @@ export type ActorKind =
 export type Actor = {
   id: string
   kind: ActorKind
-  /** Percentage of the scene box, so a scene scales with its panel. */
+  /** Horizontal centre, in percent of the scene's width. */
   x: number
+  /**
+   * Vertical centre, in percent of the scene's height. Ignored by a
+   * standing actor, which is placed by its feet instead.
+   */
   y: number
   /** Width in percent; sensible defaults per kind. */
   w?: number
+  /**
+   * Stand this actor's feet on the scene's floor.
+   *
+   * Why this exists: an actor's width is a percentage of the scene's
+   * *width* while `y` is a percentage of its *height*, and its drawn
+   * height follows from its width. Place it by its centre and the gap
+   * between its feet and anything below is a function of the panel's
+   * aspect ratio — measured across ten panel shapes, every character
+   * floated, by between 65 and 359 pixels, and the gap swung by 2.4x as
+   * the panel was dragged. Nobody stood on anything anywhere.
+   *
+   * Standing is anchored to the bottom edge instead, which makes the
+   * contact exact rather than tuned: no measurement, no state, and it
+   * holds at every shape because the drawn height is no longer part of
+   * the sum.
+   */
+  stand?: boolean
   label?: string
   /** Lets one watch address several actors at once. */
   group?: string
+}
+
+/** Where the ground is, and what it looks like. */
+export type Floor = {
+  /** Percent of the scene's height. Standing actors' feet rest here. */
+  at: number
+  /** `belt` draws a conveyor; `ground` is a plain floor. */
+  look?: 'ground' | 'belt'
+}
+
+/**
+ * Where to put an actor, as CSS.
+ *
+ * A standing actor is positioned by `bottom`, so its feet land on the
+ * floor whatever its drawn height turns out to be. Everything else keeps
+ * its centre at `y` — a lamp on a wall and a board above a robot are not
+ * standing on anything, and should not pretend to.
+ */
+export function placement(
+  actor: Actor,
+  floor: Floor | undefined,
+): { left: string; width: string; top?: string; bottom?: string } {
+  const left = `${actor.x}%`
+  const width = `${actor.w ?? 16}%`
+  // A scene with no floor cannot stand anyone on it; falling back to the
+  // centre keeps such a scene renderable rather than piling actors at 0.
+  if (actor.stand && floor) return { left, width, bottom: `${100 - floor.at}%` }
+  return { left, width, top: `${actor.y}%` }
 }
 
 export type Effect =
@@ -61,6 +110,8 @@ export type Watch = {
 export type SceneSpec = {
   id: string
   title: string
+  /** Omit for a scene with nothing to stand on. */
+  floor?: Floor
   actors: Actor[]
   watches: Watch[]
 }

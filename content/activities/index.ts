@@ -58,10 +58,12 @@ const namingThings: Activity = {
   scene: {
     id: 'workshop',
     title: 'Workshop',
+    // The bench is gone: it was a floating pill that nobody stood on.
+    // The floor is the thing they stand on now.
+    floor: { at: 78 },
     actors: [
-      { id: 'crow', kind: 'crow', x: 30, y: 48, w: 20 },
-      { id: 'robot', kind: 'robot', x: 68, y: 48, w: 22 },
-      { id: 'bench', kind: 'plinth', x: 50, y: 78, w: 62 },
+      { id: 'crow', kind: 'crow', x: 32, y: 0, w: 17, stand: true },
+      { id: 'robot', kind: 'robot', x: 66, y: 0, w: 24, stand: true },
     ],
     watches: [],
   },
@@ -91,12 +93,15 @@ const takeAnOrder: Activity = {
   scene: {
     id: 'counter',
     title: 'The counter',
+    floor: { at: 82 },
     actors: [
-      { id: 'crow', kind: 'crow', x: 14, y: 40, w: 14 },
-      { id: 'robot', kind: 'robot', x: 40, y: 46, w: 22 },
-      { id: 'courier', kind: 'courier', x: 76, y: 46, w: 20 },
-      { id: 'ticket', kind: 'sign', x: 40, y: 84, w: 34, label: 'no customer' },
-      { id: 'counter', kind: 'plinth', x: 50, y: 92, w: 78 },
+      { id: 'crow', kind: 'crow', x: 13, y: 0, w: 13, stand: true },
+      { id: 'robot', kind: 'robot', x: 38, y: 0, w: 23, stand: true },
+      { id: 'courier', kind: 'courier', x: 72, y: 0, w: 21, stand: true },
+      // A board above the robot, not a plaque on the floor: it is the
+      // one thing here that is genuinely mounted rather than standing,
+      // and putting it at the robot's feet had it overlapping them.
+      { id: 'ticket', kind: 'sign', x: 38, y: 16, w: 32, label: 'no customer' },
     ],
     watches: [
       {
@@ -119,12 +124,14 @@ const wakeTheRobot: Activity = {
   scene: {
     id: 'bay',
     title: 'Charging bay',
+    floor: { at: 80 },
     actors: [
-      { id: 'plinth', kind: 'plinth', x: 50, y: 74, w: 42 },
-      { id: 'robot', kind: 'robot', x: 50, y: 44, w: 26 },
-      { id: 'lamp', kind: 'lamp', x: 76, y: 22, w: 9 },
-      { id: 'nameplate', kind: 'sign', x: 50, y: 88, w: 40, label: 'unnamed' },
-      { id: 'battery', kind: 'gauge', x: 22, y: 22, w: 18 },
+      { id: 'robot', kind: 'robot', x: 50, y: 0, w: 27, stand: true },
+      // Fixtures, not cast: a lamp and a gauge are mounted on the wall
+      // and a nameplate hangs above the bay. None of them stands.
+      { id: 'lamp', kind: 'lamp', x: 78, y: 20, w: 9 },
+      { id: 'battery', kind: 'gauge', x: 20, y: 26, w: 17 },
+      { id: 'nameplate', kind: 'sign', x: 50, y: 14, w: 38, label: 'unnamed' },
     ],
     watches: [
       {
@@ -162,13 +169,16 @@ for parcel in parcels:
   scene: {
     id: 'depot',
     title: 'Depot belt',
+    // The Parcel Belt had no belt. The crates hung in the air above
+    // nothing and the robot hung above them.
+    floor: { at: 80, look: 'belt' },
     actors: [
-      { id: 'robot', kind: 'robot', x: 12, y: 40, w: 20 },
-      { id: 'A7', kind: 'crate', x: 34, y: 66, w: 12, label: 'A7', group: 'parcels' },
-      { id: 'B1', kind: 'crate', x: 48, y: 66, w: 12, label: 'B1', group: 'parcels' },
-      { id: 'C2', kind: 'crate', x: 62, y: 66, w: 12, label: 'C2', group: 'parcels' },
-      { id: 'D3', kind: 'crate', x: 76, y: 66, w: 12, label: 'D3', group: 'parcels' },
-      { id: 'E5', kind: 'crate', x: 90, y: 66, w: 12, label: 'E5', group: 'parcels' },
+      { id: 'robot', kind: 'robot', x: 14, y: 0, w: 22, stand: true },
+      { id: 'A7', kind: 'crate', x: 34, y: 0, w: 13, label: 'A7', group: 'parcels', stand: true },
+      { id: 'B1', kind: 'crate', x: 48, y: 0, w: 13, label: 'B1', group: 'parcels', stand: true },
+      { id: 'C2', kind: 'crate', x: 62, y: 0, w: 13, label: 'C2', group: 'parcels', stand: true },
+      { id: 'D3', kind: 'crate', x: 76, y: 0, w: 13, label: 'D3', group: 'parcels', stand: true },
+      { id: 'E5', kind: 'crate', x: 90, y: 0, w: 13, label: 'E5', group: 'parcels', stand: true },
     ],
     watches: [
       {
@@ -203,10 +213,12 @@ const firstWords: Activity = {
   scene: {
     id: 'workshop',
     title: 'Workshop',
+    // The bench is gone: it was a floating pill that nobody stood on.
+    // The floor is the thing they stand on now.
+    floor: { at: 78 },
     actors: [
-      { id: 'crow', kind: 'crow', x: 30, y: 48, w: 20 },
-      { id: 'robot', kind: 'robot', x: 68, y: 48, w: 22 },
-      { id: 'bench', kind: 'plinth', x: 50, y: 78, w: 62 },
+      { id: 'crow', kind: 'crow', x: 32, y: 0, w: 17, stand: true },
+      { id: 'robot', kind: 'robot', x: 66, y: 0, w: 24, stand: true },
     ],
     watches: [],
   },

@@ -613,3 +613,85 @@ test('the courier asks, and the robot answers from what it stored', async ({ pag
   await expect(page.getByTestId('echo').last()).toHaveText('14')
   await expect(page.getByTestId('guide')).toContainText('Fourteen kilos')
 })
+
+/* ------------------------------- the floor ------------------------------- */
+
+/** Feet-to-floor gap in px for every standing actor, at the current shape. */
+async function footGaps(page: Page) {
+  return page.evaluate(() => {
+    const floor = document.querySelector('[data-testid="floor"]')?.getBoundingClientRect()
+    if (!floor) return null
+    return [...document.querySelectorAll('.actor[data-stand="yes"]')].map((el) => ({
+      id: el.getAttribute('data-testid'),
+      gap: Math.round(floor.top - el.getBoundingClientRect().bottom),
+    }))
+  })
+}
+
+test('everyone stands on the floor, at every panel shape', async ({ page }) => {
+  // Placing an actor by its centre made this gap a function of the
+  // panel's aspect ratio: it ran from 65px to 359px and swung 2.4x as
+  // the panel was dragged. Anchoring by the feet makes it exactly zero,
+  // which is why this can be an equality rather than a tolerance.
+  for (const activity of ['sandbox', 'order', 'wake', 'belt']) {
+    await open(page, activity)
+    for (const [w, h] of [
+      [1440, 900],
+      [1100, 750],
+      [900, 800],
+    ] as const) {
+      await page.setViewportSize({ width: w, height: h })
+      for (const sceneW of [340, 560, 880]) {
+        await page.evaluate((v) => {
+          const el = document.querySelector('.workbench') as HTMLElement | null
+          el?.style.setProperty('--scene-w', `${v}px`)
+        }, sceneW)
+        const gaps = await footGaps(page)
+        expect(gaps, `${activity} has no floor`).not.toBeNull()
+        expect(gaps!.length, `${activity} stands nobody`).toBeGreaterThan(0)
+        for (const { id, gap } of gaps!) {
+          expect(Math.abs(gap), `${activity}/${id} at ${w}x${h} scene ${sceneW}px`).toBeLessThanOrEqual(1)
+        }
+      }
+    }
+  }
+  await page.setViewportSize({ width: 1280, height: 720 })
+})
+
+test('the belt exists, and the crates are on it', async ({ page }) => {
+  await open(page, 'belt')
+  await expect(page.getByTestId('floor')).toHaveAttribute('data-look', 'belt')
+  const gaps = await footGaps(page)
+  // Five crates and the robot.
+  expect(gaps).toHaveLength(6)
+  for (const { gap } of gaps!) expect(Math.abs(gap)).toBeLessThanOrEqual(1)
+})
+
+test('a bubble clears a standing speaker instead of covering them', async ({ page }) => {
+  await open(page, 'order')
+  const box = await page.evaluate(() => {
+    const speaker = document
+      .querySelector('[data-testid="guide"]')
+      ?.getAttribute('data-speaker')
+    const actor = document.querySelector(`[data-testid="actor-${speaker}"]`)?.getBoundingClientRect()
+    const bubble = document.querySelector('[data-testid="guide"]')?.getBoundingClientRect()
+    const stage = document.querySelector('.stage')?.getBoundingClientRect()
+    if (!actor || !bubble || !stage) return null
+    return {
+      speaker,
+      clearance: Math.round(actor.top - bubble.bottom),
+      inside:
+        bubble.top >= stage.top &&
+        bubble.bottom <= stage.bottom &&
+        bubble.left >= stage.left &&
+        bubble.right <= stage.right,
+    }
+  })
+  expect(box?.speaker).toBe('courier')
+  // Above her, not over her. The bubble used to cover 58px of her face.
+  expect(box!.clearance).toBeGreaterThanOrEqual(0)
+  // And still on the stage. "Above the speaker" is satisfied just as well
+  // by a bubble lifted clean off the top of the panel, which is a bug
+  // this repo has already shipped once.
+  expect(box!.inside).toBe(true)
+})
