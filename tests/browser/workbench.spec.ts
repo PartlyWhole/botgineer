@@ -936,3 +936,64 @@ test('an editor level offers the next one when its scene is satisfied', async ({
   await page.getByTestId('advance').click()
   expect(page.url()).toContain('#/belt')
 })
+
+test('an object card keeps its three tiers legible', async ({ page }) => {
+  await open(page, 'sandbox')
+  await say(page, '30')
+  await say(page, 'xs = [1, 2]')
+  await stillness(page)
+
+  const audit = await page.evaluate(() => {
+    const parse = (c: string) => c.match(/[\d.]+/g)!.map(Number)
+    const lin = (v: number) => (v /= 255) <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4
+    const L = ([r, g, b]: number[]) => 0.2126 * lin(r!) + 0.7152 * lin(g!) + 0.0722 * lin(b!)
+    const blend = (fg: number[], a: number, bg: number[]) => fg.map((c, i) => c * a + bg[i]! * (1 - a))
+    const ratio = (a: number[], b: number[]) => {
+      const [x, y] = [L(a), L(b)].sort((m, n) => n - m)
+      return (x! + 0.05) / (y! + 0.05)
+    }
+    const box = (el: Element) => el.getBoundingClientRect()
+    const overlap = (a: DOMRect, b: DOMRect) =>
+      !(a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top)
+
+    return [...document.querySelectorAll('.node.object')].map((card) => {
+      const bg = parse(getComputedStyle(card).backgroundColor)
+      const of = (sel: string) => {
+        const el = card.querySelector(sel)!
+        const cs = getComputedStyle(el)
+        return { el, size: parseFloat(cs.fontSize), ratio: ratio(blend(parse(cs.color), 1, bg), bg) }
+      }
+      const repr = of('.repr')
+      const type = of('.type')
+      const handle = of('.handle')
+      const cardBox = box(card)
+      return {
+        reprRatio: repr.ratio,
+        typeRatio: type.ratio,
+        // The value leads on size.
+        valueLeads: repr.size > type.size && repr.size > handle.size,
+        // Nothing is drawn on top of anything else.
+        collides:
+          overlap(box(repr.el), box(type.el)) ||
+          overlap(box(repr.el), box(handle.el)) ||
+          overlap(box(type.el), box(handle.el)),
+        // The type is off the axis the value is read down.
+        typeOffAxis:
+          Math.abs(
+            (box(type.el).left + box(type.el).right) / 2 - (cardBox.left + cardBox.right) / 2,
+          ) > 6,
+      }
+    })
+  })
+
+  expect(audit.length).toBeGreaterThan(2)
+  for (const card of audit) {
+    // 9px text at 2.25:1 was unreadable; secondary must mean smaller and
+    // aside, never faded out.
+    expect(card.typeRatio).toBeGreaterThanOrEqual(4.5)
+    expect(card.reprRatio).toBeGreaterThanOrEqual(4.5)
+    expect(card.valueLeads).toBe(true)
+    expect(card.collides).toBe(false)
+    expect(card.typeOffAxis).toBe(true)
+  }
+})

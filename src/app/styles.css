@@ -25,9 +25,14 @@
   --bad: #c0392b;
   --bad-bg: #fdeceb;
   --value: #2f7f6a;
+  /* For text on the card tints. `--value` on `--value-bg` measures
+     4.37:1 and `--ref` on `--ref-bg` 4.47:1 — both just under AA for
+     text this size, and the card's type label is 9px. 5.79 and 6.31. */
+  --value-deep: #1f6b57;
   --value-bg: #eaf7f2;
   --value-line: #b6ded1;
   --ref: #9a6a12;
+  --ref-deep: #7d5409;
   --ref-bg: #fff8e8;
   --ref-line: #f0d9a8;
   --radius: 14px;
@@ -760,57 +765,68 @@ kbd {
 /* An object card, in three tiers.
    
    The value is what the object *is*, so it is centred and it is the thing
-   you read; the type qualifies it and sits in the corner, the way a
-   trading card wears its element; the handle is bookkeeping and only
-   surfaces on hover or when the node is picked.
+   you read. Above it a strip carries the bookkeeping: the handle at the
+   left, the type at the right, both small and quiet — a trading card
+   wears its element in the corner, off the axis you read down.
    
-   The handle is positioned absolutely rather than hidden, because the
-   force layout measures these pills and a size that changed on hover
-   would shove the whole field around under the cursor. */
+   The strip is **in flow with its height reserved**, which is what keeps
+   the card the same size whether or not the handle is showing. The layout
+   measures these pills, so a card that resized on hover would shove the
+   field around under the cursor. An earlier version positioned the handle
+   absolutely to get that guarantee and paid for it by drawing `obj3`
+   straight across the `30`: there was no reserved strip for it to sit in,
+   so it had nowhere to go but on top of the value. Reserving space and
+   not resizing are not in conflict — padding and a fixed-height row cost
+   the same whether their contents are visible or not. */
 .node.object {
   border-radius: 10px;
   flex-direction: column;
   align-items: stretch;
-  gap: 0;
-  padding: 3px 10px 5px;
-  min-width: 58px;
+  gap: 1px;
+  padding: 3px 8px 5px;
+}
+
+.node.object .meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  /* Reserved width as well as height: the handle holds its place while
+     invisible, so revealing it cannot move the type or resize the card. */
+  gap: 7px;
+  min-height: 11px;
+  line-height: 1;
 }
 
 .node.object .repr {
   display: block;
   text-align: center;
-  font-size: 1.15em;
+  font-size: 1.18em;
   font-weight: 700;
-  line-height: 1.25;
+  line-height: 1.2;
 }
 
+/* Lower case, as Python spells it, and no letter-spacing: `INT` tracked
+   out read as a heading and competed with the value it was qualifying.
+   
+   Quiet by size and position, not by transparency. At `opacity: 0.6` this
+   measured **2.25:1** against the card — 9px text that nobody with less
+   than perfect sight was going to read. Secondary has to mean smaller and
+   off to one side, not faded out. */
 .node.object .type {
-  align-self: flex-end;
-  max-width: 14ch;
-  overflow: hidden;
-  text-overflow: ellipsis;
   font-size: 0.72em;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  opacity: 0.7;
-  line-height: 1.35;
 }
 
 .node.object .handle {
-  position: absolute;
-  top: 2px;
-  left: 9px;
   font-size: 0.68em;
   font-weight: 700;
   opacity: 0;
   transition: opacity 120ms ease;
-  pointer-events: none;
 }
 
 .node.object:hover .handle,
 .node.object:focus-visible .handle,
 .node.object.picked .handle {
-  opacity: 0.72;
+  opacity: 1;
 }
 
 /* A repr is as long as the value is, and one long value should not get to
@@ -834,13 +850,13 @@ kbd {
 .node.object.value {
   background: var(--value-bg);
   border-color: var(--value-line);
-  color: var(--value);
+  color: var(--value-deep);
 }
 
 .node.object.reference {
   background: var(--ref-bg);
   border-color: var(--ref-line);
-  color: var(--ref);
+  color: var(--ref-deep);
 }
 
 /* Picking grows the node in place. Zooming in *is* the detail view, so

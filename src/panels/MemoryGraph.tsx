@@ -544,14 +544,18 @@ function Pill({
       title={`${handles.get(id)} · ${object.type} ${object.repr}`}
       aria-label={`${object.repr}, ${object.type}, ${handles.get(id)}`}
     >
-      {/* The value is what the object *is*, so it is the thing in the
-          middle. The type qualifies it and sits in the corner; the handle
-          is bookkeeping and only surfaces when you ask for it. */}
-      <span className="repr">{object.repr}</span>
-      <span className="type">{object.type}</span>
-      <span className="handle" aria-hidden="true">
-        {handles.get(id)}
+      {/* A top strip for the bookkeeping, then the value.
+          
+          The strip is in flow and its height is reserved, so the handle
+          can appear and disappear without the card changing size — which
+          it must not, because the layout measures these pills. The
+          previous attempt positioned the handle absolutely to get the
+          same guarantee and had it land on top of the value instead. */}
+      <span className="meta" aria-hidden="true">
+        <span className="handle">{handles.get(id)}</span>
+        <span className="type">{object.type}</span>
       </span>
+      <span className="repr">{object.repr}</span>
       {picked && object.partial && <span className="partial">partial</span>}
     </button>
   )
