@@ -13,6 +13,7 @@ import {
   disturb,
   frame,
   isFinitePosition,
+  labelAt,
   laneX,
   makeNode,
   MAX_K,
@@ -458,6 +459,57 @@ describe('the clouds are shaped like the pane', () => {
     const b = bands(g.nodes, V)
     expect(g.nodes[0]!.x).toBeGreaterThanOrEqual(b.object.x0 - 1)
     expect(g.nodes[0]!.x).toBeLessThanOrEqual(b.object.x1 + 1)
+  })
+})
+
+describe('pointer labels', () => {
+  it('sits near the far end, not in the middle', () => {
+    const at = labelAt({ x: 0, y: 0 }, { x: 100, y: 0 })
+    expect(at.x).toBeGreaterThan(60)
+  })
+
+  it('spreads a hub\'s labels as far as the nodes they name', () => {
+    // The whole reason it moved off the midpoint. Forty pointers out of one
+    // list put 34 of their 40 labels within a text-height of another.
+    const hub = { x: 0, y: 0 }
+    const spokes = Array.from({ length: 40 }, (_, i) => {
+      const a = (i / 40) * Math.PI * 2
+      return { x: Math.cos(a) * 200, y: Math.sin(a) * 200 }
+    })
+    const near = (place: (s: { x: number; y: number }) => { x: number; y: number }) => {
+      const ps = spokes.map(place)
+      let crowded = 0
+      for (let i = 0; i < ps.length; i++) {
+        for (let j = 0; j < ps.length; j++) {
+          if (i === j) continue
+          if (Math.hypot(ps[i]!.x - ps[j]!.x, ps[i]!.y - ps[j]!.y) < 18) {
+            crowded++
+            break
+          }
+        }
+      }
+      return crowded
+    }
+    const midpoint = near((s) => ({ x: (hub.x + s.x) / 2, y: (hub.y + s.y) / 2 - 5 }))
+    const farEnd = near((s) => labelAt(hub, s))
+    expect(farEnd).toBeLessThan(midpoint)
+  })
+
+  it('always puts the text on the same side of the line', () => {
+    // Otherwise a label flips across its edge as the field turns.
+    for (let i = 0; i < 36; i++) {
+      const a = (i / 36) * Math.PI * 2
+      const to = { x: Math.cos(a) * 100, y: Math.sin(a) * 100 }
+      const at = labelAt({ x: 0, y: 0 }, to)
+      const onLine = { x: to.x * 0.78, y: to.y * 0.78 }
+      expect(at.y - onLine.y).toBeLessThanOrEqual(0.001)
+    }
+  })
+
+  it('survives an edge with no length', () => {
+    const at = labelAt({ x: 5, y: 5 }, { x: 5, y: 5 })
+    expect(Number.isFinite(at.x)).toBe(true)
+    expect(Number.isFinite(at.y)).toBe(true)
   })
 })
 

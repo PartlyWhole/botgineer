@@ -492,6 +492,46 @@ export function trimTo(
   return { x: to.x - dx * t, y: to.y - dy * t }
 }
 
+/** How far along the edge the label sits, measured from the source. */
+const LABEL_T = 0.78
+/** How far to the side of the line, so the text is beside it and not on it. */
+const LABEL_OFF = 9
+
+/**
+ * Where a pointer's label (a list index, a dict key) goes.
+ *
+ * Not the midpoint, which is where it used to go. Every pointer out of a
+ * collection leaves the *same* node, so at the midpoint all of a hub's
+ * labels land in a tight ring around it: on a 40-element list, 34 of the 40
+ * sat within one text-height of another and the whole thing read as a blue
+ * smear. At the far end they inherit the spacing of the neighbours they
+ * name, which collision has already spread out — and a label next to the
+ * thing it names is the right place for it anyway.
+ *
+ * The sideways offset is always toward the top of the screen, so a label
+ * does not flip from one side of its line to the other as the field turns.
+ */
+export function labelAt(
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+  t = LABEL_T,
+  off = LABEL_OFF,
+): { x: number; y: number } {
+  const dx = to.x - from.x
+  const dy = to.y - from.y
+  const len = Math.hypot(dx, dy)
+  const x = from.x + dx * t
+  const y = from.y + dy * t
+  if (len < 0.01) return { x, y: y - off }
+  let px = -dy / len
+  let py = dx / len
+  if (py > 0) {
+    px = -px
+    py = -py
+  }
+  return { x: x + px * off, y: y + py * off }
+}
+
 /** Viewport point → world point, for turning a pointer position into a
  *  node position while dragging. */
 export function toWorld(px: number, py: number, c: Camera, v: Viewport): { x: number; y: number } {

@@ -19,6 +19,7 @@ import {
   cameraDistance,
   disturb,
   frame,
+  labelAt,
   makeNode,
   relax,
   RELAX_BUDGET,
@@ -159,8 +160,9 @@ export function MemoryGraph({ snapshot, handles, runKey, picked, onPick }: Props
       path.setAttribute('d', `M ${a.x} ${a.y} L ${end.x} ${end.y}`)
       const label = labelRefs.current.get(key)
       if (label) {
-        label.setAttribute('x', String((a.x + end.x) / 2))
-        label.setAttribute('y', String((a.y + end.y) / 2 - 5))
+        const at = labelAt(a, end)
+        label.setAttribute('x', String(at.x))
+        label.setAttribute('y', String(at.y))
       }
     }
   }, [])
