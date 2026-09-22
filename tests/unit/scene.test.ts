@@ -3,7 +3,7 @@
  * given what is bound, what does the picture show?
  */
 import { describe, expect, it } from 'vitest'
-import { bubbleX } from '../../src/panels/ScenePanel'
+import { bubbleX, halfHeightPct } from '../../src/panels/ScenePanel'
 import { readScene, type SceneSpec } from '../../src/scene/spec'
 import type { MemorySnapshot, PyObject } from '../../src/memory/model'
 
@@ -146,8 +146,36 @@ describe('scope', () => {
 describe('the guide bubble', () => {
   it('stays inside the stage however near an edge the speaker is', () => {
     // A crow at x: 14 pushed half the sentence out of the panel.
-    expect(bubbleX(14)).toBe(27)
-    expect(bubbleX(96)).toBe(73)
+    expect(bubbleX(14)).toBe(31)
+    expect(bubbleX(96)).toBe(69)
     expect(bubbleX(50)).toBe(50)
+  })
+
+  it('never lets the clamped body run off either edge', () => {
+    // The body is at most 58% of the stage wide, so its half-width is
+    // 29%. The clamp has to keep the centre at least that far in, or a
+    // sentence leaves the panel at the 320px minimum width where the
+    // percentage, not the 280px cap, is what binds.
+    const half = 58 / 2
+    for (const x of [0, 14, 31, 50, 69, 96, 100]) {
+      expect(bubbleX(x)).toBeGreaterThanOrEqual(half)
+      expect(bubbleX(x)).toBeLessThanOrEqual(100 - half)
+    }
+  })
+
+  it('clears the speaker rather than sitting on its face', () => {
+    // The lift is half the speaker's own rendered height, in percent of
+    // the stage's *width* — the unit a percentage margin resolves in.
+    // A 20%-wide crow is 20 * 160/140 tall, so the lift is ~11.4.
+    expect(halfHeightPct({ id: 'c', kind: 'crow', x: 30, y: 48, w: 20 })).toBeCloseTo(11.43, 2)
+    expect(halfHeightPct({ id: 'r', kind: 'robot', x: 68, y: 48, w: 22 })).toBeCloseTo(13.36, 2)
+    expect(halfHeightPct({ id: 'm', kind: 'courier', x: 76, y: 46, w: 20 })).toBeCloseTo(12.86, 2)
+  })
+
+  it('over-estimates the lift for a prop rather than under-estimating it', () => {
+    // A bubble that clears too much is merely high; one that clears too
+    // little covers the thing that is talking.
+    expect(halfHeightPct({ id: 's', kind: 'sign', x: 40, y: 84, w: 34 })).toBe(17)
+    expect(halfHeightPct({ id: 'p', kind: 'plinth', x: 50, y: 92 })).toBe(8)
   })
 })

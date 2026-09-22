@@ -6,7 +6,7 @@
  * takes no commands, so it cannot show something the program did not do —
  * and scrubbing the trace rewinds the picture for free.
  */
-import { readScene, type ActorView, type SceneSpec } from '../scene/spec'
+import { readScene, type Actor, type ActorKind, type ActorView, type SceneSpec } from '../scene/spec'
 import type { MemorySnapshot } from '../memory/model'
 import { Robot, Courier } from '../ui/Characters'
 import { Crow } from '../ui/Crow'
@@ -47,23 +47,44 @@ export function ScenePanel({
         ))}
 
         {guide && speaker && (
+          // A rail, not a free-floating box. Its bottom edge is the
+          // speaker's *top* edge — `bottom` in percent of the stage's
+          // height, then a percentage `margin-bottom`, which CSS resolves
+          // against the containing block's *width*, to add back half the
+          // speaker's own height. That is the only way to mix the two
+          // axes without measuring anything, and it is what keeps a
+          // bubble off the face of whoever is talking.
+          //
+          // The rail spans the stage, so the bubble's width is its
+          // `max-width` rather than whatever room happened to be left
+          // between the speaker and the right-hand edge.
           <div
-            className="bubble"
-            data-testid="guide"
-            data-speaker={speaker.actor.id}
-            // Anchored to the speaker, but kept inside the stage: a
-            // character near an edge would otherwise push half the
-            // sentence out of the panel, and the guide is the one thing
-            // in the scene that has to be readable.
-            style={{ left: `${bubbleX(speaker.actor.x)}%`, top: `${speaker.actor.y}%` }}
-            aria-live="polite"
+            className="bubble-rail"
+            style={{
+              bottom: `${100 - speaker.actor.y}%`,
+              marginBottom: `${halfHeightPct(speaker.actor)}%`,
+            }}
           >
-            {richText(guide.text)}
-            {onAdvance && (
-              <button type="button" className="advance" onClick={onAdvance} data-testid="advance">
-                Next
-              </button>
-            )}
+            <div
+              className="bubble"
+              data-testid="guide"
+              data-speaker={speaker.actor.id}
+              // Kept inside the stage: a character near an edge would
+              // otherwise push half the sentence out of the panel, and
+              // the guide is the one thing that has to be readable. The
+              // body moves; the tail does not, so the clamp cannot make
+              // the bubble point at the wrong character.
+              style={{ left: `${bubbleX(speaker.actor.x) - 50}%` }}
+              aria-live="polite"
+            >
+              {richText(guide.text)}
+              {onAdvance && (
+                <button type="button" className="advance" onClick={onAdvance} data-testid="advance">
+                  Next
+                </button>
+              )}
+            </div>
+            <span className="bubble-tail" style={{ left: `${speaker.actor.x}%` }} />
           </div>
         )}
       </div>
@@ -84,8 +105,33 @@ export function ScenePanel({
   )
 }
 
-/** Horizontal anchor for a speech bubble, clamped clear of both edges. */
-export const bubbleX = (x: number): number => Math.min(Math.max(x, 27), 73)
+/**
+ * Horizontal anchor for a speech bubble's *body*, clamped clear of both
+ * edges. The clamp is 31–69 rather than the whole stage because the body
+ * is at most 62% wide, so anywhere in this range keeps all of it on
+ * screen — at a 320px panel as much as a 900px one. The tail is not
+ * clamped, so anchoring to the speaker is not what the clamp costs.
+ */
+export const bubbleX = (x: number): number => Math.min(Math.max(x, 31), 69)
+
+/**
+ * Half an actor's rendered height, in percent of the stage *width* —
+ * the unit a percentage margin resolves in.
+ *
+ * A character's height is its width times its own viewBox ratio, so the
+ * cast's ratios are the numbers that matter. Everything else on the stage
+ * is a prop of fixed or near-square height, and 1 is a safe over-estimate
+ * there: a bubble that clears too much is merely high, one that clears
+ * too little sits on a face.
+ */
+const ACTOR_RATIO: Partial<Record<ActorKind, number>> = {
+  robot: 170 / 140,
+  crow: 160 / 140,
+  courier: 180 / 140,
+}
+
+export const halfHeightPct = (actor: Actor): number =>
+  ((actor.w ?? 16) * (ACTOR_RATIO[actor.kind] ?? 1)) / 2
 
 function ActorNode({ view, mood }: { view: ActorView; mood: Mood }) {
   const { actor } = view

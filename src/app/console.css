@@ -125,12 +125,32 @@
 
 /* ------------------------------- guide ------------------------------- */
 
-.stage .bubble {
+/* The rail spans the stage and sits with its bottom edge on the
+   speaker's head; see ScenePanel for how the two axes are mixed. It
+   matters that it is full width: an absolutely positioned bubble anchored
+   at `left: 73%` can only ever be 27% of the stage wide, which turned
+   every right-hand speaker's line into a tower one word per line. */
+.stage .bubble-rail {
   position: absolute;
-  /* Anchored to the speaker, then lifted clear of it and pulled left so
-     the tail sits over the character rather than beside the panel edge. */
-  transform: translate(-46%, calc(-100% - 14px));
-  max-width: min(280px, 76%);
+  left: 0;
+  right: 0;
+  padding-bottom: 14px;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.stage .bubble {
+  /* In flow inside the rail, so `max-width` and the auto margins decide
+     the width; `left` then slides that box towards the speaker without
+     taking any room away from it. */
+  position: relative;
+  margin: 0 auto;
+  width: max-content;
+  /* 58%, against a 31–69 clamp, leaves a 2% gutter at either edge even
+     when the panel is dragged to its 320px minimum and the percentage is
+     the binding constraint. */
+  max-width: min(280px, 58%);
+  pointer-events: auto;
   padding: 9px 12px;
   border-radius: 12px;
   background: var(--surface);
@@ -142,13 +162,15 @@
   z-index: 3;
 }
 
-.stage .bubble::after {
-  content: '';
+/* On the rail, at the speaker's own x — so it points at whoever is
+   talking even when the clamp has slid the body away from them. */
+.stage .bubble-tail {
   position: absolute;
-  left: 42%;
-  bottom: -6px;
-  width: 11px;
-  height: 11px;
+  bottom: 8px;
+  left: 0;
+  width: 12px;
+  height: 12px;
+  margin-left: -6px;
   background: var(--surface);
   border-right: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
@@ -156,6 +178,9 @@
 }
 
 .stage .bubble code {
+  /* One expression, one line. Breaking `customer = "Ana"` across two
+     chips is exactly the reading the lesson is trying to teach against. */
+  white-space: nowrap;
   padding: 1px 5px;
   border-radius: 5px;
   background: var(--brand-soft);
@@ -166,13 +191,13 @@
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .stage .bubble {
+  .stage .bubble-rail {
     animation: bubble-in 180ms ease-out;
   }
   @keyframes bubble-in {
     from {
       opacity: 0;
-      transform: translate(-46%, calc(-100% - 6px));
+      translate: 0 8px;
     }
   }
 }
