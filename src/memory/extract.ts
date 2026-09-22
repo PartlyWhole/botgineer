@@ -7,7 +7,7 @@
  * what the interpreter reported, and no more.
  */
 import { decodeValue, formatDecoded } from '../runtime/decode'
-import { KEEPER } from '../repl/program'
+import { DESCRIBE, THOUGHT, THOUGHT_SEP } from '../repl/program'
 import type { Binding as WireBinding, HeapNode, StepRecord, TraceValue } from '../runtime/types'
 import type { Binding, Element, MemorySnapshot, PyObject } from './model'
 
@@ -30,7 +30,7 @@ const COLLECTION_KINDS = new Set(['list', 'tuple', 'set', 'frozenset', 'dict'])
 
 /** Names the app itself put in the program. They are real bindings, but
  *  they are our plumbing rather than the player's work. */
-const HIDDEN = new Set(['__builtins__', '__name__', '__doc__', '__package__', KEEPER])
+const HIDDEN = new Set(['__builtins__', '__name__', '__doc__', '__package__', THOUGHT, DESCRIBE])
 
 type Builder = {
   objects: Record<string, PyObject>
@@ -66,63 +66,34 @@ export function extractMemory(step: StepRecord | undefined): MemorySnapshot {
     for (const local of frame.locals) add(local, frame.function)
   }
 
-  // Values from bare expressions. The console keeps them in a list because
-  // CPython would otherwise collect them the instant they were evaluated;
-  // that list is our plumbing, so it is hidden and contributes no pointer.
-  // What survives is the contents, held by nothing and named by nothing,
-  // which is precisely how a nameless object should look.
-  for (const g of step.globals) {
-    if (g.module !== '__main__') continue
-    for (const binding of g.bindings) {
-      if (binding.name === KEEPER) internKept(binding.value, b)
-    }
-  }
-
   return { bindings, objects: b.objects, line: step.location.line }
 }
 
+/** What the robot thought: the type and repr of a bare expression's
+ *  value, or null when the line reported nothing. */
+export type Thought = { type: string; repr: string }
+
 /**
- * The `repr` of every value the console kept, oldest first.
+ * Reads the description the console asked for.
  *
- * The console needs the last one to echo, and this is the module that
- * reads the wire format — no panel may go looking for it itself.
- *
- * `None` is skipped, here and in `internKept`. A line like `print("hi")`
- * is an expression whose value is `None`, and a REPL that answered every
- * such line with `None` would be noise; CPython's own prompt suppresses
- * it for the same reason. The consequence is that a deliberate bare
- * `None` makes no object either, which is a fair price — `None` is a
- * singleton, and "the object you just made" is not a useful thing to say
- * about it.
+ * The value itself is long gone — only this string survives, under a
+ * hidden name. Read from the wire rather than decoded, because the
+ * separator is a literal tab and a decoded repr would escape it.
  */
-export function keptValues(step: StepRecord | undefined): string[] {
-  if (!step) return []
+export function thought(step: StepRecord | undefined): Thought | null {
+  if (!step) return null
   for (const g of step.globals) {
     if (g.module !== '__main__') continue
     for (const binding of g.bindings) {
-      if (binding.name !== KEEPER) continue
-      if (binding.value.kind !== 'ref') return []
-      const uid = (binding.value as { uid: string }).uid
-      const node = step.heap.find((n) => n.uid === uid)
-      if (!node || node.kind !== 'list') return []
-      return (node.items ?? [])
-        .filter((v) => v.kind !== 'none')
-        .map((v) => formatDecoded(decodeValue(v, step.heap)))
+      if (binding.name !== THOUGHT) continue
+      if (binding.value.kind !== 'str') return null
+      const text = (binding.value as { value: string }).value
+      const cut = text.indexOf(THOUGHT_SEP)
+      if (cut < 0) return null
+      return { type: text.slice(0, cut), repr: text.slice(cut + THOUGHT_SEP.length) }
     }
   }
-  return []
-}
-
-/** Interns each item of the keeper list without interning the list, so
- *  the values appear as objects and the list leaves no trace. */
-function internKept(value: TraceValue, b: Builder): void {
-  if (value.kind !== 'ref') return
-  const node = b.heap.find((n) => n.uid === (value as { uid: string }).uid)
-  if (!node || node.kind !== 'list') return
-  for (const item of node.items ?? []) {
-    if (item.kind === 'none') continue
-    intern(item, b)
-  }
+  return null
 }
 
 /** Get-or-create the object for a value, recursing into collections. */

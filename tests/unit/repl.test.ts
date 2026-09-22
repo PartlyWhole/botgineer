@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
-  KEEPER,
+  DESCRIBE,
+  THOUGHT,
   buildProgram,
   isExpression,
   needsContinuation,
@@ -103,32 +104,38 @@ describe('needsContinuation', () => {
 })
 
 describe('buildProgram', () => {
-  it('keeps a bare expression reachable instead of dropping it', () => {
+  it('asks a bare expression to describe itself, and keeps nothing', () => {
     const built = buildProgram([], expr('10'))
-    expect(built.source).toBe(`${KEEPER} = []\n${KEEPER}.append(10)\n`)
+    const lines = built.source.trimEnd().split('\n')
+    expect(lines[0]).toContain(DESCRIBE)
+    expect(lines[1]).toBe(`${THOUGHT} = ${DESCRIBE}(10)`)
+    // Nothing anywhere holds a reference to the value.
+    expect(built.source).not.toContain('append')
   })
 
   it('leaves a statement exactly as the player typed it', () => {
     const built = buildProgram([], stmt('x = 5'))
-    expect(built.source).toBe(`${KEEPER} = []\nx = 5\n`)
+    expect(built.source.trimEnd().split('\n')[1]).toBe('x = 5')
   })
 
-  it('replays accepted history ahead of the pending line', () => {
+  it('replays a history expression verbatim, so only the new line reports', () => {
+    // `10` alone is a legal statement that evaluates and discards — which
+    // is exactly the behaviour being taught — and leaving it unwrapped
+    // means the description can only have come from the pending line.
     const built = buildProgram([expr('10'), stmt('x = 5')], expr('x + 1'))
-    expect(built.source).toBe(
-      [`${KEEPER} = []`, `${KEEPER}.append(10)`, 'x = 5', `${KEEPER}.append(x + 1)`, ''].join('\n'),
-    )
+    const lines = built.source.trimEnd().split('\n')
+    expect(lines.slice(1)).toEqual(['10', 'x = 5', `${THOUGHT} = ${DESCRIBE}(x + 1)`])
   })
 
   it('points pendingLine at the submission, not at the replay', () => {
     const built = buildProgram([expr('10'), stmt('x = 5')], expr('x + 1'))
     const lines = built.source.split('\n')
-    expect(lines[built.pendingLine - 1]).toBe(`${KEEPER}.append(x + 1)`)
+    expect(lines[built.pendingLine - 1]).toBe(`${THOUGHT} = ${DESCRIBE}(x + 1)`)
   })
 
   it('points pendingLine correctly with no history at all', () => {
     const built = buildProgram([], expr('10'))
-    expect(built.source.split('\n')[built.pendingLine - 1]).toBe(`${KEEPER}.append(10)`)
+    expect(built.source.split('\n')[built.pendingLine - 1]).toBe(`${THOUGHT} = ${DESCRIBE}(10)`)
   })
 
   it('attributes every program line to the entry that produced it', () => {
@@ -142,7 +149,8 @@ describe('buildProgram', () => {
 
   it('builds a runnable program with nothing pending', () => {
     const built = buildProgram([expr('10')], null)
-    expect(built.source).toBe(`${KEEPER} = []\n${KEEPER}.append(10)\n`)
+    expect(built.source.trimEnd().split('\n')[1]).toBe('10')
+    expect(built.source).not.toContain(THOUGHT)
     expect(built.pendingLine).toBe(1)
   })
 })

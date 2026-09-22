@@ -82,6 +82,30 @@ test('two panels, with memory sharing the robot panel', async ({ page }) => {
   await expect(page.locator('.app')).toHaveAttribute('data-isolated', 'yes')
 })
 
+/** The camera's current scale, for asserting that picking zooms in. */
+const zoom = (page: Page) =>
+  page.evaluate(() => {
+    const el = document.querySelector('.graph .world')
+    if (!el) return 0
+    return +new DOMMatrix(getComputedStyle(el).transform).a.toFixed(3)
+  })
+
+/** Waits until nothing in the field is moving any more. The layout eases
+ *  and the camera eases after it, so anything that reads a position or
+ *  hovers a pill has to let both finish first. */
+async function stillness(page: Page) {
+  let last = ''
+  for (let i = 0; i < 40; i++) {
+    const now = await page.evaluate(() =>
+      [...document.querySelectorAll('.node')].map((n) => (n as HTMLElement).style.transform).join('|') +
+      (document.querySelector('.graph .world') as HTMLElement | null)?.style.transform,
+    )
+    if (now === last) return
+    last = now
+    await page.waitForTimeout(120)
+  }
+}
+
 /* ------------------------------ (A) the scene ------------------------------ */
 
 test('the scene says what it is waiting for, then reacts to memory', async ({ page }) => {
@@ -104,46 +128,6 @@ test('the scene says what it is waiting for, then reacts to memory', async ({ pa
   await expect(page.getByTestId('waiting')).toHaveCount(0)
   await expect(page.locator('.stage-foot')).toHaveCount(0)
 })
-
-test('a list in memory picks actors out of the scene', async ({ page }) => {
-  await open(page, 'belt')
-  await send(page, 'heavy = ["B1", "D3"]\n')
-
-  await expect(page.getByTestId('actor-B1')).toHaveAttribute('data-picked', 'yes')
-  await expect(page.getByTestId('actor-D3')).toHaveAttribute('data-picked', 'yes')
-  for (const id of ['A7', 'C2', 'E5']) {
-    await expect(page.getByTestId(`actor-${id}`)).toHaveAttribute('data-picked', 'no')
-  }
-
-  // And in text, not only in a lift and a lighter yellow.
-  await expect(page.getByTestId('actor-B1')).toContainText('lifted')
-  await expect(page.getByTestId('actor-A7')).toContainText('not lifted')
-})
-
-/* ------------------------------ (C) the memory ----------------------------- */
-
-/** The camera's zoom, read off the shared transform. */
-const zoom = (page: Page) =>
-  page.evaluate(() => {
-    const el = document.querySelector('.graph .world')
-    if (!el) return 0
-    return +new DOMMatrix(getComputedStyle(el).transform).a.toFixed(3)
-  })
-
-/** Waits for the field and the camera to stop moving, so a measurement is
- *  of where things ended rather than where they were passing through. */
-async function stillness(page: Page) {
-  let last = ''
-  for (let i = 0; i < 40; i++) {
-    const now = await page.evaluate(() =>
-      [...document.querySelectorAll('.node')].map((n) => (n as HTMLElement).style.transform).join('|') +
-      (document.querySelector('.graph .world') as HTMLElement | null)?.style.transform,
-    )
-    if (now === last) return
-    last = now
-    await page.waitForTimeout(120)
-  }
-}
 
 test('memory is one field of nodes and edges, not two boxes', async ({ page }) => {
   await open(page, EDITOR)
@@ -352,22 +336,29 @@ test('dragging a node moves it, and its neighbours follow', async ({ page }) => 
 /* ------------------------ one snapshot, three panels ----------------------- */
 
 test('scrubbing the run rewinds the scene and memory together', async ({ page }) => {
-  await open(page, 'belt')
+  await open(page, 'wake')
   await send(
     page,
-    'heavy = []\nheavy.append("B1")\nheavy.append("D3")\n',
+    'power = False\nname = "Bolt"\npower = True\n',
   )
-  await expect(page.getByTestId('actor-B1')).toHaveAttribute('data-picked', 'yes')
+  // The program ends with the lamp on and the nameplate set.
+  await expect(page.getByTestId('actor-lamp')).toHaveAttribute('data-lit', 'yes')
+  await expect(page.locator('[data-testid="actor-nameplate"] .sign-body')).toHaveText('Bolt')
 
-  // Step 1 is before anything was appended: the scene must agree.
+  // Step 1 is before any of it ran: the scene has to agree.
   await page.getByTestId('scrubber').fill('0')
-  await expect(page.getByTestId('actor-B1')).toHaveAttribute('data-picked', 'no')
-  await expect(page.getByTestId('actor-D3')).toHaveAttribute('data-picked', 'no')
+  await expect(page.getByTestId('actor-lamp')).toHaveAttribute('data-lit', 'no')
+  await expect(page.locator('[data-testid="actor-nameplate"] .sign-body')).toHaveText('unnamed')
+  // Memory rewinds with it, from the same snapshot.
+  expect(await page.evaluate(() => window.botgineer.snapshot().bindings)).toEqual([])
 
-  // …and stepping back to the end brings it back.
+  // …and stepping back to the end brings all of it back.
   const scrubber = page.getByTestId('scrubber')
   await scrubber.fill((await scrubber.getAttribute('max')) ?? '0')
-  await expect(page.getByTestId('actor-D3')).toHaveAttribute('data-picked', 'yes')
+  await expect(page.getByTestId('actor-lamp')).toHaveAttribute('data-lit', 'yes')
+  expect(
+    await page.evaluate(() => window.botgineer.snapshot().bindings.map((b) => b.name).sort()),
+  ).toEqual(['name', 'power'])
 })
 
 /* --------------------------------- failure -------------------------------- */
@@ -403,10 +394,10 @@ test('nothing advertises the runtime working, or the other activities', async ({
 })
 
 test('activities are separate scenes and each deep-links', async ({ page }) => {
-  await open(page, 'belt')
-  await expect(page.getByTestId('actor-B1')).toBeVisible()
+  await open(page, 'order')
+  await expect(page.getByTestId('actor-courier')).toBeVisible()
   await page.reload()
-  await expect(page.getByTestId('actor-A7')).toBeVisible()
+  await expect(page.getByTestId('actor-ticket')).toBeVisible()
 
   // No tabs: the other activities are reachable by hash and nothing else.
   await page.goto('./#/wake')
@@ -445,30 +436,50 @@ test('the starting activity is a console, not an editor', async ({ page }) => {
   expect(await page.evaluate(() => window.botgineer.state().mode)).toBe('console')
 })
 
-test('a bare literal is echoed and kept in memory, with no name', async ({ page }) => {
+test('a bare literal is thought of and let go, never stored', async ({ page }) => {
   await open(page, 'sandbox')
   await say(page, '10')
 
+  // The robot reports it, and it appears above the robot's head.
   await expect(page.getByTestId('echo')).toHaveText('10')
-  // Nothing was bound: the object exists on its own.
+  await expect(page.getByTestId('thought')).toHaveText('10')
+
+  // And nothing is kept. Nothing named it, so there is nothing to keep —
+  // which is what the first lesson is for.
   expect(await page.evaluate(() => window.botgineer.snapshot().bindings)).toEqual([])
-  expect(await reprs(page)).toEqual(['10'])
+  expect(await reprs(page)).toEqual([])
+  await expect(page.getByTestId('memory')).toContainText('Memory is empty')
 })
 
-test('memory accumulates across lines, though each line is its own run', async ({ page }) => {
+test('memory stays empty however much the robot works out', async ({ page }) => {
   await open(page, 'sandbox')
   await say(page, '10')
   await say(page, '"John"')
   await say(page, '3 + 4')
 
-  expect(await reprs(page)).toEqual(["'John'", '10', '7'])
+  // Three lines, three answers, nothing stored by any of them.
+  expect(await reprs(page)).toEqual([])
   await expect(page.getByTestId('echo').last()).toHaveText('7')
-  // Three accepted lines, replayed ahead of every new one.
+  await expect(page.getByTestId('thought')).toHaveText('7')
+  // The history is still replayed ahead of every new line.
   expect(await page.evaluate(() => window.botgineer.state().history)).toEqual([
     '10',
     '"John"',
     '3 + 4',
   ])
+})
+
+test('a name is what makes something stay', async ({ page }) => {
+  await open(page, 'sandbox')
+  await say(page, '7 * 6')
+  expect(await reprs(page)).toEqual([])
+
+  await say(page, 'answer = 7 * 6')
+  // Same computation, but this one had a name to hold it.
+  expect(await reprs(page)).toEqual(['42'])
+  expect(
+    await page.evaluate(() => window.botgineer.snapshot().bindings.map((b) => b.name)),
+  ).toEqual(['answer'])
 })
 
 test('a statement binds a name and is not echoed', async ({ page }) => {
@@ -507,15 +518,46 @@ test('a line that fails is reported and not kept', async ({ page }) => {
   await expect(page.getByTestId('echo').last()).toHaveText('4')
 })
 
-test('the guide advances as the robot learns, and rewinds with memory', async ({ page }) => {
+test('the first lesson walks the four kinds of thing', async ({ page }) => {
   await open(page, 'sandbox')
-  await expect(page.getByTestId('guide')).toContainText('10')
+  await expect(page.getByTestId('guide')).toContainText('whole number')
 
-  await say(page, '10')
-  await expect(page.getByTestId('guide')).toContainText('John')
+  // Any int will do: the kind is what is being taught, not the value.
+  await say(page, '41')
+  await expect(page.getByTestId('guide')).toContainText('decimal point')
 
-  await say(page, '"John"')
-  await expect(page.getByTestId('guide')).toContainText('3 + 4')
+  await say(page, '2.5')
+  await expect(page.getByTestId('guide')).toContainText('quotes')
+
+  // `"True"` is a str, so it answers this step and not the next one.
+  await say(page, '"True"')
+  await expect(page.getByTestId('guide')).toContainText('True')
+  await expect(page.getByTestId('advance')).toHaveCount(0)
+
+  await say(page, 'True')
+  await expect(page.getByTestId('guide')).toContainText('memory is still empty')
+  await expect(page.getByTestId('memory')).toContainText('Memory is empty')
+  await expect(page.getByTestId('advance')).toBeVisible()
+})
+
+test('the second lesson works things out and keeps none of them', async ({ page }) => {
+  await open(page, 'operations')
+  await expect(page.getByTestId('guide')).toContainText('7 * 6')
+
+  await say(page, '7 * 6')
+  await expect(page.getByTestId('thought')).toHaveText('42')
+  await say(page, '9 / 2')
+  await expect(page.getByTestId('thought')).toHaveText('4.5')
+  await say(page, '"bot" + "gineer"')
+  await expect(page.getByTestId('thought')).toHaveText("'botgineer'")
+  await say(page, '3 > 5')
+  await expect(page.getByTestId('thought')).toHaveText('False')
+  await say(page, '(2 + 3) * 4')
+
+  await expect(page.getByTestId('thought')).toHaveText('20')
+  await expect(page.getByTestId('guide')).toContainText('never reached memory')
+  // Five answers, and memory never held one of them.
+  expect(await reprs(page)).toEqual([])
 })
 
 test('a block is collected over several lines before it runs', async ({ page }) => {
@@ -548,11 +590,17 @@ test('a block is collected over several lines before it runs', async ({ page }) 
 
 /* ------------------------------ progression ------------------------------ */
 
-test('the second lesson teaches that a name is an arrow', async ({ page }) => {
+test('the naming lesson teaches that a name is an arrow', async ({ page }) => {
   await open(page, 'names')
   await expect(page.getByTestId('guide')).toContainText('x = 10')
 
   await say(page, 'x = 10')
+  // Reading it back is a step of its own: the point is that it was simply
+  // there, where the previous lesson would have had to recompute it.
+  // Backticks in a lesson render as a code chip, so they are not in the text.
+  await expect(page.getByTestId('guide')).toContainText('There it is in memory')
+  await say(page, 'x')
+  await expect(page.getByTestId('thought')).toHaveText('10')
   await say(page, 'y = x')
   // One object, two names on it.
   expect(
@@ -584,6 +632,7 @@ test('finishing a lesson offers the next one, and only then', async ({ page }) =
 
   await say(page, 'x = 10')
   await expect(page.getByTestId('advance')).toHaveCount(0)
+  await say(page, 'x')
   await say(page, 'y = x')
   await say(page, 'x = 99')
 
@@ -633,7 +682,7 @@ test('everyone stands on the floor, at every panel shape', async ({ page }) => {
   // panel's aspect ratio: it ran from 65px to 359px and swung 2.4x as
   // the panel was dragged. Anchoring by the feet makes it exactly zero,
   // which is why this can be an equality rather than a tolerance.
-  for (const activity of ['sandbox', 'order', 'wake', 'belt']) {
+  for (const activity of ['sandbox', 'operations', 'order', 'wake']) {
     await open(page, activity)
     for (const [w, h] of [
       [1440, 900],
@@ -656,15 +705,6 @@ test('everyone stands on the floor, at every panel shape', async ({ page }) => {
     }
   }
   await page.setViewportSize({ width: 1280, height: 720 })
-})
-
-test('the belt exists, and the crates are on it', async ({ page }) => {
-  await open(page, 'belt')
-  await expect(page.getByTestId('floor')).toHaveAttribute('data-look', 'belt')
-  const gaps = await footGaps(page)
-  // Five crates and the robot.
-  expect(gaps).toHaveLength(6)
-  for (const { gap } of gaps!) expect(Math.abs(gap)).toBeLessThanOrEqual(1)
 })
 
 test('a bubble clears a standing speaker instead of covering them', async ({ page }) => {
@@ -729,20 +769,6 @@ test('a half-finished scene is not a celebration either', async ({ page }) => {
   // One watch of three.
   await expect(page.getByTestId('waiting')).toContainText('name')
   expect(await robotMood(page)).not.toBe('mood-celebrate')
-})
-
-test('an empty pick list moves nothing and earns nothing', async ({ page }) => {
-  await open(page, 'belt')
-  await send(page, 'heavy = []\n')
-  await expect(page.getByTestId('waiting')).toHaveCount(0)
-  for (const id of ['A7', 'B1', 'C2', 'D3', 'E5']) {
-    await expect(page.getByTestId(`actor-${id}`)).toHaveAttribute('data-picked', 'no')
-  }
-  expect(await robotMood(page)).not.toBe('mood-celebrate')
-
-  await send(page, 'heavy = ["B1", "D3"]\n')
-  await expect(page.getByTestId('actor-B1')).toHaveAttribute('data-picked', 'yes')
-  expect(await robotMood(page)).toBe('mood-celebrate')
 })
 
 test('the empty battery is a battery, not a blank box', async ({ page }) => {
@@ -818,26 +844,28 @@ test('the cast does not move when the hint bar comes and goes', async ({ page })
 
 /* ------------------------ memory while you instruct ----------------------- */
 
-test('an object appears in memory without leaving the console', async ({ page }) => {
+test('memory fills in beside the console, without switching to it', async ({ page }) => {
   await open(page, 'sandbox')
   // The point: no switching anywhere in this test.
   await expect(page.getByTestId('console')).toBeVisible()
   await expect(page.getByTestId('memory')).toContainText('Memory is empty')
 
+  // A bare expression is thought of and let go, so memory stays empty.
   await say(page, '10')
-  await expect(page.locator('.node.object .repr')).toHaveText('10')
-  await expect(page.getByTestId('console')).toBeVisible()
+  await expect(page.getByTestId('thought')).toHaveText('10')
+  await expect(page.getByTestId('memory')).toContainText('Memory is empty')
 
-  // Nameless, which is the whole of the first lesson.
-  await expect(page.locator('.node.name')).toHaveCount(0)
-
+  // A name is what puts something there, and it appears as you type it.
   await say(page, 'x = 5')
   await expect(page.locator('.node.name')).toHaveText(['x'])
+  await expect(page.locator('.node.object .repr')).toHaveText('5')
+  await expect(page.getByTestId('console')).toBeVisible()
 })
 
 test('an object card leads with its value, and hides its handle', async ({ page }) => {
   await open(page, 'sandbox')
-  await say(page, '10')
+  // Named, because an unnamed value is never in memory to draw.
+  await say(page, 'n = 10')
   await stillness(page)
   const card = page.locator('.node.object').first()
 
@@ -868,7 +896,7 @@ test('an object card leads with its value, and hides its handle', async ({ page 
 
 test('revealing a handle does not resize the card, or the field would shift', async ({ page }) => {
   await open(page, 'sandbox')
-  await say(page, '10')
+  await say(page, 'n = 10')
   // A moving pill slides out from under the cursor, and `:hover` with it.
   await stillness(page)
   const card = page.locator('.node.object').first()
@@ -925,21 +953,20 @@ test('the last lesson offers somewhere to go, and only once it is done', async (
   await expect(page.getByTestId('editor')).toBeVisible()
 })
 
-test('an editor level offers the next one when its scene is satisfied', async ({ page }) => {
+test('the last level celebrates but has nowhere to send you', async ({ page }) => {
   await open(page, EDITOR)
-  await expect(page.getByTestId('advance')).toHaveCount(0)
-  await send(page, 'power = True\n')
-  await expect(page.getByTestId('advance')).toHaveCount(0)
-
   await send(page, 'power = True\nname = "Bolt"\ncharge = 72\n')
-  await expect(page.getByTestId('advance')).toBeVisible()
-  await page.getByTestId('advance').click()
-  expect(page.url()).toContain('#/belt')
+
+  // Satisfied, so the robot is pleased…
+  expect(await robotMood(page)).toBe('mood-celebrate')
+  // …and `wake` names no `next`, so there is no door to offer. Every
+  // activity before it does name one.
+  await expect(page.getByTestId('advance')).toHaveCount(0)
 })
 
 test('an object card keeps its three tiers legible', async ({ page }) => {
   await open(page, 'sandbox')
-  await say(page, '30')
+  await say(page, 'n = 30')
   await say(page, 'xs = [1, 2]')
   await stillness(page)
 
@@ -996,4 +1023,24 @@ test('an object card keeps its three tiers legible', async ({ page }) => {
     expect(card.collides).toBe(false)
     expect(card.typeOffAxis).toBe(true)
   }
+})
+
+test("the robot's thought is visible on the stage, not just in the DOM", async ({ page }) => {
+  await open(page, 'operations')
+  await say(page, '7 * 6')
+
+  const geometry = await page.evaluate(() => {
+    const t = document.querySelector('[data-testid="thought"]')?.getBoundingClientRect()
+    const stage = document.querySelector('.stage')?.getBoundingClientRect()
+    const robot = document.querySelector('[data-testid="actor-robot"]')?.getBoundingClientRect()
+    if (!t || !stage || !robot) return null
+    return {
+      inside: t.top >= stage.top && t.bottom <= stage.bottom && t.left >= stage.left && t.right <= stage.right,
+      clearsRobot: Math.round(robot.top - t.bottom) >= 0,
+    }
+  })
+  // The stage clips, so "in the DOM" is not the same as "on screen" — an
+  // unanchored rail put this clean above the top edge.
+  expect(geometry?.inside).toBe(true)
+  expect(geometry?.clearsRobot).toBe(true)
 })

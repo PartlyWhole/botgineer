@@ -18,8 +18,8 @@
  * "read this and nod" cannot be checked, would need state to remember the
  * nod, and is a paragraph rather than a task.
  */
+import type { Thought } from '../src/memory/extract'
 import type { MemorySnapshot } from '../src/memory/model'
-import { unreferenced } from '../src/memory/model'
 
 /**
  * What a step is allowed to look at.
@@ -35,7 +35,14 @@ import { unreferenced } from '../src/memory/model'
  */
 export type Evidence = {
   snapshot: MemorySnapshot
-  echoed: string[]
+  /**
+   * Everything the robot has worked out, in order.
+   *
+   * Not memory. A bare expression's value is gone the moment the line
+   * ends — the robot thought of it and let it go — so the early lessons,
+   * which never bind anything, can only be judged on what it thought.
+   */
+  thoughts: Thought[]
   /**
    * Memory as it stood after each accepted line, oldest first, ending
    * with the current one.
@@ -51,6 +58,12 @@ export type Evidence = {
 
 /** True if this held after any accepted line. */
 const ever = (e: Evidence, holds: (s: MemorySnapshot) => boolean): boolean => e.history.some(holds)
+
+/** The robot has thought of something of this type. */
+const thoughtOfA = (e: Evidence, type: string): boolean => e.thoughts.some((t) => t.type === type)
+
+/** The robot has worked this exact answer out. */
+const worked = (e: Evidence, repr: string): boolean => e.thoughts.some((t) => t.repr === repr)
 
 export type LessonStep = {
   /** What the guide says while this step is the current one. */
@@ -69,18 +82,6 @@ export type Lesson = {
 }
 
 /* ----------------------------- predicates ----------------------------- */
-
-/** An object of this type whose `repr` matches, whatever points at it. */
-const has = (snapshot: MemorySnapshot, type: string, repr: string): boolean =>
-  Object.values(snapshot.objects).some((o) => o.type === type && o.repr === repr)
-
-/** A collection of the given size that no name and no other object holds. */
-const loneCollection = (snapshot: MemorySnapshot, size: number): boolean => {
-  const free = new Set(unreferenced(snapshot))
-  return Object.values(snapshot.objects).some(
-    (o) => free.has(o.id) && o.elements !== null && o.elements.length === size,
-  )
-}
 
 /** What this name points at, or null if it points at nothing yet. */
 const targetOf = (snapshot: MemorySnapshot, name: string): string | null =>
@@ -101,34 +102,82 @@ const sameObject = (snapshot: MemorySnapshot, a: string, b: string): boolean => 
 /* ------------------------------ lesson one ------------------------------ */
 
 /**
- * Objects come before names.
+ * The four kinds of thing.
  *
- * Everything here is typed bare, so nothing is ever bound. The point the
- * player should leave with is that `10` is a thing the robot made, not a
- * thing that needs a label to exist.
+ * Nothing is named and nothing is stored: the robot thinks of a value and
+ * lets it go. What the player is learning is that Python has a handful of
+ * basic kinds of thing and that it can tell them apart — `True` is not
+ * `"True"`, and `3` is not `3.0`.
+ *
+ * Each step is judged on the *type* the robot thought of, not on a
+ * particular value, so the player can pick their own number and their own
+ * word. `10` and `7` are both ints, and either is a correct answer.
  */
-export const objectsFirst: Lesson = {
-  id: 'objects-first',
+export const primitives: Lesson = {
+  id: 'primitives',
   steps: [
     {
-      say: 'Say `10` to me. Just the number, then Enter.',
-      done: ({ snapshot }) => has(snapshot, 'int', '10'),
+      say: 'Think of a whole number. Any one. Type it and press Enter.',
+      done: (e) => thoughtOfA(e, 'int'),
     },
     {
-      say: 'That is an object now, sitting in my memory. Make me a word: `"John"`, quotes and all.',
-      done: ({ snapshot }) => has(snapshot, 'str', "'John'"),
+      say: 'Now one with a decimal point. `2.5`, say.',
+      done: (e) => thoughtOfA(e, 'float'),
     },
     {
-      say: 'Now make one you did not type. Try `3 + 4`.',
-      done: ({ snapshot }) => has(snapshot, 'int', '7'),
+      say: 'Now a word, in quotes: `"crow"`.',
+      done: (e) => thoughtOfA(e, 'str'),
     },
     {
-      say: 'One more, and this one holds others: `[1, 2, 3]`.',
-      done: ({ snapshot }) => loneCollection(snapshot, 3),
+      say: 'Last kind. `True` — no quotes. It is either that or `False`.',
+      done: (e) => thoughtOfA(e, 'bool'),
     },
   ],
   outro:
-    'Look at my memory. Four objects, and not one of them has a name — nothing is pointing at them at all. A name is something you add later, when you want to find a thing again.',
+    'Four kinds of thing: `int`, `float`, `str`, `bool`. Look at the robot — it thought of each one and let it go. Its memory is still empty, because nothing had a name.',
+}
+
+/* ------------------------------ lesson two ------------------------------ */
+
+/**
+ * Working things out.
+ *
+ * Operations on each of the kinds from lesson one, and one point at the
+ * end: the answer went nowhere. Nobody but the robot ever knew it, it was
+ * never in memory, and asking again means working it out again. That is
+ * the itch the *next* lesson scratches, which is why this lesson has to
+ * come before names rather than after them.
+ *
+ * The answers are checked exactly, because "work out this specific thing"
+ * is the task. They are also chosen not to collide: no two are the same
+ * repr, so satisfying one step cannot satisfy another by accident.
+ */
+export const operations: Lesson = {
+  id: 'operations',
+  steps: [
+    {
+      say: 'The robot can work things out. Ask it: `7 * 6`.',
+      done: (e) => worked(e, '42'),
+    },
+    {
+      say: 'Division always gives a decimal. Try `9 / 2`.',
+      done: (e) => worked(e, '4.5'),
+    },
+    {
+      say: 'Words add too, and they just run together. `"bot" + "gineer"`.',
+      done: (e) => worked(e, "'botgineer'"),
+    },
+    {
+      say: 'And it can answer a question. Is three more than five? `3 > 5`',
+      done: (e) => worked(e, 'False'),
+    },
+    {
+      say: 'One more, and this one it has to do in two parts: `(2 + 3) * 4`.',
+      done: (e) => worked(e, '20'),
+    },
+  ],
+  outro:
+    'Twenty. And now it is gone — nobody but the robot ever knew it, it never reached memory, and if you want it again it has to work the whole thing out again. Rather annoying, that.',
 }
 
 /**
@@ -155,35 +204,44 @@ export function guidance(lesson: Lesson, evidence: Evidence): Utterance {
 /* ------------------------------ lesson two ------------------------------ */
 
 /**
- * A name is an arrow, not a box.
+ * Keeping one, and what a name actually is.
  *
- * The misconception this exists to prevent is that `x = 10` puts a 10
- * *inside* `x`. If that were true, `y = x` would copy it and rebinding `x`
- * would leave `y` alone by luck rather than by rule. So the lesson ends by
- * rebinding `x` and looking at `y`: it did not move, because it was never
- * attached to `x` at all.
+ * This follows the operations lesson deliberately: that one ends with an
+ * answer nobody kept and the observation that getting it back means
+ * working it out again. A name is the fix for that, so the player meets
+ * binding as the answer to a problem they have just had rather than as a
+ * new piece of syntax.
  *
- * Every object here is a small int, which CPython interns — so two
- * separately typed `10`s really are one object, and the memory view says
+ * The second half prevents the misconception that `x = 10` puts a 10
+ * *inside* `x`. If that were true, `y = x` would copy it and rebinding
+ * `x` would leave `y` alone by luck rather than by rule — so the lesson
+ * ends by moving `x` and looking at `y`.
+ *
+ * Every object here is a small int, which CPython interns, so two
+ * separately typed `10`s really are one object and the memory view says
  * so. That is why the aliasing step is `y = x` and never `y = 10`: the
- * second would look identical on screen while teaching something that is
- * not true of objects in general.
+ * second looks identical on screen while teaching something untrue of
+ * objects in general.
  */
 export const namesPoint: Lesson = {
   id: 'names-point',
   steps: [
     {
-      say: 'Objects again — but this time, give one a handle. Say `x = 10`.',
+      say: 'Tired of it forgetting? Give something a name and it stays. `x = 10`',
       // `ever`, not `snapshot`: the last step of this lesson moves `x`,
       // which would otherwise un-answer the first two.
       done: (e) => ever(e, (s) => points(s, 'x', '10')),
     },
     {
-      say: 'Now aim a second name at the *same* object: `y = x`.',
+      say: 'There it is in memory, with a name pointing at it. Now say just `x`.',
+      done: (e) => worked(e, '10'),
+    },
+    {
+      say: 'No recomputing — it was simply there. Now aim a second name at the *same* one: `y = x`.',
       done: (e) => ever(e, (s) => sameObject(s, 'x', 'y')),
     },
     {
-      say: 'Here is the test. Point `x` somewhere else: `x = 99`. Watch `y`.',
+      say: 'Last bit. Point `x` somewhere else: `x = 99`. Keep an eye on `y`.',
       done: ({ snapshot }) => points(snapshot, 'x', '99') && points(snapshot, 'y', '10'),
     },
   ],
@@ -230,7 +288,7 @@ export const takeAnOrder: Lesson = {
       // Never said aloud by anyone, so it can only come from the stored
       // count. Asked of the robot's answers, not of its memory: replying
       // to a question leaves nothing behind in memory to check.
-      done: ({ echoed }) => echoed.includes('14'),
+      done: (e) => worked(e, '14'),
     },
   ],
   outro:
@@ -238,7 +296,8 @@ export const takeAnOrder: Lesson = {
 }
 
 export const LESSONS: Record<string, Lesson> = {
-  [objectsFirst.id]: objectsFirst,
+  [primitives.id]: primitives,
+  [operations.id]: operations,
   [namesPoint.id]: namesPoint,
   [takeAnOrder.id]: takeAnOrder,
 }

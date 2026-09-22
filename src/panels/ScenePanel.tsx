@@ -28,6 +28,8 @@ export function ScenePanel({
   guide,
   onAdvance,
   triumph,
+  thought,
+  thinking,
 }: {
   spec: SceneSpec
   snapshot: MemorySnapshot
@@ -50,6 +52,16 @@ export function ScenePanel({
    * before the lesson is finished.
    */
   triumph?: boolean | undefined
+  /**
+   * What the robot last worked out, and whether it is working now.
+   *
+   * Not memory — that is the point of it. A bare expression's value is
+   * gone the moment the line ends, so the only place it is ever visible
+   * is here, above the robot's head, for as long as it is the last thing
+   * it thought.
+   */
+  thought?: string | null | undefined
+  thinking?: boolean | undefined
 }) {
   const view = readScene(spec, snapshot)
   // Finished, by whichever measure this activity has — and only one of
@@ -60,6 +72,7 @@ export function ScenePanel({
   // watch is satisfied by its *first* step — so an OR would have declared
   // the lesson complete a third of the way through it.
   const done = triumph ?? view.solved
+  const robot = view.actors.find((a) => a.actor.kind === 'robot')
   const speaker =
     (guide?.speaker ? view.actors.find((a) => a.actor.id === guide.speaker) : undefined) ??
     view.actors.find((a) => a.actor.kind === 'crow') ??
@@ -85,6 +98,26 @@ export function ScenePanel({
           <button type="button" className="advance" onClick={onAdvance} data-testid="advance">
             Next
           </button>
+        )}
+
+        {/* The robot's own bubble, above its head. Anchored the same way
+            the guide's is — see `railAnchor` — so it clears the robot
+            rather than sitting on its face. */}
+        {(thinking || thought) && robot && (
+          <div className="thought-rail" style={railAnchor(robot.actor, spec.floor)}>
+            <div
+              className={`thought ${thinking ? 'working' : ''}`}
+              style={{ left: `${bubbleX(robot.actor.x) - 50}%` }}
+              data-testid="thought"
+              aria-live="polite"
+            >
+              {thinking ? <span className="dots" aria-label="thinking" /> : thought}
+            </div>
+            <span className="thought-tail" style={{ left: `${robot.actor.x}%` }}>
+              <i />
+              <i />
+            </span>
+          </div>
         )}
 
         {view.actors.map((a) => (

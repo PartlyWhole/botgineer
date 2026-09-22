@@ -38,7 +38,37 @@ export type Activity = {
 /* ---------------------------------------------------------------- */
 
 /**
- * The second lesson: names.
+ * The second lesson: working things out.
+ *
+ * Same room, same empty memory. The robot computes and reports, and the
+ * lesson ends on the fact that the answer went nowhere — which is the
+ * itch the naming lesson scratches. That ordering is the whole reason
+ * this activity exists between them.
+ */
+const workingOut: Activity = {
+  id: 'operations',
+  title: 'Working Things Out',
+  brief: 'Arithmetic, comparisons and joining words — none of it kept.',
+  mode: 'console',
+  lesson: 'operations',
+  next: 'names',
+  greeting: 'Give me something to work out.',
+  starter: '',
+  options: { max_steps: 3000, wall_clock_s: 15 },
+  scene: {
+    id: 'workshop',
+    title: 'Workshop',
+    floor: { at: 78 },
+    actors: [
+      { id: 'crow', kind: 'crow', x: 32, y: 0, w: 17, stand: true },
+      { id: 'robot', kind: 'robot', x: 66, y: 0, w: 24, stand: true },
+    ],
+    watches: [],
+  },
+}
+
+/**
+ * The third lesson: names.
  *
  * A fresh session on purpose. Starting from an empty memory is what makes
  * the first binding legible — one name, one arrow, one object — where
@@ -52,7 +82,7 @@ const namingThings: Activity = {
   mode: 'console',
   lesson: 'names-point',
   next: 'order',
-  greeting: 'Empty again. This time we will give things names.',
+  greeting: 'Still nothing kept. Let us fix that.',
   starter: '',
   options: { max_steps: 3000, wall_clock_s: 15 },
   scene: {
@@ -120,7 +150,6 @@ const wakeTheRobot: Activity = {
   id: 'wake',
   title: 'Wake the Robot',
   mode: 'editor',
-  next: 'belt',
   brief:
     'The robot is asleep. It reads three things out of its own memory: whether it has power, what it should call itself, and how charged it is. Give those names values.',
   starter: '# Give the robot what it needs.\n# power, name, charge\n\n',
@@ -157,61 +186,25 @@ const wakeTheRobot: Activity = {
   },
 }
 
-const parcelBelt: Activity = {
-  id: 'belt',
-  title: 'The Parcel Belt',
-  mode: 'editor',
-  brief:
-    'Five parcels are on the belt. The robot lifts whichever ones you put in a list called `heavy`. Anything over 5 kilos is too heavy for the belt.',
-  starter: `parcels = [("A7", 3.2), ("B1", 7.4), ("C2", 1.1), ("D3", 9.8), ("E5", 5.0)]
-
-heavy = []
-for parcel in parcels:
-    pass
-`,
-  options: { max_steps: 2000, wall_clock_s: 15 },
-  scene: {
-    id: 'depot',
-    title: 'Depot belt',
-    // The Parcel Belt had no belt. The crates hung in the air above
-    // nothing and the robot hung above them.
-    floor: { at: 80, look: 'belt' },
-    actors: [
-      { id: 'robot', kind: 'robot', x: 14, y: 0, w: 22, stand: true },
-      { id: 'A7', kind: 'crate', x: 34, y: 0, w: 13, label: 'A7', group: 'parcels', stand: true },
-      { id: 'B1', kind: 'crate', x: 48, y: 0, w: 13, label: 'B1', group: 'parcels', stand: true },
-      { id: 'C2', kind: 'crate', x: 62, y: 0, w: 13, label: 'C2', group: 'parcels', stand: true },
-      { id: 'D3', kind: 'crate', x: 76, y: 0, w: 13, label: 'D3', group: 'parcels', stand: true },
-      { id: 'E5', kind: 'crate', x: 90, y: 0, w: 13, label: 'E5', group: 'parcels', stand: true },
-    ],
-    watches: [
-      {
-        name: 'heavy',
-        effect: { kind: 'pick', group: 'parcels' },
-        hint: 'the robot is waiting for a list called `heavy`',
-      },
-    ],
-  },
-}
-
 /**
  * The starting point: a guided console session.
  *
  * No program, no Run button, no problem to solve — the player says one
- * thing to the robot and the robot answers, and the crow keeps the thread.
- * The whole lesson is that an object exists before anyone names it, which
- * is why every line here is typed bare.
+ * thing to the robot, the robot thinks of it, and the crow keeps the
+ * thread. Nothing is named, so nothing reaches memory: the value appears
+ * in the robot's thought bubble and is collected when the line ends.
+ * That memory stays empty here is the point, not an omission.
  */
-const firstWords: Activity = {
+const firstThoughts: Activity = {
   id: 'sandbox',
-  title: 'First Words',
+  title: 'Four Kinds of Thing',
   /** Kept as data, rendered nowhere: the starting point does not need to
    *  be introduced. Activities with something to solve will want it. */
-  brief: 'Learn to make objects in the robot\'s memory, before learning to name them.',
+  brief: 'The four basic kinds of value, thought of and let go.',
   mode: 'console',
-  lesson: 'objects-first',
-  next: 'names',
-  greeting: 'Say something to me and I will make it. One line at a time.',
+  lesson: 'primitives',
+  next: 'operations',
+  greeting: 'Tell me something and I will think of it. One line at a time.',
   starter: '',
   options: { max_steps: 3000, wall_clock_s: 15 },
   scene: {
@@ -233,11 +226,11 @@ const firstWords: Activity = {
  *  hash but are not offered anywhere yet — they are what unlocking looks
  *  like, once there is a progression to unlock them from. */
 export const ACTIVITIES: Activity[] = [
-  firstWords,
+  firstThoughts,
+  workingOut,
   namingThings,
   takeAnOrder,
   wakeTheRobot,
-  parcelBelt,
 ]
 
 export const activityById = (id: string): Activity | null =>

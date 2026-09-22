@@ -25,24 +25,36 @@
  * says so when it matters rather than pretending otherwise.
  */
 
-/** A line the robot accepted. `echo` marks a bare expression, whose value
- *  has to be kept alive to stay visible — see `KEEPER`. */
+/** A line the robot accepted. `echo` marks a bare expression, which has a
+ *  value to report. */
 export type Entry = { source: string; echo: boolean }
 
 /**
- * The hidden list that holds bare expression values.
+ * How a bare expression's value is reported.
  *
- * `>>> 10` evaluates an int and drops it: nothing refers to it, so it is
- * collectable immediately and would never appear in a trace. To teach
- * "objects exist before names do" we have to keep it, so a bare
- * expression is compiled to an append into this list.
+ * `>>> 10` evaluates an int and drops it. Nothing refers to it, so it is
+ * collectable the instant the line ends and it will never appear in
+ * memory — and that is the point. The robot *thinks* of the number; the
+ * number is not stored anywhere, and asking again means working it out
+ * again. Memory is for things with names.
  *
- * The extractor hides the list itself and shows its contents as objects
- * with nothing pointing at them, which is the picture we want. The cost,
- * stated plainly: real Python would have thrown these away. The lesson is
- * that an object needs no name, not that an object needs no reference.
+ * (An earlier version kept these values alive in a hidden list so they
+ * would show up in memory. That taught "an object needs no name" at the
+ * price of implying an object needs no reference either, which is not
+ * true and is not what Python does.)
+ *
+ * So the value is turned into a *description* — its type and its repr —
+ * and only the description is held, under a hidden name. The object
+ * itself is already gone by the time anything reads it.
  */
-export const KEEPER = '__bg_made__'
+export const THOUGHT = '__bg_thought__'
+
+/** The one-line helper that makes a description. Hidden, like `THOUGHT`. */
+export const DESCRIBE = '__bg_think__'
+
+/** Separates type from repr in a description. A repr can never contain a
+ *  literal tab — `repr` escapes it — and no type name does either. */
+export const THOUGHT_SEP = '\t'
 
 /** Opens a block or is otherwise unambiguously a statement. `lambda` is
  *  missing on purpose: it begins an expression. */
@@ -172,9 +184,18 @@ export type Built = {
   lineOwner: (number | null)[]
 }
 
-/** Keeps a bare expression's value reachable, and nothing else. */
-const compile = (entry: Entry): string =>
-  entry.echo ? `${KEEPER}.append(${entry.source.trim()})` : entry.source
+/**
+ * Turns an entry into the line that will run.
+ *
+ * Only the *pending* entry is wrapped. A bare expression replayed from
+ * history is emitted exactly as typed — `10` on its own is a legal
+ * statement that evaluates and discards, which is precisely the behaviour
+ * being taught — and leaving it alone means the description belongs
+ * unambiguously to the line just submitted. A statement is never wrapped,
+ * so a submission that binds nothing reports no thought at all.
+ */
+const compile = (entry: Entry, pending: boolean): string =>
+  pending && entry.echo ? `${THOUGHT} = ${DESCRIBE}(${entry.source.trim()})` : entry.source
 
 /**
  * Builds the program for one submission.
@@ -185,13 +206,13 @@ const compile = (entry: Entry): string =>
  * what keeps happening.
  */
 export function buildProgram(history: Entry[], pending: Entry | null): Built {
-  const preamble = [`${KEEPER} = []`]
+  const preamble = [`${DESCRIBE} = lambda v: f"{type(v).__name__}${THOUGHT_SEP}{v!r}"`]
   // Index 0 is unused: program lines are 1-based, like the trace's.
   const lineOwner: (number | null)[] = [null, ...preamble.map(() => null)]
   const body: string[] = []
 
-  const emit = (entry: Entry, owner: number) => {
-    const compiled = compile(entry)
+  const emit = (entry: Entry, owner: number, isPending = false) => {
+    const compiled = compile(entry, isPending)
     for (let i = 0; i < compiled.split('\n').length; i += 1) lineOwner.push(owner)
     body.push(compiled)
   }
@@ -201,7 +222,7 @@ export function buildProgram(history: Entry[], pending: Entry | null): Built {
   // The pending line starts immediately after everything already emitted.
   const pendingLine = lineOwner.length
 
-  if (pending) emit(pending, history.length)
+  if (pending) emit(pending, history.length, true)
 
   return {
     source: [...preamble, ...body].join('\n') + '\n',

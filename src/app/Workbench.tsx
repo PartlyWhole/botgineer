@@ -22,7 +22,7 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { session, useRuntime } from '../runtime/shared'
 import type { StepRecord, TerminalRecord } from '../runtime/types'
-import { extractMemory, keptValues } from '../memory/extract'
+import { extractMemory, thought, type Thought } from '../memory/extract'
 import { useHandles } from '../memory/handles'
 import { EMPTY, type MemorySnapshot } from '../memory/model'
 import { buildProgram, isExpression, type Entry } from '../repl/program'
@@ -80,9 +80,11 @@ export function Workbench({ activity }: { activity: Activity }) {
   /** Everything the accepted history prints when replayed. The next run
    *  starts by printing exactly this again. */
   const spokenRef = useRef('')
-  /** How many values the accepted history has kept. A line only has
-   *  something to echo if it added one. */
-  const keptRef = useRef(0)
+  /** Everything the robot has worked out, in order. Not memory: a bare
+   *  expression's value is gone the moment the line ends, and only this
+   *  description of it survives. The lessons about primitives and
+   *  operations are judged on these. */
+  const [thoughts, setThoughts] = useState<Thought[]>([])
   const programRef = useRef(program)
   programRef.current = program
 
@@ -94,8 +96,8 @@ export function Workbench({ activity }: { activity: Activity }) {
     setHistory([])
     setExchanges([])
     setLineMemory([])
+    setThoughts([])
     spokenRef.current = ''
-    keptRef.current = 0
     setProgram(activity.starter)
     editorRef.current?.replace(activity.starter)
     events.emit({ type: 'scenario-loaded', scenarioId: activity.id })
@@ -236,12 +238,13 @@ export function Workbench({ activity }: { activity: Activity }) {
         : outcome.output
 
       const last = stepsRef.current[stepsRef.current.length - 1]
-      const kept = keptValues(last)
-      // Echo only what *this* line made. Counting is what distinguishes
-      // `3 + 4`, which adds a value, from `print("hi")`, which evaluates
-      // to None, keeps nothing, and in any REPL worth using says nothing.
-      const made = outcome.ok && entry.echo && kept.length > keptRef.current
-      const echo = made ? (kept[kept.length - 1] ?? null) : null
+      // Only the pending line is asked to describe itself, so whatever is
+      // here belongs to it. `None` is skipped: `print("hi")` is an
+      // expression whose value is None, and a console that answered None
+      // after every print would be noise.
+      const said = outcome.ok && entry.echo ? thought(last) : null
+      const made = said !== null && said.repr !== 'None'
+      const echo = made ? said!.repr : null
 
       setExchanges((xs) => [
         ...xs,
@@ -257,9 +260,9 @@ export function Workbench({ activity }: { activity: Activity }) {
       // part of what the next replay is expected to repeat.
       if (outcome.ok) {
         spokenRef.current = outcome.output
-        keptRef.current = kept.length
         setHistory((h) => [...h, entry])
         setLineMemory((m) => [...m, extractMemory(last)])
+        if (made) setThoughts((t) => [...t, said!])
       }
     },
     [boot.state, busy, execute],
@@ -280,12 +283,8 @@ export function Workbench({ activity }: { activity: Activity }) {
   // trace in memory — so the evidence includes everything the robot has
   // said back. Both halves only ever grow.
   const evidence = useMemo(
-    () => ({
-      snapshot,
-      echoed: exchanges.map((x) => x.echo).filter((e): e is string => e !== null),
-      history: [...lineMemory, snapshot],
-    }),
-    [snapshot, exchanges, lineMemory],
+    () => ({ snapshot, thoughts, history: [...lineMemory, snapshot] }),
+    [snapshot, thoughts, lineMemory],
   )
   const guide = lesson ? guidance(lesson, evidence) : undefined
   // The whole progression: the guide offers the next lesson once this one
@@ -333,6 +332,10 @@ export function Workbench({ activity }: { activity: Activity }) {
           mood={cast.robot}
           guide={guide}
           onAdvance={onAdvance}
+          // The last thing the robot worked out. It lives nowhere else:
+          // the value itself was collected when the line ended.
+          thought={thoughts.length > 0 ? (thoughts[thoughts.length - 1]?.repr ?? null) : null}
+          thinking={busy}
           // `undefined` when there is no lesson, so the scene judges
           // itself instead of being told it has finished nothing.
           triumph={lesson ? finished : undefined}

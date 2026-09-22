@@ -46,7 +46,7 @@ npm run test:browser  # playwright against the PRODUCTION build at /botgineer/
 | `src/memory/extract.ts` | the ONLY module that knows both the wire format and the model |
 | `src/repl/program.ts` | the console's program builder: expression-or-statement, continuation, and the replay that makes a line-at-a-time session possible. Pure and unit-tested |
 | `src/ui/RobotConsole.tsx` | the console. Owns the caret and the input history and nothing else; it cannot run anything |
-| `content/lessons.ts` | guided lessons. A step's progress is **derived from the snapshot**, never stored |
+| `content/lessons.ts` | guided lessons. A step's progress is **derived from evidence**, never stored: the snapshot, what the robot thought, and memory after each accepted line |
 | `src/app/console.css` | console and speech-bubble styling, deliberately separate from `styles.css` |
 | `src/scene/spec.ts` | a scene is data, and a view of memory: watches map global names to visual effects |
 | `src/panels/ScenePanel.tsx` | (A) the situation, drawn from the snapshot |
@@ -113,14 +113,28 @@ npm run test:browser  # playwright against the PRODUCTION build at /botgineer/
    - The history *is* a program, so unlocking the editor hands the player
      what they have been writing. Do not build a second artifact for it.
 
-8. **A bare expression is kept alive on purpose.** `>>> 10` evaluates an
-   object that CPython collects immediately, so it would never reach a
-   trace. The console compiles it to an append into a hidden list
-   (`KEEPER`, in `repl/program`); the extractor hides the list and shows
-   its contents as objects with no name and no holder. The stated cost:
-   real Python would have thrown these away. The lesson it buys is that an
-   object needs no *name*, not that it needs no reference. `None` is
-   skipped at both ends, so `print(...)` keeps nothing and echoes nothing.
+8. **A bare expression is thought of and let go.** `>>> 10` evaluates an
+   object nothing refers to, so it is collected when the line ends and it
+   never reaches memory. That is the teaching, not a limitation: the robot
+   thinks of a value, and asking for it again means working it out again.
+   Memory is for things with names.
+
+   What survives is a *description* — `type(v).__name__` and `repr(v)`,
+   under a hidden name (`THOUGHT` in `repl/program`, read by `thought()`
+   in `extract.ts`). The object is already gone by the time anything reads
+   it. The description is what the robot's thought bubble shows and what
+   the first two lessons are judged on, since they bind nothing and so
+   leave no memory to judge.
+
+   Only the **pending** line is asked to describe itself. A replayed
+   history expression is emitted exactly as typed — `10` alone is a legal
+   statement that evaluates and discards — so a description can only have
+   come from the line just submitted.
+
+   (An earlier version kept these values alive in a hidden list so they
+   would appear in memory. It taught "an object needs no name" at the cost
+   of implying an object needs no reference either, which is false and is
+   not what Python does.)
 
 9. **Finishing is one thing or the other, never their disjunction.**
    An activity with a lesson is finished when the lesson's last step is;
