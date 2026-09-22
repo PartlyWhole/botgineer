@@ -65,6 +65,21 @@ export type Floor = {
 }
 
 /**
+ * The narrowest a kind may be drawn, in percent of the stage width.
+ *
+ * The crow is the guide, and at `w: 13` in the counter scene it was a
+ * smudge beside a robot twice its size — too small to see it talk. A floor
+ * in percent rather than a CSS `min-width` in pixels, because the speech
+ * band is computed from these widths: a pixel floor would make the crow
+ * taller than the band thinks it is, and its bubble's tail would stab it.
+ */
+const MIN_W: Partial<Record<ActorKind, number>> = { crow: 16 }
+
+/** An actor's drawn width in percent: its own, its kind's default, or its
+ *  kind's minimum. Every geometry that depends on width reads this. */
+export const widthOf = (actor: Actor): number => Math.max(actor.w ?? 16, MIN_W[actor.kind] ?? 0)
+
+/**
  * Where to put an actor, as CSS.
  *
  * A standing actor is positioned by `bottom`, so its feet land on the
@@ -77,7 +92,7 @@ export function placement(
   floor: Floor | undefined,
 ): { left: string; width: string; top?: string; bottom?: string } {
   const left = `${actor.x}%`
-  const width = `${actor.w ?? 16}%`
+  const width = `${widthOf(actor)}%`
   // A scene with no floor cannot stand anyone on it; falling back to the
   // centre keeps such a scene renderable rather than piling actors at 0.
   if (actor.stand && floor) return { left, width, bottom: `${100 - floor.at}%` }

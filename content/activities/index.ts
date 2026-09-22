@@ -131,10 +131,17 @@ const takeAnOrder: Activity = {
       { id: 'crow', kind: 'crow', x: 13, y: 0, w: 13, stand: true },
       { id: 'robot', kind: 'robot', x: 38, y: 0, w: 23, stand: true },
       { id: 'courier', kind: 'courier', x: 72, y: 0, w: 21, stand: true },
-      // A board above the robot, not a plaque on the floor: it is the
+      // A board over the counter, not a plaque on the floor: it is the
       // one thing here that is genuinely mounted rather than standing,
       // and putting it at the robot's feet had it overlapping them.
-      { id: 'ticket', kind: 'sign', x: 38, y: 16, w: 32, label: 'no customer' },
+      //
+      // High, and between the robot and the courier rather than over the
+      // robot's head: everything just above the cast is the speech band,
+      // and directly over the robot is where its thought goes. There, the
+      // `14` cloud sat on the ticket in any wide stage, and the ticket is
+      // the lesson's evidence. Measured clear of every bubble and face at
+      // the default shapes and the stacked layout down to 900px wide.
+      { id: 'ticket', kind: 'sign', x: 62, y: 9, w: 26, label: 'no customer' },
     ],
     watches: [
       {

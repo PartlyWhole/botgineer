@@ -294,6 +294,12 @@ export function Workbench({ activity }: { activity: Activity }) {
     [snapshot, thoughts, lineMemory],
   )
   const guide = lesson ? guidance(lesson, evidence) : undefined
+  // Tells the director someone spoke, so the cast turns to listen. Emitted
+  // only: nothing reads it back to decide anything.
+  const said = guide?.text
+  useEffect(() => {
+    if (said) events.emit({ type: 'npc-spoke', text: said })
+  }, [said])
   // The whole progression: the guide offers the next lesson once this one
   // is genuinely done. Derived like everything else, so scrubbing back
   // through the trace withdraws the offer too.
@@ -336,7 +342,7 @@ export function Workbench({ activity }: { activity: Activity }) {
         <ScenePanel
           spec={activity.scene}
           snapshot={snapshot}
-          mood={cast.robot}
+          moods={cast}
           guide={guide}
           onAdvance={onAdvance}
           // The last thing the robot worked out. It lives nowhere else:

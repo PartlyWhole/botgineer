@@ -10,6 +10,8 @@ import { events } from './events'
 
 export type Mood = 'idle' | 'attentive' | 'thinking' | 'pleased' | 'confused' | 'celebrate'
 
+/** Two moods, because there are two points of view: the robot's, about
+ *  its own run, and everyone else's, about the robot. */
 export type Cast = { robot: Mood; npc: Mood }
 
 const START: Cast = { robot: 'idle', npc: 'idle' }
@@ -23,7 +25,9 @@ export function nextCast(current: Cast, e: { type: string } & Record<string, unk
     case 'runtime-failed':
       return { robot: 'confused', npc: 'confused' }
     case 'npc-spoke':
-      return { robot: 'attentive', npc: 'attentive' }
+      // Someone is talking to the robot, so it listens — unless it has
+      // just failed, which a new line of advice does not undo.
+      return { robot: current.robot === 'confused' ? 'confused' : 'attentive', npc: 'attentive' }
     case 'edited':
       return { robot: 'attentive', npc: current.npc === 'celebrate' ? 'pleased' : current.npc }
     case 'attempt-started':
@@ -36,10 +40,12 @@ export function nextCast(current: Cast, e: { type: string } & Record<string, unk
       // picture, so the scene decides celebration (`SceneView.solved`)
       // and this decides nothing more than attentiveness.
       //
-      // A run that threw is still a real signal, and stays one.
+      // A run that threw is still a real signal, and stays one — for the
+      // robot, whose run it was. The guide is not confused by the robot's
+      // mistake; it watches, the way a teacher does.
       return e.passed
         ? { robot: 'attentive', npc: 'attentive' }
-        : { robot: 'confused', npc: 'confused' }
+        : { robot: 'confused', npc: 'attentive' }
     default:
       return current
   }

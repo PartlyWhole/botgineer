@@ -2,43 +2,18 @@
  * The tutorial guide: a crow. Not a person, and not the robot — the player
  * is learning to program the robot, so the teacher should not be it.
  *
- * Same six expressions as the rest of the cast, same rule: an expression
- * is never the only signal. Everything the crow means is also in its text.
+ * Same moods as the rest of the cast, same rule: an expression is never
+ * the only signal. Everything the crow means is also in its text.
+ *
+ * Built like the others (see Characters.tsx): the head's tilt is a CSS
+ * transform on its own group, so it eases between moods — as an SVG
+ * attribute it snapped, and no transition could reach it. The idle tilt
+ * wraps the mood tilt, so the two add up rather than overwrite.
  */
 import type { Mood } from '../game/director'
-import { looks } from './Characters'
+import { Eye, looks } from './Characters'
 
-function face(mood: Mood) {
-  switch (mood) {
-    case 'thinking':
-      return { eye: 'squint', head: -6 }
-    case 'attentive':
-      return { eye: 'wide', head: 0 }
-    case 'pleased':
-      return { eye: 'happy', head: -3 }
-    case 'celebrate':
-      return { eye: 'happy', head: -8 }
-    case 'confused':
-      return { eye: 'wide', head: 7 }
-    default:
-      return { eye: 'open', head: 0 }
-  }
-}
-
-function Eye({ kind, x }: { kind: string; x: number }) {
-  if (kind === 'happy') return <path d={`M ${x - 6} 0 q 6 -7 12 0`} className="eye-line" />
-  if (kind === 'squint') return <path d={`M ${x - 6} 0 h 12`} className="eye-line" />
-  const r = kind === 'wide' ? 7 : 6
-  return (
-    <g>
-      <circle cx={x} cy={0} r={r} className="eye-white" />
-      <circle cx={x} cy={kind === 'wide' ? -1 : 0} r={r * 0.5} className="eye-pupil" />
-    </g>
-  )
-}
-
-export function Crow({ mood }: { mood: Mood }) {
-  const f = face(mood)
+export function Crow({ mood, talk }: { mood: Mood; talk?: string | undefined }) {
   return (
     <svg
       viewBox="-70 -80 140 160"
@@ -46,21 +21,36 @@ export function Crow({ mood }: { mood: Mood }) {
       role="img"
       aria-label={`The crow looks ${looks(mood)}`}
     >
-      {/* tail and body */}
-      <path d="M 26 34 q 30 6 40 26 q -26 2 -44 -10 z" className="feather" />
-      <ellipse cx="0" cy="28" rx="40" ry="42" className="body" />
-      <path d="M -34 16 q -14 26 4 46 q 14 -10 18 -34 z" className="wing" />
-      {/* head */}
-      <g transform={`rotate(${f.head} 0 -24)`}>
-        <circle cx="0" cy="-26" r="32" className="body" />
-        <path d="M 28 -28 l 30 8 l -30 10 z" className="beak" />
-        <g transform="translate(-2,-32)">
-          <Eye kind={f.eye} x={-12} />
-          <Eye kind={f.eye} x={14} />
+      <g className="react">
+        <g className="breathe">
+          {/* tail and body */}
+          <g className="tail">
+            <path d="M 26 34 q 30 6 40 26 q -26 2 -44 -10 z" className="feather" />
+          </g>
+          <ellipse cx="0" cy="28" rx="40" ry="42" className="body" />
+          <g className="wing">
+            <path d="M -34 16 q -14 26 4 46 q 14 -10 18 -34 z" />
+          </g>
+          {/* head: the idle glance around the mood's tilt */}
+          <g className="head-idle">
+            <g className="head">
+              <circle cx="0" cy="-26" r="32" className="body" />
+              {/* Two halves, so the lower one can move while it talks.
+                  Keyed on the line: a new line restarts a finite flap. */}
+              <g key={talk ?? ''} className={`beak-lower ${talk !== undefined ? 'talking' : ''}`}>
+                <path d="M 28 -21 l 27 -1 l -27 6 z" className="beak" />
+              </g>
+              <path d="M 28 -28 l 30 8 l -30 -1 z" className="beak" />
+              <g transform="translate(-2,-32)">
+                <Eye x={-12} r={6} pupil={0.5} />
+                <Eye x={14} r={6} pupil={0.5} />
+              </g>
+            </g>
+          </g>
         </g>
+        {/* feet */}
+        <path d="M -14 66 v 10 M -20 76 h 12 M 14 66 v 10 M 8 76 h 12" className="feet" />
       </g>
-      {/* feet */}
-      <path d="M -14 66 v 10 M -20 76 h 12 M 14 66 v 10 M 8 76 h 12" className="feet" />
     </svg>
   )
 }

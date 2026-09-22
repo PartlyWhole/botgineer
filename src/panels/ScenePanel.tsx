@@ -10,6 +10,7 @@ import { useLayoutEffect, useRef } from 'react'
 import {
   placement,
   readScene,
+  widthOf,
   type Actor,
   type ActorKind,
   type ActorView,
@@ -20,12 +21,12 @@ import type { MemorySnapshot } from '../memory/model'
 import { Robot, Courier } from '../ui/Characters'
 import { Crow } from '../ui/Crow'
 import { richText } from '../ui/richText'
-import type { Mood } from '../game/director'
+import type { Cast, Mood } from '../game/director'
 
 export function ScenePanel({
   spec,
   snapshot,
-  mood,
+  moods,
   guide,
   onAdvance,
   triumph,
@@ -34,7 +35,9 @@ export function ScenePanel({
 }: {
   spec: SceneSpec
   snapshot: MemorySnapshot
-  mood: Mood
+  /** The robot's mood about its own run, and everyone else's. Two, so the
+   *  crow does not look confused because the robot raised. */
+  moods: Cast
   /** What is being said, and by whom — an actor id, or the crow when it
    *  is not given. Derived by the workbench and handed down as text: the
    *  scene still causes nothing and decides nothing, it just draws the
@@ -87,6 +90,16 @@ export function ScenePanel({
   const anchor = guideShown ? speaker : thoughtShown ? robot : undefined
   const railRef = useRef<HTMLDivElement | null>(null)
   useBeside(railRef, [guide?.text, speaker?.actor.id, thought, thinking])
+  // A new line pops the bubble in again, and a new value pops the cloud.
+  // Played straight on the element, never through a `key`: remounting
+  // either would replace a live region, and a screen reader does not
+  // reliably announce one that has only just appeared.
+  const speechRef = useRef<HTMLDivElement | null>(null)
+  const tailRef = useRef<HTMLSpanElement | null>(null)
+  const thoughtRef = useRef<HTMLDivElement | null>(null)
+  usePop(speechRef, guideShown ? guide.text : null, BUBBLE_POP)
+  usePop(tailRef, guideShown ? guide.text : null, TAIL_FADE)
+  usePop(thoughtRef, thoughtShown ? (thinking ? '\u2026' : (thought ?? '')) : null, THOUGHT_POP)
 
   return (
     <div className="scene-panel" data-testid="scene">
@@ -110,13 +123,17 @@ export function ScenePanel({
           </button>
         )}
 
-        {view.actors.map((a) => (
+        {view.actors.map((a, i) => (
           <ActorNode
             key={a.actor.id}
             view={a}
-            mood={mood}
+            order={i}
+            // Each to their own: the robot feels its run, everyone else
+            // feels the robot. A finished scene pleases the whole cast.
+            mood={a.actor.kind === 'robot' ? moods.robot : done ? 'pleased' : moods.npc}
             floor={spec.floor}
             pleased={done}
+            talk={guideShown && speaker.actor.id === a.actor.id ? guide.text : undefined}
           />
         ))}
 
@@ -149,6 +166,7 @@ export function ScenePanel({
               // this, not saying it. Centred over the robot, with a trail
               // of shrinking puffs falling towards its head.
               <div
+                ref={thoughtRef}
                 className={`thought ${thinking ? 'working' : ''}`}
                 style={{ left: `${bubbleX(robot.actor.x) - 50}%` }}
                 data-testid="thought"
@@ -166,6 +184,7 @@ export function ScenePanel({
             )}
             {guideShown && (
               <div
+                ref={speechRef}
                 className="bubble"
                 data-testid="guide"
                 data-speaker={speaker.actor.id}
@@ -186,6 +205,7 @@ export function ScenePanel({
               // far (`--drop`, in the same width units as the band), or
               // the bubble would point at the air above the crow.
               <span
+                ref={tailRef}
                 className="bubble-tail"
                 aria-hidden="true"
                 style={{
@@ -246,14 +266,19 @@ function useBeside(ref: { current: HTMLDivElement | null }, deps: unknown[]) {
         rail.style.removeProperty('--beside')
         return
       }
-      const t = thought.getBoundingClientRect()
-      const b = speech.getBoundingClientRect()
+      // Layout boxes, not client rects: both are popping in when this
+      // runs, and a box measured part-way through a scale is smaller than
+      // the one it settles into — which could call two bubbles apart that
+      // are about to overlap. Offsets ignore transforms; both are
+      // positioned children of the rail, so they share one origin.
+      const t = box(thought as HTMLElement)
+      const b = box(speech as HTMLElement)
       // The puffs reach about 11px past the cloud's box; the rest is air.
       const room = 20
       const apart = t.right + room <= b.left || b.right + room <= t.left
       // Everything from the top of the speech to the foot of the rail is
       // what the thought can come down by.
-      const drop = rail.getBoundingClientRect().bottom - b.top
+      const drop = rail.offsetHeight - b.top
       rail.style.setProperty('--beside', apart ? `${Math.round(drop)}px` : '0px')
     }
     place()
@@ -263,6 +288,60 @@ function useBeside(ref: { current: HTMLDivElement | null }, deps: unknown[]) {
     return () => watch.disconnect()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps)
+}
+
+const box = (el: HTMLElement) => ({
+  left: el.offsetLeft,
+  right: el.offsetLeft + el.offsetWidth,
+  top: el.offsetTop,
+})
+
+type Pop = { frames: Keyframe[]; calm: Keyframe[]; options: KeyframeAnimationOptions }
+
+/** Ease-out on the way in, scaled from the foot so the box only ever
+ *  grows into the one it settles at — it never covers what the settled
+ *  bubble would not. */
+const BUBBLE_POP: Pop = {
+  frames: [
+    { opacity: 0, transform: 'scale(0.86)' },
+    { opacity: 1, transform: 'none' },
+  ],
+  calm: [{ opacity: 0 }, { opacity: 1 }],
+  options: { duration: 220, easing: 'cubic-bezier(0.2, 0.8, 0.3, 1)' },
+}
+
+const TAIL_FADE: Pop = {
+  frames: [{ opacity: 0 }, { opacity: 0, offset: 0.35 }, { opacity: 1 }],
+  calm: [{ opacity: 0 }, { opacity: 1 }],
+  options: { duration: 220, easing: 'ease-out' },
+}
+
+/** A cloud puffs rather than slides: a small scale from its trail. */
+const THOUGHT_POP: Pop = {
+  frames: [
+    { opacity: 0.2, transform: 'scale(0.8)' },
+    { opacity: 1, transform: 'none' },
+  ],
+  calm: [{ opacity: 0.2 }, { opacity: 1 }],
+  options: { duration: 240, easing: 'cubic-bezier(0.2, 0.8, 0.3, 1)' },
+}
+
+/**
+ * Plays a pop on an element whenever `key` changes to something shown.
+ *
+ * Drawing, not state: nothing is stored, and the element is the same one
+ * throughout. Under reduced motion only the fade plays.
+ */
+function usePop(ref: { current: HTMLElement | null }, key: string | null, pop: Pop) {
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (key === null || !el || typeof el.animate !== 'function') return
+    const calm =
+      typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
+    const run = el.animate(calm ? pop.calm : pop.frames, pop.options)
+    return () => run.cancel()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key])
 }
 
 /**
@@ -291,7 +370,7 @@ const ACTOR_RATIO: Partial<Record<ActorKind, number>> = {
 }
 
 export const halfHeightPct = (actor: Actor): number =>
-  ((actor.w ?? 16) * (ACTOR_RATIO[actor.kind] ?? 1)) / 2
+  (widthOf(actor) * (ACTOR_RATIO[actor.kind] ?? 1)) / 2
 
 /**
  * How far above the floor every bubble in a scene starts, in percent of
@@ -347,14 +426,46 @@ export function speechDrop(actor: Actor, floor: Floor | undefined, lift = 0): nu
   return Math.max(0, lift - halfHeightPct(actor) * 2)
 }
 
+/**
+ * Idle timing for one actor, derived from its id so it is the same on
+ * every render and every visit, and different from its neighbours — two
+ * characters blinking in unison read as one machine.
+ */
+export function idleTiming(id: string): Record<string, string> {
+  // FNV-1a: small, and enough to scatter a handful of ids.
+  let h = 0x811c9dc5
+  for (let i = 0; i < id.length; i++) {
+    h ^= id.charCodeAt(i)
+    h = Math.imul(h, 0x01000193) >>> 0
+  }
+  const pick = (shift: number, lo: number, hi: number) =>
+    lo + (((h >>> shift) & 0xff) / 0xff) * (hi - lo)
+  const s = (n: number) => `${n.toFixed(2)}s`
+  return {
+    // Negative delays start each loop part-way through, so nobody begins
+    // in step with anybody else.
+    '--blink-dur': s(pick(0, 8, 11)),
+    '--blink-delay': s(-pick(8, 0, 8)),
+    '--breathe-dur': s(pick(16, 3.2, 4.4)),
+    '--breathe-delay': s(-pick(24, 0, 3)),
+    '--glance-delay': s(-pick(4, 0, 10)),
+  }
+}
+
 function ActorNode({
   view,
+  order,
   mood,
   floor,
   pleased,
+  talk,
 }: {
   view: ActorView
+  /** Where it comes in the cast, for the step-in on arrival. */
+  order: number
   mood: Mood
+  /** What it is saying, while it is its turn. */
+  talk?: string | undefined
   floor: Floor | undefined
   /** The scene as a whole is satisfied — the only thing that earns a
    *  celebration. Per-actor `lit` is not enough: one lamp on out of
@@ -363,19 +474,25 @@ function ActorNode({
 }) {
   const { actor } = view
   const standing = actor.stand === true && floor !== undefined
+  // Only the cast has a face to celebrate with.
+  const cast = actor.kind === 'robot' || actor.kind === 'crow' || actor.kind === 'courier'
 
   return (
     <div
-      className={`actor ${actor.kind} ${standing ? 'standing' : ''} ${view.lit ? 'lit' : ''} ${view.picked ? 'picked' : ''}`}
-      style={placement(actor, floor)}
+      className={`actor ${actor.kind} ${standing ? 'standing' : ''} ${view.lit ? 'lit' : ''} ${view.picked ? 'picked' : ''} ${cast && pleased ? 'cheer' : ''}`}
+      style={{
+        ...placement(actor, floor),
+        ...(cast ? idleTiming(actor.id) : {}),
+        ['--order' as string]: String(order),
+      }}
       data-stand={standing ? 'yes' : 'no'}
       data-testid={`actor-${actor.id}`}
       data-lit={view.lit ? 'yes' : 'no'}
       data-picked={view.picked ? 'yes' : 'no'}
     >
-      {actor.kind === 'robot' && <Robot mood={pleased ? 'celebrate' : mood} />}
-      {actor.kind === 'crow' && <Crow mood={mood} />}
-      {actor.kind === 'courier' && <Courier mood={mood} />}
+      {actor.kind === 'robot' && <Robot mood={pleased ? 'celebrate' : mood} talk={talk} />}
+      {actor.kind === 'crow' && <Crow mood={mood} talk={talk} />}
+      {actor.kind === 'courier' && <Courier mood={mood} talk={talk} />}
 
       {actor.kind === 'plinth' && <div className="plinth-top" />}
 

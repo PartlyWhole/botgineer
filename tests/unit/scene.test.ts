@@ -3,8 +3,15 @@
  * given what is bound, what does the picture show?
  */
 import { describe, expect, it } from 'vitest'
-import { bubbleX, halfHeightPct, railAnchor, speechDrop, speechLift } from '../../src/panels/ScenePanel'
-import { placement, readScene, type Actor, type SceneSpec } from '../../src/scene/spec'
+import {
+  bubbleX,
+  halfHeightPct,
+  idleTiming,
+  railAnchor,
+  speechDrop,
+  speechLift,
+} from '../../src/panels/ScenePanel'
+import { placement, readScene, widthOf, type Actor, type SceneSpec } from '../../src/scene/spec'
 import { ACTIVITIES } from '../../content/activities'
 import type { MemorySnapshot, PyObject } from '../../src/memory/model'
 
@@ -393,5 +400,34 @@ describe('a scene judging itself', () => {
     // An empty list moves no parcel, and neither does a wrong label.
     expect(readScene(depot, world(listOf([]))).solved).toBe(false)
     expect(readScene(depot, world(listOf(['nope']))).solved).toBe(false)
+  })
+})
+
+describe('the cast on stage', () => {
+  it('never draws the crow too small to see it talk', () => {
+    // At `w: 13` the guide was a smudge beside a robot twice its size.
+    const crow: Actor = { id: 'crow', kind: 'crow', x: 13, y: 0, w: 13, stand: true }
+    expect(widthOf(crow)).toBe(16)
+    expect(placement(crow, { at: 82 }).width).toBe('16%')
+    // And the speech band is computed from the same width, or the tail
+    // would reach for a head that is not where the maths says it is.
+    expect(halfHeightPct(crow)).toBeCloseTo((16 * 160) / 140 / 2)
+    // A minimum, not a size: a bigger crow stays bigger, other kinds untouched.
+    expect(widthOf({ ...crow, w: 20 })).toBe(20)
+    expect(widthOf({ id: 'l', kind: 'lamp', x: 0, y: 0, w: 9 })).toBe(9)
+  })
+
+  it('gives each actor its own idle rhythm, and the same one every time', () => {
+    const crow = idleTiming('crow')
+    expect(idleTiming('crow')).toEqual(crow)
+    // Two characters blinking in unison read as one machine.
+    expect(idleTiming('robot')['--blink-dur']).not.toBe(crow['--blink-dur'])
+    for (const id of ['crow', 'robot', 'courier', 'x', 'a-much-longer-id']) {
+      const t = idleTiming(id)
+      const dur = parseFloat(t['--blink-dur']!)
+      expect(dur).toBeGreaterThanOrEqual(8)
+      expect(dur).toBeLessThanOrEqual(11)
+      expect(parseFloat(t['--blink-delay']!)).toBeLessThanOrEqual(0)
+    }
   })
 })

@@ -189,6 +189,13 @@
   line-height: 1.45;
   color: var(--ink);
   z-index: 3;
+  /* Every line pops in from the foot, where the tail is (see `usePop` in
+     ScenePanel). Growing from the bottom edge means the bubble's box
+     only ever grows into its settled one: part-way through, it covers
+     less than it will, never more. It used to be the rail that animated,
+     which played once and then let every later line simply swap its
+     text. */
+  transform-origin: 50% 100%;
 }
 
 /* On the rail, at the speaker's own x — so it points at whoever is
@@ -243,18 +250,6 @@
   color: var(--brand-deep);
   font-family: var(--mono);
   font-size: 0.92em;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .stage .bubble-rail {
-    animation: bubble-in 180ms ease-out;
-  }
-  @keyframes bubble-in {
-    from {
-      opacity: 0;
-      translate: 0 8px;
-    }
-  }
 }
 
 /* The way on to the next level. Bottom-right of the stage, in the same
@@ -327,6 +322,9 @@
   font-size: 17px;
   font-weight: 700;
   color: var(--brand-deep);
+  /* Pops from its trail when its value changes, for the same reason the
+     speech grows from its foot. */
+  transform-origin: 50% 100%;
 }
 
 /* The puffs. Positions along the top and bottom are percentages, so a
@@ -423,17 +421,5 @@
   .stage .thought .dots::after {
     content: '· · ·';
     animation: none;
-  }
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .stage .thought {
-    animation: thought-in 200ms ease-out;
-  }
-  @keyframes thought-in {
-    from {
-      opacity: 0;
-      transform: translateY(7px) scale(0.94);
-    }
   }
 }

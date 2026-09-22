@@ -814,6 +814,111 @@ test('a half-finished scene is not a celebration either', async ({ page }) => {
   expect(await robotMood(page)).not.toBe('mood-celebrate')
 })
 
+/* ------------------------------ the cast acting ------------------------------ */
+
+const moodOf = (page: Page, actor: string) =>
+  page.evaluate((id) => {
+    const el = document.querySelector(`[data-testid="actor-${id}"] .character`)
+    return [...(el?.classList ?? [])].find((c) => c.startsWith('mood-')) ?? null
+  }, actor)
+
+test("the crow does not wear the robot's mistake", async ({ page }) => {
+  // Every actor used to take the robot's mood, so the guide looked
+  // confused whenever the robot raised.
+  await open(page, 'operations')
+  await say(page, '1 / 0')
+  await expect.poll(() => moodOf(page, 'robot')).toBe('mood-confused')
+  expect(await moodOf(page, 'crow')).not.toBe('mood-confused')
+})
+
+test('a new line pops the same bubble in again, and the speaker talks', async ({ page }) => {
+  await open(page, 'order')
+  await expect(page.getByTestId('guide')).toHaveAttribute('data-speaker', 'courier')
+  // The courier is saying the opening line; nobody else is talking.
+  await expect(page.locator('[data-testid="actor-courier"] .mouth-open.talking')).toHaveCount(1)
+  await expect(page.locator('[data-testid="actor-robot"] .mouth-open.talking')).toHaveCount(0)
+  await expect(page.locator('[data-testid="actor-crow"] .beak-lower.talking')).toHaveCount(0)
+  // The flap has an end: no timer decides when the talking stops.
+  expect(
+    await page
+      .locator('[data-testid="actor-courier"] .mouth-open.talking')
+      .evaluate((el) => getComputedStyle(el).animationIterationCount),
+  ).not.toBe('infinite')
+
+  const seen = await page.evaluate(async () => {
+    const guide = document.querySelector('[data-testid="guide"]')!
+    const pops: number[] = []
+    // Mutation callbacks run after React's layout effects, so a pop
+    // started for this line is already running when this looks.
+    const watch = new MutationObserver(() => pops.push(guide.getAnimations().length))
+    watch.observe(guide, { childList: true, subtree: true, characterData: true })
+    await window.botgineer.say('customer = "Ana"')
+    await new Promise((r) => setTimeout(r, 60))
+    watch.disconnect()
+    return {
+      pops,
+      text: guide.textContent,
+      // The same element: a live region that is replaced rather than
+      // updated is one a screen reader may not announce.
+      same: document.querySelector('[data-testid="guide"]') === guide,
+    }
+  })
+  expect(seen.text).toContain('parcels')
+  expect(seen.same).toBe(true)
+  expect(seen.pops.some((n) => n > 0)).toBe(true)
+})
+
+test('a finished scene gets one celebration, from the whole cast', async ({ page }) => {
+  await open(page, 'order')
+  await say(page, 'customer = "Ana"')
+  await say(page, 'parcels = 7')
+  await say(page, 'parcels * 2')
+  await expect(page.getByTestId('advance')).toBeVisible()
+  expect(await moodOf(page, 'robot')).toBe('mood-celebrate')
+  expect(await moodOf(page, 'crow')).toBe('mood-pleased')
+  const hop = await page
+    .locator('[data-testid="actor-robot"] .react')
+    .evaluate((el) => {
+      const s = getComputedStyle(el)
+      return { name: s.animationName, count: s.animationIterationCount }
+    })
+  expect(hop.name).toBe('hop')
+  // Once. A celebration that loops forever is a screensaver.
+  expect(hop.count).toBe('1')
+  await expect(page.locator('.actor.crow.cheer')).toHaveCount(1)
+})
+
+test('reduced motion drops the movement and keeps the change', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await open(page, EDITOR)
+  const styles = await page.evaluate(() => {
+    const s = (sel: string) => {
+      const el = document.querySelector(sel)
+      return el ? getComputedStyle(el) : null
+    }
+    return {
+      fill: s('.gauge-body .fill')?.transitionProperty,
+      fillFor: s('.gauge-body .fill')?.transitionDuration,
+      blink: s('.character .blink')?.animationName,
+      breathe: s('.character .breathe')?.animationName,
+      antenna: s('.robot .antenna')?.animationName,
+    }
+  })
+  // The gauge still fills rather than snapping to its reading...
+  expect(styles.fill).toBe('height')
+  expect(styles.fillFor).not.toBe('0s')
+  // ...and nothing idles, bobs or blinks.
+  expect(styles.blink).toBe('none')
+  expect(styles.breathe).toBe('none')
+  expect(styles.antenna).toBe('none')
+
+  // Without the preference, the same robot is alive.
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  expect(
+    await page.locator('.character .blink').first().evaluate((el) => getComputedStyle(el).animationName),
+  ).toBe('blink')
+})
+
 test('the empty battery is a battery, not a blank box', async ({ page }) => {
   await open(page, EDITOR)
   const size = () =>

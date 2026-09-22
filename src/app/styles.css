@@ -911,7 +911,9 @@ kbd {
 
 .character {
   display: block;
-  transition: transform 180ms ease;
+  /* A hop and a raised antenna reach past the viewBox; the UA clips an
+     inner <svg> by default and would cut them off. */
+  overflow: visible;
 }
 
 .robot .body {
@@ -920,7 +922,7 @@ kbd {
 .robot .visor {
   fill: #101a36;
 }
-.robot .antenna {
+.robot .antenna-stem {
   stroke: #8fa6ff;
   stroke-width: 5;
   stroke-linecap: round;
@@ -945,9 +947,11 @@ kbd {
 }
 .robot .mouth {
   stroke: #8fa6ff;
-  stroke-width: 4;
   fill: none;
   stroke-linecap: round;
+}
+.robot .mouth-open {
+  fill: #2a3a7a;
 }
 
 .courier .skin {
@@ -976,9 +980,11 @@ kbd {
 }
 .courier .mouth {
   stroke: #9c4a3a;
-  stroke-width: 4;
   fill: none;
   stroke-linecap: round;
+}
+.courier .mouth-open {
+  fill: #7a3326;
 }
 
 .crow .body {
@@ -1010,6 +1016,363 @@ kbd {
   stroke-width: 4;
   fill: none;
   stroke-linecap: round;
+}
+
+/* ---------------- character motion ----------------
+
+   Every moving part is its own group (see Characters.tsx), posed here by
+   the `mood-*` class so a change of mood eases rather than snaps. Pose,
+   idle loop and reaction each live on a different wrapper, because an
+   animation and a transition on one element fight over one `transform`.
+
+   Pivots: `fill-box` where a part turns about its own centre (an eye, a
+   mouth), `view-box` with an origin in viewBox units where it turns about
+   a joint (a neck, a hinge, the feet). */
+
+/* The mouth is one curve scaled by the mood, so its stroke must not scale
+   with it — a flattened smile would thin to a hairline. A non-scaling
+   stroke is measured on screen, so its width is given in the actor's own
+   width: 4 units of a figure 140 units wide, as it always was. */
+.actor.robot,
+.actor.courier {
+  container-type: inline-size;
+}
+
+.character .mouth {
+  vector-effect: non-scaling-stroke;
+  stroke-width: calc(100cqw * 4 / 140);
+}
+
+.character .blink,
+.character .eye-open,
+.character .pupil,
+.character .eye-happy,
+.character .mouth-shape,
+.character .mouth-open {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.character .eye-open,
+.character .pupil,
+.character .eye-happy,
+.character .mouth-shape,
+.character .face,
+.crow .head {
+  transition:
+    transform 280ms cubic-bezier(0.2, 0.9, 0.3, 1.2),
+    opacity 180ms ease;
+}
+
+/* Eyes. Open by default; wide when paying attention; a squint while
+   thinking; a happy arc, cross-faded in, when pleased. */
+.character .eye-happy {
+  opacity: 0;
+  transform: translateY(2px) scaleY(0.4);
+}
+.character.mood-attentive .eye-open,
+.character.mood-confused .eye-open {
+  transform: scale(1.14);
+}
+.character.mood-attentive .pupil,
+.character.mood-confused .pupil {
+  transform: translateY(-1px);
+}
+.character.mood-thinking .eye-open {
+  transform: scaleY(0.22);
+}
+.character.mood-pleased .eye-open,
+.character.mood-celebrate .eye-open {
+  opacity: 0;
+  transform: scaleY(0.2);
+}
+.character.mood-pleased .eye-happy,
+.character.mood-celebrate .eye-happy {
+  opacity: 1;
+  transform: none;
+}
+
+/* The mouth: one smile, `M -9 0 q 9 8 18 0`, scaled. Negative is a frown;
+   between the two the transition passes through a flat line. */
+.character .mouth-shape {
+  transform: scale(0.78, 0.25);
+}
+.character.mood-attentive .mouth-shape {
+  transform: scale(0.78, 0.4);
+}
+.character.mood-pleased .mouth-shape {
+  transform: scale(1, 1.1);
+}
+.character.mood-celebrate .mouth-shape {
+  transform: scale(1.22, 1.75);
+}
+.character.mood-thinking .mouth-shape {
+  transform: translateX(2px) scale(0.8, -0.45);
+}
+.character.mood-confused .mouth-shape {
+  transform: rotate(-6deg) scale(0.9, -0.85);
+}
+
+/* The robot looks up and aside while it works something out. */
+.robot.mood-thinking .face {
+  transform: translate(3px, -2px);
+}
+
+/* The crow's head turns about its neck. */
+.crow .head,
+.crow .head-idle {
+  transform-box: view-box;
+  transform-origin: 0 -24px;
+}
+.crow.mood-thinking .head {
+  transform: rotate(-6deg);
+}
+.crow.mood-pleased .head {
+  transform: rotate(-3deg);
+}
+.crow.mood-celebrate .head {
+  transform: rotate(-8deg);
+}
+.crow.mood-confused .head {
+  transform: rotate(7deg);
+}
+
+/* Idle life. Timings come per actor from the scene (`idleTiming`), so no
+   two characters blink or breathe in step. */
+.character .blink {
+  animation: blink var(--blink-dur, 9s) linear var(--blink-delay, 0s) infinite;
+}
+/* Three blinks a cycle, the middle one doubled: at 8–11s a cycle that is
+   a 100–130ms blink every two to six seconds. */
+@keyframes blink {
+  0%,
+  11.4%,
+  12.6%,
+  37.4%,
+  38.6%,
+  40.6%,
+  41.8%,
+  76.4%,
+  77.6%,
+  100% {
+    transform: none;
+  }
+  12%,
+  38%,
+  41.2%,
+  77% {
+    transform: scaleY(0.1);
+  }
+}
+
+.character .breathe,
+.character .react,
+.robot .antenna,
+.crow .tail,
+.crow .wing,
+.crow .beak-lower {
+  transform-box: view-box;
+}
+.robot .breathe,
+.robot .react {
+  transform-origin: 0 62px;
+}
+.crow .breathe,
+.crow .react {
+  transform-origin: 0 76px;
+}
+.courier .breathe,
+.courier .react {
+  transform-origin: 0 72px;
+}
+
+.character .breathe {
+  animation: breathe var(--breathe-dur, 3.8s) ease-in-out var(--breathe-delay, 0s) infinite;
+}
+@keyframes breathe {
+  0%,
+  100% {
+    transform: none;
+  }
+  50% {
+    transform: scale(1.012, 1.024);
+  }
+}
+
+/* Follow-through: the antenna and the tail answer the breath 80–90ms
+   late, so they read as carried rather than bolted on. */
+.robot .antenna {
+  transform-origin: 0 -62px;
+  animation: bob var(--breathe-dur, 3.8s) ease-in-out calc(var(--breathe-delay, 0s) + 90ms)
+    infinite;
+}
+@keyframes bob {
+  0%,
+  100% {
+    transform: none;
+  }
+  30% {
+    transform: rotate(-3deg);
+  }
+  70% {
+    transform: rotate(2.5deg);
+  }
+}
+
+.crow .tail {
+  transform-origin: 26px 40px;
+  animation: tail var(--breathe-dur, 3.8s) ease-in-out calc(var(--breathe-delay, 0s) + 80ms)
+    infinite;
+}
+@keyframes tail {
+  0%,
+  100% {
+    transform: none;
+  }
+  50% {
+    transform: rotate(-4deg);
+  }
+}
+
+/* Now and then the crow cocks its head, holds it, and looks back. */
+.crow .head-idle {
+  animation: glance 11s ease-in-out var(--glance-delay, 0s) infinite;
+}
+@keyframes glance {
+  0%,
+  58%,
+  72%,
+  100% {
+    transform: none;
+  }
+  62%,
+  68% {
+    transform: rotate(-10deg) translateY(-1px);
+  }
+}
+
+/* Speaking. The part is keyed on the line, so each new line restarts a
+   flap of fixed length (an even count of alternating runs ends shut) and
+   nothing has to decide when to stop. */
+.crow .beak-lower {
+  transform-origin: 28px -20px;
+}
+.crow .beak-lower.talking {
+  animation: peck 150ms ease-in-out 10 alternate;
+}
+@keyframes peck {
+  to {
+    transform: rotate(18deg);
+  }
+}
+
+.character .mouth-open {
+  opacity: 0;
+}
+.character .mouth-open.talking {
+  animation: jaw 170ms ease-in-out 8 alternate;
+}
+@keyframes jaw {
+  from {
+    opacity: 0;
+    transform: scaleY(0.2);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Celebration: once, when the scene is finished. A dip to gather, a hop
+   that stretches, a squash on landing. The crow answers a beat later,
+   with its wings. */
+.actor.cheer .react {
+  animation: hop 820ms cubic-bezier(0.3, 0.7, 0.4, 1) both;
+}
+.actor.crow.cheer .react,
+.actor.courier.cheer .react {
+  animation: hop-small 700ms cubic-bezier(0.3, 0.7, 0.4, 1) 160ms both;
+}
+.crow .wing {
+  transform-origin: -26px 18px;
+}
+.actor.crow.cheer .wing {
+  animation: flap 120ms ease-in-out 300ms 6 alternate;
+}
+@keyframes hop {
+  0% {
+    transform: none;
+  }
+  18% {
+    transform: scale(1.08, 0.88);
+  }
+  44% {
+    transform: translateY(-24px) scale(0.94, 1.08);
+    animation-timing-function: ease-in;
+  }
+  58% {
+    transform: translateY(-27px);
+  }
+  80% {
+    transform: scale(1.07, 0.92);
+  }
+  92% {
+    transform: scale(0.99, 1.01);
+  }
+  100% {
+    transform: none;
+  }
+}
+@keyframes hop-small {
+  0% {
+    transform: none;
+  }
+  20% {
+    transform: scale(1.06, 0.9);
+  }
+  46% {
+    transform: translateY(-14px) scale(0.96, 1.05);
+    animation-timing-function: ease-in;
+  }
+  78% {
+    transform: scale(1.05, 0.94);
+  }
+  100% {
+    transform: none;
+  }
+}
+@keyframes flap {
+  to {
+    transform: rotate(-24deg);
+  }
+}
+
+/* Arrival. Each level is a fresh mount, so this plays once per level:
+   the stage fades up and the cast steps in, one after another. */
+.stage {
+  animation: stage-in 320ms ease-out both;
+}
+@keyframes stage-in {
+  from {
+    opacity: 0;
+  }
+}
+.actor .character {
+  animation: step-in 520ms cubic-bezier(0.2, 0.9, 0.3, 1.2) calc(var(--order, 0) * 70ms + 80ms)
+    both;
+}
+@keyframes step-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+/* The contact shadow arrives with its owner, not ahead of it. Cast only:
+   a crate's shadow has an opacity transition of its own to keep. */
+.actor.robot.standing::before,
+.actor.crow.standing::before,
+.actor.courier.standing::before {
+  animation: stage-in 360ms ease-out calc(var(--order, 0) * 70ms + 80ms) both;
 }
 
 code.inline {
@@ -1044,8 +1407,12 @@ code.inline {
     display: none;
   }
 
+  /* Taller as it gets wider. The cast is sized by the stage's width, so a
+     fixed 340px at 900px wide made a 874x304 letterbox: the robot's head
+     touched the top edge, the ticket sat on it, and the speech had
+     nowhere to go but over faces. */
   .scene-pane {
-    height: 340px;
+    height: clamp(340px, 60vw, 620px);
   }
 
   .robot-pane {
@@ -1053,11 +1420,45 @@ code.inline {
   }
 }
 
-/* Motion is decoration; nothing here carries meaning on its own. */
+/* Reduced motion drops movement, not change.
+
+   Idle loops, hops, flaps, slides and step-ins all go. What a thing *is*
+   still changes visibly and briefly: the gauge still fills rather than
+   jumping, a lamp still warms, a face still cross-fades, and an arrival
+   still fades in place. Killing every transition used to take the gauge
+   fill with it — a reading that snapped, which is less legible, not more
+   comfortable. (The speech and thought pops play from script, and fall
+   back to a fade there.) */
 @media (prefers-reduced-motion: reduce) {
-  * {
+  *,
+  *::before,
+  *::after {
     transition: none !important;
     animation: none !important;
+  }
+
+  .gauge-body .fill {
+    transition: height 180ms ease-out !important;
+  }
+  .bulb {
+    transition:
+      background 160ms ease,
+      box-shadow 160ms ease !important;
+  }
+  .actor {
+    transition: filter 160ms ease !important;
+  }
+  .actor.standing::before {
+    transition: opacity 160ms ease !important;
+  }
+  .character .eye-open,
+  .character .eye-happy {
+    transition: opacity 160ms ease !important;
+  }
+  .stage,
+  .actor .character,
+  .stage > .advance {
+    animation: fade-in 200ms ease-out both !important;
   }
 
   .actor.crate.picked {
@@ -1133,6 +1534,24 @@ button.tidy:hover {
   bottom: 0;
   border-top: 1px solid #bdc8e4;
   background: linear-gradient(#d8e0f4, #c9d3ec);
+}
+
+/* A little depth: where the back wall meets the floor, the light falls
+   off. Enough to make the floor a place and the stage a room, and no more
+   — it sits behind everyone and draws no line of its own. */
+.floor::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  height: 56px;
+  background: linear-gradient(to top, rgb(52 70 112 / 0.075), rgb(52 70 112 / 0));
+  pointer-events: none;
+}
+
+.floor[data-look='belt']::before {
+  display: none;
 }
 
 /* A conveyor rather than a floor: same contact line, different object.

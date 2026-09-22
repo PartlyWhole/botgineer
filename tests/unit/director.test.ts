@@ -17,10 +17,25 @@ describe('what the cast makes of a run', () => {
   })
 
   it('still takes an exception seriously', () => {
-    expect(nextCast(START, { type: 'attempt-graded', passed: false })).toEqual({
-      robot: 'confused',
-      npc: 'confused',
+    expect(nextCast(START, { type: 'attempt-graded', passed: false }).robot).toBe('confused')
+  })
+
+  it("does not make the guide wear the robot's mistake", () => {
+    // Every actor used to take the robot's mood, so the crow looked
+    // confused whenever the robot raised.
+    expect(nextCast(START, { type: 'attempt-graded', passed: false }).npc).not.toBe('confused')
+  })
+
+  it('has the guide attend when it speaks, and the robot listen', () => {
+    expect(nextCast(START, { type: 'npc-spoke', text: 'hi' })).toEqual({
+      robot: 'attentive',
+      npc: 'attentive',
     })
+  })
+
+  it('does not let a new line of advice paper over a failure', () => {
+    const failed = nextCast(START, { type: 'attempt-graded', passed: false })
+    expect(nextCast(failed, { type: 'npc-spoke', text: 'try again' }).robot).toBe('confused')
   })
 
   it('thinks while a run is in flight', () => {
