@@ -20,6 +20,9 @@ import {
   disturb,
   frame,
   makeNode,
+  relax,
+  RELAX_BUDGET,
+  RELAX_REST,
   seed,
   svgTransformOf,
   tick,
@@ -69,6 +72,10 @@ export function MemoryGraph({ snapshot, handles, runKey, picked, onPick }: Props
   const camera = useRef<Camera>({ x: 400, y: 150, k: 1 })
   const target = useRef<Camera>({ x: 400, y: 150, k: 1 })
   const raf = useRef<number | null>(null)
+  /** Collision-only frames still owed to the field after `alpha` dies.
+   *  Refilled by every `wake`, spent by the loop, and bounded so a pile-up
+   *  that cannot resolve still comes to a stop. */
+  const relaxLeft = useRef(0)
   /** Which nodes the camera is framing. Held in a ref so the loop can
    *  re-aim as they move: a target computed once at pick time describes
    *  where they were, and the field is usually still settling. */
@@ -163,8 +170,19 @@ export function MemoryGraph({ snapshot, handles, runKey, picked, onPick }: Props
     const step = () => {
       const g = graphRef.current
       const v = viewport.current
+      let busy = false
       if (g.alpha > 0) {
         tick(g, v)
+        busy = true
+      } else if (relaxLeft.current > 0) {
+        // The forces are spent but pills may still be sitting on each
+        // other. Collision is positional and unscaled precisely so it can
+        // carry on here; the budget is what guarantees this still stops.
+        relaxLeft.current--
+        if (relax(g) > RELAX_REST) busy = true
+        else relaxLeft.current = 0
+      }
+      if (busy) {
         const want = framedIds.current
         const subject = want === null ? g.nodes : g.nodes.filter((n) => want.has(n.id))
         target.current = frame(subject.length > 0 ? subject : g.nodes, v)
@@ -172,7 +190,7 @@ export function MemoryGraph({ snapshot, handles, runKey, picked, onPick }: Props
       const far = cameraDistance(camera.current, target.current, v) > 0.6
       if (far) camera.current = approach(camera.current, target.current)
       paint()
-      if (g.alpha > 0 || far) {
+      if (busy || far) {
         raf.current = requestAnimationFrame(step)
       } else {
         raf.current = null
@@ -180,6 +198,18 @@ export function MemoryGraph({ snapshot, handles, runKey, picked, onPick }: Props
     }
     raf.current = requestAnimationFrame(step)
   }, [paint])
+
+  /** Give the field energy *and* refill the collision budget. Every reason
+   *  to re-energise the field is also a reason overlap may reappear, so the
+   *  two always travel together. */
+  const wake = useCallback(
+    (to: number) => {
+      disturb(graphRef.current, to)
+      relaxLeft.current = RELAX_BUDGET
+      loop()
+    },
+    [loop],
+  )
 
   const aim = useCallback(
     (nodes: GraphNode[], ids: Set<string> | null) => {
@@ -235,13 +265,13 @@ export function MemoryGraph({ snapshot, handles, runKey, picked, onPick }: Props
     if (fresh.length === g.nodes.length) {
       // First fill: lay the whole field out and frame it.
       seed(g, viewport.current)
+      relaxLeft.current = RELAX_BUDGET
       disturb(g, 1)
       aim(g.nodes, null)
     } else if (fresh.length > 0) {
       // Newcomers drop into their lane and the field makes room.
       seed({ nodes: fresh, edges: [], alpha: 1 }, viewport.current)
-      disturb(g, 0.6)
-      loop()
+      wake(0.6)
     } else {
       loop()
     }
@@ -254,7 +284,7 @@ export function MemoryGraph({ snapshot, handles, runKey, picked, onPick }: Props
     if (g.nodes.length === 0) return
     if (near === null) {
       measure()
-      disturb(g, 0.3)
+      wake(0.3)
       aim(g.nodes, null)
       return
     }
@@ -262,7 +292,7 @@ export function MemoryGraph({ snapshot, handles, runKey, picked, onPick }: Props
     const subject = g.nodes.filter((n) => near.has(n.id))
     aim(subject.length > 0 ? subject : g.nodes, near)
     // The picked pill just changed size, so the field has to make room.
-    disturb(g, 0.4)
+    wake(0.4)
   }, [aim, measure, near])
 
   useEffect(() => {
@@ -270,7 +300,7 @@ export function MemoryGraph({ snapshot, handles, runKey, picked, onPick }: Props
     if (!host || typeof ResizeObserver === 'undefined') return
     const ro = new ResizeObserver(() => {
       viewport.current = { w: host.clientWidth, h: host.clientHeight }
-      disturb(graphRef.current, 0.3)
+      wake(0.3)
       aim(
         near === null
           ? graphRef.current.nodes
@@ -318,8 +348,7 @@ export function MemoryGraph({ snapshot, handles, runKey, picked, onPick }: Props
       node.x = w.x
       node.y = w.y
       // Neighbours respond while the node is still moving.
-      disturb(graphRef.current, 0.35)
-      loop()
+      wake(0.35)
     }
 
     const up = () => {
@@ -330,8 +359,7 @@ export function MemoryGraph({ snapshot, handles, runKey, picked, onPick }: Props
         // Dropped nodes stay put and the field arranges around them.
         // Releasing them back to the simulation sent them home, which
         // makes dragging pointless.
-        disturb(graphRef.current, 0.4)
-        loop()
+        wake(0.4)
         bump((n) => n + 1)
       } else {
         node.fixed = false
@@ -359,8 +387,7 @@ export function MemoryGraph({ snapshot, handles, runKey, picked, onPick }: Props
 
   const loosen = () => {
     for (const n of byId.current.values()) n.fixed = false
-    disturb(graphRef.current, 0.8)
-    loop()
+    wake(0.8)
     bump((n) => n + 1)
   }
 

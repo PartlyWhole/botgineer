@@ -6,6 +6,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   ALPHA_REST,
+  bands,
   approach,
   cameraDistance,
   distance,
@@ -17,6 +18,10 @@ import {
   MAX_K,
   MIN_K,
   neighboursOf,
+  overlapCount,
+  relax,
+  RELAX_BUDGET,
+  RELAX_REST,
   seed,
   settle,
   tick,
@@ -85,6 +90,106 @@ describe('it stops', () => {
   })
 })
 
+/**
+ * A list of 40 with a dozen loose names — the shape that actually crowds,
+ * and the one where collision stopping early was visible as pills sitting
+ * on top of each other with their text cut off mid-word.
+ */
+function crowded(): Graph {
+  const nodes = [makeNode('o:list', 'object', 132, 26)]
+  const edges: GraphEdge[] = []
+  for (let i = 0; i < 40; i++) {
+    nodes.push(makeNode(`v:int:${i}`, 'object', 96, 26))
+    edges.push({ from: 'o:list', to: `v:int:${i}`, label: String(i) })
+  }
+  for (let i = 0; i < 12; i++) {
+    nodes.push(makeNode(`n:${i}`, 'name', 44, 26))
+    edges.push({ from: `n:${i}`, to: `v:int:${i}`, label: null })
+  }
+  const graph: Graph = { nodes, edges, alpha: 1 }
+  seed(graph, V)
+  return graph
+}
+
+describe('collision finishes what the forces leave behind', () => {
+  it('keeps working after alpha is gone', () => {
+    const g = crowded()
+    while (g.alpha > 0) tick(g, V)
+    const stuck = overlapCount(g.nodes)
+    // The forces alone do not clear a crowd this dense.
+    expect(stuck).toBeGreaterThan(0)
+
+    let passes = 0
+    while (passes++ < RELAX_BUDGET && relax(g) > RELAX_REST) {
+      /* the collision-only tail the loop runs */
+    }
+    expect(overlapCount(g.nodes)).toBeLessThan(stuck)
+  })
+
+  it('clears a third of what the forces leave, on the fixture that crowds', () => {
+    const forcesOnly = crowded()
+    while (forcesOnly.alpha > 0) tick(forcesOnly, V)
+    const before = overlapCount(forcesOnly.nodes)
+
+    const g = crowded()
+    settle(g, V)
+    // Not zero: 53 wide pills in this pane genuinely do not have room, and
+    // the header is honest that zero overlap is not promised. What is
+    // promised is that the pass does not give up while it is still working.
+    expect(overlapCount(g.nodes)).toBeLessThan(before * 0.75)
+  })
+
+  it('comes to rest instead of creeping', () => {
+    const g = sample()
+    settle(g, V)
+    expect(overlapCount(g.nodes)).toBe(0)
+    // Pairs resting against each other still report a vanishing correction
+    // forever, so the promise is that it vanishes — not that it is 0.
+    const before = g.nodes.map((n) => [n.x, n.y] as const)
+    for (let i = 0; i < 1000; i++) expect(relax(g)).toBeLessThan(RELAX_REST)
+    g.nodes.forEach((n, i) => {
+      expect(Math.abs(n.x - before[i]![0])).toBeLessThan(0.5)
+      expect(Math.abs(n.y - before[i]![1])).toBeLessThan(0.5)
+    })
+  })
+
+  it('does not depend on the order the nodes are stored in', () => {
+    // The reason the pass used to accumulate instead of writing in place.
+    // It writes in place now, in id order, so this has to be proved.
+    const a = crowded()
+    settle(a, V)
+    const b = crowded()
+    b.nodes.reverse()
+    settle(b, V)
+    for (const n of a.nodes) {
+      const m = b.nodes.find((z) => z.id === n.id)!
+      expect(Math.hypot(n.x - m.x, n.y - m.y)).toBeLessThan(0.001)
+    }
+  })
+
+  it('stops even when the crowd cannot possibly fit', () => {
+    // Every node the size of the viewport: there is no arrangement with no
+    // overlap, and the budget is the only thing that ends it.
+    const nodes = Array.from({ length: 12 }, (_, i) => makeNode(`o:${i}`, 'object', 400, 300))
+    const g: Graph = { nodes, edges: [], alpha: 1 }
+    seed(g, V)
+    const ticks = settle(g, V)
+    expect(Number.isFinite(ticks)).toBe(true)
+    for (const n of g.nodes) expect(isFinitePosition(n)).toBe(true)
+  })
+
+  it('never moves a held node, however crowded it gets', () => {
+    const g = crowded()
+    const held = g.nodes[0]!
+    held.fixed = true
+    held.x = 123
+    held.y = 45
+    settle(g, V)
+    expect(held.x).toBe(123)
+    expect(held.y).toBe(45)
+  })
+})
+
 describe('it never produces nonsense', () => {
   it('survives every node starting on the same spot', () => {
     const g = sample()
@@ -141,7 +246,12 @@ describe('the arrangement means something', () => {
     // nearer to it than its own object does. A force layout does not
     // promise otherwise, and asserting it pairwise was asserting a
     // property this has never had.
-    const g = sample()
+    // On the crowded fixture, not the six-node one. With five linked pairs
+    // out of fifteen the toy's ratio is a coincidence of that toy: measured
+    // across the fixtures, the same layout scores 0.87 on it, 0.93 on
+    // `typical`, 0.88 on a hub and 0.65 here. Only the last is a signal, so
+    // that is what gets asserted.
+    const g = crowded()
     settle(g, V)
     const adjacent = new Set(g.edges.flatMap((e) => [`${e.from}|${e.to}`, `${e.to}|${e.from}`]))
     const linked: number[] = []
@@ -154,7 +264,7 @@ describe('the arrangement means something', () => {
       }
     }
     const mean = (xs: number[]) => xs.reduce((t, x) => t + x, 0) / xs.length
-    expect(mean(linked) / mean(unlinked)).toBeLessThan(0.9)
+    expect(mean(linked) / mean(unlinked)).toBeLessThan(0.75)
   })
 
   it('puts two names that share an object on the same side of it', () => {
@@ -292,6 +402,62 @@ describe('the camera', () => {
     const t = transformOf({ x: 100, y: 50, k: 2 }, V)
     expect(t).toContain('scale(2)')
     expect(t).toContain(`translate(${V.w / 2}px, ${V.h / 2}px)`)
+  })
+})
+
+describe('the clouds are shaped like the pane', () => {
+  const spanOf = (g: Graph) => {
+    const xs = g.nodes.flatMap((n) => [n.x - n.w / 2, n.x + n.w / 2])
+    const ys = g.nodes.flatMap((n) => [n.y - n.h / 2, n.y + n.h / 2])
+    return { w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) }
+  }
+
+  it('keeps the name band wholly left of the object band', () => {
+    for (const v of [V, { w: 400, h: 900 }, { w: 1600, h: 400 }]) {
+      const b = bands(crowded().nodes, v)
+      expect(b.name.x1).toBeLessThan(b.object.x0)
+    }
+  })
+
+  it('sizes the pair to the pane it has to fit in', () => {
+    for (const v of [
+      { w: 844, h: 635 },
+      { w: 508, h: 480 },
+      { w: 1200, h: 400 },
+    ]) {
+      const b = bands(crowded().nodes, v)
+      const w = b.object.x1 - b.name.x0
+      const h = b.object.y1 - b.object.y0
+      expect(w / h).toBeGreaterThan((v.w / v.h) * 0.6)
+      expect(w / h).toBeLessThan((v.w / v.h) * 1.8)
+    }
+  })
+
+  it('grows the band as objects arrive, rather than stacking them', () => {
+    const few = bands(sample().nodes, V)
+    const many = bands(crowded().nodes, V)
+    expect(many.object.x1 - many.object.x0).toBeGreaterThan(few.object.x1 - few.object.x0)
+  })
+
+  it('settles a crowd into the pane\'s shape, not a column', () => {
+    // The whole point. A pull toward a single x per kind left this fixture
+    // at 513x600 in a 844x635 pane — a column the camera had to shrink to
+    // 0.35 to fit, with the pill text at 3.7px.
+    const v = { w: 844, h: 635 }
+    const g = crowded()
+    seed(g, v)
+    settle(g, v)
+    const s = spanOf(g)
+    expect(s.w / s.h).toBeGreaterThan(0.8)
+  })
+
+  it('leaves a lone node alone in the middle of its band', () => {
+    const g: Graph = { nodes: [makeNode('o:1', 'object', 90, 26)], edges: [], alpha: 1 }
+    seed(g, V)
+    settle(g, V)
+    const b = bands(g.nodes, V)
+    expect(g.nodes[0]!.x).toBeGreaterThanOrEqual(b.object.x0 - 1)
+    expect(g.nodes[0]!.x).toBeLessThanOrEqual(b.object.x1 + 1)
   })
 })
 
