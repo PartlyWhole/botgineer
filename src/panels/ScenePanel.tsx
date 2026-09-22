@@ -221,18 +221,28 @@ function ActorNode({
       )}
 
       {actor.kind === 'gauge' && (
-        <div className="gauge-body" data-level={view.level === null ? 'none' : 'set'}>
-          <span className="fill" style={{ height: `${(view.level ?? 0) * 100}%` }} />
-          <span className="gauge-text">
-            {view.level === null ? (
-              <>
-                {'—'}
-                <span className="sr-only">nothing set</span>
-              </>
-            ) : (
-              `${Math.round(view.level * 100)}%`
-            )}
-          </span>
+        // A cap and a scale, so the silhouette reads as a battery whether
+        // or not it has a reading. Empty, this was a plain rounded box as
+        // tall as the robot with an 11px dash in the corner — it looked
+        // like a panel that had failed to load rather than an instrument
+        // waiting to be told something.
+        <div
+          className="battery"
+          role="img"
+          aria-label={
+            view.level === null
+              ? 'The battery has no reading'
+              : `The battery is at ${Math.round(view.level * 100)} percent`
+          }
+        >
+          <span className="gauge-cap" />
+          <div className="gauge-body" data-level={view.level === null ? 'none' : 'set'}>
+            <span className="gauge-scale" />
+            <span className="fill" style={{ height: `${(view.level ?? 0) * 100}%` }} />
+            <span className="gauge-text">
+              {view.level === null ? '—' : `${Math.round(view.level * 100)}%`}
+            </span>
+          </div>
         </div>
       )}
 

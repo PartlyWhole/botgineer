@@ -744,3 +744,40 @@ test('an empty pick list moves nothing and earns nothing', async ({ page }) => {
   await expect(page.getByTestId('actor-B1')).toHaveAttribute('data-picked', 'yes')
   expect(await robotMood(page)).toBe('mood-celebrate')
 })
+
+test('the empty battery is a battery, not a blank box', async ({ page }) => {
+  await open(page, EDITOR)
+  const size = () =>
+    page.evaluate(() => {
+      const box = (sel: string) => {
+        const el = document.querySelector(sel)
+        if (!el) return null
+        const b = el.getBoundingClientRect()
+        return { w: Math.round(b.width), h: Math.round(b.height) }
+      }
+      return { body: box('.gauge-body'), cap: box('.gauge-cap'), actor: box('.actor.gauge') }
+    })
+
+  const empty = await size()
+  // It has to fill the space the actor was given. Wrapping the body in a
+  // flex column once collapsed it to the width of the dash inside it,
+  // which looked like a rendering failure rather than an empty gauge.
+  expect(empty.body!.w).toBe(empty.actor!.w)
+  expect(empty.body!.h).toBeGreaterThan(empty.body!.w)
+  expect(empty.cap!.w).toBeGreaterThan(0)
+  await expect(page.locator('.gauge-body')).toHaveAttribute('data-level', 'none')
+  await expect(page.locator('.battery')).toHaveAttribute('aria-label', /no reading/)
+
+  // Filling it must not change its footprint, or the scene jumps.
+  await send(page, 'charge = 72\n')
+  const filled = await size()
+  expect(filled.body).toEqual(empty.body)
+  await expect(page.locator('.gauge-body')).toHaveAttribute('data-level', 'set')
+  await expect(page.locator('.battery')).toHaveAttribute('aria-label', 'The battery is at 72 percent')
+
+  // Bound to something that is not a number: empty again, and it says so
+  // rather than silently reading zero.
+  await send(page, 'charge = "full"\n')
+  await expect(page.locator('.gauge-body')).toHaveAttribute('data-level', 'none')
+  await expect(page.locator('.gauge-text')).toHaveText('—')
+})

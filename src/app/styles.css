@@ -366,8 +366,38 @@ button.route.current {
   opacity: 0.45;
 }
 
+/* The battery. Filled it always read well; empty it was a blank box, so
+   everything here is about making the empty state look like an
+   instrument with no reading rather than a rectangle. */
+
+/* Block layout, not flex. A column flex container with
+   `align-items: center` sizes its children to their content on the cross
+   axis, which combined with the body's `aspect-ratio` collapsed the whole
+   battery to the width of the dash inside it — 17px instead of 95.
+
+   Named `.battery`, not `.gauge`: `.actor.gauge` already exists for the
+   actor itself, and a later `.gauge` rule would have taken over its
+   positioning. */
+.battery {
+  position: relative;
+}
+
+/* The terminal. Small, but it is what makes the outline a battery at a
+   glance instead of a panel. */
+.gauge-cap {
+  display: block;
+  width: 34%;
+  height: 7px;
+  margin: 0 auto;
+  border: 2px solid #b9c3de;
+  border-bottom: 0;
+  border-radius: 4px 4px 0 0;
+  background: #e4eaf7;
+}
+
 .gauge-body {
   position: relative;
+  width: 100%;
   aspect-ratio: 0.55;
   border-radius: 8px;
   border: 2px solid #b9c3de;
@@ -375,6 +405,32 @@ button.route.current {
   overflow: hidden;
   display: grid;
   place-items: end center;
+}
+
+/* A scale, drawn in the background so it costs no elements and shows
+   through the fill. Useful in both states: it is what says the column is
+   a measurement and not a container. */
+.gauge-scale {
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    to top,
+    transparent 0 19%,
+    rgb(120 136 175 / 0.22) 19% calc(19% + 1px)
+  );
+}
+
+/* No reading: hatched, so the emptiness is deliberate. A flat panel is
+   indistinguishable from one that failed to draw. */
+.gauge-body[data-level='none'] {
+  background:
+    repeating-linear-gradient(
+      -45deg,
+      rgb(120 136 175 / 0.1) 0 5px,
+      transparent 5px 11px
+    ),
+    #eef2fb;
+  border-style: dashed;
 }
 
 .gauge-body .fill {
@@ -393,6 +449,18 @@ button.route.current {
   font-weight: 700;
   padding: 2px 0 3px;
   color: #16203a;
+}
+
+/* With nothing to report, the dash is the whole message: centre it and
+   make it big enough to be one. */
+.gauge-body[data-level='none'] {
+  place-items: center;
+}
+
+.gauge-body[data-level='none'] .gauge-text {
+  font-size: 22px;
+  padding: 0;
+  color: #5b6784;
 }
 
 .sign-body {
