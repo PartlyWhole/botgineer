@@ -3,6 +3,7 @@
  * given what is bound, what does the picture show?
  */
 import { describe, expect, it } from 'vitest'
+import { bubbleX } from '../../src/panels/ScenePanel'
 import { readScene, type SceneSpec } from '../../src/scene/spec'
 import type { MemorySnapshot, PyObject } from '../../src/memory/model'
 
@@ -139,5 +140,14 @@ describe('scope', () => {
     }
     expect(at(spec, snap, 'lamp').lit).toBe(false)
     expect(readScene(spec, snap).waitingFor.map((w) => w.name)).toContain('power')
+  })
+})
+
+describe('the guide bubble', () => {
+  it('stays inside the stage however near an edge the speaker is', () => {
+    // A crow at x: 14 pushed half the sentence out of the panel.
+    expect(bubbleX(14)).toBe(27)
+    expect(bubbleX(96)).toBe(73)
+    expect(bubbleX(50)).toBe(50)
   })
 })

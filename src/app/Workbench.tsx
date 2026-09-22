@@ -23,12 +23,13 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'r
 import { session, useRuntime } from '../runtime/shared'
 import type { StepRecord, TerminalRecord } from '../runtime/types'
 import { extractMemory, keptValues } from '../memory/extract'
-import { EMPTY } from '../memory/model'
+import { EMPTY, type MemorySnapshot } from '../memory/model'
 import { buildProgram, isExpression, type Entry } from '../repl/program'
 import { events } from '../game/events'
 import { useCast } from '../game/director'
 import type { Activity } from '../../content/activities'
-import { LESSONS, guidance } from '../../content/lessons'
+import { LESSONS, guidance, progress } from '../../content/lessons'
+import { goTo } from './router'
 import { ScenePanel } from '../panels/ScenePanel'
 import { MemoryPanel } from '../panels/MemoryPanel'
 import { RobotPanel, type RobotView, type Transcript } from '../panels/RobotPanel'
@@ -58,6 +59,10 @@ export function Workbench({ activity }: { activity: Activity }) {
   /** Lines the robot accepted, replayed ahead of every new one. */
   const [history, setHistory] = useState<Entry[]>([])
   const [exchanges, setExchanges] = useState<Exchange[]>([])
+  /** Memory after each accepted line. A lesson step asks what was *ever*
+   *  true, because memory itself is not monotonic — rebinding a name
+   *  un-answers a question the player has already answered. */
+  const [lineMemory, setLineMemory] = useState<MemorySnapshot[]>([])
   /** Bumped per run. Object handles are assigned on first sight and kept
    *  for a whole run, so they must start over when a new one does. */
   const [runSeq, setRunSeq] = useState(0)
@@ -88,6 +93,7 @@ export function Workbench({ activity }: { activity: Activity }) {
     setTranscript([])
     setHistory([])
     setExchanges([])
+    setLineMemory([])
     spokenRef.current = ''
     keptRef.current = 0
     setProgram(activity.starter)
@@ -253,6 +259,7 @@ export function Workbench({ activity }: { activity: Activity }) {
         spokenRef.current = outcome.output
         keptRef.current = kept.length
         setHistory((h) => [...h, entry])
+        setLineMemory((m) => [...m, extractMemory(last)])
       }
     },
     [boot.state, busy, execute],
@@ -261,7 +268,24 @@ export function Workbench({ activity }: { activity: Activity }) {
   // The guide reads the same snapshot as everything else, so it rewinds
   // with the scrubber and cannot claim progress the robot does not have.
   const lesson = activity.lesson ? (LESSONS[activity.lesson] ?? null) : null
-  const guide = lesson ? guidance(lesson, snapshot) : undefined
+  // A step may ask the player to *retrieve* something, which leaves no
+  // trace in memory — so the evidence includes everything the robot has
+  // said back. Both halves only ever grow.
+  const evidence = useMemo(
+    () => ({
+      snapshot,
+      echoed: exchanges.map((x) => x.echo).filter((e): e is string => e !== null),
+      history: [...lineMemory, snapshot],
+    }),
+    [snapshot, exchanges, lineMemory],
+  )
+  const guide = lesson ? guidance(lesson, evidence) : undefined
+  // The whole progression: the guide offers the next lesson once this one
+  // is genuinely done. Derived like everything else, so scrubbing back
+  // through the trace withdraws the offer too.
+  const finished = lesson !== null && progress(lesson, evidence) === lesson.steps.length
+  const nextId = activity.next
+  const onAdvance = finished && nextId ? () => goTo(nextId) : undefined
 
   const currentStep = steps[shown]
   const traceLine = currentStep?.location.module === '__main__' ? currentStep.location.line : null
@@ -292,7 +316,13 @@ export function Workbench({ activity }: { activity: Activity }) {
         <div className="pane-head">
           <span className="pane-title">Scene</span>
         </div>
-        <ScenePanel spec={activity.scene} snapshot={snapshot} mood={cast.robot} guide={guide} />
+        <ScenePanel
+          spec={activity.scene}
+          snapshot={snapshot}
+          mood={cast.robot}
+          guide={guide}
+          onAdvance={onAdvance}
+        />
       </section>
 
       <Gutter

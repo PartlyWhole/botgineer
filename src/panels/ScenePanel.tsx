@@ -18,17 +18,26 @@ export function ScenePanel({
   snapshot,
   mood,
   guide,
+  onAdvance,
 }: {
   spec: SceneSpec
   snapshot: MemorySnapshot
   mood: Mood
-  /** What the guide is saying. Derived from the same snapshot by the
-   *  workbench and handed down as text — the scene still causes nothing
-   *  and decides nothing, it just draws the sentence it was given. */
-  guide?: string | undefined
+  /** What is being said, and by whom — an actor id, or the crow when it
+   *  is not given. Derived by the workbench and handed down as text: the
+   *  scene still causes nothing and decides nothing, it just draws the
+   *  sentence it was given, next to whoever is saying it. */
+  guide?: { text: string; speaker?: string | undefined } | undefined
+  /** Offered once the lesson is finished. Navigation only: it starts no
+   *  run and holds no state, so the scene still causes nothing that could
+   *  change what memory says. */
+  onAdvance?: (() => void) | undefined
 }) {
   const view = readScene(spec, snapshot)
-  const speaker = view.actors.find((a) => a.actor.kind === 'crow') ?? view.actors[0]
+  const speaker =
+    (guide?.speaker ? view.actors.find((a) => a.actor.id === guide.speaker) : undefined) ??
+    view.actors.find((a) => a.actor.kind === 'crow') ??
+    view.actors[0]
 
   return (
     <div className="scene-panel" data-testid="scene">
@@ -41,10 +50,20 @@ export function ScenePanel({
           <div
             className="bubble"
             data-testid="guide"
-            style={{ left: `${speaker.actor.x}%`, top: `${speaker.actor.y}%` }}
+            data-speaker={speaker.actor.id}
+            // Anchored to the speaker, but kept inside the stage: a
+            // character near an edge would otherwise push half the
+            // sentence out of the panel, and the guide is the one thing
+            // in the scene that has to be readable.
+            style={{ left: `${bubbleX(speaker.actor.x)}%`, top: `${speaker.actor.y}%` }}
             aria-live="polite"
           >
-            {richText(guide)}
+            {richText(guide.text)}
+            {onAdvance && (
+              <button type="button" className="advance" onClick={onAdvance} data-testid="advance">
+                Next
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -64,6 +83,9 @@ export function ScenePanel({
     </div>
   )
 }
+
+/** Horizontal anchor for a speech bubble, clamped clear of both edges. */
+export const bubbleX = (x: number): number => Math.min(Math.max(x, 27), 73)
 
 function ActorNode({ view, mood }: { view: ActorView; mood: Mood }) {
   const { actor } = view

@@ -176,3 +176,22 @@
     }
   }
 }
+
+/* The one piece of progression there is: the guide offering the next
+   lesson. It appears only once the current one is actually finished. */
+.stage .bubble .advance {
+  display: block;
+  margin: 9px 0 0;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--brand-line);
+  background: var(--brand);
+  color: var(--brand-ink);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.stage .bubble .advance:hover {
+  filter: brightness(1.08);
+}

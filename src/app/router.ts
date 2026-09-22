@@ -15,6 +15,12 @@ function read(): Activity {
   return activityById(id) ?? FALLBACK
 }
 
+/** Navigate by id. The guide uses this to offer the next lesson; keeping
+ *  it here means the hash format is written down in exactly one place. */
+export function goTo(id: string): void {
+  window.location.hash = `#/${id}`
+}
+
 export function useActivity(): [Activity, (next: Activity) => void] {
   const [activity, setActivity] = useState<Activity>(read)
   useEffect(() => {

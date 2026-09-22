@@ -7,7 +7,10 @@ import { defineConfig, devices } from '@playwright/test'
  * be run against a friendlier server.
  */
 const BASE = '/botgineer/'
-const PORT = 8619
+// Overridable, because two checkouts of this repo (a worktree, say) will
+// otherwise fight over one port — and `reuseExistingServer` means the
+// loser silently tests the winner's build rather than failing.
+const PORT = Number(process.env.PORT ?? 8619)
 
 export default defineConfig({
   testDir: './tests/browser',

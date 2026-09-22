@@ -537,3 +537,71 @@ test('a block is collected over several lines before it runs', async ({ page }) 
   await say(page, 'double(21)')
   await expect(page.getByTestId('echo').last()).toHaveText('42')
 })
+
+/* ------------------------------ progression ------------------------------ */
+
+test('the second lesson teaches that a name is an arrow', async ({ page }) => {
+  await open(page, 'names')
+  await expect(page.getByTestId('guide')).toContainText('x = 10')
+
+  await say(page, 'x = 10')
+  await say(page, 'y = x')
+  // One object, two names on it.
+  expect(
+    await page.evaluate(() => {
+      const s = window.botgineer.snapshot()
+      return new Set(s.bindings.map((b) => b.target)).size
+    }),
+  ).toBe(1)
+
+  await say(page, 'x = 99')
+  const bound = await page.evaluate(() =>
+    Object.fromEntries(
+      window.botgineer
+        .snapshot()
+        .bindings.map((b) => [b.name, window.botgineer.snapshot().objects[b.target]?.repr]),
+    ),
+  )
+  // x moved; y did not.
+  expect(bound).toEqual({ x: '99', y: '10' })
+
+  // Rebinding x makes step one false again, so progress would slide back
+  // to the start if it were read from the current snapshot alone.
+  await expect(page.getByTestId('guide')).toContainText('was never attached')
+})
+
+test('finishing a lesson offers the next one, and only then', async ({ page }) => {
+  await open(page, 'names')
+  await expect(page.getByTestId('advance')).toHaveCount(0)
+
+  await say(page, 'x = 10')
+  await expect(page.getByTestId('advance')).toHaveCount(0)
+  await say(page, 'y = x')
+  await say(page, 'x = 99')
+
+  await page.getByTestId('advance').click()
+  expect(page.url()).toContain('#/order')
+  await expect(page.locator('.app')).toHaveAttribute('data-boot', 'ready', { timeout: 60_000 })
+  await expect(page.getByTestId('actor-courier')).toBeVisible()
+})
+
+test('the courier asks, and the robot answers from what it stored', async ({ page }) => {
+  await open(page, 'order')
+  // The courier does the talking in this one, not the crow.
+  await expect(page.getByTestId('guide')).toHaveAttribute('data-speaker', 'courier')
+  await expect(page.getByTestId('waiting')).toContainText('customer')
+  await expect(page.locator('[data-testid="actor-ticket"] .sign-body')).toHaveText('no customer')
+
+  await say(page, 'customer = "Ana"')
+  // Storing a name is visible in the world, not just in memory.
+  await expect(page.locator('[data-testid="actor-ticket"] .sign-body')).toHaveText('Ana')
+  await expect(page.getByTestId('waiting')).toHaveCount(0)
+
+  await say(page, 'parcels = 7')
+  await expect(page.getByTestId('guide')).toContainText('2 kilos')
+
+  // The answer was never stored, and was never said out loud by anyone.
+  await say(page, 'parcels * 2')
+  await expect(page.getByTestId('echo').last()).toHaveText('14')
+  await expect(page.getByTestId('guide')).toContainText('Fourteen kilos')
+})

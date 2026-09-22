@@ -25,6 +25,10 @@ export type Activity = {
   greeting?: string
   /** Console only: the guide's lesson, by id in `content/lessons`. */
   lesson?: string
+  /** What the guide offers once the lesson is finished. The whole of the
+   *  progression, for now: activities are otherwise reachable only by
+   *  hash, so nothing can be skipped into. */
+  next?: string
   /** Editor only: what sits in the editor when the activity opens. */
   starter: string
   /** Budget for one run of this activity's session. */
@@ -32,6 +36,77 @@ export type Activity = {
 }
 
 /* ---------------------------------------------------------------- */
+
+/**
+ * The second lesson: names.
+ *
+ * A fresh session on purpose. Starting from an empty memory is what makes
+ * the first binding legible — one name, one arrow, one object — where
+ * continuing from the first lesson's four loose objects would open on a
+ * field that already looks busy.
+ */
+const namingThings: Activity = {
+  id: 'names',
+  title: 'Names',
+  brief: 'A name does not hold an object. It points at one.',
+  mode: 'console',
+  lesson: 'names-point',
+  next: 'order',
+  greeting: 'Empty again. This time we will give things names.',
+  starter: '',
+  options: { max_steps: 3000, wall_clock_s: 15 },
+  scene: {
+    id: 'workshop',
+    title: 'Workshop',
+    actors: [
+      { id: 'crow', kind: 'crow', x: 30, y: 48, w: 20 },
+      { id: 'robot', kind: 'robot', x: 68, y: 48, w: 22 },
+      { id: 'bench', kind: 'plinth', x: 50, y: 78, w: 62 },
+    ],
+    watches: [],
+  },
+}
+
+/**
+ * The third lesson: the robot earns its keep.
+ *
+ * A courier arrives, tells the robot two things and comes back with a
+ * question. This is the loop the whole game is built on — someone speaks,
+ * the player programs the robot to keep what matters, and the robot
+ * answers from what it kept.
+ *
+ * It is also the first scene that *reacts*: the ticket watches `customer`,
+ * so storing a name puts it on the board. That is why this lesson
+ * prescribes its names where the earlier ones did not.
+ */
+const takeAnOrder: Activity = {
+  id: 'order',
+  title: 'Taking an Order',
+  brief: 'A courier tells the robot two things, then asks it a question.',
+  mode: 'console',
+  lesson: 'take-an-order',
+  greeting: 'Someone is coming. Keep whatever she tells you — she will want it back.',
+  starter: '',
+  options: { max_steps: 3000, wall_clock_s: 15 },
+  scene: {
+    id: 'counter',
+    title: 'The counter',
+    actors: [
+      { id: 'crow', kind: 'crow', x: 14, y: 40, w: 14 },
+      { id: 'robot', kind: 'robot', x: 40, y: 46, w: 22 },
+      { id: 'courier', kind: 'courier', x: 76, y: 46, w: 20 },
+      { id: 'ticket', kind: 'sign', x: 40, y: 84, w: 34, label: 'no customer' },
+      { id: 'counter', kind: 'plinth', x: 50, y: 92, w: 78 },
+    ],
+    watches: [
+      {
+        name: 'customer',
+        effect: { kind: 'caption', actor: 'ticket' },
+        hint: 'the ticket is waiting for `customer`',
+      },
+    ],
+  },
+}
 
 const wakeTheRobot: Activity = {
   id: 'wake',
@@ -121,6 +196,7 @@ const firstWords: Activity = {
   brief: 'Learn to make objects in the robot\'s memory, before learning to name them.',
   mode: 'console',
   lesson: 'objects-first',
+  next: 'names',
   greeting: 'Say something to me and I will make it. One line at a time.',
   starter: '',
   options: { max_steps: 3000, wall_clock_s: 15 },
@@ -140,7 +216,13 @@ const firstWords: Activity = {
  *  is what the router opens with. The editor activities are reachable by
  *  hash but are not offered anywhere yet — they are what unlocking looks
  *  like, once there is a progression to unlock them from. */
-export const ACTIVITIES: Activity[] = [firstWords, wakeTheRobot, parcelBelt]
+export const ACTIVITIES: Activity[] = [
+  firstWords,
+  namingThings,
+  takeAnOrder,
+  wakeTheRobot,
+  parcelBelt,
+]
 
 export const activityById = (id: string): Activity | null =>
   ACTIVITIES.find((a) => a.id === id) ?? null
