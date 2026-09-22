@@ -284,7 +284,15 @@ export function MemoryGraph({ snapshot, handles, runKey, picked, onPick }: Props
 
   useEffect(
     () => () => {
-      if (raf.current !== null) cancelAnimationFrame(raf.current)
+      if (raf.current === null) return
+      cancelAnimationFrame(raf.current)
+      // Clearing the handle is the whole point. React's dev double-invoke
+      // tears these effects down and runs them again against the *same*
+      // refs, so a handle left behind makes `loop`'s re-entry guard reject
+      // every later start: the field never ticks, and what you see is the
+      // seed positions painted once. That is a dev-only wedge, which is
+      // why the production browser tests never caught it.
+      raf.current = null
     },
     [],
   )
