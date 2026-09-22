@@ -73,6 +73,8 @@ export function ScenePanel({
   // the lesson complete a third of the way through it.
   const done = triumph ?? view.solved
   const robot = view.actors.find((a) => a.actor.kind === 'robot')
+  // One band for the whole cast, so no bubble can cover a face.
+  const lift = speechLift(spec)
   const speaker =
     (guide?.speaker ? view.actors.find((a) => a.actor.id === guide.speaker) : undefined) ??
     view.actors.find((a) => a.actor.kind === 'crow') ??
@@ -104,7 +106,7 @@ export function ScenePanel({
             the guide's is — see `railAnchor` — so it clears the robot
             rather than sitting on its face. */}
         {(thinking || thought) && robot && (
-          <div className="thought-rail" style={railAnchor(robot.actor, spec.floor)}>
+          <div className="thought-rail" style={railAnchor(robot.actor, spec.floor, lift)}>
             <div
               className={`thought ${thinking ? 'working' : ''}`}
               style={{ left: `${bubbleX(robot.actor.x) - 50}%` }}
@@ -113,6 +115,8 @@ export function ScenePanel({
             >
               {thinking ? <span className="dots" aria-label="thinking" /> : thought}
             </div>
+            {/* Two shrinking circles rather than a tail: a thought, not
+                speech. They sit in the gap above whatever is being said. */}
             <span className="thought-tail" style={{ left: `${robot.actor.x}%` }}>
               <i />
               <i />
@@ -144,7 +148,7 @@ export function ScenePanel({
           // between the speaker and the right-hand edge.
           <div
             className="bubble-rail"
-            style={railAnchor(speaker.actor, spec.floor)}
+            style={railAnchor(speaker.actor, spec.floor, lift)}
           >
             <div
               className="bubble"
@@ -210,23 +214,45 @@ export const halfHeightPct = (actor: Actor): number =>
   ((actor.w ?? 16) * (ACTOR_RATIO[actor.kind] ?? 1)) / 2
 
 /**
- * Where the bubble's rail sits, so its bottom edge is the speaker's top
- * edge.
+ * How far above the floor every bubble in a scene starts, in percent of
+ * the stage *width* — the unit a percentage margin resolves in.
  *
- * A standing actor's top edge is the floor *minus its whole height*,
- * where an actor placed by its centre is only half a height above it.
- * Getting this wrong is not subtle — it puts the bubble through the
- * speaker's face, which is the bug the rail was built to fix.
+ * The tallest actor's height, not the speaker's. Bubbles used to hang
+ * from each speaker's own head, and with the cast standing on one floor
+ * that put a short character's bubble across a tall one's face: in the
+ * counter scene the crow is at x=13, its bubble clamps to 31% to stay on
+ * stage, and 31% is directly above the robot.
+ *
+ * One band for the whole cast reads like a comic strip and cannot cover
+ * anybody, whoever is speaking. The tail still points at the speaker, so
+ * nothing is lost by lifting the box.
+ */
+export function speechLift(spec: SceneSpec): number {
+  const lifts = spec.actors
+    .filter((a) => a.stand === true)
+    .map((a) => halfHeightPct(a) * 2)
+  return lifts.length > 0 ? Math.max(...lifts) : 0
+}
+
+/**
+ * Where a bubble's rail sits, so its bottom edge is the top of the
+ * scene's speech band.
+ *
+ * A scene with no floor has nobody standing, so it falls back to the
+ * speaker's own centre — which is what the fixtures-only scenes want.
  */
 export function railAnchor(
   actor: Actor,
   floor: Floor | undefined,
+  lift = 0,
 ): { bottom: string; marginBottom: string } {
-  const half = halfHeightPct(actor)
   if (actor.stand && floor) {
-    return { bottom: `${100 - floor.at}%`, marginBottom: `${half * 2}%` }
+    return {
+      bottom: `${100 - floor.at}%`,
+      marginBottom: `${Math.max(lift, halfHeightPct(actor) * 2)}%`,
+    }
   }
-  return { bottom: `${100 - actor.y}%`, marginBottom: `${half}%` }
+  return { bottom: `${100 - actor.y}%`, marginBottom: `${halfHeightPct(actor)}%` }
 }
 
 function ActorNode({

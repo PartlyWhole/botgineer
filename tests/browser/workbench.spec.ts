@@ -1047,7 +1047,12 @@ test("the robot's thought is visible on the stage, not just in the DOM", async (
 
 test('the crow and the robot do not talk over each other', async ({ page }) => {
   await open(page, 'operations')
-  await say(page, '7 * 6')
+  // The worst case on purpose: the crow's longest line, which wraps to
+  // two lines, beside the longest value in the lesson. A short line and a
+  // two-digit number clear each other by luck, and testing that was how
+  // an overlap survived to the live site.
+  await say(page, '"bot" + "gineer"')
+  await expect(page.getByTestId('thought')).toHaveText("'botgineer'")
 
   const boxes = await page.evaluate(() => {
     const r = (sel: string) => {
@@ -1064,12 +1069,12 @@ test('the crow and the robot do not talk over each other', async ({ page }) => {
   expect(thought).not.toBeNull()
 
   // Two bubbles above two adjacent characters. They used to collide,
-  // because the thought stretched to the width of its rail.
-  const overlaps =
-    !(guide!.r <= thought!.l || thought!.r <= guide!.l || guide!.b <= thought!.t || thought!.b <= guide!.t)
-  expect(overlaps).toBe(false)
+  // because the thought stretched to the width of its rail — and then
+  // came out exactly flush, which let a sub-pixel decide the question.
+  // A real gap is asserted instead of mere non-overlap.
+  expect(Math.round(guide!.t - thought!.b)).toBeGreaterThanOrEqual(8)
 
-  // `42` is two characters; its bubble should be small.
+  // The value is eleven characters; its bubble should still be modest.
   expect(thought!.w).toBeLessThan(stage!.w * 0.3)
 
   // And it must be over the robot. Sizing it to its contents once cost
@@ -1085,4 +1090,34 @@ test('the crow and the robot do not talk over each other', async ({ page }) => {
     expect(box.l).toBeGreaterThanOrEqual(stage!.l)
     expect(box.r).toBeLessThanOrEqual(stage!.r)
   }
+})
+
+test('no bubble covers a character, whoever is speaking', async ({ page }) => {
+  // The crow stands at x=13 in the counter scene and its bubble clamps
+  // towards the middle to stay on stage — which put it across the
+  // robot's face, because bubbles used to hang from their own speaker's
+  // head rather than from one band above the whole cast.
+  await open(page, 'order')
+  await say(page, 'customer = "Ana"')
+  await say(page, 'parcels = 7')
+  await say(page, 'parcels * 2')
+
+  const clashes = await page.evaluate(() => {
+    const box = (el: Element) => el.getBoundingClientRect()
+    const hits = (a: DOMRect, b: DOMRect) =>
+      !(a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top)
+    const bubbles = [...document.querySelectorAll('[data-testid="guide"], [data-testid="thought"]')]
+    // Only the cast: a sign or a gauge is scenery and may sit behind.
+    const cast = [...document.querySelectorAll('.actor.robot, .actor.crow, .actor.courier')]
+    const out: string[] = []
+    for (const bubble of bubbles) {
+      for (const actor of cast) {
+        if (hits(box(bubble), box(actor))) {
+          out.push(`${bubble.getAttribute('data-testid')} over ${actor.getAttribute('data-testid')}`)
+        }
+      }
+    }
+    return out
+  })
+  expect(clashes).toEqual([])
 })

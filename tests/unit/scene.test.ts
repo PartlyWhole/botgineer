@@ -3,7 +3,7 @@
  * given what is bound, what does the picture show?
  */
 import { describe, expect, it } from 'vitest'
-import { bubbleX, halfHeightPct, railAnchor } from '../../src/panels/ScenePanel'
+import { bubbleX, halfHeightPct, railAnchor, speechLift } from '../../src/panels/ScenePanel'
 import { placement, readScene, type Actor, type SceneSpec } from '../../src/scene/spec'
 import { ACTIVITIES } from '../../content/activities'
 import type { MemorySnapshot, PyObject } from '../../src/memory/model'
@@ -211,6 +211,43 @@ describe('standing on the floor', () => {
     expect(centred.marginBottom).toBe(`${halfHeightPct(robot)}%`)
     expect(standing.marginBottom).toBe(`${halfHeightPct(robot) * 2}%`)
     expect(standing.bottom).toBe('22%')
+  })
+
+  it('lifts a short speaker to the tallest actor, so it covers nobody', () => {
+    // The crow is shorter than the robot, and its bubble clamps towards
+    // the centre to stay on stage — which is directly over the robot.
+    const crow: Actor = { id: 'crow', kind: 'crow', x: 13, y: 0, w: 13, stand: true }
+    const spec: SceneSpec = {
+      id: 's',
+      title: 's',
+      floor,
+      actors: [crow, robot],
+      watches: [],
+    }
+    const lift = speechLift(spec)
+    expect(lift).toBe(halfHeightPct(robot) * 2)
+    expect(lift).toBeGreaterThan(halfHeightPct(crow) * 2)
+    // Both speakers get the same band.
+    expect(railAnchor(crow, floor, lift).marginBottom).toBe(`${lift}%`)
+    expect(railAnchor(robot, floor, lift).marginBottom).toBe(`${lift}%`)
+  })
+
+  it('counts only actors that stand, since fixtures hang', () => {
+    const spec: SceneSpec = {
+      id: 's',
+      title: 's',
+      floor,
+      actors: [lamp, { ...robot, w: 30 }],
+      watches: [],
+    }
+    // The lamp is mounted on a wall; it is not part of the cast.
+    expect(speechLift(spec)).toBe(halfHeightPct({ ...robot, w: 30 }) * 2)
+    expect(speechLift({ ...spec, actors: [lamp] })).toBe(0)
+  })
+
+  it('never lowers a bubble below the speaker it belongs to', () => {
+    // A lift smaller than the speaker's own height must not apply.
+    expect(railAnchor(robot, floor, 1).marginBottom).toBe(`${halfHeightPct(robot) * 2}%`)
   })
 
   it('ignores a floor for an actor that is not standing on it', () => {

@@ -281,11 +281,20 @@
 .stage .thought {
   position: relative;
   margin-top: auto;
-  /* Real clearance above the head, which the trailing dots sit in. The
-     rail's foot is the robot's top edge computed from its viewBox ratio,
-     and that lands within a pixel — so "touching" was the default and a
-     rounding error either way. A gap is better drawing anyway. */
-  margin-bottom: 15px;
+  /* Lifted clear of the speech band, with the trail of dots rising
+     through the gap.
+     
+     Both bubbles hang from their own speaker's head, and the speakers
+     stand on the same floor — so a two-line speech bubble beside a long
+     value overlapped whatever the widths were. Since the robot is the
+     tallest actor, lifting its thought clear of the speech band
+     separates them in every scene, whoever is talking, without measuring
+     anything.
+     
+     The height of the tallest thing the crow says, plus daylight. At 82px
+     the two boxes came out exactly flush — bottom 327, top 327 — which
+     looked fine and made the no-overlap test decide on a sub-pixel. */
+  margin-bottom: 112px;
   /* Sized by its contents and centred, exactly like the guide's bubble.
      As a flex item in a column rail the default `stretch` gave it the
      rail's whole width and `max-width` only capped that, so a
@@ -313,13 +322,21 @@
 }
 
 /* Two shrinking circles instead of a tail: a thought, not speech. */
+/* The trail. Four dots shrinking towards the head, which is what says
+   "thinking" rather than "speaking" — and it now has a real gap to rise
+   through. */
 .stage .thought-tail {
   position: absolute;
-  bottom: 1px;
+  bottom: 4px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
+  /* Short, because it lives in the daylight between the thought and
+     whatever the crow is saying below it — a long trail is simply drawn
+     behind the speech bubble and cannot be seen. */
+  justify-content: flex-start;
+  height: 20px;
+  gap: 3px;
   transform: translateX(-50%);
 }
 
@@ -329,14 +346,19 @@
   border: 1px solid var(--brand-line);
 }
 
-.stage .thought-tail i:first-child {
-  width: 7px;
-  height: 7px;
+.stage .thought-tail i:nth-child(1) {
+  width: 8px;
+  height: 8px;
 }
 
-.stage .thought-tail i:last-child {
-  width: 4px;
-  height: 4px;
+.stage .thought-tail i:nth-child(2) {
+  width: 5px;
+  height: 5px;
+}
+
+/* Two is what fits the gap; the rest would be drawn behind the speech. */
+.stage .thought-tail i:nth-child(n + 3) {
+  display: none;
 }
 
 .stage .thought .dots {
