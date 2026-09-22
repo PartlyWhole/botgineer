@@ -136,6 +136,18 @@
   position: absolute;
   left: 0;
   right: 0;
+  /* Anchored at BOTH ends: `top: 0` and the inline `bottom`, so the rail
+     is the whole of the room above the speaker's head and no more. The
+     bubble takes the foot of it through `margin-top: auto`, which is what
+     makes a short stage safe — an auto margin resolves to zero when the
+     content does not fit, so an over-tall bubble slides down into view
+     instead of off the top. `overflow: hidden` on the stage gives no
+     second chance: the stacked layout at a 900px viewport leaves the
+     stage 263px tall, and there the lift is larger than the room. */
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   padding-bottom: 14px;
   pointer-events: none;
   z-index: 3;
@@ -146,7 +158,7 @@
      the width; `left` then slides that box towards the speaker without
      taking any room away from it. */
   position: relative;
-  margin: 0 auto;
+  margin: auto auto 0;
   width: max-content;
   /* 58%, against a 31–69 clamp, leaves a 2% gutter at either edge even
      when the panel is dragged to its 320px minimum and the percentage is
