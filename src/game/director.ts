@@ -29,8 +29,16 @@ export function nextCast(current: Cast, e: { type: string } & Record<string, unk
     case 'attempt-started':
       return { robot: 'thinking', npc: 'attentive' }
     case 'attempt-graded':
+      // `passed` here means only that the interpreter reached the end
+      // without raising. That is not success, and the robot must not
+      // celebrate it: `power = 0` runs perfectly and leaves the lamp
+      // dark. Whether anything actually worked is a property of the
+      // picture, so the scene decides celebration (`SceneView.solved`)
+      // and this decides nothing more than attentiveness.
+      //
+      // A run that threw is still a real signal, and stays one.
       return e.passed
-        ? { robot: 'celebrate', npc: 'pleased' }
+        ? { robot: 'attentive', npc: 'attentive' }
         : { robot: 'confused', npc: 'confused' }
     default:
       return current

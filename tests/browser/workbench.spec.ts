@@ -695,3 +695,52 @@ test('a bubble clears a standing speaker instead of covering them', async ({ pag
   // this repo has already shipped once.
   expect(box!.inside).toBe(true)
 })
+
+/* ------------------------- what the robot believes ------------------------- */
+
+const robotMood = (page: Page) =>
+  page.evaluate(() => {
+    const el = document.querySelector('[data-testid="actor-robot"] .character.robot')
+    return [...(el?.classList ?? [])].find((c) => c.startsWith('mood-')) ?? null
+  })
+
+test('the robot does not celebrate a run that left the lamp dark', async ({ page }) => {
+  await open(page, EDITOR)
+  // Binds every watched name, raises nothing, completes — and `power = 0`
+  // is falsy, so the lamp stays dark. The robot used to beam at this with
+  // the same face as a correct run.
+  await send(page, 'power = 0\nname = "Bolt"\ncharge = 72\n')
+
+  await expect(page.getByTestId('transcript')).toContainText('Done.')
+  await expect(page.getByTestId('waiting')).toHaveCount(0)
+  await expect(page.getByTestId('actor-lamp')).toHaveAttribute('data-lit', 'no')
+  expect(await robotMood(page)).not.toBe('mood-celebrate')
+
+  // Now make it actually true.
+  await send(page, 'power = True\nname = "Bolt"\ncharge = 72\n')
+  await expect(page.getByTestId('actor-lamp')).toHaveAttribute('data-lit', 'yes')
+  expect(await robotMood(page)).toBe('mood-celebrate')
+})
+
+test('a half-finished scene is not a celebration either', async ({ page }) => {
+  await open(page, EDITOR)
+  await send(page, 'power = True\n')
+  await expect(page.getByTestId('actor-lamp')).toHaveAttribute('data-lit', 'yes')
+  // One watch of three.
+  await expect(page.getByTestId('waiting')).toContainText('name')
+  expect(await robotMood(page)).not.toBe('mood-celebrate')
+})
+
+test('an empty pick list moves nothing and earns nothing', async ({ page }) => {
+  await open(page, 'belt')
+  await send(page, 'heavy = []\n')
+  await expect(page.getByTestId('waiting')).toHaveCount(0)
+  for (const id of ['A7', 'B1', 'C2', 'D3', 'E5']) {
+    await expect(page.getByTestId(`actor-${id}`)).toHaveAttribute('data-picked', 'no')
+  }
+  expect(await robotMood(page)).not.toBe('mood-celebrate')
+
+  await send(page, 'heavy = ["B1", "D3"]\n')
+  await expect(page.getByTestId('actor-B1')).toHaveAttribute('data-picked', 'yes')
+  expect(await robotMood(page)).toBe('mood-celebrate')
+})

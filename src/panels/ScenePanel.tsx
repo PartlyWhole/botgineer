@@ -27,6 +27,7 @@ export function ScenePanel({
   mood,
   guide,
   onAdvance,
+  triumph,
 }: {
   spec: SceneSpec
   snapshot: MemorySnapshot
@@ -40,6 +41,13 @@ export function ScenePanel({
    *  run and holds no state, so the scene still causes nothing that could
    *  change what memory says. */
   onAdvance?: (() => void) | undefined
+  /**
+   * The activity considers itself done — a guided lesson's last step.
+   *
+   * Scenes with watches judge themselves (`SceneView.solved`); a console
+   * lesson has nothing to watch, so its triumph is the lesson's own.
+   */
+  triumph?: boolean | undefined
 }) {
   const view = readScene(spec, snapshot)
   const speaker =
@@ -61,7 +69,13 @@ export function ScenePanel({
         )}
 
         {view.actors.map((a) => (
-          <ActorNode key={a.actor.id} view={a} mood={mood} floor={spec.floor} />
+          <ActorNode
+            key={a.actor.id}
+            view={a}
+            mood={mood}
+            floor={spec.floor}
+            pleased={view.solved || triumph === true}
+          />
         ))}
 
         {guide && speaker && (
@@ -172,10 +186,15 @@ function ActorNode({
   view,
   mood,
   floor,
+  pleased,
 }: {
   view: ActorView
   mood: Mood
   floor: Floor | undefined
+  /** The scene as a whole is satisfied — the only thing that earns a
+   *  celebration. Per-actor `lit` is not enough: one lamp on out of
+   *  three watches is a third of the way there. */
+  pleased: boolean
 }) {
   const { actor } = view
   const standing = actor.stand === true && floor !== undefined
@@ -189,7 +208,7 @@ function ActorNode({
       data-lit={view.lit ? 'yes' : 'no'}
       data-picked={view.picked ? 'yes' : 'no'}
     >
-      {actor.kind === 'robot' && <Robot mood={view.lit ? 'celebrate' : mood} />}
+      {actor.kind === 'robot' && <Robot mood={pleased ? 'celebrate' : mood} />}
       {actor.kind === 'crow' && <Crow mood={mood} />}
       {actor.kind === 'courier' && <Courier mood={mood} />}
 

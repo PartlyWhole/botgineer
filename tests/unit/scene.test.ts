@@ -243,3 +243,106 @@ describe('every scene', () => {
     }
   })
 })
+
+/**
+ * Bound is not solved.
+ *
+ * The robot used to celebrate any run that reached the end, so
+ * `power = 0` — which binds the name, clears the waiting hint and raises
+ * nothing — got applause with the lamp dark.
+ */
+describe('a scene judging itself', () => {
+  const bay: SceneSpec = {
+    id: 'bay',
+    title: 'bay',
+    floor: { at: 80 },
+    actors: [
+      { id: 'robot', kind: 'robot', x: 50, y: 0, w: 27, stand: true },
+      { id: 'lamp', kind: 'lamp', x: 78, y: 20, w: 9 },
+      { id: 'plate', kind: 'sign', x: 50, y: 14, w: 38, label: 'unnamed' },
+      { id: 'gauge', kind: 'gauge', x: 20, y: 26, w: 17 },
+    ],
+    watches: [
+      { name: 'power', effect: { kind: 'lit', actor: 'lamp' }, hint: 'power' },
+      { name: 'name', effect: { kind: 'caption', actor: 'plate' }, hint: 'name' },
+      { name: 'charge', effect: { kind: 'level', actor: 'gauge', max: 100 }, hint: 'charge' },
+    ],
+  }
+
+  const world = (entries: [string, PyObject][]): MemorySnapshot => ({
+    bindings: entries.map(([name, o]) => ({ name, scope: 'global', target: o.id })),
+    objects: Object.fromEntries(entries.map(([, o]) => [o.id, o])),
+    line: 1,
+  })
+
+  const bool = (v: boolean) => value(`v:bool:${v}`, 'bool', v ? 'True' : 'False')
+  const int = (n: number) => value(`v:int:${n}`, 'int', String(n))
+  const str = (t: string) => value(`v:str:${t}`, 'str', `'${t}'`)
+
+  const solvedWith = (entries: [string, PyObject][]) => readScene(bay, world(entries)).solved
+
+  it('is solved when every watch is doing something', () => {
+    expect(solvedWith([['power', bool(true)], ['name', str('Bolt')], ['charge', int(72)]])).toBe(true)
+  })
+
+  it('is not solved by a falsy value that still counts as bound', () => {
+    const view = readScene(bay, world([['power', int(0)], ['name', str('Bolt')], ['charge', int(72)]]))
+    // Nothing is waiting any more, and the lamp is still dark.
+    expect(view.waitingFor).toEqual([])
+    expect(view.actors.find((a) => a.actor.id === 'lamp')?.lit).toBe(false)
+    expect(view.solved).toBe(false)
+  })
+
+  it('is not solved by a blank sign', () => {
+    expect(solvedWith([['power', bool(true)], ['name', str('')], ['charge', int(72)]])).toBe(false)
+  })
+
+  it('is not solved by a gauge bound to something that is not a number', () => {
+    expect(solvedWith([['power', bool(true)], ['name', str('Bolt')], ['charge', str('full')]])).toBe(
+      false,
+    )
+  })
+
+  it('is not solved while anything is still unbound', () => {
+    expect(solvedWith([['power', bool(true)]])).toBe(false)
+  })
+
+  it('is not solved by an empty scene', () => {
+    expect(readScene(bay, { bindings: [], objects: {}, line: null }).solved).toBe(false)
+  })
+
+  it('has nothing to be pleased about when it watches nothing', () => {
+    // A console lesson's scene. Vacuous truth would have the robot
+    // celebrating from the moment it loaded.
+    const workshop: SceneSpec = { ...bay, watches: [] }
+    expect(readScene(workshop, world([])).solved).toBe(false)
+  })
+
+  it('needs a pick to have moved something', () => {
+    const depot: SceneSpec = {
+      id: 'depot',
+      title: 'depot',
+      floor: { at: 80, look: 'belt' },
+      actors: [
+        { id: 'B1', kind: 'crate', x: 40, y: 0, w: 13, label: 'B1', group: 'parcels', stand: true },
+      ],
+      watches: [{ name: 'heavy', effect: { kind: 'pick', group: 'parcels' }, hint: 'heavy' }],
+    }
+    const listOf = (labels: string[]): [string, PyObject][] => {
+      const items = labels.map((l) => str(l))
+      const list: PyObject = {
+        id: 'o:L1',
+        type: 'list',
+        kind: 'reference',
+        repr: `${labels.length} items`,
+        elements: items.map((o, i) => ({ label: String(i), target: o.id })),
+        partial: false,
+      }
+      return [['heavy', list], ...items.map((o, i) => [`__i${i}`, o] as [string, PyObject])]
+    }
+    expect(readScene(depot, world(listOf(['B1']))).solved).toBe(true)
+    // An empty list moves no parcel, and neither does a wrong label.
+    expect(readScene(depot, world(listOf([]))).solved).toBe(false)
+    expect(readScene(depot, world(listOf(['nope']))).solved).toBe(false)
+  })
+})

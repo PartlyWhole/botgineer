@@ -132,6 +132,20 @@ export type SceneView = {
   /** Watched names that are not bound yet. The scene says what it is
    *  waiting for rather than sitting inert and unexplained. */
   waitingFor: { name: string; hint: string }[]
+  /**
+   * Every watch is not just bound, but *doing something*.
+   *
+   * Bound is not enough, and this is the distinction the robot used to
+   * get wrong: `power = 0` binds `power`, so nothing is waiting any more
+   * and the program completed without error — yet the lamp is dark. The
+   * robot celebrated that. Celebration has to come from the picture
+   * being right, not from the interpreter reaching the end.
+   *
+   * False for a scene with no watches. There is nothing to satisfy, so
+   * there is nothing to be pleased about; those activities decide their
+   * own triumph elsewhere.
+   */
+  solved: boolean
 }
 
 function globalObject(snapshot: MemorySnapshot, name: string): PyObject | null {
@@ -178,6 +192,7 @@ export function readScene(spec: SceneSpec, snapshot: MemorySnapshot): SceneView 
     ]),
   )
   const waitingFor: { name: string; hint: string }[] = []
+  let satisfied = 0
 
   for (const watch of spec.watches) {
     const object = globalObject(snapshot, watch.name)
@@ -189,21 +204,41 @@ export function readScene(spec: SceneSpec, snapshot: MemorySnapshot): SceneView 
     const e = watch.effect
     if (e.kind === 'pick') {
       const wanted = new Set(stringsIn(object, snapshot))
+      let picked = 0
       for (const v of views.values()) {
-        if (v.actor.group === e.group && v.actor.label) v.picked = wanted.has(v.actor.label)
+        if (v.actor.group === e.group && v.actor.label) {
+          v.picked = wanted.has(v.actor.label)
+          if (v.picked) picked += 1
+        }
       }
+      // An empty list, or one naming nothing in the scene, moves no
+      // parcel. The robot is not owed applause for that.
+      if (picked > 0) satisfied += 1
       continue
     }
 
     const view = views.get(e.actor)
     if (!view) continue
-    if (e.kind === 'lit') view.lit = truthy(object)
-    if (e.kind === 'caption') view.caption = displayText(object)
+    if (e.kind === 'lit') {
+      view.lit = truthy(object)
+      if (view.lit) satisfied += 1
+    }
+    if (e.kind === 'caption') {
+      view.caption = displayText(object)
+      // A blank sign is not a named robot.
+      if (view.caption.trim() !== '') satisfied += 1
+    }
     if (e.kind === 'level') {
       const n = numberOf(object)
       view.level = n === null ? null : Math.max(0, Math.min(1, n / e.max))
+      // Bound to something that is not a number leaves the gauge empty.
+      if (view.level !== null) satisfied += 1
     }
   }
 
-  return { actors: [...views.values()], waitingFor }
+  return {
+    actors: [...views.values()],
+    waitingFor,
+    solved: spec.watches.length > 0 && satisfied === spec.watches.length,
+  }
 }

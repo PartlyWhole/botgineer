@@ -322,6 +322,7 @@ export function Workbench({ activity }: { activity: Activity }) {
           mood={cast.robot}
           guide={guide}
           onAdvance={onAdvance}
+          triumph={finished}
         />
       </section>
 
