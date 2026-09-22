@@ -43,9 +43,9 @@ async function open(page: Page, activity: string) {
   await expect(page.locator('.app')).toHaveAttribute('data-boot', 'ready', { timeout: 60_000 })
 }
 
-/** Memory is a view of the robot panel, so it has to be brought up. */
+/** Memory shares the robot panel with the instrument — there is nothing
+ *  to switch to any more, so this only confirms it is on screen. */
 async function showMemory(page: Page) {
-  await page.getByTestId('view-memory').click()
   await expect(page.getByTestId('memory')).toBeVisible()
 }
 
@@ -68,15 +68,15 @@ const targetOf = (page: Page, name: string) =>
 
 /* ---------------------------- the three panels ---------------------------- */
 
-test('two panels, with memory as a view of the robot', async ({ page }) => {
+test('two panels, with memory sharing the robot panel', async ({ page }) => {
   await open(page, 'sandbox')
   await expect(page.getByTestId('scene')).toBeVisible()
   await expect(page.getByTestId('robot-panel')).toBeVisible()
-  // Memory is not a panel of its own, and talking is what opens.
-  await expect(page.getByTestId('memory')).toBeHidden()
+  // Memory is not a panel of its own, and it is not a tab either: it is
+  // on screen at the same time as the thing that changes it.
   await expect(page.getByTestId('console')).toBeVisible()
-  await showMemory(page)
-  await expect(page.getByTestId('console')).toBeHidden()
+  await expect(page.getByTestId('memory')).toBeVisible()
+  await expect(page.locator('[data-testid="view-memory"]')).toHaveCount(0)
   // GitHub Pages cannot send COOP/COEP; the service-worker shim must.
   await expect.poll(() => page.evaluate(() => window.crossOriginIsolated)).toBe(true)
   await expect(page.locator('.app')).toHaveAttribute('data-isolated', 'yes')
@@ -818,63 +818,74 @@ test('the cast does not move when the hint bar comes and goes', async ({ page })
 
 /* ------------------------ memory while you instruct ----------------------- */
 
-test('an object appears in the rail without leaving the console', async ({ page }) => {
+test('an object appears in memory without leaving the console', async ({ page }) => {
   await open(page, 'sandbox')
-  // The point: no view switch anywhere in this test.
-  await expect(page.getByTestId('rail')).toBeVisible()
-  await expect(page.getByTestId('rail')).toContainText('Nothing in memory yet')
+  // The point: no switching anywhere in this test.
+  await expect(page.getByTestId('console')).toBeVisible()
+  await expect(page.getByTestId('memory')).toContainText('Memory is empty')
 
   await say(page, '10')
-  await expect(page.getByTestId('rail')).toContainText('10')
-  await expect(page.getByTestId('memory')).toBeHidden()
+  await expect(page.locator('.node.object .repr')).toHaveText('10')
+  await expect(page.getByTestId('console')).toBeVisible()
 
   // Nameless, which is the whole of the first lesson.
-  await expect(page.locator('.rail-cell.nameless')).toHaveCount(1)
-  await expect(page.locator('.rail-name')).toHaveCount(0)
+  await expect(page.locator('.node.name')).toHaveCount(0)
 
   await say(page, 'x = 5')
-  await expect(page.locator('.rail-name')).toHaveText(['x'])
+  await expect(page.locator('.node.name')).toHaveText(['x'])
 })
 
-test('a collection is one chip on the rail, not one per element', async ({ page }) => {
+test('an object card leads with its value, and hides its handle', async ({ page }) => {
   await open(page, 'sandbox')
-  await say(page, '[1, 2, 3]')
+  await say(page, '10')
+  await stillness(page)
+  const card = page.locator('.node.object').first()
 
-  // Four objects exist and the graph draws all four; the strip shows the
-  // thing that was typed.
-  await expect(page.locator('.rail-cell')).toHaveCount(1)
-  await expect(page.locator('.rail-repr')).toHaveText('3 items')
-  // Collapsed, not inlined: the chip never claims to contain the values.
-  await expect(page.getByTestId('rail')).not.toContainText('[1, 2, 3]')
-  expect(await page.evaluate(() => Object.keys(window.botgineer.snapshot().objects).length)).toBe(4)
+  // The value is the thing in the middle, and the biggest thing on it.
+  await expect(card.locator('.repr')).toHaveText('10')
+  const tiers = await card.evaluate((el) => {
+    const px = (sel: string) =>
+      parseFloat(getComputedStyle(el.querySelector(sel)!).fontSize)
+    return { repr: px('.repr'), type: px('.type'), handle: px('.handle') }
+  })
+  expect(tiers.repr).toBeGreaterThan(tiers.type)
+  expect(tiers.type).toBeGreaterThan(tiers.handle)
 
-  // Naming an element brings it back — it is something referred to now.
-  await say(page, 'first = 1')
-  await expect(page.locator('.rail-cell')).toHaveCount(2)
-  await expect(page.locator('.rail-name')).toHaveText(['first'])
+  // The type is present but off to the side, not centred with the value.
+  await expect(card.locator('.type')).toHaveText('int')
+
+  // The handle is bookkeeping: there for a screen reader and on hover,
+  // but not competing with the value.
+  expect(await card.locator('.handle').evaluate((el) => getComputedStyle(el).opacity)).toBe('0')
+  await card.hover()
+  // Polled, not sampled: opacity is transitioned, and reading it on the
+  // first frame after hovering catches it still at 0.
+  await expect
+    .poll(() => card.locator('.handle').evaluate((el) => Number(getComputedStyle(el).opacity)))
+    .toBeGreaterThan(0)
+  await expect(card).toHaveAttribute('aria-label', /10, int, obj\d+/)
 })
 
-test('the rail and the graph agree about which object is which', async ({ page }) => {
-  await open(page, 'names')
-  await say(page, 'x = 10')
-  await say(page, 'y = x')
-
-  // Two names on one object: both are on the rail, not just the first.
-  await expect(page.locator('.rail-name')).toHaveText(['x', 'y'])
-  await expect(page.locator('.rail-cell')).toHaveCount(1)
-
-  const railHandle = await page.locator('.rail-handle').first().innerText()
-  await showMemory(page)
-  await expect(page.getByTestId('memory')).toContainText(railHandle)
-})
-
-test('the rail keeps its height so the editor above it does not reflow', async ({ page }) => {
-  await open(page, EDITOR)
-  const railHeight = () =>
-    page.evaluate(() => Math.round(document.querySelector('.rail')!.getBoundingClientRect().height))
-  const empty = await railHeight()
-  await send(page, 'a = 1\nb = [1, 2, 3]\nc = {"k": 1}\n')
-  expect(await railHeight()).toBe(empty)
+test('revealing a handle does not resize the card, or the field would shift', async ({ page }) => {
+  await open(page, 'sandbox')
+  await say(page, '10')
+  // A moving pill slides out from under the cursor, and `:hover` with it.
+  await stillness(page)
+  const card = page.locator('.node.object').first()
+  // Layout pixels, not screen pixels. The pills sit inside the camera's
+  // transform, so a bounding rect also reports the current zoom — which
+  // was still easing between the two reads and made this look like a
+  // resize. `offsetWidth` is what the layout itself measures.
+  const size = () =>
+    card.evaluate((el: HTMLElement) => `${el.offsetWidth}x${el.offsetHeight}`)
+  const resting = await size()
+  await card.hover()
+  // A size that changed under the cursor would shove the whole field
+  // around as the mouse moved across it.
+  expect(await size()).toBe(resting)
+  await expect
+    .poll(() => card.locator('.handle').evaluate((el) => Number(getComputedStyle(el).opacity)))
+    .toBeGreaterThan(0)
 })
 
 /* ------------------------------ getting around ----------------------------- */

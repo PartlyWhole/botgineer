@@ -18,13 +18,12 @@
 import type { ReactNode } from 'react'
 import { CodeEditor, type EditorApi } from '../ui/CodeEditor'
 import { RobotConsole, type Exchange } from '../ui/RobotConsole'
+import { Gutter, useRemembered } from '../ui/Split'
 
 export type Transcript =
   | { kind: 'out'; text: string }
   | { kind: 'err'; text: string }
   | { kind: 'note'; text: string }
-
-export type RobotView = 'code' | 'memory'
 
 /** Which instrument the player has. The console is the beginner's; the
  *  editor is unlocked later, once a whole program is worth writing. */
@@ -50,11 +49,7 @@ type Props = {
   onIndex: (i: number) => void
   /** Line the trace is on, highlighted in the editor. */
   traceLine: number | null
-  view: RobotView
   memory: ReactNode
-  /** A strip of memory, shown beside the thing that changes it. Only in
-   *  the code/talk view: the memory view already *is* memory. */
-  rail: ReactNode
 }
 
 export function RobotPanel({
@@ -74,11 +69,12 @@ export function RobotPanel({
   total,
   onIndex,
   traceLine,
-  view,
   memory,
-  rail,
 }: Props) {
   const talking = mode === 'console'
+  // Remembered, because how much room memory deserves depends on what the
+  // player is doing with it.
+  const [memoryH, setMemoryH] = useRemembered('botgineer.rp.memory', 280)
 
   return (
     <div
@@ -87,8 +83,16 @@ export function RobotPanel({
       data-mode={mode}
       data-busy={busy ? 'yes' : 'no'}
     >
-      <div className="views" data-view={view}>
-        <div className="view" hidden={view !== 'code'}>
+      {/* Both at once, not one or the other.
+      
+          A `Talk | Memory` switch meant the effect of an instruction was
+          always on the tab you were not looking at — and the moment a
+          beginner most needs to see an object appear is the moment they
+          made it. A strip of memory under the console was the first
+          attempt; the real view, resizable, is better than an abridgement
+          of it, and it is the same snapshot either way. */}
+      <div className="views">
+        <div className="view instrument">
           {talking ? (
             <RobotConsole
               exchanges={exchanges}
@@ -107,12 +111,19 @@ export function RobotPanel({
             />
           )}
         </div>
-        <div className="view" hidden={view !== 'memory'}>
-          {memory}
-        </div>
-      </div>
 
-      {view === 'code' && rail}
+        <Gutter
+          orientation="horizontal"
+          value={memoryH}
+          onChange={setMemoryH}
+          min={120}
+          max={620}
+          invert
+          label="Resize memory"
+        />
+
+        <div className="view memory-view">{memory}</div>
+      </div>
 
       {/* The console answers inline, so it needs no Run button and no step
           slider — pressing Enter is the transport. All it can still want is

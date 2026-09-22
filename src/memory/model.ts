@@ -100,30 +100,6 @@ export function namesFor(snapshot: MemorySnapshot, id: ObjectId): Binding[] {
   return snapshot.bindings.filter((b) => b.target === id)
 }
 
-/**
- * Objects worth a line of their own: named, or held by nothing.
- *
- * What this leaves out is an object that is *only* reachable through a
- * collection — the `1`, `2` and `3` inside a list nobody has named yet.
- * They are real objects and the graph draws every one of them, but in a
- * one-line strip four chips for `[1, 2, 3]` bury the thing the player
- * actually made.
- *
- * Collapsing is not inlining (invariant 4). The collection's chip still
- * reads `3 items`, never `[1, 2, 3]`: the elements are hidden, not drawn
- * as though they lived inside their container. An element that earns a
- * name of its own reappears, because then it is something the player
- * refers to rather than something they filled a list with.
- */
-export function topLevel(snapshot: MemorySnapshot): ObjectId[] {
-  const named = new Set(snapshot.bindings.map((b) => b.target))
-  const held = new Set<ObjectId>()
-  for (const o of Object.values(snapshot.objects)) {
-    for (const e of o.elements ?? []) held.add(e.target)
-  }
-  return orderedObjectIds(snapshot).filter((id) => named.has(id) || !held.has(id))
-}
-
 /** Every object that holds a pointer to this one. */
 export function holdersOf(snapshot: MemorySnapshot, id: ObjectId): PyObject[] {
   return Object.values(snapshot.objects).filter((o) =>

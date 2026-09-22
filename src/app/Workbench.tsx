@@ -33,8 +33,7 @@ import { LESSONS, guidance, progress } from '../../content/lessons'
 import { goTo } from './router'
 import { ScenePanel } from '../panels/ScenePanel'
 import { MemoryPanel } from '../panels/MemoryPanel'
-import { MemoryRail } from '../panels/MemoryRail'
-import { RobotPanel, type RobotView, type Transcript } from '../panels/RobotPanel'
+import { RobotPanel, type Transcript } from '../panels/RobotPanel'
 import type { Exchange } from '../ui/RobotConsole'
 import type { EditorApi } from '../ui/CodeEditor'
 import { Gutter, useRemembered } from '../ui/Split'
@@ -71,7 +70,6 @@ export function Workbench({ activity }: { activity: Activity }) {
   const [, rerender] = useReducer((x: number) => x + 1, 0)
 
   const [sceneW, setSceneW] = useRemembered('botgineer.wb.scene', 560)
-  const [view, setView] = useState<RobotView>('code')
 
   const stepsRef = useRef<StepRecord[]>([])
   const followingRef = useRef(true)
@@ -353,27 +351,10 @@ export function Workbench({ activity }: { activity: Activity }) {
       <section className="pane robot-pane">
         <div className="pane-head">
           <span className="pane-title">Robot</span>
-          <span className="spacer" />
-          <div className="views-switch" role="group" aria-label="Robot view">
-            {(['code', 'memory'] as RobotView[]).map((v) => (
-              <button
-                key={v}
-                type="button"
-                className={v === view ? 'current' : ''}
-                aria-pressed={v === view}
-                data-testid={`view-${v}`}
-                onClick={() => setView(v)}
-              >
-                {v === 'code' ? (talking ? 'Talk' : 'Code') : 'Memory'}
-              </button>
-            ))}
-          </div>
         </div>
         <RobotPanel
-          view={view}
           mode={activity.mode}
           memory={<MemoryPanel snapshot={snapshot} handles={handles} runKey={runKey} />}
-          rail={<MemoryRail snapshot={snapshot} handles={handles} />}
           program={program}
           onProgram={setProgram}
           onReady={(api) => {

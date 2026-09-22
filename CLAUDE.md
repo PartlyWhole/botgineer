@@ -11,10 +11,14 @@ Design of record: [docs/DESIGN.md](docs/DESIGN.md).
 scene and the memory graph are both views of it; the robot panel is the
 only thing that causes anything.
 
-Two panels on screen: **Scene** and **Robot**. Memory is a view *of* the
-robot panel (`Talk | Memory`, or `Code | Memory` once the editor is
-unlocked), not a panel of its own. Keep the chrome thin — no tabs, no
-readiness badge (the shell carries `data-boot`), no panel notes or briefs.
+Two panels on screen: **Scene** and **Robot**. The robot panel is split:
+the instrument on top (console, or editor once unlocked) and **memory
+below it, always on screen**, with a draggable gutter between them. It
+was a `Talk | Memory` switch once, which put the effect of an instruction
+on the tab you were not looking at — and the moment a beginner most needs
+to see an object appear is the moment they made it. Keep the chrome thin
+— no tabs, no readiness badge (the shell carries `data-boot`), no panel
+notes or briefs.
 
 **The beginner gets a console, not an editor.** An activity declares
 `mode: 'console' | 'editor'`. The console is one line at a time, and it is
@@ -46,10 +50,9 @@ npm run test:browser  # playwright against the PRODUCTION build at /botgineer/
 | `src/app/console.css` | console and speech-bubble styling, deliberately separate from `styles.css` |
 | `src/scene/spec.ts` | a scene is data, and a view of memory: watches map global names to visual effects |
 | `src/panels/ScenePanel.tsx` | (A) the situation, drawn from the snapshot |
-| `src/panels/RobotPanel.tsx` | (B) the Code/Memory views + Run/Stop + step slider + transcript. Both views stay mounted; the hidden one reports zero size, which every measurement has to guard against |
+| `src/panels/RobotPanel.tsx` | (B) the instrument and memory, split by a gutter, + Run/Stop + step slider + transcript |
 | `src/panels/MemoryPanel.tsx` | (C) thin: owns the selection; the graph does the rest |
-| `src/panels/MemoryRail.tsx` | memory beside the thing that changes it — a strip under the console, shown in the code/talk view. What exists and what is named; pointer structure is the graph's job |
-| `src/memory/handles.ts` | `obj1`, `obj2`, … Owned by the workbench so the rail and the graph never disagree |
+| `src/memory/handles.ts` | `obj1`, `obj2`, … Owned by the workbench, so every view that shows a handle shows the same one |
 | `src/panels/MemoryGraph.tsx` | the live field. SVG edges + DOM pills sharing one camera; writes transforms straight to the elements in the animation loop, never through React |
 | `src/panels/graphLayout.ts` | the force simulation and the camera. Pure and unit-tested. Read its header before changing it: relaxation, spiral packing and row packing were all tried here and the reasons each was dropped are measured, not remembered |
 | `src/ui/CodeEditor.tsx` | CodeMirror; `head`/`tail` optionally lock regions (unused by the workbench) |
@@ -64,11 +67,11 @@ npm run test:browser  # playwright against the PRODUCTION build at /botgineer/
 1. **Serving.** Every URL relative or `import.meta.env.BASE_URL`-derived,
    never root-absolute — root-absolute breaks under `/botgineer/`. No CDN
    fetches (COEP `require-corp`). `public/.nojekyll` must exist.
-2. **One snapshot, every view.** The scene, the memory graph and the
-   memory rail read the same `MemorySnapshot`. Several *renderings* are
-   fine; a second idea of what memory **is** is not, and removing one was
-   the point of this revamp. A handle means the same object in all of
-   them, which is why `useHandles` lives above the panels.
+2. **One snapshot, every view.** The scene and the memory graph read the
+   same `MemorySnapshot`. Several *renderings* are fine; a second idea of
+   what memory **is** is not, and removing one was the point of this
+   revamp. A handle means the same object in every view, which is why
+   `useHandles` lives above the panels.
 3. **`extract.ts` is the only translation.** No panel may import
    `runtime/types` to read a `StepRecord` directly.
 4. **Everything is an object; every slot is a pointer.** Each object gets
@@ -110,7 +113,7 @@ npm run test:browser  # playwright against the PRODUCTION build at /botgineer/
    - The history *is* a program, so unlocking the editor hands the player
      what they have been writing. Do not build a second artifact for it.
 
-14. **A bare expression is kept alive on purpose.** `>>> 10` evaluates an
+8. **A bare expression is kept alive on purpose.** `>>> 10` evaluates an
    object that CPython collects immediately, so it would never reach a
    trace. The console compiles it to an append into a hidden list
    (`KEEPER`, in `repl/program`); the extractor hides the list and shows
@@ -119,7 +122,7 @@ npm run test:browser  # playwright against the PRODUCTION build at /botgineer/
    object needs no *name*, not that it needs no reference. `None` is
    skipped at both ends, so `print(...)` keeps nothing and echoes nothing.
 
-15. **Finishing is one thing or the other, never their disjunction.**
+9. **Finishing is one thing or the other, never their disjunction.**
    An activity with a lesson is finished when the lesson's last step is;
    an activity without one is finished when its scene's watches are
    satisfied (`SceneView.solved`). `triumph ?? view.solved`, not an OR:
@@ -127,41 +130,50 @@ npm run test:browser  # playwright against the PRODUCTION build at /botgineer/
    the lesson's *first* step, so an OR declared it complete a third of the
    way through. Finishing drives both the celebration and the way on.
 
-16. **The way on belongs to the level, not to the guide.** The `Next`
+10. **The way on belongs to the level, not to the guide.** The `Next`
    button is the scene's own, in the same corner everywhere. It lived
    inside the guide's speech bubble once, which meant the two activities
    with no guide could not offer it at all and the last console lesson
    simply dead-ended. Every activity except the last names its `next`.
 
-17. **A lesson's progress is derived, never stored.** It is the first step
+11. **A lesson's progress is derived, never stored.** It is the first step
    whose test the snapshot fails. That is why the guide cannot disagree
    with the robot, why replay makes progress monotonic for free, and why
    scrubbing walks the guide backwards. A step whose test cannot be
    answered from memory alone is a paragraph, not a step.
-8. **The scene causes nothing.** It declares watches and renders the
+12. **The scene causes nothing.** It declares watches and renders the
    snapshot. No scene code may call into a run or hold state of its own.
-9. **Decode partially, fail cleanly.** Unsupported kinds and
+13. **Decode partially, fail cleanly.** Unsupported kinds and
    budget-elided values are marked `partial` and said so, never shown as
    complete.
-10. **`window.botgineer` is the test surface.** Browser tests drive
+14. **`window.botgineer` is the test surface.** Browser tests drive
    `setProgram`/`getProgram`/`run`/`say`/`snapshot`/`state` rather than
    typing into a contenteditable. Keep the shape stable. Readiness is
    `.app[data-boot="ready"]`, not a visible badge. The editor journeys run
    against an activity that still has an editor (`EDITOR` in the spec),
    because the starting activity is a console.
-11. **The graph settles because `alpha` decays, not because the forces
+15. **The graph settles because `alpha` decays, not because the forces
    agree.** Anything that can inject energy is scaled by `alpha`;
    collision is positional and unscaled so it still works at rest. Do not
    add an unscaled force. A dropped node keeps `fixed` and the field packs
    around it. Spring rest length is a clearance between node *edges*, so
    a wide node never swallows its own neighbours. Sizes are re-measured
    when the selection changes, because the picked pill grows.
-12. **Picking moves the camera, not the layout.** There is no second view:
+16. **An object card has three tiers.** The value is what the object *is*,
+   so it is centred and largest; the type qualifies it and sits in the
+   corner, the way a trading card wears its element; the handle is
+   bookkeeping and only appears on hover, focus or picking. The handle is
+   positioned **absolutely**, not toggled in flow — the force layout
+   measures these pills, and a size that changed on hover would shove the
+   field around under the cursor. Its text still reaches a screen reader
+   through the card's `aria-label`.
+
+17. **Picking moves the camera, not the layout.** There is no second view:
    nodes stay where they are, the camera frames the picked node plus its
    neighbours, and unrelated nodes dim in place. Never replace the field
    with a detail panel — losing sight of the clouds is the thing this
    replaced.
-13. **Tests run like production.** Playwright serves the built site at the
+18. **Tests run like production.** Playwright serves the built site at the
    sub-path with **no** isolation headers, so the `coi-serviceworker` path
    is what gets exercised. Do not add COOP/COEP to the test server.
 

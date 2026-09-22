@@ -541,11 +541,17 @@ function Pill({
       data-type={object.type}
       // The pill caps a long repr with an ellipsis, so the whole of it has
       // to stay reachable somewhere.
-      title={`${object.type} ${object.repr}`}
+      title={`${handles.get(id)} · ${object.type} ${object.repr}`}
+      aria-label={`${object.repr}, ${object.type}, ${handles.get(id)}`}
     >
-      <span className="handle">{handles.get(id)}</span>
-      <span className="type">{object.type}</span>
+      {/* The value is what the object *is*, so it is the thing in the
+          middle. The type qualifies it and sits in the corner; the handle
+          is bookkeeping and only surfaces when you ask for it. */}
       <span className="repr">{object.repr}</span>
+      <span className="type">{object.type}</span>
+      <span className="handle" aria-hidden="true">
+        {handles.get(id)}
+      </span>
       {picked && object.partial && <span className="partial">partial</span>}
     </button>
   )

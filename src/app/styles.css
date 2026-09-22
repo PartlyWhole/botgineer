@@ -521,46 +521,37 @@ button.route.current {
   flex-direction: column;
 }
 
-/* Both views stay mounted so switching back does not throw away where the
-   graph's nodes had settled. */
+/* The instrument and memory, both on screen, split by a draggable gutter.
+   They used to be two tabs, which put the effect of an instruction on the
+   tab you were not looking at. */
 .views {
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
+  flex-direction: column;
 }
 
 .views .view {
-  flex: 1 1 auto;
   min-width: 0;
   min-height: 0;
   display: flex;
   flex-direction: column;
 }
 
-.views .view[hidden] {
-  display: none;
+.views .instrument {
+  flex: 1 1 auto;
 }
 
-.views-switch {
-  display: flex;
-  gap: 2px;
+/* Fixed height, dragged by the gutter. This rule and `.views .view` have
+   the same specificity, so it has to come after it — an earlier
+   `flex: none` was silently overridden by the general rule and the split
+   ignored its own gutter. */
+.views .memory-view {
+  flex: none;
+  height: var(--memory-h, 280px);
+  border-top: 1px solid var(--line);
 }
 
-.views-switch button {
-  padding: 2px 11px;
-  font-size: 12px;
-  border-color: transparent;
-  background: transparent;
-  color: var(--ink-soft);
-}
-
-.views-switch button.current {
-  background: var(--brand-soft);
-  border-color: var(--brand-line);
-  /* 12px at 600 is not large text: --brand on --brand-soft is 3.87:1. */
-  color: var(--brand-deep);
-  font-weight: 600;
-}
 
 .robot-panel .editor {
   flex: 1;
@@ -766,18 +757,60 @@ kbd {
   font-weight: 600;
 }
 
+/* An object card, in three tiers.
+   
+   The value is what the object *is*, so it is centred and it is the thing
+   you read; the type qualifies it and sits in the corner, the way a
+   trading card wears its element; the handle is bookkeeping and only
+   surfaces on hover or when the node is picked.
+   
+   The handle is positioned absolutely rather than hidden, because the
+   force layout measures these pills and a size that changed on hover
+   would shove the whole field around under the cursor. */
 .node.object {
   border-radius: 10px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  padding: 3px 10px 5px;
+  min-width: 58px;
+}
+
+.node.object .repr {
+  display: block;
+  text-align: center;
+  font-size: 1.15em;
+  font-weight: 700;
+  line-height: 1.25;
 }
 
 .node.object .type {
-  font-size: 10.5px;
-  letter-spacing: 0.03em;
-  opacity: 0.85;
+  align-self: flex-end;
+  max-width: 14ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 0.72em;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.7;
+  line-height: 1.35;
 }
 
-.node .handle {
+.node.object .handle {
+  position: absolute;
+  top: 2px;
+  left: 9px;
+  font-size: 0.68em;
   font-weight: 700;
+  opacity: 0;
+  transition: opacity 120ms ease;
+  pointer-events: none;
+}
+
+.node.object:hover .handle,
+.node.object:focus-visible .handle,
+.node.object.picked .handle {
+  opacity: 0.72;
 }
 
 /* A repr is as long as the value is, and one long value should not get to
@@ -1121,128 +1154,6 @@ button.tidy:hover {
 
 .actor.standing.crate.picked {
   transform: translateX(-50%) translateY(-22px) rotate(-3deg);
-}
-
-/* ---------------- the memory rail ----------------
-
-   Memory beside the thing that changes it. The Memory view shows the
-   whole field, but you have to leave the console to look at it — and the
-   moment a beginner most needs to see an object appear is the moment they
-   made it. */
-
-.rail {
-  flex: none;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  height: 84px;
-  padding: 8px 12px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  border-top: 1px solid var(--line);
-  background: linear-gradient(var(--surface), #f7f9ff);
-  scrollbar-width: thin;
-}
-
-/* Fixed height in both states, so the console does not resize itself as
-   objects appear — the editor above it would reflow on every line. */
-.rail.empty {
-  align-items: center;
-  justify-content: center;
-  color: var(--ink-soft);
-  font-size: 12.5px;
-}
-
-.rail.empty p {
-  margin: 0;
-}
-
-.rail-cell {
-  flex: none;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 3px;
-}
-
-.rail-names {
-  display: flex;
-  gap: 3px;
-  min-height: 19px;
-  align-items: center;
-}
-
-.rail-name {
-  padding: 1px 7px;
-  border-radius: 999px;
-  border: 1px solid var(--brand-line);
-  background: var(--brand-soft);
-  color: var(--brand-deep);
-  font-family: var(--mono);
-  font-size: 11px;
-  font-weight: 700;
-}
-
-/* An object nothing points at. The first lesson is entirely about these,
-   so they need a mark of their own rather than an empty gap. */
-.rail-unnamed {
-  color: #9aa6c0;
-  font-size: 13px;
-  line-height: 1;
-}
-
-.rail-object {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  padding: 4px 9px;
-  border-radius: 9px;
-  border: 1px solid var(--value-line);
-  background: var(--value-bg);
-  font-family: var(--mono);
-  font-size: 12px;
-  white-space: nowrap;
-}
-
-/* Values and references look different because the difference is real:
-   one is keyed by what it is, the other by the engine's own identity. */
-.rail-object.reference {
-  border-color: var(--ref-line);
-  background: var(--ref-bg);
-}
-
-.rail-handle {
-  font-weight: 700;
-  color: var(--value);
-}
-
-.rail-object.reference .rail-handle {
-  color: var(--ref);
-}
-
-.rail-type {
-  color: var(--ink-soft);
-  font-size: 11px;
-}
-
-.rail-repr {
-  color: var(--ink);
-}
-
-.rail-partial {
-  color: var(--warn);
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .rail-cell {
-    animation: rail-in 200ms ease-out;
-  }
-  @keyframes rail-in {
-    from {
-      opacity: 0;
-      transform: translateY(6px);
-    }
-  }
 }
 
 /* ---------------- the progression ----------------
