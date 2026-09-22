@@ -6,6 +6,7 @@
  * is never the only signal. Everything the crow means is also in its text.
  */
 import type { Mood } from '../game/director'
+import { looks } from './Characters'
 
 function face(mood: Mood) {
   switch (mood) {
@@ -43,7 +44,7 @@ export function Crow({ mood }: { mood: Mood }) {
       viewBox="-70 -80 140 160"
       className={`character crow mood-${mood}`}
       role="img"
-      aria-label={`The crow looks ${mood}`}
+      aria-label={`The crow looks ${looks(mood)}`}
     >
       {/* tail and body */}
       <path d="M 26 34 q 30 6 40 26 q -26 2 -44 -10 z" className="feather" />

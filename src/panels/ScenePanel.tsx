@@ -156,7 +156,7 @@ function ActorNode({ view, mood }: { view: ActorView; mood: Mood }) {
       {actor.kind === 'plinth' && <div className="plinth-top" />}
 
       {actor.kind === 'lamp' && (
-        <div className="bulb">
+        <div className="bulb" role="img" aria-label={`The lamp is ${view.lit ? 'lit' : 'dark'}`}>
           <span className="glow" />
         </div>
       )}
@@ -165,7 +165,14 @@ function ActorNode({ view, mood }: { view: ActorView; mood: Mood }) {
         <div className="gauge-body" data-level={view.level === null ? 'none' : 'set'}>
           <span className="fill" style={{ height: `${(view.level ?? 0) * 100}%` }} />
           <span className="gauge-text">
-            {view.level === null ? '—' : `${Math.round(view.level * 100)}%`}
+            {view.level === null ? (
+              <>
+                {'—'}
+                <span className="sr-only">nothing set</span>
+              </>
+            ) : (
+              `${Math.round(view.level * 100)}%`
+            )}
           </span>
         </div>
       )}
@@ -173,6 +180,7 @@ function ActorNode({ view, mood }: { view: ActorView; mood: Mood }) {
       {actor.kind === 'crate' && (
         <div className="crate-body">
           <span className="crate-label">{actor.label}</span>
+          <span className="sr-only">{view.picked ? ', lifted' : ', not lifted'}</span>
         </div>
       )}
 

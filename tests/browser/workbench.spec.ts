@@ -90,10 +90,14 @@ test('the scene says what it is waiting for, then reacts to memory', async ({ pa
   await expect(page.locator('.stage-foot')).toHaveCount(1)
   await expect(page.getByTestId('waiting')).toContainText('power')
   await expect(page.getByTestId('actor-lamp')).toHaveAttribute('data-lit', 'no')
+  // Colour is never the only carrier: a dark bulb and a lit one differ by
+  // more than 'grey' and 'yellow', which is all a lamp used to say.
+  await expect(page.locator('.bulb')).toHaveAttribute('aria-label', /dark/)
 
   await send(page, 'power = True\nname = "Bolt"\ncharge = 72\n')
 
   await expect(page.getByTestId('actor-lamp')).toHaveAttribute('data-lit', 'yes')
+  await expect(page.locator('.bulb')).toHaveAttribute('aria-label', /lit/)
   // A sign in the world shows the text; the memory panel still shows 'Bolt'.
   await expect(page.locator('[data-testid="actor-nameplate"] .sign-body')).toHaveText('Bolt')
   await expect(page.locator('.gauge-text')).toHaveText('72%')
@@ -110,6 +114,10 @@ test('a list in memory picks actors out of the scene', async ({ page }) => {
   for (const id of ['A7', 'C2', 'E5']) {
     await expect(page.getByTestId(`actor-${id}`)).toHaveAttribute('data-picked', 'no')
   }
+
+  // And in text, not only in a lift and a lighter yellow.
+  await expect(page.getByTestId('actor-B1')).toContainText('lifted')
+  await expect(page.getByTestId('actor-A7')).toContainText('not lifted')
 })
 
 /* ------------------------------ (C) the memory ----------------------------- */

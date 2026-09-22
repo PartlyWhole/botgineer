@@ -8,6 +8,13 @@ import type { Mood } from '../game/director'
 
 type Props = { mood: Mood; className?: string }
 
+/**
+ * The mood as an adjective. `celebrate` is the name of a face, not a word
+ * that follows "looks", and an accessible name is prose or it is nothing:
+ * "The robot looks celebrate" was what a screen reader read out.
+ */
+export const looks = (mood: Mood): string => (mood === 'celebrate' ? 'delighted' : mood)
+
 /** Eyes and mouth are the whole vocabulary. Keeping them in one table makes
  *  the expression set auditable at a glance. */
 function face(mood: Mood) {
@@ -50,7 +57,7 @@ export function Robot({ mood, className }: Props) {
       viewBox="-70 -90 140 170"
       className={`character robot mood-${mood} ${className ?? ''}`}
       role="img"
-      aria-label={`The robot looks ${mood}`}
+      aria-label={`The robot looks ${looks(mood)}`}
     >
       <line x1="0" y1="-62" x2="0" y2="-80" className="antenna" />
       <circle cx="0" cy="-84" r="7" className="antenna-tip" />
@@ -74,7 +81,7 @@ export function Courier({ mood, className }: Props) {
       viewBox="-70 -100 140 180"
       className={`character courier mood-${mood} ${className ?? ''}`}
       role="img"
-      aria-label={`Mira looks ${mood}`}
+      aria-label={`Mira looks ${looks(mood)}`}
     >
       <path d="M -44 28 q 0 -34 44 -34 q 44 0 44 34 l 0 44 l -88 0 z" className="torso" />
       <circle cx="0" cy="-34" r="44" className="skin" />
