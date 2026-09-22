@@ -440,16 +440,21 @@ describe('the clouds are shaped like the pane', () => {
     expect(many.object.x1 - many.object.x0).toBeGreaterThan(few.object.x1 - few.object.x0)
   })
 
-  it('settles a crowd into the pane\'s shape, not a column', () => {
-    // The whole point. A pull toward a single x per kind left this fixture
-    // at 513x600 in a 844x635 pane — a column the camera had to shrink to
-    // 0.35 to fit, with the pill text at 3.7px.
+  it('settles a crowd into columns rather than a single stack', () => {
+    // The whole point. A pull toward a single x per kind gave the objects
+    // a cloud one or two pills across, so collision — which separates
+    // along whichever axis needs least, always the vertical one for pills
+    // this shape — could only pile them downward. In the pane that meant
+    // zooming to 0.35 and pill text at 3.7px.
     const v = { w: 844, h: 635 }
     const g = crowded()
     seed(g, v)
     settle(g, v)
-    const s = spanOf(g)
-    expect(s.w / s.h).toBeGreaterThan(0.8)
+    const objects = g.nodes.filter((n) => n.kind === 'object')
+    const widest = Math.max(...objects.map((n) => n.w))
+    const across =
+      Math.max(...objects.map((n) => n.x + n.w / 2)) - Math.min(...objects.map((n) => n.x - n.w / 2))
+    expect(across / widest).toBeGreaterThan(3)
   })
 
   it('leaves a lone node alone in the middle of its band', () => {

@@ -138,28 +138,43 @@ const BAND_PULL = 0.05
  * to waste.
  */
 export function bands(nodes: GraphNode[], v: Viewport): Record<NodeKind, Band> {
-  const area = (kind: NodeKind): number => {
+  const shape = (kind: NodeKind) => {
     let n = 0
     let w = 0
     let h = 0
+    let widest = 0
     for (const node of nodes) {
       if (node.kind !== kind) continue
       n++
       w += node.w + GAP
       h += node.h + GAP
+      widest = Math.max(widest, node.w + GAP)
     }
-    return n === 0 ? 0 : ((w / n) * (h / n) * n) / PACK
+    return n === 0
+      ? { n, area: 0, widest: 0 }
+      : { n, area: ((w / n) * (h / n) * n) / PACK, widest }
   }
 
-  const an = area('name')
-  const ao = area('object')
-  const total = an + ao
+  const sn = shape('name')
+  const so = shape('object')
+  const total = sn.area + so.area
   const r = v.h > 0 ? Math.max(0.25, v.w / v.h) : 1.33
   // Solve for the shared height that gives the pair the pane's aspect,
   // then give each band the width its own area needs at that height.
   const h = Math.max(1, Math.sqrt(Math.max(total, 1) / r))
-  const wn = an / h
-  const wo = ao / h
+
+  // ...but never narrower than two of the widest pills in it. The area
+  // solve assumes pills of average size, and on a handful of wide ones it
+  // asks for a band one column across: on the everyday fixture the seven
+  // objects got 235px for pills up to 165px wide, so they stacked and the
+  // overlap area went up fivefold — `str 'bolt'` sat across the middle of
+  // `dict 2 entries`. A band is only a place to be, not a push, so leaving
+  // room costs nothing when the room is not needed.
+  const fit = (s: { n: number; area: number; widest: number }) =>
+    s.n === 0 ? 0 : Math.max(s.area / h, s.n === 1 ? s.widest : s.widest * 2 + GAP)
+
+  const wn = fit(sn)
+  const wo = fit(so)
   const spanW = wn + BAND_GAP + wo
   const left = v.w / 2 - spanW / 2
   const cy = v.h / 2
