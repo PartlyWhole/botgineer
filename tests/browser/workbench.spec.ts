@@ -836,6 +836,24 @@ test('an object appears in the rail without leaving the console', async ({ page 
   await expect(page.locator('.rail-name')).toHaveText(['x'])
 })
 
+test('a collection is one chip on the rail, not one per element', async ({ page }) => {
+  await open(page, 'sandbox')
+  await say(page, '[1, 2, 3]')
+
+  // Four objects exist and the graph draws all four; the strip shows the
+  // thing that was typed.
+  await expect(page.locator('.rail-cell')).toHaveCount(1)
+  await expect(page.locator('.rail-repr')).toHaveText('3 items')
+  // Collapsed, not inlined: the chip never claims to contain the values.
+  await expect(page.getByTestId('rail')).not.toContainText('[1, 2, 3]')
+  expect(await page.evaluate(() => Object.keys(window.botgineer.snapshot().objects).length)).toBe(4)
+
+  // Naming an element brings it back — it is something referred to now.
+  await say(page, 'first = 1')
+  await expect(page.locator('.rail-cell')).toHaveCount(2)
+  await expect(page.locator('.rail-name')).toHaveText(['first'])
+})
+
 test('the rail and the graph agree about which object is which', async ({ page }) => {
   await open(page, 'names')
   await say(page, 'x = 10')

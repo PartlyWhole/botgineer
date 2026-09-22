@@ -15,9 +15,15 @@
  * and *what is named*. Pointer structure — which collection holds what —
  * is the graph's job, because showing it here would need edges, and edges
  * need room this strip does not have.
+ *
+ * For the same reason a collection is collapsed to one chip: `[1, 2, 3]`
+ * is four objects, and four chips for one typed line buries what the
+ * player made. The chip still says `3 items` rather than the contents —
+ * hiding the elements is not the same as drawing them inside their
+ * container, which is the thing invariant 4 forbids.
  */
 import { useEffect, useRef } from 'react'
-import { namesFor, orderedObjectIds, type MemorySnapshot, type ObjectId } from '../memory/model'
+import { namesFor, topLevel, type MemorySnapshot, type ObjectId } from '../memory/model'
 
 export function MemoryRail({
   snapshot,
@@ -27,7 +33,9 @@ export function MemoryRail({
   handles: Map<ObjectId, string>
 }) {
   const scroller = useRef<HTMLDivElement | null>(null)
-  const ids = orderedObjectIds(snapshot)
+  // Collapsed: a collection's own elements do not each take a chip. See
+  // `topLevel` for what that leaves out and why it is not inlining.
+  const ids = topLevel(snapshot)
 
   // Keep the newest object in view. It is the one that just appeared, and
   // it is the reason anyone is looking at this strip.
