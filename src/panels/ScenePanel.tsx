@@ -17,12 +17,18 @@ export function ScenePanel({
   spec,
   snapshot,
   mood,
+  guide,
 }: {
   spec: SceneSpec
   snapshot: MemorySnapshot
   mood: Mood
+  /** What the guide is saying. Derived from the same snapshot by the
+   *  workbench and handed down as text — the scene still causes nothing
+   *  and decides nothing, it just draws the sentence it was given. */
+  guide?: string | undefined
 }) {
   const view = readScene(spec, snapshot)
+  const speaker = view.actors.find((a) => a.actor.kind === 'crow') ?? view.actors[0]
 
   return (
     <div className="scene-panel" data-testid="scene">
@@ -30,6 +36,17 @@ export function ScenePanel({
         {view.actors.map((a) => (
           <ActorNode key={a.actor.id} view={a} mood={mood} />
         ))}
+
+        {guide && speaker && (
+          <div
+            className="bubble"
+            data-testid="guide"
+            style={{ left: `${speaker.actor.x}%`, top: `${speaker.actor.y}%` }}
+            aria-live="polite"
+          >
+            {richText(guide)}
+          </div>
+        )}
       </div>
 
       {/* Only when the scene is actually waiting for something. With the

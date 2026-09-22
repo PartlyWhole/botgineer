@@ -6,6 +6,7 @@ declare global {
       setProgram(text: string): void
       getProgram(): string
       run(): Promise<void>
+      say(line: string): Promise<void>
       snapshot(): {
         bindings: { name: string; scope: string; target: string }[]
         objects: Record<
@@ -19,10 +20,20 @@ declare global {
           }
         >
       }
-      state(): { boot: string; busy: boolean; steps: number }
+      state(): {
+        boot: string
+        busy: boolean
+        steps: number
+        mode: string
+        history: string[]
+      }
     }
   }
 }
+
+/** The starting activity is a console now, so the journeys that are about
+ *  the editor run against an activity that still has one. */
+const EDITOR = 'wake'
 
 async function open(page: Page, activity: string) {
   await page.goto(`./#/${activity}`)
@@ -61,11 +72,11 @@ test('two panels, with memory as a view of the robot', async ({ page }) => {
   await open(page, 'sandbox')
   await expect(page.getByTestId('scene')).toBeVisible()
   await expect(page.getByTestId('robot-panel')).toBeVisible()
-  // Memory is not a panel of its own, and Code is what opens.
+  // Memory is not a panel of its own, and talking is what opens.
   await expect(page.getByTestId('memory')).toBeHidden()
-  await expect(page.getByTestId('editor')).toBeVisible()
+  await expect(page.getByTestId('console')).toBeVisible()
   await showMemory(page)
-  await expect(page.getByTestId('editor')).toBeHidden()
+  await expect(page.getByTestId('console')).toBeHidden()
   // GitHub Pages cannot send COOP/COEP; the service-worker shim must.
   await expect.poll(() => page.evaluate(() => window.crossOriginIsolated)).toBe(true)
   await expect(page.locator('.app')).toHaveAttribute('data-isolated', 'yes')
@@ -127,7 +138,7 @@ async function stillness(page: Page) {
 }
 
 test('memory is one field of nodes and edges, not two boxes', async ({ page }) => {
-  await open(page, 'sandbox')
+  await open(page, EDITOR)
   await send(page, "letters = ['x', 'y']\nsame = letters\nn = 10\nm = n\n")
   await showMemory(page)
   await stillness(page)
@@ -142,7 +153,7 @@ test('memory is one field of nodes and edges, not two boxes', async ({ page }) =
 })
 
 test('names settle to the left of objects', async ({ page }) => {
-  await open(page, 'sandbox')
+  await open(page, EDITOR)
   await send(page, "a = 1\nb = 2\nc = 3\n")
   await showMemory(page)
   await stillness(page)
@@ -157,7 +168,7 @@ test('names settle to the left of objects', async ({ page }) => {
 })
 
 test('every object carries a handle, primitives included', async ({ page }) => {
-  await open(page, 'sandbox')
+  await open(page, EDITOR)
   await send(page, 'n = 7\nxs = [7]\n')
   await showMemory(page)
   await stillness(page)
@@ -171,7 +182,7 @@ test('every object carries a handle, primitives included', async ({ page }) => {
 })
 
 test('picking a name zooms in on it and lights the connection', async ({ page }) => {
-  await open(page, 'sandbox')
+  await open(page, EDITOR)
   await send(page, "letters = ['x', 'y']\nsame = letters\nspare = 99\n")
   await showMemory(page)
   await stillness(page)
@@ -193,7 +204,7 @@ test('picking a name zooms in on it and lights the connection', async ({ page })
 })
 
 test("a list points at objects — it does not contain letters", async ({ page }) => {
-  await open(page, 'sandbox')
+  await open(page, EDITOR)
   await send(page, "letters = ['x', 'y']\n")
   await showMemory(page)
   await stillness(page)
@@ -212,7 +223,7 @@ test("a list points at objects — it does not contain letters", async ({ page }
 })
 
 test('clicking a neighbour walks the graph', async ({ page }) => {
-  await open(page, 'sandbox')
+  await open(page, EDITOR)
   await send(page, "letters = ['x', 'y']\n")
   await showMemory(page)
   await stillness(page)
@@ -229,7 +240,7 @@ test('clicking a neighbour walks the graph', async ({ page }) => {
 })
 
 test('equal values in two collections are the same object', async ({ page }) => {
-  await open(page, 'sandbox')
+  await open(page, EDITOR)
   await send(page, "a = ['x']\nb = ['x']\n")
 
   const targets = await page.evaluate(() => {
@@ -242,7 +253,7 @@ test('equal values in two collections are the same object', async ({ page }) => 
 })
 
 test('Escape zooms back out and clears the selection', async ({ page }) => {
-  await open(page, 'sandbox')
+  await open(page, EDITOR)
   await send(page, "xs = [1, 2, 3]\nother = 'q'\n")
   await showMemory(page)
   await stillness(page)
@@ -259,7 +270,7 @@ test('Escape zooms back out and clears the selection', async ({ page }) => {
 })
 
 test('a handle keeps its meaning while you scrub', async ({ page }) => {
-  await open(page, 'sandbox')
+  await open(page, EDITOR)
   await send(page, "first = 'a'\nsecond = 'b'\nthird = 'c'\n")
   await showMemory(page)
   await stillness(page)
@@ -281,7 +292,7 @@ test('a handle keeps its meaning while you scrub', async ({ page }) => {
 })
 
 test('dragging a node moves it, and its neighbours follow', async ({ page }) => {
-  await open(page, 'sandbox')
+  await open(page, EDITOR)
   await send(page, "xs = [1, 2]\nloner = 'z'\n")
   await showMemory(page)
   await stillness(page)
@@ -354,7 +365,7 @@ test('scrubbing the run rewinds the scene and memory together', async ({ page })
 /* --------------------------------- failure -------------------------------- */
 
 test('an error is reported and the panel stays usable', async ({ page }) => {
-  await open(page, 'sandbox')
+  await open(page, EDITOR)
   await send(page, 'x = 1 / 0\n')
   await expect(page.getByTestId('transcript')).toContainText('ZeroDivisionError')
   await expect(page.getByTestId('run')).toBeEnabled()
@@ -365,7 +376,7 @@ test('an error is reported and the panel stays usable', async ({ page }) => {
 })
 
 test('output reaches the transcript', async ({ page }) => {
-  await open(page, 'sandbox')
+  await open(page, EDITOR)
   await send(page, 'print("hello from the robot")\n')
   await expect(page.getByTestId('transcript')).toContainText('hello from the robot')
 })
@@ -395,4 +406,134 @@ test('activities are separate scenes and each deep-links', async ({ page }) => {
   expect(page.url()).toContain('#/wake')
   // Switching activities starts that one fresh.
   await expect(page.getByTestId('step-label')).toHaveText('—')
+})
+
+/* --------------------------- the robot's console --------------------------- */
+
+/** Types a line into the console and waits for the robot to finish. */
+async function say(page: Page, line: string) {
+  const input = page.getByTestId('console-input')
+  await input.fill(line)
+  await input.press('Enter')
+  await expect(page.getByTestId('robot-panel')).toHaveAttribute('data-busy', 'no', {
+    timeout: 60_000,
+  })
+}
+
+const reprs = (page: Page) =>
+  page.evaluate(() =>
+    Object.values(window.botgineer.snapshot().objects)
+      .map((o) => o.repr)
+      .sort(),
+  )
+
+test('the starting activity is a console, not an editor', async ({ page }) => {
+  await open(page, 'sandbox')
+  await expect(page.getByTestId('console')).toBeVisible()
+  await expect(page.getByTestId('editor')).toHaveCount(0)
+  // Enter is the transport: there is no Run button and no step slider.
+  await expect(page.getByTestId('run')).toHaveCount(0)
+  await expect(page.getByTestId('scrubber')).toHaveCount(0)
+  expect(await page.evaluate(() => window.botgineer.state().mode)).toBe('console')
+})
+
+test('a bare literal is echoed and kept in memory, with no name', async ({ page }) => {
+  await open(page, 'sandbox')
+  await say(page, '10')
+
+  await expect(page.getByTestId('echo')).toHaveText('10')
+  // Nothing was bound: the object exists on its own.
+  expect(await page.evaluate(() => window.botgineer.snapshot().bindings)).toEqual([])
+  expect(await reprs(page)).toEqual(['10'])
+})
+
+test('memory accumulates across lines, though each line is its own run', async ({ page }) => {
+  await open(page, 'sandbox')
+  await say(page, '10')
+  await say(page, '"John"')
+  await say(page, '3 + 4')
+
+  expect(await reprs(page)).toEqual(["'John'", '10', '7'])
+  await expect(page.getByTestId('echo').last()).toHaveText('7')
+  // Three accepted lines, replayed ahead of every new one.
+  expect(await page.evaluate(() => window.botgineer.state().history)).toEqual([
+    '10',
+    '"John"',
+    '3 + 4',
+  ])
+})
+
+test('a statement binds a name and is not echoed', async ({ page }) => {
+  await open(page, 'sandbox')
+  await say(page, 'x = 5')
+
+  await expect(page.getByTestId('echo')).toHaveCount(0)
+  expect(await page.evaluate(() => window.botgineer.snapshot().bindings.map((b) => b.name))).toEqual(
+    ['x'],
+  )
+})
+
+test('print goes to the console once, not once per replay', async ({ page }) => {
+  await open(page, 'sandbox')
+  await say(page, 'print("hello")')
+  await say(page, 'print("again")')
+
+  // Read the robot's output specifically: the scrollback also echoes back
+  // the line that was typed, which contains the same words.
+  expect(await page.locator('.console .said.out').allInnerTexts()).toEqual(['hello', 'again'])
+  // `print` evaluates to None, and a REPL that answered None would be noise.
+  await expect(page.getByTestId('echo')).toHaveCount(0)
+})
+
+test('a line that fails is reported and not kept', async ({ page }) => {
+  await open(page, 'sandbox')
+  await say(page, '10')
+  await say(page, '1 / 0')
+
+  await expect(page.getByTestId('console-error')).toContainText('ZeroDivisionError')
+  // History holds only what worked, which is what makes replay safe.
+  expect(await page.evaluate(() => window.botgineer.state().history)).toEqual(['10'])
+
+  // And the console still works afterwards.
+  await say(page, '2 + 2')
+  await expect(page.getByTestId('echo').last()).toHaveText('4')
+})
+
+test('the guide advances as the robot learns, and rewinds with memory', async ({ page }) => {
+  await open(page, 'sandbox')
+  await expect(page.getByTestId('guide')).toContainText('10')
+
+  await say(page, '10')
+  await expect(page.getByTestId('guide')).toContainText('John')
+
+  await say(page, '"John"')
+  await expect(page.getByTestId('guide')).toContainText('3 + 4')
+})
+
+test('a block is collected over several lines before it runs', async ({ page }) => {
+  await open(page, 'sandbox')
+  const input = page.getByTestId('console-input')
+
+  await input.fill('def double(n):')
+  await input.press('Enter')
+  // Still collecting: the prompt changed and nothing ran.
+  await expect(page.locator('.prompt-row')).toHaveAttribute('data-continuing', 'yes')
+  expect(await page.evaluate(() => window.botgineer.state().history)).toEqual([])
+
+  await input.fill('def double(n):\n    return n * 2')
+  await input.press('Enter')
+  await expect(page.locator('.prompt-row')).toHaveAttribute('data-continuing', 'yes')
+  expect(await page.evaluate(() => window.botgineer.state().history)).toEqual([])
+
+  // Enter on the blank line is what closes the block and sends it.
+  await input.press('Enter')
+  await expect(page.getByTestId('robot-panel')).toHaveAttribute('data-busy', 'no', {
+    timeout: 60_000,
+  })
+  expect(await page.evaluate(() => window.botgineer.state().history)).toEqual([
+    'def double(n):\n    return n * 2',
+  ])
+
+  await say(page, 'double(21)')
+  await expect(page.getByTestId('echo').last()).toHaveText('42')
 })

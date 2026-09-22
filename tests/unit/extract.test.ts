@@ -6,9 +6,10 @@
  * cycles, frames, and the things the engine refuses to show.
  */
 import { describe, expect, it } from 'vitest'
-import { extractMemory } from '../../src/memory/extract'
+import { extractMemory, keptValues } from '../../src/memory/extract'
 import { holdersOf, namesFor, unreferenced } from '../../src/memory/model'
 import type { Binding, HeapNode, StepRecord, TraceValue } from '../../src/runtime/types'
+import { KEEPER } from '../../src/repl/program'
 
 const int = (n: number): TraceValue => ({ kind: 'int', decimal: String(n) })
 const str = (s: string): TraceValue => ({ kind: 'str', value: s })
@@ -204,5 +205,90 @@ describe('scopes and reachability', () => {
 
   it('records the line the snapshot was taken at', () => {
     expect(extractMemory(step({ line: 12 })).line).toBe(12)
+  })
+})
+
+/**
+ * The console keeps bare expression values alive in a hidden list, because
+ * CPython collects them the moment they are evaluated. What the player
+ * should see is an object with no name and nothing pointing at it.
+ */
+describe('values kept from bare expressions', () => {
+  const keeper = (items: TraceValue[]): { globals: Binding[]; heap: HeapNode[] } => ({
+    globals: [bind(KEEPER, ref('k1'))],
+    heap: [{ uid: 'k1', kind: 'list', type_name: 'list', items }],
+  })
+
+  it('shows a kept value as an object', () => {
+    const s = extractMemory(step(keeper([int(10)])))
+    expect(Object.values(s.objects).map((o) => o.repr)).toEqual(['10'])
+  })
+
+  it('never shows the keeper list itself', () => {
+    const s = extractMemory(step(keeper([int(10)])))
+    expect(s.bindings).toEqual([])
+    expect(Object.values(s.objects).some((o) => o.type === 'list')).toBe(false)
+  })
+
+  it('leaves the kept value unreferenced — no name, no holder', () => {
+    const s = extractMemory(step(keeper([int(10)])))
+    const [id] = Object.keys(s.objects)
+    expect(unreferenced(s)).toEqual([id])
+    expect(namesFor(s, id!)).toEqual([])
+    expect(holdersOf(s, id!)).toEqual([])
+  })
+
+  it('keeps several, including a string', () => {
+    const s = extractMemory(step(keeper([int(10), str('John'), int(7)])))
+    expect(Object.values(s.objects).map((o) => o.repr).sort()).toEqual(["'John'", '10', '7'])
+  })
+
+  it('is the same object once a name is bound to an equal value', () => {
+    // `10` typed bare, then `x = 10`: one object, now named.
+    const s = extractMemory(
+      step({
+        globals: [bind(KEEPER, ref('k1')), bind('x', int(10))],
+        heap: [{ uid: 'k1', kind: 'list', type_name: 'list', items: [int(10)] }],
+      }),
+    )
+    expect(Object.keys(s.objects)).toHaveLength(1)
+    expect(unreferenced(s)).toEqual([])
+    expect(namesFor(s, s.bindings[0]!.target).map((b) => b.name)).toEqual(['x'])
+  })
+
+  it('keeps a collection whole, with its elements as pointers', () => {
+    const s = extractMemory(
+      step({
+        globals: [bind(KEEPER, ref('k1'))],
+        heap: [
+          { uid: 'k1', kind: 'list', type_name: 'list', items: [ref('L1')] },
+          { uid: 'L1', kind: 'list', type_name: 'list', items: [int(1), int(2)] },
+        ],
+      }),
+    )
+    const kept = s.objects['o:L1']
+    expect(kept?.repr).toBe('2 items')
+    expect(kept?.elements?.map((e) => e.label)).toEqual(['0', '1'])
+    expect(unreferenced(s)).toEqual(['o:L1'])
+  })
+
+  it('skips None, so `print(...)` leaves nothing behind', () => {
+    const none: TraceValue = { kind: 'none' }
+    const s = extractMemory(
+      step({
+        globals: [bind(KEEPER, ref('k1'))],
+        heap: [{ uid: 'k1', kind: 'list', type_name: 'list', items: [none, int(10)] }],
+      }),
+    )
+    expect(Object.values(s.objects).map((o) => o.repr)).toEqual(['10'])
+    expect(keptValues(step({
+      globals: [bind(KEEPER, ref('k1'))],
+      heap: [{ uid: 'k1', kind: 'list', type_name: 'list', items: [none, int(10)] }],
+    }))).toEqual(['10'])
+  })
+
+  it('ignores a keeper that is not a list', () => {
+    const s = extractMemory(step({ globals: [bind(KEEPER, int(3))] }))
+    expect(Object.keys(s.objects)).toEqual([])
   })
 })

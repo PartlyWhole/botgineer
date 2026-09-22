@@ -7,6 +7,7 @@
  * memory, so there is no separate "game logic" anywhere.
  */
 import type { SceneSpec } from '../../src/scene/spec'
+import type { RobotMode } from '../../src/panels/RobotPanel'
 
 export type Activity = {
   id: string
@@ -14,7 +15,17 @@ export type Activity = {
   /** What the player is being asked to do, in one or two sentences. */
   brief: string
   scene: SceneSpec
-  /** What sits in the robot interface when the activity opens. */
+  /**
+   * How the player talks to the robot. `console` is one line at a time and
+   * is where everyone starts; `editor` hands over a whole program and is
+   * unlocked once there is a whole program worth writing.
+   */
+  mode: RobotMode
+  /** Console only: what the robot says before the first prompt. */
+  greeting?: string
+  /** Console only: the guide's lesson, by id in `content/lessons`. */
+  lesson?: string
+  /** Editor only: what sits in the editor when the activity opens. */
   starter: string
   /** Budget for one run of this activity's session. */
   options: { max_steps: number; wall_clock_s: number }
@@ -25,6 +36,7 @@ export type Activity = {
 const wakeTheRobot: Activity = {
   id: 'wake',
   title: 'Wake the Robot',
+  mode: 'editor',
   brief:
     'The robot is asleep. It reads three things out of its own memory: whether it has power, what it should call itself, and how charged it is. Give those names values.',
   starter: '# Give the robot what it needs.\n# power, name, charge\n\n',
@@ -62,6 +74,7 @@ const wakeTheRobot: Activity = {
 const parcelBelt: Activity = {
   id: 'belt',
   title: 'The Parcel Belt',
+  mode: 'editor',
   brief:
     'Five parcels are on the belt. The robot lifts whichever ones you put in a list called `heavy`. Anything over 5 kilos is too heavy for the belt.',
   starter: `parcels = [("A7", 3.2), ("B1", 7.4), ("C2", 1.1), ("D3", 9.8), ("E5", 5.0)]
@@ -92,20 +105,24 @@ for parcel in parcels:
   },
 }
 
-const sandbox: Activity = {
+/**
+ * The starting point: a guided console session.
+ *
+ * No program, no Run button, no problem to solve — the player says one
+ * thing to the robot and the robot answers, and the crow keeps the thread.
+ * The whole lesson is that an object exists before anyone names it, which
+ * is why every line here is typed bare.
+ */
+const firstWords: Activity = {
   id: 'sandbox',
-  title: 'Sandbox',
+  title: 'First Words',
   /** Kept as data, rendered nowhere: the starting point does not need to
    *  be introduced. Activities with something to solve will want it. */
-  brief:
-    'Nothing to solve. Make objects and watch memory fill up — names on the left, the objects they point at on the right.',
-  starter: `a = 10
-b = a
-letters = ["x", "y"]
-same = letters
-copy = list(letters)
-counts = {"x": 1, "y": 2}
-`,
+  brief: 'Learn to make objects in the robot\'s memory, before learning to name them.',
+  mode: 'console',
+  lesson: 'objects-first',
+  greeting: 'Say something to me and I will make it. One line at a time.',
+  starter: '',
   options: { max_steps: 3000, wall_clock_s: 15 },
   scene: {
     id: 'workshop',
@@ -119,10 +136,11 @@ counts = {"x": 1, "y": 2}
   },
 }
 
-/** Sandbox first: it is the starting point, and `ACTIVITIES[0]` is what
- *  the router opens with. The other two are reachable by hash but are not
- *  offered anywhere yet. */
-export const ACTIVITIES: Activity[] = [sandbox, wakeTheRobot, parcelBelt]
+/** The console lesson first: it is the starting point, and `ACTIVITIES[0]`
+ *  is what the router opens with. The editor activities are reachable by
+ *  hash but are not offered anywhere yet — they are what unlocking looks
+ *  like, once there is a progression to unlock them from. */
+export const ACTIVITIES: Activity[] = [firstWords, wakeTheRobot, parcelBelt]
 
 export const activityById = (id: string): Activity | null =>
   ACTIVITIES.find((a) => a.id === id) ?? null

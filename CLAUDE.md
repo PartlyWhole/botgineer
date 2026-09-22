@@ -12,9 +12,14 @@ scene and the memory graph are both views of it; the robot panel is the
 only thing that causes anything.
 
 Two panels on screen: **Scene** and **Robot**. Memory is a view *of* the
-robot panel (`Code | Memory`), not a panel of its own. Keep the chrome
-thin — no tabs, no readiness badge (the shell carries `data-boot`), no
-panel notes or briefs.
+robot panel (`Talk | Memory`, or `Code | Memory` once the editor is
+unlocked), not a panel of its own. Keep the chrome thin — no tabs, no
+readiness badge (the shell carries `data-boot`), no panel notes or briefs.
+
+**The beginner gets a console, not an editor.** An activity declares
+`mode: 'console' | 'editor'`. The console is one line at a time, and it is
+where the game starts; the editor is what a later activity unlocks. They
+are not two engines — see invariant 7.
 
 ## Commands
 
@@ -35,6 +40,10 @@ npm run test:browser  # playwright against the PRODUCTION build at /botgineer/
 | `src/runtime/decode.ts` | tagged values → comparable JS; deliberately partial |
 | `src/memory/model.ts` | **the canonical model**: names bind to objects; objects have id/type/value; collections hold pointers |
 | `src/memory/extract.ts` | the ONLY module that knows both the wire format and the model |
+| `src/repl/program.ts` | the console's program builder: expression-or-statement, continuation, and the replay that makes a line-at-a-time session possible. Pure and unit-tested |
+| `src/ui/RobotConsole.tsx` | the console. Owns the caret and the input history and nothing else; it cannot run anything |
+| `content/lessons.ts` | guided lessons. A step's progress is **derived from the snapshot**, never stored |
+| `src/app/console.css` | console and speech-bubble styling, deliberately separate from `styles.css` |
 | `src/scene/spec.ts` | a scene is data, and a view of memory: watches map global names to visual effects |
 | `src/panels/ScenePanel.tsx` | (A) the situation, drawn from the snapshot |
 | `src/panels/RobotPanel.tsx` | (B) the Code/Memory views + Run/Stop + step slider + transcript. Both views stay mounted; the hidden one reports zero size, which every measurement has to guard against |
@@ -77,18 +86,51 @@ npm run test:browser  # playwright against the PRODUCTION build at /botgineer/
    interrupt. A run that never ends wedges every control.
 6. **Never render inside `onRecord`.** Steps push to a ref; the rAF pump
    renders the latest and flushes queued output at most once per frame.
-7. **The editor owns the program.** A run reads `editorRef.read()`, never
-   React state — state may lag a tick behind what is on screen, and a run
-   of the previous program is a silent wrong answer.
+7. **Whoever holds the text owns the program.** In the editor that is
+   `editorRef.read()`, never React state — state may lag a tick behind
+   what is on screen, and a run of the previous program is a silent wrong
+   answer. In the console it is the accepted history.
+
+   **The console is replay.** The engine has one entry point, `run({
+   source })`, and no way to exec into a namespace that persists, so every
+   submission re-runs the whole accepted history plus the new line. Three
+   consequences, all load-bearing:
+   - A line that does not complete is **not** appended. The history only
+     holds lines that worked, which is what makes replaying it safe.
+   - Output cannot be attributed by line number: a step carries the output
+     produced *before* it, so the pending line's first step arrives holding
+     the previous line's text. Attribute by **prefix** instead — this run's
+     output begins with the last one's, and the remainder is the new line's.
+     A nondeterministic line breaks the prefix, and showing everything is
+     the honest fallback.
+   - The history *is* a program, so unlocking the editor hands the player
+     what they have been writing. Do not build a second artifact for it.
+
+14. **A bare expression is kept alive on purpose.** `>>> 10` evaluates an
+   object that CPython collects immediately, so it would never reach a
+   trace. The console compiles it to an append into a hidden list
+   (`KEEPER`, in `repl/program`); the extractor hides the list and shows
+   its contents as objects with no name and no holder. The stated cost:
+   real Python would have thrown these away. The lesson it buys is that an
+   object needs no *name*, not that it needs no reference. `None` is
+   skipped at both ends, so `print(...)` keeps nothing and echoes nothing.
+
+15. **A lesson's progress is derived, never stored.** It is the first step
+   whose test the snapshot fails. That is why the guide cannot disagree
+   with the robot, why replay makes progress monotonic for free, and why
+   scrubbing walks the guide backwards. A step whose test cannot be
+   answered from memory alone is a paragraph, not a step.
 8. **The scene causes nothing.** It declares watches and renders the
    snapshot. No scene code may call into a run or hold state of its own.
 9. **Decode partially, fail cleanly.** Unsupported kinds and
    budget-elided values are marked `partial` and said so, never shown as
    complete.
 10. **`window.botgineer` is the test surface.** Browser tests drive
-   `setProgram`/`getProgram`/`run`/`snapshot`/`state` rather than typing
-   into a contenteditable. Keep the shape stable. Readiness is
-   `.app[data-boot="ready"]`, not a visible badge.
+   `setProgram`/`getProgram`/`run`/`say`/`snapshot`/`state` rather than
+   typing into a contenteditable. Keep the shape stable. Readiness is
+   `.app[data-boot="ready"]`, not a visible badge. The editor journeys run
+   against an activity that still has an editor (`EDITOR` in the spec),
+   because the starting activity is a console.
 11. **The graph settles because `alpha` decays, not because the forces
    agree.** Anything that can inject energy is scaled by `alpha`;
    collision is positional and unscaled so it still works at rest. Do not

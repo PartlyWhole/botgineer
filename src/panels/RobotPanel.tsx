@@ -17,6 +17,7 @@
  */
 import type { ReactNode } from 'react'
 import { CodeEditor, type EditorApi } from '../ui/CodeEditor'
+import { RobotConsole, type Exchange } from '../ui/RobotConsole'
 
 export type Transcript =
   | { kind: 'out'; text: string }
@@ -25,7 +26,16 @@ export type Transcript =
 
 export type RobotView = 'code' | 'memory'
 
+/** Which instrument the player has. The console is the beginner's; the
+ *  editor is unlocked later, once a whole program is worth writing. */
+export type RobotMode = 'console' | 'editor'
+
 type Props = {
+  mode: RobotMode
+  /** Console: the conversation so far, and how to add to it. */
+  exchanges: Exchange[]
+  onSay: (line: string) => void
+  greeting?: string | undefined
   program: string
   onProgram: (next: string) => void
   onReady: (api: EditorApi) => void
@@ -45,6 +55,10 @@ type Props = {
 }
 
 export function RobotPanel({
+  mode,
+  exchanges,
+  onSay,
+  greeting,
   program,
   onProgram,
   onReady,
@@ -60,23 +74,54 @@ export function RobotPanel({
   view,
   memory,
 }: Props) {
+  const talking = mode === 'console'
+
   return (
-    <div className="robot-panel" data-testid="robot-panel" data-busy={busy ? 'yes' : 'no'}>
+    <div
+      className="robot-panel"
+      data-testid="robot-panel"
+      data-mode={mode}
+      data-busy={busy ? 'yes' : 'no'}
+    >
       <div className="views" data-view={view}>
         <div className="view" hidden={view !== 'code'}>
-          <CodeEditor
-            solution={program}
-            onSolution={onProgram}
-            onReady={onReady}
-            traceLine={traceLine}
-            disabled={busy}
-          />
+          {talking ? (
+            <RobotConsole
+              exchanges={exchanges}
+              onSubmit={onSay}
+              busy={busy}
+              disabled={disabled}
+              greeting={greeting}
+            />
+          ) : (
+            <CodeEditor
+              solution={program}
+              onSolution={onProgram}
+              onReady={onReady}
+              traceLine={traceLine}
+              disabled={busy}
+            />
+          )}
         </div>
         <div className="view" hidden={view !== 'memory'}>
           {memory}
         </div>
       </div>
 
+      {/* The console answers inline, so it needs no Run button and no step
+          slider — pressing Enter is the transport. All it can still want is
+          a way out of a line that will not finish. */}
+      {talking ? (
+        // Only while there is something to stop. `hidden` is not enough:
+        // `.transport` sets `display: flex`, which wins against it.
+        busy && (
+          <div className="transport">
+            <button type="button" onClick={onStop} data-testid="stop">
+              Stop
+            </button>
+          </div>
+        )
+      ) : (
       <div className="transport">
         <button
           type="button"
@@ -108,14 +153,17 @@ export function RobotPanel({
           {total === 0 ? '—' : `${Math.min(index + 1, total)} / ${total}`}
         </span>
       </div>
+      )}
 
-      <div className="transcript" data-testid="transcript" aria-live="polite">
-        {transcript.map((t, i) => (
-          <p key={i} className={`t-line ${t.kind}`}>
-            {t.text}
-          </p>
-        ))}
-      </div>
+      {!talking && (
+        <div className="transcript" data-testid="transcript" aria-live="polite">
+          {transcript.map((t, i) => (
+            <p key={i} className={`t-line ${t.kind}`}>
+              {t.text}
+            </p>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

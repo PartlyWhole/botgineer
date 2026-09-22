@@ -1,0 +1,178 @@
+/**
+ * The console, and the guide's speech bubble.
+ *
+ * Kept out of styles.css on purpose: this landed while the memory graph
+ * was being reworked on another branch, and two large edits to one
+ * stylesheet is a merge conflict waiting to happen.
+ *
+ * Every colour comes from the tokens in styles.css. The first version of
+ * this file invented its own dark-theme fallbacks and produced a black
+ * box with black text in a light app — there is one palette, and this is
+ * not the file that gets to define it.
+ */
+
+/* ------------------------------ console ------------------------------ */
+
+.console {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  cursor: text;
+  background: var(--surface);
+}
+
+.console .scrollback {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px 16px 18px;
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+/* What the robot says in its own voice, as opposed to what it echoes. */
+.console .says {
+  margin: 0 0 12px;
+  font-family: inherit;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+
+.console .thinking {
+  margin: 6px 0 0;
+  opacity: 0.8;
+  font-style: italic;
+}
+
+.console .exchange {
+  margin-bottom: 4px;
+}
+
+.console pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font: inherit;
+}
+
+.console .prompt {
+  display: inline-block;
+  width: 3.4ch;
+  flex: none;
+  /* `>>>` is three characters and must never wrap to a second line. */
+  white-space: nowrap;
+  user-select: none;
+  color: var(--brand);
+  opacity: 0.75;
+}
+
+.console .typed {
+  color: var(--ink);
+}
+
+/* The robot's answers sit under the line that caused them, indented to
+   the column the typing started at, so the eye can run down either what
+   was asked or what came back. */
+.console .said {
+  padding-left: 3.4ch;
+}
+
+/* A value is the robot showing you the object it just made: the same
+   green the memory view uses for a value, so the two read as one idea. */
+.console .said.value {
+  color: var(--value);
+}
+
+.console .said.out {
+  color: var(--ink-soft);
+}
+
+.console .said.err {
+  color: var(--bad);
+}
+
+.console .prompt-row {
+  display: flex;
+  align-items: flex-start;
+}
+
+.console .line {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  resize: none;
+  overflow: hidden;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  caret-color: var(--brand);
+}
+
+.console .line:focus {
+  outline: none;
+}
+
+.console .line:disabled {
+  opacity: 0.5;
+}
+
+.robot-panel[data-mode='console'] .transport {
+  justify-content: flex-end;
+}
+
+/* ------------------------------- guide ------------------------------- */
+
+.stage .bubble {
+  position: absolute;
+  /* Anchored to the speaker, then lifted clear of it and pulled left so
+     the tail sits over the character rather than beside the panel edge. */
+  transform: translate(-46%, calc(-100% - 14px));
+  max-width: min(280px, 76%);
+  padding: 9px 12px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink);
+  z-index: 3;
+}
+
+.stage .bubble::after {
+  content: '';
+  position: absolute;
+  left: 42%;
+  bottom: -6px;
+  width: 11px;
+  height: 11px;
+  background: var(--surface);
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  transform: rotate(45deg);
+}
+
+.stage .bubble code {
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: var(--brand-soft);
+  border: 1px solid var(--brand-line);
+  color: var(--brand);
+  font-family: var(--mono);
+  font-size: 0.92em;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .stage .bubble {
+    animation: bubble-in 180ms ease-out;
+  }
+  @keyframes bubble-in {
+    from {
+      opacity: 0;
+      transform: translate(-46%, calc(-100% - 6px));
+    }
+  }
+}

@@ -9,3 +9,6 @@ playwright-report/
 public/runtime/pyodide/
 public/runtime/runtime-version.json
 *.tsbuildinfo
+
+# Subagent worktrees: their own checkouts, not content of this one.
+.claude/worktrees/
