@@ -1,50 +1,54 @@
 /**
- * The shell: a thin bar, and the workbench.
+ * The shell: a thin bar, and either the roadmap or one level.
  *
  * The runtime's state is exposed as a data attribute rather than a badge.
  * It matters when it *fails* — a working runtime announcing that it works
- * is noise — and the tests still need something to wait on.
+ * is noise — and the tests still need something to wait on. It boots on
+ * the map too, so by the time a level is opened Python is usually ready.
  */
 import { useRuntime } from '../runtime/shared'
-import { ACTIVITIES } from '../../content/activities'
-import { goTo, useActivity } from './router'
+import { LEVEL_ORDER } from '../../content/roadmap'
+import { goToMap, useRoute } from './router'
 import { Workbench } from './Workbench'
+import { RoadmapScreen } from '../roadmap/RoadmapScreen'
 
 export function App() {
-  const [activity] = useActivity()
+  const route = useRoute()
   const boot = useRuntime()
+  const level = route.kind === 'level' ? route.activity : null
+  const number = level ? LEVEL_ORDER.indexOf(level.id) + 1 : 0
 
   return (
     <div
       className="app"
       data-boot={boot.state}
       data-isolated={boot.state === 'ready' && boot.isolated ? 'yes' : 'no'}
+      data-route={route.kind}
     >
       <header className="topbar">
-        <h1>BotGineer</h1>
+        <h1>
+          <a href="#/map" className="brand">
+            BotGineer
+          </a>
+        </h1>
         <span className="spacer" />
 
-        {/* The progression, as a row of steps rather than a row of tabs.
-            Finishing a level offers the next one in the scene, but that
-            is a one-way door: with only that, there is no way back to a
-            level you want to redo and no way to see how many there are.
-            Named only to a screen reader, so the chrome stays quiet. */}
-        <nav className="steps" aria-label="Levels">
-          {ACTIVITIES.map((a, i) => (
-            <button
-              key={a.id}
-              type="button"
-              className={a.id === activity.id ? 'current' : ''}
-              aria-current={a.id === activity.id ? 'step' : undefined}
-              aria-label={`Level ${i + 1}: ${a.title}`}
-              title={a.title}
-              data-testid={`step-${a.id}`}
-              onClick={() => goTo(a.id)}
-            >
-              <span className="sr-only">{a.title}</span>
+        {/* The way back to the path from inside a level, and where you are
+            on it. The map is the progression now; the row of dots it
+            replaced said how many levels there were and nothing else. */}
+        {level && (
+          <nav className="whereabouts" aria-label="Levels">
+            {number > 0 && (
+              <span className="whereabouts-level" data-testid="level-label">
+                Level {number} · {level.title}
+              </span>
+            )}
+            <button type="button" className="to-map" data-testid="to-map" onClick={() => goToMap()}>
+              <MapIcon />
+              Map
             </button>
-          ))}
-        </nav>
+          </nav>
+        )}
       </header>
 
       {boot.state === 'failed' && (
@@ -54,7 +58,19 @@ export function App() {
       )}
 
       {/* Remounting per activity keeps each one's run state its own. */}
-      <Workbench key={activity.id} activity={activity} />
+      {level ? <Workbench key={level.id} activity={level} /> : <RoadmapScreen />}
     </div>
   )
 }
+
+const MapIcon = () => (
+  <svg viewBox="0 0 24 24" aria-hidden="true" width="16" height="16">
+    <path
+      d="M9 4.5l-5 2v13l5-2 6 2 5-2v-13l-5 2-6-2zM9 4.5v13M15 6.5v13"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinejoin="round"
+    />
+  </svg>
+)

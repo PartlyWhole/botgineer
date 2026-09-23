@@ -1,37 +1,64 @@
 /**
- * Hash routing over the activity list.
+ * Hash routing: the map, or one level.
  *
  * GitHub Pages applies no rewrite rules, so a path route would 404 on
  * refresh. A hash route always requests the existing index.html, which
  * makes deep links and reloads work with no server configuration.
+ *
+ *   `#/` or `#/map`   the roadmap — where the game starts, like a home
+ *   `#/<level id>`    that level's workbench
+ *
+ * Anything unrecognised is the map, which is always somewhere sensible to
+ * land. A level's own hash still works whether or not the map shows it as
+ * unlocked: locks are an invitation to play in order, not a wall, and
+ * every test and every shared link depends on deep links going straight
+ * in.
  */
 import { useEffect, useState } from 'react'
-import { ACTIVITIES, activityById, type Activity } from '../../content/activities'
+import { activityById, type Activity } from '../../content/activities'
 
-const FALLBACK = ACTIVITIES[0] as Activity
+export type Route = { kind: 'map' } | { kind: 'level'; activity: Activity }
 
-function read(): Activity {
+function read(): Route {
   const id = window.location.hash.replace(/^#\/?/, '')
-  return activityById(id) ?? FALLBACK
+  const activity = id === '' || id === 'map' ? null : activityById(id)
+  return activity ? { kind: 'level', activity } : { kind: 'map' }
 }
 
-/** Navigate by id. The guide uses this to offer the next lesson; keeping
- *  it here means the hash format is written down in exactly one place. */
+/**
+ * The level just finished, when the map was reached by finishing it.
+ *
+ * The map uses it to celebrate: the finished stop pops, the one it
+ * unlocked bounces, a trophy just earned lifts. It is a matter of how you
+ * *arrived*, not of progress — progress is stored, this is not — so it
+ * lives in memory for this page and is gone on reload, or the moment you
+ * go anywhere else.
+ */
+let arrival: string | null = null
+
+/** What the map should celebrate, if anything. Reading does not clear it:
+ *  React may render the map twice on the way in. */
+export const arrivedFrom = (): string | null => arrival
+
+/** Navigate to a level by id. The hash format is written down here and
+ *  nowhere else. */
 export function goTo(id: string): void {
+  arrival = null
   window.location.hash = `#/${id}`
 }
 
-export function useActivity(): [Activity, (next: Activity) => void] {
-  const [activity, setActivity] = useState<Activity>(read)
+/** Back to the map — having just finished `finished`, if given. */
+export function goToMap(finished?: string): void {
+  arrival = finished ?? null
+  window.location.hash = '#/map'
+}
+
+export function useRoute(): Route {
+  const [route, setRoute] = useState<Route>(read)
   useEffect(() => {
-    const onHash = () => setActivity(read())
+    const onHash = () => setRoute(read())
     window.addEventListener('hashchange', onHash)
     return () => window.removeEventListener('hashchange', onHash)
   }, [])
-  return [
-    activity,
-    (next) => {
-      window.location.hash = `#/${next.id}`
-    },
-  ]
+  return route
 }

@@ -43,6 +43,13 @@ async function open(page: Page, activity: string) {
   await expect(page.locator('.app')).toHaveAttribute('data-boot', 'ready', { timeout: 60_000 })
 }
 
+/** Marks levels finished before the page loads, as if played earlier.
+ *  Each test starts with empty storage, so a journey that finishes level
+ *  three would otherwise land on a map still asking for level one. */
+async function seedProgress(page: Page, ids: string[]) {
+  await page.addInitScript((done) => localStorage.setItem('botgineer.progress.v1', JSON.stringify(done)), ids)
+}
+
 /** Memory shares the robot panel with the instrument — there is nothing
  *  to switch to any more, so this only confirms it is on screen. */
 async function showMemory(page: Page) {
@@ -669,7 +676,8 @@ test('the naming lesson teaches that a name is an arrow', async ({ page }) => {
   await expect(page.getByTestId('guide')).toContainText('it never held it')
 })
 
-test('finishing a lesson offers the next one, and only then', async ({ page }) => {
+test('finishing a lesson offers the way back to the map, and only then', async ({ page }) => {
+  await seedProgress(page, ['sandbox', 'operations'])
   await open(page, 'names')
   await expect(page.getByTestId('advance')).toHaveCount(0)
 
@@ -680,9 +688,11 @@ test('finishing a lesson offers the next one, and only then', async ({ page }) =
   await say(page, 'x = 99')
 
   await page.getByTestId('advance').click()
-  expect(page.url()).toContain('#/order')
-  await expect(page.locator('.app')).toHaveAttribute('data-boot', 'ready', { timeout: 60_000 })
-  await expect(page.getByTestId('actor-courier')).toBeVisible()
+  expect(page.url()).toContain('#/map')
+  // Where the level just finished pops and the one it unlocked bounces.
+  await expect(page.getByTestId('level-names')).toHaveAttribute('data-state', 'done')
+  await expect(page.locator('[data-cheer="done"] [data-testid="level-names"]')).toHaveCount(1)
+  await expect(page.locator('[data-cheer="unlocked"] [data-testid="level-order"]')).toHaveCount(1)
 })
 
 test('the courier asks, and the robot answers from what it stored', async ({ page }) => {
@@ -1066,23 +1076,74 @@ test('revealing a handle does not resize the card, or the field would shift', as
 
 /* ------------------------------ getting around ----------------------------- */
 
-test('every level is reachable from the top, and says which one it is', async ({ page }) => {
+test('the game opens on the map, inviting you to the first level', async ({ page }) => {
+  await page.goto('./')
+  await page.evaluate(() => localStorage.clear())
+  await page.reload()
+  await expect(page.getByTestId('map')).toBeVisible()
+  await expect(page.locator('.map-node')).toHaveCount(5)
+  await expect(page.getByTestId('level-sandbox')).toHaveAttribute('data-state', 'current')
+  for (const id of ['operations', 'names', 'order', 'wake']) {
+    await expect(page.getByTestId(`level-${id}`)).toHaveAttribute('data-state', 'locked')
+  }
+  // The top bar stays on screen: the map scrolls, not the page.
+  expect(await page.locator('.topbar').evaluate((el) => el.getBoundingClientRect().top)).toBe(0)
+})
+
+test('a level opens from its card, and the map is one click back', async ({ page }) => {
+  await page.goto('./#/map')
+  await page.getByTestId('level-sandbox').click()
+  await expect(page.getByTestId('map-card')).toContainText('Four Kinds of Thing')
+  await page.getByTestId('map-go').click()
+  expect(page.url()).toContain('#/sandbox')
+  await expect(page.getByTestId('level-label')).toHaveText('Level 1 · Four Kinds of Thing')
+
+  await page.getByTestId('to-map').click()
+  await expect(page.getByTestId('map')).toBeVisible()
+})
+
+test('a locked level says so instead of opening', async ({ page }) => {
+  await page.goto('./#/map')
+  await page.evaluate(() => localStorage.clear())
+  await page.reload()
+  await page.getByTestId('level-order').click()
+  await expect(page.getByTestId('map-card')).toContainText('Finish the levels before this one')
+  await expect(page.getByTestId('map-go')).toHaveCount(0)
+})
+
+test('finishing a level marks it done on the map and unlocks the next', async ({ page }) => {
   await open(page, 'sandbox')
-  await expect(page.locator('.steps button')).toHaveCount(5)
-  await expect(page.getByTestId('step-sandbox')).toHaveAttribute('aria-current', 'step')
-
-  await page.getByTestId('step-order').click()
+  await page.evaluate(() => localStorage.clear())
+  await page.reload()
   await expect(page.locator('.app')).toHaveAttribute('data-boot', 'ready', { timeout: 60_000 })
-  await expect(page.getByTestId('actor-courier')).toBeVisible()
-  await expect(page.getByTestId('step-order')).toHaveAttribute('aria-current', 'step')
-  await expect(page.getByTestId('step-sandbox')).not.toHaveAttribute('aria-current', 'step')
+  for (const line of ['41', '2.5', '"crow"', 'True']) await say(page, line)
+  await expect(page.getByTestId('advance')).toBeVisible()
 
-  // And back, so it is not a one-way door like the in-scene Next.
-  await page.getByTestId('step-sandbox').click()
-  await expect(page.getByTestId('step-sandbox')).toHaveAttribute('aria-current', 'step')
+  await page.getByTestId('to-map').click()
+  await expect(page.getByTestId('level-sandbox')).toHaveAttribute('data-state', 'done')
+  await expect(page.getByTestId('level-operations')).toHaveAttribute('data-state', 'current')
+  await expect(page.getByTestId('map-tally')).toContainText('1 of 5')
+
+  // And it survives a reload: this is the one thing that is stored.
+  await page.reload()
+  await expect(page.getByTestId('level-sandbox')).toHaveAttribute('data-state', 'done')
+})
+
+test("a unit's trophy is earned when its last level is", async ({ page }) => {
+  await page.goto('./#/map')
+  await page.evaluate(() => localStorage.setItem('botgineer.progress.v1', JSON.stringify(['sandbox'])))
+  await page.reload()
+  await expect(page.getByTestId('trophy-thinking')).not.toHaveClass(/earned/)
+  await page.evaluate(() =>
+    localStorage.setItem('botgineer.progress.v1', JSON.stringify(['sandbox', 'operations'])),
+  )
+  await page.reload()
+  await expect(page.getByTestId('trophy-thinking')).toHaveClass(/earned/)
+  await expect(page.getByTestId('unit-thinking').locator('.map-banner-count')).toContainText('2/2')
 })
 
 test('the last lesson offers somewhere to go, and only once it is done', async ({ page }) => {
+  await seedProgress(page, ['sandbox', 'operations', 'names'])
   await open(page, 'order')
   await expect(page.getByTestId('advance')).toHaveCount(0)
 
@@ -1095,21 +1156,21 @@ test('the last lesson offers somewhere to go, and only once it is done', async (
   // there was nothing on screen to do next.
   await expect(page.getByTestId('guide')).toContainText('Fourteen')
   await page.getByTestId('advance').click()
-  expect(page.url()).toContain('#/wake')
-  await expect(page.locator('.app')).toHaveAttribute('data-boot', 'ready', { timeout: 60_000 })
-  // And the editor is what it hands over.
-  await expect(page.getByTestId('editor')).toBeVisible()
+  expect(page.url()).toContain('#/map')
+  // The last level of a unit earns its trophy on the way back.
+  await expect(page.getByTestId('trophy-remembering')).toHaveClass(/just-earned/)
 })
 
-test('the last level celebrates but has nowhere to send you', async ({ page }) => {
+test('the last level celebrates, and still has somewhere to send you', async ({ page }) => {
   await open(page, EDITOR)
   await send(page, 'power = True\nname = "Bolt"\ncharge = 72\n')
 
   // Satisfied, so the robot is pleased…
   expect(await robotMood(page)).toBe('mood-celebrate')
-  // …and `wake` names no `next`, so there is no door to offer. Every
-  // activity before it does name one.
-  await expect(page.getByTestId('advance')).toHaveCount(0)
+  // …and the way on is the map, which the last level has as much as any.
+  await page.getByTestId('advance').click()
+  expect(page.url()).toContain('#/map')
+  await expect(page.locator('[data-cheer="done"] [data-testid="level-wake"]')).toHaveCount(1)
 })
 
 test('an object card keeps its three tiers legible', async ({ page }) => {

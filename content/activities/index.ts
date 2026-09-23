@@ -25,9 +25,9 @@ export type Activity = {
   greeting?: string
   /** Console only: the guide's lesson, by id in `content/lessons`. */
   lesson?: string
-  /** What the guide offers once the lesson is finished. The whole of the
-   *  progression, for now: activities are otherwise reachable only by
-   *  hash, so nothing can be skipped into. */
+  /** The level after this one. Play order only — finishing returns to the
+   *  map, which is where the order is shown — and it must agree with
+   *  `content/roadmap` (there is a test). */
   next?: string
   /** Editor only: what sits in the editor when the activity opens. */
   starter: string

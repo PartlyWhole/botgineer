@@ -30,7 +30,9 @@ import { events } from '../game/events'
 import { useCast } from '../game/director'
 import type { Activity } from '../../content/activities'
 import { LESSONS, guidance, progress } from '../../content/lessons'
-import { goTo } from './router'
+import { goToMap } from './router'
+import { markDone } from '../progress/progress'
+import { readScene } from '../scene/spec'
 import { ScenePanel } from '../panels/ScenePanel'
 import { MemoryPanel } from '../panels/MemoryPanel'
 import { RobotPanel, type Transcript } from '../panels/RobotPanel'
@@ -304,11 +306,19 @@ export function Workbench({ activity }: { activity: Activity }) {
   // is genuinely done. Derived like everything else, so scrubbing back
   // through the trace withdraws the offer too.
   const finished = lesson !== null && progress(lesson, evidence) === lesson.steps.length
-  // Offered whenever there is somewhere to go; the scene decides *when* to
-  // show it, because it is the thing that knows whether this activity is
+  // Finished, by the same one-or-the-other rule the scene celebrates on
+  // (invariant 9), and recorded so the map remembers it. This is the only
+  // thing written down: the map derives everything else from it.
+  const complete = lesson ? finished : readScene(activity.scene, snapshot).solved
+  useEffect(() => {
+    if (complete) markDone(activity.id)
+  }, [complete, activity.id])
+  // The way on is back to the map, where finishing this shows as a level
+  // done and the next one unlocking — the loop Duolingo made familiar, and
+  // one every level has, the last included. The scene decides *when* to
+  // offer it, because it is the thing that knows whether this activity is
   // finished (a lesson's last step, or a satisfied set of watches).
-  const nextId = activity.next
-  const onAdvance = nextId ? () => goTo(nextId) : undefined
+  const onAdvance = () => goToMap(activity.id)
 
   const currentStep = steps[shown]
   const traceLine = currentStep?.location.module === '__main__' ? currentStep.location.line : null

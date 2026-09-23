@@ -1,0 +1,949 @@
+/* ================ the roadmap ================
+
+   A cartoon path, in the visual language Duolingo made familiar: chunky
+   round buttons with a darker lip under them so they read as things you
+   can press, a heavy rounded typeface, one colour per unit, and the cast
+   standing about beside the path.
+
+   Positions come from `roadmap/layout.ts` as `--x` (px from the centre
+   line) and `top`. Centring uses the `translate` property and entrances
+   use `scale`, so neither fights the other or a pressed button's nudge. */
+
+.map {
+  --map-font: 'Nunito', ui-rounded, system-ui, sans-serif;
+  --locked: #e4e8f0;
+  --locked-lip: #c4cbd9;
+  --locked-ink: #a3adc1;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  font-family: var(--map-font);
+  background:
+    radial-gradient(circle at 1px 1px, rgb(75 110 245 / 0.07) 1.2px, transparent 1.6px) 0 0 / 22px 22px,
+    linear-gradient(#f7f9ff, var(--bg));
+  scroll-behavior: smooth;
+}
+
+.map [data-theme='sky'],
+.map[data-theme='sky'] {
+  --u: #3d8bfd;
+  --u-lip: #2466cc;
+  --u-soft: #d9e8ff;
+  --u-deep: #1d4fa3;
+}
+.map [data-theme='grass'] {
+  --u: #4cbf2a;
+  --u-lip: #36931b;
+  --u-soft: #dcf5d0;
+  --u-deep: #2b7414;
+}
+.map [data-theme='sun'] {
+  --u: #ff9d1c;
+  --u-lip: #d27800;
+  --u-soft: #ffe9cc;
+  --u-deep: #a65c00;
+}
+.map [data-theme='berry'] {
+  --u: #b56cf5;
+  --u-lip: #8a45cc;
+  --u-soft: #f0e2ff;
+  --u-deep: #6a2fa6;
+}
+
+.map-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  justify-content: center;
+  gap: 32px;
+  padding: 0 16px;
+}
+
+.map-column {
+  position: relative;
+  width: 100%;
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 18px 0 72px;
+}
+
+/* ---- up next, beside the path on a wide screen ---- */
+
+.map-side {
+  display: none;
+}
+
+@media (min-width: 1080px) {
+  .map-layout {
+    grid-template-columns: minmax(0, 560px) 300px;
+  }
+  .map-side {
+    display: block;
+    position: sticky;
+    top: 18px;
+    align-self: start;
+    margin-top: 18px;
+  }
+  /* The tally is in the side card on a screen wide enough for it. */
+  .map-column .map-tally {
+    display: none;
+  }
+}
+
+.map-next {
+  padding: 18px 18px 20px;
+  border-radius: 20px;
+  background: var(--surface);
+  border: 2px solid var(--line);
+  box-shadow: 0 4px 0 var(--line);
+}
+
+.map-next p,
+.map-next h3 {
+  margin: 0;
+}
+
+.map-next-kicker {
+  font-size: 12.5px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--u);
+}
+
+.map-next h3 {
+  margin-top: 2px !important;
+  font-size: 21px;
+  font-weight: 900;
+  line-height: 1.2;
+  color: var(--ink);
+}
+
+.map-next-brief {
+  margin-top: 4px !important;
+  font-size: 14.5px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--ink-soft);
+}
+
+.map-next-go {
+  display: block;
+  width: 100%;
+  margin-top: 16px;
+  padding: 12px 0 11px;
+  border: 0;
+  border-radius: 14px;
+  background: var(--u);
+  color: #fff;
+  box-shadow: 0 4px 0 var(--u-lip);
+  font: 900 16px/1 var(--map-font);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition:
+    translate 80ms ease,
+    box-shadow 80ms ease,
+    filter 140ms ease;
+}
+
+.map-next-go:hover {
+  filter: brightness(1.06);
+}
+
+.map-next-go:active {
+  translate: 0 3px;
+  box-shadow: 0 1px 0 var(--u-lip);
+}
+
+.map-next-go:focus-visible {
+  outline: 3px solid var(--u-deep);
+  outline-offset: 3px;
+}
+
+/* All the levels as one bar, filled as they are done. */
+.map-bar {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 2px solid var(--line);
+}
+
+.map-bar-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13.5px;
+  font-weight: 800;
+  color: var(--ink-soft);
+}
+
+.map-bar-track {
+  height: 14px;
+  margin-top: 8px;
+  border-radius: 999px;
+  background: var(--locked);
+  overflow: hidden;
+}
+
+.map-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(#ffd24a, #ffb800);
+  box-shadow: inset 0 -3px 0 rgb(0 0 0 / 0.08);
+  transition: width 600ms cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+
+.map-bar-fill::before {
+  content: '';
+  display: block;
+  height: 4px;
+  margin: 3px 8px 0;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.45);
+}
+
+/* ---- the tally ---- */
+
+.map-tally {
+  display: flex;
+  width: fit-content;
+  align-items: center;
+  gap: 6px;
+  margin: 0 auto 18px;
+  padding: 6px 16px 6px 12px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 2px solid var(--line);
+  box-shadow: 0 3px 0 var(--line);
+  font-weight: 800;
+  font-size: 14px;
+  color: var(--ink-soft);
+}
+
+.map-tally::before {
+  content: '';
+  width: 18px;
+  height: 18px;
+  background: #ffc21c;
+  clip-path: polygon(50% 4%, 61% 36%, 96% 37%, 68% 58%, 78% 92%, 50% 72%, 22% 92%, 32% 58%, 4% 37%, 39% 36%);
+}
+
+.map-tally-count {
+  color: var(--ink);
+}
+
+/* ---- a unit ---- */
+
+.map-unit {
+  position: relative;
+  margin-bottom: 18px;
+}
+
+/* The unit's banner sticks while its stretch of path scrolls under it,
+   so the colour at the top of the screen always says which unit you are
+   looking at. */
+.map-banner {
+  position: sticky;
+  top: 10px;
+  z-index: 6;
+  padding: 14px 20px 15px;
+  border-radius: 18px;
+  background: var(--u);
+  color: #fff;
+  box-shadow: 0 5px 0 var(--u-lip);
+}
+
+.map-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.map-banner-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.map-banner p,
+.map-banner h2 {
+  margin: 0;
+}
+
+/* How much of the unit is done, where Duolingo keeps its guidebook. */
+.map-banner-count {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex: none;
+  padding: 7px 13px;
+  border-radius: 12px;
+  border: 2px solid rgb(255 255 255 / 0.35);
+  background: rgb(255 255 255 / 0.14);
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.map-banner-count svg {
+  width: 20px;
+  height: 20px;
+}
+.map-banner-count .cup,
+.map-banner-count .cup-stem,
+.map-banner-count .cup-base {
+  fill: #fff;
+}
+.map-banner-count .cup-handles {
+  stroke: #fff;
+}
+.map-banner-count .cup-shine {
+  stroke: none;
+}
+
+.map-banner-kicker {
+  font-size: 12.5px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+
+.map-banner h2 {
+  font-size: 23px;
+  font-weight: 900;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+}
+
+.map-banner-blurb {
+  margin-top: 2px !important;
+  font-size: 15px;
+  font-weight: 700;
+  opacity: 0.95;
+}
+
+/* Room under the banner for the "Start" bubble, which stands above a
+   unit's first stop whenever that is the one to play next. */
+.map-stretch {
+  position: relative;
+  margin-top: 46px;
+}
+
+/* A soft patch of the unit's colour behind its stretch of path, so a unit
+   is a place on the map and not just a heading over a list. */
+.map-stretch::before {
+  content: '';
+  position: absolute;
+  inset: -30px -4% -24px;
+  background: radial-gradient(ellipse 50% 50% at 50% 50%, var(--u-soft) 62%, transparent 100%);
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* The dotted trail, drawn in the unit's soft colour behind the stops. */
+.map-trail {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 400px;
+  translate: -50% 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.map-trail path {
+  fill: none;
+  stroke: var(--u-soft);
+  stroke-width: 9;
+  stroke-linecap: round;
+  stroke-dasharray: 0.1 19;
+}
+
+/* ---- a stop on the path ---- */
+
+.map-stop,
+.map-trophy,
+.map-mascot {
+  position: absolute;
+  left: calc(50% + var(--x, 0px));
+  translate: -50% -50%;
+}
+
+.map-stop {
+  z-index: 2;
+}
+
+.map-stop.open {
+  z-index: 7;
+}
+
+.map-node {
+  position: relative;
+  display: block;
+  width: 76px;
+  height: 76px;
+  padding: 0;
+  border: 0;
+  background: none;
+  border-radius: 50%;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.map-node-face {
+  position: absolute;
+  inset: 0 0 7px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--u);
+  box-shadow:
+    0 7px 0 var(--u-lip),
+    inset 0 -3px 0 rgb(0 0 0 / 0.06);
+  transition:
+    translate 90ms ease,
+    box-shadow 90ms ease,
+    filter 140ms ease;
+}
+
+/* A highlight across the top of the face, which is most of what makes it
+   read as a rounded thing rather than a flat disc. */
+.map-node-face::before {
+  content: '';
+  position: absolute;
+  top: 9%;
+  left: 22%;
+  width: 34%;
+  height: 16%;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 0.32);
+  rotate: -18deg;
+}
+
+.map-node-face svg {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  fill: #fff;
+  stroke: #fff;
+}
+
+.map-stop.current .map-node-face svg {
+  stroke: none;
+}
+.map-stop.current .map-node-face svg path[fill='none'] {
+  stroke: #fff;
+}
+
+.map-node:hover .map-node-face {
+  filter: brightness(1.06);
+}
+
+/* Pressed: the face sinks onto its lip. */
+.map-node:active .map-node-face {
+  translate: 0 5px;
+  box-shadow:
+    0 2px 0 var(--u-lip),
+    inset 0 -3px 0 rgb(0 0 0 / 0.06);
+}
+
+.map-node:focus-visible {
+  outline: 3px solid var(--u-deep);
+  outline-offset: 6px;
+}
+
+.map-stop.locked .map-node-face {
+  background: var(--locked);
+  box-shadow: 0 7px 0 var(--locked-lip);
+}
+.map-stop.locked .map-node-face::before {
+  background: rgb(255 255 255 / 0.55);
+}
+.map-stop.locked .map-node-face svg {
+  fill: var(--locked-ink);
+  stroke: var(--locked-ink);
+}
+.map-stop.locked .map-node:active .map-node-face {
+  box-shadow: 0 2px 0 var(--locked-lip);
+}
+
+/* The one to play next wears a ring in the unit's soft colour. */
+.map-ring {
+  position: absolute;
+  inset: -9px -9px -2px;
+  border-radius: 50%;
+  border: 6px solid var(--u-soft);
+}
+
+/* "Start", bobbing above the node to play next. */
+.map-start {
+  position: absolute;
+  bottom: calc(100% + 16px);
+  left: 50%;
+  translate: -50% 0;
+  padding: 8px 14px 7px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 2px solid var(--line);
+  color: var(--u);
+  font-size: 15px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.map-start::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  width: 12px;
+  height: 12px;
+  translate: -50% -50%;
+  rotate: 45deg;
+  background: var(--surface);
+  border-right: 2px solid var(--line);
+  border-bottom: 2px solid var(--line);
+}
+
+/* ---- the card a stop opens ---- */
+
+.map-card {
+  position: absolute;
+  top: calc(100% + 16px);
+  left: 50%;
+  /* Pulled back towards the centre line by the stop's own swing, so a
+     card under a stop at the edge of the path still fits the column. */
+  translate: calc(-50% - var(--x, 0px) * 0.7) 0;
+  width: 264px;
+  padding: 16px 16px 18px;
+  border-radius: 18px;
+  background: var(--u);
+  color: #fff;
+  box-shadow: 0 6px 0 var(--u-lip), 0 14px 30px rgb(22 32 58 / 0.18);
+  text-align: left;
+}
+
+.map-card::before {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  left: calc(50% + var(--x, 0px) * 0.7);
+  translate: -50% 50%;
+  width: 16px;
+  height: 16px;
+  rotate: 45deg;
+  border-radius: 3px;
+  background: var(--u);
+}
+
+.map-stop.locked .map-card {
+  background: var(--surface);
+  color: var(--ink);
+  border: 2px solid var(--line);
+  box-shadow: 0 6px 0 var(--line), 0 14px 30px rgb(22 32 58 / 0.12);
+}
+.map-stop.locked .map-card::before {
+  background: var(--surface);
+  border-left: 2px solid var(--line);
+  border-top: 2px solid var(--line);
+}
+
+.map-card p,
+.map-card h3 {
+  margin: 0;
+}
+
+.map-card-kicker {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+
+.map-card h3 {
+  margin-top: 1px !important;
+  font-size: 21px;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.map-card-brief {
+  margin-top: 6px !important;
+  font-size: 14.5px;
+  font-weight: 700;
+  line-height: 1.4;
+  opacity: 0.95;
+}
+
+.map-card-locked {
+  margin-top: 10px !important;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.map-card-go {
+  display: block;
+  width: 100%;
+  margin-top: 14px;
+  padding: 11px 0 10px;
+  border: 0;
+  border-radius: 14px;
+  background: #fff;
+  color: var(--u);
+  box-shadow: 0 4px 0 rgb(0 0 0 / 0.16);
+  font: 900 16px/1 var(--map-font);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition:
+    translate 80ms ease,
+    box-shadow 80ms ease;
+}
+
+.map-card-go:active {
+  translate: 0 3px;
+  box-shadow: 0 1px 0 rgb(0 0 0 / 0.16);
+}
+
+.map-card-go:focus-visible {
+  outline: 3px solid #fff;
+  outline-offset: 3px;
+}
+
+/* ---- the trophy at the end of a unit ---- */
+
+.map-trophy {
+  width: 84px;
+  height: 84px;
+  z-index: 1;
+}
+
+.map-trophy svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.map-trophy .cup,
+.map-trophy .cup-stem,
+.map-trophy .cup-base {
+  fill: var(--locked);
+}
+.map-trophy .cup-handles {
+  stroke: var(--locked-lip);
+}
+.map-trophy .cup-base {
+  fill: var(--locked-lip);
+}
+.map-trophy .cup-shine {
+  stroke: rgb(255 255 255 / 0.6);
+}
+
+.map-trophy.earned .cup,
+.map-trophy.earned .cup-stem {
+  fill: #ffc21c;
+}
+.map-trophy.earned .cup-handles {
+  stroke: #e89f00;
+}
+.map-trophy.earned .cup-base {
+  fill: #e89f00;
+}
+
+/* ---- the cast beside the path ---- */
+
+.map-mascot {
+  z-index: 1;
+  width: 118px;
+  pointer-events: none;
+  /* The robot's and courier's strokes are sized in container units. */
+  container-type: inline-size;
+}
+
+.map-mascot.mascot-crow {
+  width: 96px;
+}
+
+.map-mascot .character {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+/* A soft shadow to stand on, so nobody floats. Pulled up under each
+   figure's feet, which sit at different heights in their viewBoxes. */
+.map-mascot::after {
+  content: '';
+  display: block;
+  width: 70%;
+  height: 10px;
+  margin: var(--foot, 0px) auto 0;
+  border-radius: 50%;
+  background: rgb(22 32 58 / 0.1);
+}
+
+.map-mascot.mascot-robot {
+  --foot: -18px;
+}
+
+/* A phone has less room beside the path: the cast stands closer in and a
+   little smaller, rather than half off the edge of the screen. */
+@media (max-width: 460px) {
+  .map-mascot {
+    left: calc(50% + var(--x, 0px) * 0.8);
+    width: 92px;
+  }
+  .map-mascot.mascot-crow {
+    width: 78px;
+  }
+  .map-banner h2 {
+    font-size: 21px;
+  }
+}
+
+/* ---- the end of the path ---- */
+
+.map-end {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 18px;
+  text-align: center;
+}
+
+.map-end p {
+  margin: 0;
+}
+
+.map-end-title {
+  margin-top: 6px !important;
+  font-size: 18px;
+  font-weight: 900;
+  color: var(--ink);
+}
+
+.map-end-note {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.map-sign {
+  width: 96px;
+  height: 96px;
+}
+.map-sign .ground {
+  fill: rgb(22 32 58 / 0.08);
+}
+.map-sign .post {
+  fill: #b98b5a;
+}
+.map-sign .board {
+  fill: #e6b57a;
+  stroke: #b98b5a;
+  stroke-width: 2.5;
+}
+.map-sign .board-low {
+  fill: #edc795;
+}
+.map-sign .board-line {
+  stroke: #b98b5a;
+}
+
+/* ---- motion ---- */
+
+@media (prefers-reduced-motion: no-preference) {
+  /* Stops pop onto the path one after another when the map opens. */
+  .map-stop,
+  .map-trophy {
+    animation: stop-in 460ms cubic-bezier(0.2, 0.9, 0.3, 1.35) calc(var(--order, 0) * 70ms + 60ms) both;
+  }
+  @keyframes stop-in {
+    from {
+      scale: 0.4;
+      opacity: 0;
+    }
+  }
+
+  .map-start {
+    animation: start-bob 1.5s ease-in-out infinite;
+  }
+  @keyframes start-bob {
+    50% {
+      translate: -50% -6px;
+    }
+  }
+
+  .map-ring {
+    animation: ring 2.4s ease-in-out infinite;
+  }
+  @keyframes ring {
+    50% {
+      scale: 1.06;
+      opacity: 0.7;
+    }
+  }
+
+  .map-card {
+    animation: card-in 200ms cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+    transform-origin: 50% 0;
+  }
+  @keyframes card-in {
+    from {
+      opacity: 0;
+      scale: 0.9;
+    }
+  }
+
+  .map-trophy.earned svg {
+    animation: trophy-shine 3.2s ease-in-out infinite;
+  }
+  @keyframes trophy-shine {
+    0%,
+    86%,
+    100% {
+      rotate: 0deg;
+    }
+    90% {
+      rotate: -7deg;
+    }
+    95% {
+      rotate: 6deg;
+    }
+  }
+}
+
+/* ---- arriving from a finished level ----
+
+   The finished stop pops with a burst, then the one it unlocked bounces
+   and its "Start" arrives, then a trophy just earned lifts — in that
+   order, so the eye follows the path down. */
+
+.map-burst {
+  position: absolute;
+  inset: 0 0 7px;
+  pointer-events: none;
+}
+
+.map-burst i {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 12px;
+  height: 12px;
+  margin: -6px 0 0 -6px;
+  background: #ffc21c;
+  clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%);
+  rotate: var(--a);
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .map-stop.just-done .map-node-face {
+    animation: done-pop 640ms cubic-bezier(0.2, 0.9, 0.3, 1.5) 320ms both;
+  }
+  @keyframes done-pop {
+    35% {
+      scale: 0.82;
+    }
+  }
+
+  .map-burst i {
+    animation: burst 720ms cubic-bezier(0.1, 0.7, 0.3, 1) 520ms both;
+  }
+  @keyframes burst {
+    0% {
+      opacity: 1;
+      transform: translateY(0) scale(0.4);
+    }
+    70% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+      transform: translateY(-62px) scale(1.2);
+    }
+  }
+
+  .map-stop.just-unlocked .map-node-face {
+    animation: unlock 760ms cubic-bezier(0.2, 0.9, 0.3, 1.4) 1000ms both;
+  }
+  @keyframes unlock {
+    0% {
+      filter: grayscale(1) brightness(1.05);
+    }
+    40% {
+      scale: 1.16;
+      filter: grayscale(0) brightness(1.15);
+    }
+    100% {
+      filter: none;
+    }
+  }
+
+  .map-stop.just-unlocked .map-ring {
+    animation:
+      ring-in 500ms ease-out 1300ms both,
+      ring 2.4s ease-in-out 1800ms infinite;
+  }
+  @keyframes ring-in {
+    from {
+      opacity: 0;
+      scale: 0.7;
+    }
+  }
+
+  .map-stop.just-unlocked .map-start {
+    animation:
+      start-in 420ms cubic-bezier(0.2, 0.9, 0.3, 1.4) 1450ms both,
+      start-bob 1.5s ease-in-out 1870ms infinite;
+  }
+  @keyframes start-in {
+    from {
+      opacity: 0;
+      translate: -50% 10px;
+      scale: 0.7;
+    }
+  }
+
+  .map-trophy.just-earned svg {
+    animation: trophy-lift 900ms cubic-bezier(0.2, 0.9, 0.3, 1.3) 1100ms both;
+  }
+  @keyframes trophy-lift {
+    0% {
+      filter: grayscale(1);
+    }
+    45% {
+      scale: 1.35;
+      rotate: -10deg;
+      translate: 0 -10px;
+      filter: grayscale(0);
+    }
+    70% {
+      rotate: 8deg;
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .map {
+    scroll-behavior: auto;
+  }
+}
+
+/* On a narrow screen the page itself scrolls, so a level's stacked panels
+   have room (see styles.css). The map is one tall column that scrolls
+   inside itself instead, under a top bar that stays put — so on the map
+   the app keeps to the height of the screen at every width. */
+@media (max-width: 1000px) {
+  body:has(.app[data-route='map']) {
+    overflow: hidden;
+  }
+  .app[data-route='map'] {
+    height: 100%;
+  }
+}

@@ -114,12 +114,13 @@ export function ScenePanel({
           />
         )}
 
-        {/* The way on. It used to live inside the guide's bubble, which
-            meant the two activities with no guide — the editor ones — had
-            no way to offer it at all. It belongs to the level. */}
+        {/* The way on: back to the map, to see what finishing unlocked. It
+            used to live inside the guide's bubble, which meant the two
+            activities with no guide — the editor ones — had no way to
+            offer it at all. It belongs to the level. */}
         {onAdvance && done && (
           <button type="button" className="advance" onClick={onAdvance} data-testid="advance">
-            Next
+            Continue
           </button>
         )}
 

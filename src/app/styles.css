@@ -1607,43 +1607,59 @@ button.tidy:hover {
   transform: translateX(-50%) translateY(-22px) rotate(-3deg);
 }
 
-/* ---------------- the progression ----------------
+/* ---------------- where you are ----------------
 
-   Steps, not tabs. The chrome here is deliberately quiet, and five named
-   tabs across the top was the thing that got removed; but with only the
-   in-scene "Next" there was no way back to a level, and no way to see
-   how many there were. A dot says both without saying a word. */
+   Inside a level, the bar says which one and offers the way back to the
+   map. The map is the progression; this is only the door to it. */
 
-.topbar .steps {
+.topbar .brand {
+  color: inherit;
+  text-decoration: none;
+  font-family: 'Nunito', ui-rounded, system-ui, sans-serif;
+  font-weight: 900;
+  font-size: 19px;
+}
+
+.whereabouts {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 12px;
+  min-width: 0;
 }
 
-.topbar .steps button {
-  width: 11px;
-  height: 11px;
-  padding: 0;
-  border-radius: 999px;
-  border: 1px solid var(--brand-line);
+.whereabouts-level {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.to-map {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  padding: 5px 12px 5px 10px;
+  border-radius: 12px;
+  border: 2px solid var(--brand-line);
   background: var(--surface);
+  box-shadow: 0 3px 0 var(--brand-line);
+  color: var(--brand-deep);
+  font: 800 13.5px/1.2 'Nunito', ui-rounded, system-ui, sans-serif;
   cursor: pointer;
-  transition: background 140ms ease, transform 140ms ease;
+  transition:
+    translate 80ms ease,
+    box-shadow 80ms ease;
 }
 
-.topbar .steps button:hover {
-  background: var(--brand-soft);
-  transform: scale(1.18);
+.to-map:active {
+  translate: 0 2px;
+  box-shadow: 0 1px 0 var(--brand-line);
 }
 
-.topbar .steps button.current {
-  background: var(--brand);
-  border-color: var(--brand);
-}
-
-/* Keyboard users need to see where they are, and an 11px dot has no room
-   for an inset ring. */
-.topbar .steps button:focus-visible {
+.to-map:focus-visible {
   outline: 2px solid var(--brand-deep);
   outline-offset: 2px;
 }

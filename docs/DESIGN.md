@@ -182,6 +182,32 @@ test fixture. Three things fixed it, and all three are needed:
 
 What was given up: dragging, and the organic look.
 
+### The roadmap — `src/roadmap/`, `content/roadmap.ts`, `src/progress/`
+
+The game opens on a **map**, not in a level: one winding path of round
+buttons, in the visual language Duolingo made familiar. Levels are grouped
+into **units**, each a coloured stretch of path under a sticky banner, with
+a trophy at its end and one of the cast idling beside it — the same SVG
+and CSS as in the levels, so the map and the levels are one world.
+
+- **What a level's state is** (done, the one to play next, locked) is
+  derived from a set of finished level ids and the roadmap's order. That
+  set is the only thing the app stores, in localStorage, because it is a
+  fact about the player that must outlive the page and there are no
+  accounts.
+- **The current level** wears a ring and a bobbing "Start"; the map opens
+  scrolled to it. Clicking any level opens a card with its title, brief
+  and a Start (or Play again) button; a locked one says what unlocks it.
+- **On a wide screen** an "Up next" card sits beside the path with a
+  Continue button and a progress bar across every level.
+- **Locks do not block deep links.** A level's hash always opens it.
+
+Inside a level, the top bar names it and offers the way back to the map.
+Finishing a level offers `Continue`, which returns to the map: the level
+just finished pops with a burst of stars, the one it unlocked turns from
+grey to its colour and its "Start" arrives, and a trophy just earned
+lifts — in that order, so the eye follows the path down.
+
 ## 4. Execution
 
 One session per page, booted once from a module-level promise. Run

@@ -58,6 +58,11 @@ npm run test:browser  # playwright against the PRODUCTION build at /botgineer/
 | `src/ui/CodeEditor.tsx` | CodeMirror; `head`/`tail` optionally lock regions (unused by the workbench) |
 | `src/ui/Split.tsx` | draggable, keyboard-operable gutters; sizes remembered in localStorage |
 | `src/app/Workbench.tsx` | the wiring: owns the run, the steps, the index, the snapshot |
+| `content/roadmap.ts` | the levels, grouped into units, in play order. The only place the order lives |
+| `src/progress/progress.ts` | which levels are finished (localStorage) and what that unlocks. **The one stored fact** — see invariant 19 |
+| `src/roadmap/RoadmapScreen.tsx` | the home screen: a Duolingo-style winding path of levels, one unit per coloured stretch, the cast beside it |
+| `src/roadmap/layout.ts` | where stops, trail and mascots go on the path. Pure and unit-tested |
+| `src/app/roadmap.css` | the map's look, deliberately separate from `styles.css`. Nunito, bundled from npm |
 | `content/activities/` | the activities: brief, scene, starter |
 | `public/runtime/pytrace/` | vendored engine. `browser/worker.mjs` is **patched** to resolve Pyodide relative to itself (`../../pyodide/`) so it works under a sub-path |
 | `public/runtime/pyodide/` | copied from the pinned npm package at build time; gitignored |
@@ -144,12 +149,14 @@ npm run test:browser  # playwright against the PRODUCTION build at /botgineer/
    the lesson's *first* step, so an OR declared it complete a third of the
    way through. Finishing drives both the celebration and the way on.
 
-10. **The way on belongs to the level, not to the guide.** The `Next`
-   button is the scene's own, in the same corner everywhere. It lived
-   inside the guide's speech bubble once, which meant the two activities
-   with no guide could not offer it at all and the last console lesson
-   simply dead-ended. Every activity except the last names its `next`.
-
+10. **The way on belongs to the level, not to the guide.** The
+   `Continue` button is the scene's own, in the same corner everywhere,
+   and it goes **back to the map**, where the level just finished pops and
+   the one it unlocked bounces (`goToMap(id)`; the router remembers the
+   arrival in memory only). It lived inside the guide's speech bubble
+   once, which meant the activities with no guide could not offer it at
+   all. Every level has it, the last included. `next` on an activity is
+   now only the play order, and must agree with `content/roadmap`.
 11. **A lesson's progress is derived, never stored.** It is the first step
    whose test the snapshot fails. That is why the guide cannot disagree
    with the robot, why replay makes progress monotonic for free, and why
@@ -201,6 +208,15 @@ npm run test:browser  # playwright against the PRODUCTION build at /botgineer/
 18. **Tests run like production.** Playwright serves the built site at the
    sub-path with **no** isolation headers, so the `coi-serviceworker` path
    is what gets exercised. Do not add COOP/COEP to the test server.
+19. **Finished levels are the only stored fact.** `progress.ts` keeps a
+   set of finished level ids in this browser's localStorage, written by
+   the Workbench when an activity is finished by invariant 9's rule, and
+   never un-written. Everything the map shows — done, current, locked,
+   trophies, the tally — is derived from that set and `content/roadmap`'s
+   order. The map is home (`#/`, `#/map`); a level's own hash always goes
+   straight in, locked or not, because locks are an invitation to play in
+   order and deep links are how tests and shared links work. The roadmap's
+   order must agree with each activity's `next` (there is a test).
 
 ## Engine facts that shape the UI
 
