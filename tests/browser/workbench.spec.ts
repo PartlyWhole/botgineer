@@ -374,10 +374,17 @@ test('a memory taller than the pane scrolls rather than shrinking', async ({ pag
   const last = page.getByTestId('node-v23')
   const graph = page.getByTestId('graph')
   const below = async () => (await last.boundingBox())!.y > (await graph.boundingBox())!.y + (await graph.boundingBox())!.height
-  expect(await below()).toBe(true)
-
   const g = (await graph.boundingBox())!
   await page.mouse.move(g.x + g.width / 2, g.y + g.height / 2)
+
+  // Scrolled to the top first, whatever the run left: the overview follows
+  // new cards as they arrive, so where it stands after a run depends on
+  // how many frames the run took — on a slow machine it has already
+  // followed `v23` down.
+  await page.mouse.wheel(0, -4000)
+  await stillness(page)
+  expect(await below()).toBe(true)
+
   await page.mouse.wheel(0, 4000)
   await stillness(page)
   expect(await below()).toBe(false)
