@@ -132,7 +132,17 @@ function draw(view: PropView): ReactNode {
     case 'kinds':
       return <Kinds view={view} />
     case 'tiles':
-      return <Tiles view={view} />
+      return <Tiles view={view} parts={p.parts ?? ['7', '+', '7']} />
+    case 'crates':
+      return <Crates view={view} crates={p.crates} each={p.each} />
+    case 'share':
+      return <Share view={view} litres={p.litres} robots={p.robots} />
+    case 'bolts':
+      return <Bolts view={view} have={p.have} use={p.use} />
+    case 'balance':
+      return <Balance view={view} left={p.left} right={p.right} op={p.op} />
+    case 'expr':
+      return <Expr view={view} text={p.text} first={p.first} then={p.then} />
     case 'phone':
       return <Phone view={view} number={p.number} />
     case 'door':
@@ -177,7 +187,17 @@ export function describe(view: PropView): string {
     case 'kinds':
       return 'Three boxes, one inside the next: bool inside int inside float, with every value said so far in its box.'
     case 'tiles':
-      return t !== null ? `Letter tiles: ${[...t].join(', ')}.` : n !== null ? `A block of ${a!.repr}.` : 'Two blocks of 7.'
+      return t !== null ? `Letter tiles: ${[...t].join(', ')}.` : n !== null ? `A block of ${a!.repr}.` : `Blocks: ${(p.parts ?? ['7', '+', '7']).join(' ')}.`
+    case 'crates':
+      return `${p.crates} crates with ${p.each} bolts in each.${n !== null ? ` ${a!.repr} bolts lit.` : ''}`
+    case 'share':
+      return `A jug of ${p.litres} litres and ${p.robots} tanks.${n !== null ? ` Each tank gets ${a!.repr}.` : ''}`
+    case 'bolts':
+      return `${p.have} bolts, ${p.use} of them used.${n !== null ? ` The robot says ${a!.repr} are left.` : ''}`
+    case 'balance':
+      return `A balance: ${p.left} ${p.op} ${p.right}?${b !== null ? ` The robot says ${a!.repr}.` : ''}`
+    case 'expr':
+      return `${p.text}: ${p.first} first, then ${p.then.join(', then ')}.`
     case 'phone':
       return a ? `A phone showing ${t ?? a.repr}.` : 'A phone, waiting for a number.'
     case 'door':
@@ -641,14 +661,14 @@ function Kinds({ view }: { view: PropView }) {
 
 /* --- tiles: numbers add, text sticks together --- */
 
-function Tiles({ view }: { view: PropView }) {
+function Tiles({ view, parts }: { view: PropView; parts: string[] }) {
   const t = textOf(view.answer)
   const n = numberOf(view.answer)
   if (t !== null) {
-    const chars = [...t].slice(0, 7)
+    const chars = [...t].slice(0, 10)
     // As big as they fit: two tiles are the point of `"7" + "7"`, and
     // they should read from across the room.
-    const w = Math.min(36, 180 / Math.max(chars.length, 1))
+    const w = Math.min(36, 190 / Math.max(chars.length, 1))
     const x0 = 100 - (chars.length * w) / 2
     return (
       <g className="tiles text">
@@ -685,24 +705,254 @@ function Tiles({ view }: { view: PropView }) {
   }
   return (
     <g className="tiles blocks">
-      <g className="block-left">
-        <rect x="30" y="34" width="46" height="38" rx="8" className="block" />
-        <text x="53" y="60" className="block-num">
-          7
-        </text>
-      </g>
-      <text x="100" y="61" className="plus">
-        +
-      </text>
-      <g className="block-right">
-        <rect x="124" y="34" width="46" height="38" rx="8" className="block" />
-        <text x="147" y="60" className="block-num">
-          7
-        </text>
-      </g>
+      <Parts parts={parts} />
       {n !== null && (
-        <text x="100" y="100" className="tiles-caption">
+        <text x="100" y="104" className="tiles-caption">
           {view.answer!.repr}
+        </text>
+      )}
+    </g>
+  )
+}
+
+/** Python literals and operators laid out in a row: a str as letter
+ *  tiles, an int as a block, an operator as itself. Scaled to fit. */
+function Parts({ parts }: { parts: string[] }) {
+  const T = 16
+  const laid = parts.map((part) => {
+    if (/^".*"$/.test(part)) return { part, kind: 'str' as const, chars: [...part.slice(1, -1)], w: [...part.slice(1, -1)].length * T }
+    if (/^-?\d+$/.test(part)) return { part, kind: 'int' as const, chars: [], w: Math.max(40, part.length * 14 + 18) }
+    return { part, kind: 'op' as const, chars: [], w: 22 }
+  })
+  const gap = 6
+  const total = laid.reduce((sum, x) => sum + x.w, 0) + gap * (laid.length - 1)
+  const k = Math.min(1, 190 / total)
+  let x = 0
+  return (
+    <g transform={`translate(${100 - (total * k) / 2},0) scale(${k})`}>
+      {laid.map((p, i) => {
+        const at = x
+        x += p.w + gap
+        const side = i === 0 ? 'block-left' : i === laid.length - 1 ? 'block-right' : ''
+        if (p.kind === 'op')
+          return (
+            <text key={i} x={at + p.w / 2} y="61" className="plus">
+              {p.part}
+            </text>
+          )
+        if (p.kind === 'int')
+          return (
+            <g key={i} className={side}>
+              <rect x={at} y="34" width={p.w} height="38" rx="8" className="block" />
+              <text x={at + p.w / 2} y="60" className="block-num">
+                {p.part}
+              </text>
+            </g>
+          )
+        return (
+          <g key={i} className={`${side} tiles-word`}>
+            {p.chars.map((c, j) => (
+              <g key={j} className="tile" transform={`translate(${at + j * T},38)`}>
+                <rect width={T - 1.5} height="26" rx="3" />
+                <text x={(T - 1.5) / 2} y="18.5" style={{ fontSize: '14px' }}>
+                  {c}
+                </text>
+              </g>
+            ))}
+          </g>
+        )
+      })}
+    </g>
+  )
+}
+
+/* --- crates: times, as an array --- */
+
+function Crates({ view, crates, each }: { view: PropView; crates: number; each: number }) {
+  const n = numberOf(view.answer)
+  const lit = n === null ? 0 : clamp(Math.floor(n), 0, crates * each)
+  const cw = Math.min(24, 180 / crates)
+  const x0 = 100 - (crates * cw) / 2
+  const pitch = 78 / each
+  return (
+    <g className="crates">
+      {Array.from({ length: crates }, (_, c) => (
+        <g key={c} className="crate" style={{ ['--i' as string]: c }} transform={`translate(${x0 + c * cw},0)`}>
+          <rect x="1" y="34" width={cw - 2} height="86" rx="3" className="crate-box" />
+          {Array.from({ length: each }, (_, b) => {
+            const index = c * each + b
+            return (
+              <circle
+                key={b}
+                cx={cw / 2}
+                cy={112 - b * pitch}
+                r={Math.min(4.2, cw / 5)}
+                className={`bolt ${index < lit ? 'lit' : ''}`}
+                style={{ ['--i' as string]: index }}
+              />
+            )
+          })}
+        </g>
+      ))}
+      <text x="100" y="22" className="crates-label">
+        {n === null ? `${crates} crates × ${each} bolts` : `${view.answer!.repr} bolts`}
+      </text>
+    </g>
+  )
+}
+
+/* --- share: division, and what is left over --- */
+
+function Share({ view, litres, robots }: { view: PropView; litres: number; robots: number }) {
+  const n = numberOf(view.answer)
+  const each = n === null ? 0 : Math.max(0, n)
+  const left = n === null ? litres : Math.max(0, litres - each * robots)
+  const scale = 6
+  const tankH = 72
+  const tanks = Array.from({ length: robots }, (_, i) => 150 - ((robots - 1) * 48) / 2 + i * 48)
+  return (
+    <g className="share">
+      <g className="jug" transform="translate(40,0)">
+        <path d="M -24 40 h 48 v 76 a 6 6 0 0 1 -6 6 h -36 a 6 6 0 0 1 -6 -6 z" className="jug-body" />
+        <clipPath id="jug-clip">
+          <path d="M -23 41 h 46 v 75 a 5 5 0 0 1 -5 5 h -36 a 5 5 0 0 1 -5 -5 z" />
+        </clipPath>
+        <g clipPath="url(#jug-clip)">
+          <rect x="-24" y="40" width="48" height="82" className="oil" style={{ transform: `scaleY(${clamp(left / litres, 0, 1)})` }} />
+        </g>
+        <path d="M 24 52 q 12 2 12 14 q 0 12 -12 14" className="jug-handle" />
+        <text y="34" className="jug-label">
+          {n === null ? `${litres} L` : `${Number.isInteger(left) ? left : left.toFixed(1)} L left`}
+        </text>
+      </g>
+      {tanks.map((x, i) => (
+        <g key={i} className="tank" transform={`translate(${x},0)`}>
+          <rect x="-16" y={120 - tankH} width="32" height={tankH} rx="4" className="tank-body" />
+          <rect x="-15" y={120 - tankH} width="30" height={tankH - 1} className="oil tank-oil" style={{ transform: `scaleY(${clamp(each / scale, 0, 1)})` }} />
+          {Array.from({ length: scale + 1 }, (_, k) => (
+            <line key={k} x1="10" x2="16" y1={120 - (k / scale) * tankH} y2={120 - (k / scale) * tankH} className="tick" />
+          ))}
+          {i === robots - 1 &&
+            [0, 2, 4, 6].map((k) => (
+              <text key={k} x="26" y={123 - (k / scale) * tankH} className="tick-label">
+                {k}
+              </text>
+            ))}
+          {n !== null && (
+            <text y={114 - clamp(each / scale, 0, 1) * tankH} className="tank-label">
+              {view.answer!.repr}
+            </text>
+          )}
+        </g>
+      ))}
+    </g>
+  )
+}
+
+/* --- bolts: taking away --- */
+
+function Bolts({ view, have, use }: { view: PropView; have: number; use: number }) {
+  const n = numberOf(view.answer)
+  const perRow = 10
+  const ringed = n === null ? 0 : clamp(Math.floor(n), 0, have)
+  const at = (i: number) => [19 + (i % perRow) * 18, 58 + Math.floor(i / perRow) * 30] as const
+  return (
+    <g className="bolts">
+      {Array.from({ length: have }, (_, i) => {
+        const [x, y] = at(i)
+        const used = i >= have - use
+        return (
+          <g key={i} transform={`translate(${x},${y})`} className={`bolt-icon ${used ? 'used' : ''} ${i < ringed ? 'ringed' : ''}`} style={{ ['--i' as string]: i - (have - use) }}>
+            <g className="bolt-shape">
+              <path d="M -5 -9 h 10 l 2 4 h -14 z" />
+              <rect x="-2" y="-5" width="4" height="13" rx="1" />
+            </g>
+            {i < ringed && <circle r="8.5" className="ring" />}
+          </g>
+        )
+      })}
+      <text x="100" y="22" className="bolts-label">
+        {n === null ? `${have} bolts, ${use} used` : `${view.answer!.repr} left?`}
+      </text>
+    </g>
+  )
+}
+
+/* --- balance: a question makes a bool --- */
+
+function Balance({ view, left, right, op }: { view: PropView; left: number; right: number; op: '>' | '==' }) {
+  const b = boolOf(view.answer)
+  const tilt = left === right ? 0 : left > right ? -8 : 8
+  const stack = (count: number, x: number, split?: number) =>
+    Array.from({ length: count }, (_, i) => (
+      <rect
+        key={i}
+        x={x - 13 + (i % 3) * 9}
+        y={-12 - Math.floor(i / 3) * 9}
+        width="8"
+        height="8"
+        rx="1.5"
+        className={`weight ${split !== undefined && i >= split ? 'other' : ''}`}
+      />
+    ))
+  const question = op === '==' ? '2 + 2 == 4' : `${left} ${op} ${right}`
+  return (
+    <g className="balance">
+      <path d="M 100 70 l -14 50 h 28 z" className="stand" />
+      <g className="beam" style={{ ['--tilt' as string]: `${tilt}deg` }}>
+        <rect x="30" y="66" width="140" height="6" rx="3" className="beam-bar" />
+        <g transform="translate(46,66)">
+          <path d="M -18 0 h 36 l -4 6 h -28 z" className="pan" />
+          {stack(left, 0, op === '==' ? 2 : undefined)}
+        </g>
+        <g transform="translate(154,66)">
+          <path d="M -18 0 h 36 l -4 6 h -28 z" className="pan" />
+          {stack(right, 0)}
+        </g>
+      </g>
+      <circle cx="100" cy="69" r="4" className="pivot" />
+      <text x="46" y="94" className="pan-label">
+        {op === '==' ? '2 + 2' : left}
+      </text>
+      <text x="154" y="94" className="pan-label">
+        {right}
+      </text>
+      {/* The answer joins the question only when it answers *this*
+          question: `5 > 3` is True, and "3 > 5 → True" would be a lie. */}
+      <g className={`question ${b !== null && view.verdict === 'right' ? 'answered' : ''}`} transform="translate(100,22)">
+        <rect x="-44" y="-11" width="88" height="20" rx="10" />
+        <text y="3.5">{b !== null && view.verdict === 'right' ? `${question} → ${view.answer!.repr}` : `${question} ?`}</text>
+      </g>
+    </g>
+  )
+}
+
+/* --- expr: one operation at a time --- */
+
+function Expr({ view, text, first, then }: { view: PropView; text: string; first: string; then: string[] }) {
+  // The working is the payoff, so it waits for the robot to have worked it
+  // out: shown on a miss, it would hand over the answer to the question.
+  const shown = view.verdict === 'right'
+  const cw = 9.6
+  const x0 = 100 - (text.length * cw) / 2
+  const at = text.indexOf(first)
+  return (
+    <g className={`expr ${shown ? 'shown' : ''}`}>
+      {at >= 0 && shown && <rect x={x0 + at * cw - 2} y="14" width={first.length * cw + 4} height="24" rx="5" className="first" />}
+      <text x="100" y="31" className="expr-text">
+        {text}
+      </text>
+      {then.map((line, i) => (
+        <g key={i} className="step" style={{ ['--i' as string]: i }}>
+          <path d={`M 100 ${44 + i * 30} v 8`} className="step-arrow" />
+          <text x="100" y={68 + i * 30} className={`expr-text ${i === then.length - 1 ? 'result' : ''}`}>
+            {line}
+          </text>
+        </g>
+      ))}
+      {!shown && (
+        <text x="100" y="80" className="expr-hint">
+          = ?
         </text>
       )}
     </g>

@@ -657,24 +657,39 @@ test('the strings level: words are for people, and Python agrees', async ({ page
   await expect(page.getByTestId('advance')).toBeVisible()
 })
 
-test('the second lesson works things out and keeps none of them', async ({ page }) => {
+/** Lines that answer the operations level right, in order. */
+const OPS = ['7 * 6', '9 / 2', '8 / 2', '20 - 7', '3 > 5', '2 + 2 == 4', '"bot" + "gineer"', '"ha" * 3', '2 + 3 * 4', '(2 + 3) * 4']
+
+test('the operations lesson works things out, drawn, and keeps none of them', async ({ page }) => {
   await open(page, 'operations')
   await expect(page.getByTestId('guide')).toContainText('7 * 6')
+  await expect(page.getByTestId('prop')).toHaveAttribute('data-prop', 'crates')
 
+  // Typing the answer is not asking the robot.
+  await say(page, '42')
+  await expect(page.getByTestId('guide')).toContainText('let the robot')
   await say(page, '7 * 6')
   await expect(page.getByTestId('thought')).toHaveText('42')
-  await say(page, '9 / 2')
-  await expect(page.getByTestId('thought')).toHaveText('4.5')
-  await say(page, '"bot" + "gineer"')
-  await expect(page.getByTestId('thought')).toHaveText("'botgineer'")
-  await say(page, '3 > 5')
-  await expect(page.getByTestId('thought')).toHaveText('False')
-  await say(page, '(2 + 3) * 4')
 
+  // Whole litres only leave one in the jug — in the picture, too.
+  await say(page, '9 // 2')
+  await expect(page.getByTestId('guide')).toContainText('one is left in the jug')
+  await expect(page.getByTestId('prop')).toHaveAttribute('aria-label', /Each tank gets 4\./)
+  await say(page, '9 / 2')
+  await say(page, '8 / 2')
+  await expect(page.getByTestId('thought')).toHaveText('4.0')
+
+  // One equals sign is not a question, and real Python says so.
+  for (const line of OPS.slice(3, 5)) await say(page, line)
+  await say(page, '2 + 2 = 4')
+  await expect(page.getByTestId('console-error').last()).toContainText('SyntaxError')
+  await expect(page.getByTestId('guide')).toContainText('give it a name')
+
+  for (const line of OPS.slice(5)) await say(page, line)
   await expect(page.getByTestId('thought')).toHaveText('20')
   await expect(page.getByTestId('guide')).toContainText('nobody else ever knew it')
-  // Five answers, and memory never held one of them.
   expect(await reprs(page)).toEqual([])
+  await expect(page.getByTestId('advance')).toBeVisible()
 })
 
 test('a block is collected over several lines before it runs', async ({ page }) => {
@@ -1358,8 +1373,8 @@ for (const width of [null, 320]) {
     // longest line — the outro — beside the last value. Asserting after
     // the first line alone measured the lesson's shortest sentence.
     const moments: [string[], string][] = [
-      [['7 * 6', '9 / 2', '"bot" + "gineer"'], "'botgineer'"],
-      [['3 > 5', '(2 + 3) * 4'], '20'],
+      [OPS.slice(0, 7), "'botgineer'"],
+      [OPS.slice(7), '20'],
     ]
     for (const [lines, value] of moments) {
       for (const line of lines) await say(page, line)

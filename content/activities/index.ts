@@ -46,10 +46,32 @@ export type Activity = {
 /* ---------------------------------------------------------------- */
 
 /**
- * The second lesson: working things out.
+ * The workshop the first and third levels share: the crow and the robot
+ * with room between them for the lesson's pictures (`props`), which stand
+ * no taller than the robot and so stay under the speech band.
  *
- * Same room, same empty memory. The robot computes and reports, and the
- * lesson ends on the fact that the answer went nowhere — which is the
+ * The robot is no further right than 74%: its thought cloud is centred
+ * over it but clamped to 69% so it cannot leave the stage, and further
+ * out the cloud drifted off the robot's head.
+ */
+const WORKSHOP: SceneSpec = {
+  id: 'workshop',
+  title: 'Workshop',
+  floor: { at: 76 },
+  actors: [
+    { id: 'crow', kind: 'crow', x: 12, y: 0, w: 16, stand: true },
+    { id: 'robot', kind: 'robot', x: 74, y: 0, w: 22, stand: true },
+  ],
+  props: { x: 41.5, w: 40 },
+  watches: [],
+}
+
+/**
+ * The third level: working things out.
+ *
+ * Same room, same empty memory. The robot computes and reports, each
+ * question drawn on the stage, and the lesson ends on the fact that the
+ * answer went nowhere — which is the
  * itch the naming lesson scratches. That ordering is the whole reason
  * this activity exists between them.
  */
@@ -63,16 +85,7 @@ const workingOut: Activity = {
   greeting: 'Give me something to work out.',
   starter: '',
   options: { max_steps: 3000, wall_clock_s: 15 },
-  scene: {
-    id: 'workshop',
-    title: 'Workshop',
-    floor: { at: 78 },
-    actors: [
-      { id: 'crow', kind: 'crow', x: 32, y: 0, w: 17, stand: true },
-      { id: 'robot', kind: 'robot', x: 66, y: 0, w: 24, stand: true },
-    ],
-    watches: [],
-  },
+  scene: WORKSHOP,
 }
 
 /**
@@ -213,9 +226,8 @@ const wakeTheRobot: Activity = {
  * named, so nothing reaches memory; that memory stays empty here is the
  * point, not an omission.
  *
- * The cast stands at the edges so the question's picture can stand
- * between them (`scene.props`), no taller than the robot, which keeps it
- * under the speech band.
+ * The picture for each question stands between the crow and the robot
+ * (`WORKSHOP`).
  */
 const firstThoughts: Activity = {
   id: 'sandbox',
@@ -229,17 +241,7 @@ const firstThoughts: Activity = {
   greeting: 'Type an answer and press Enter. I will think of it.',
   starter: '',
   options: { max_steps: 3000, wall_clock_s: 15 },
-  scene: {
-    id: 'workshop',
-    title: 'Workshop',
-    floor: { at: 76 },
-    actors: [
-      { id: 'crow', kind: 'crow', x: 15, y: 0, w: 16, stand: true },
-      { id: 'robot', kind: 'robot', x: 84, y: 0, w: 22, stand: true },
-    ],
-    props: { x: 49.5, w: 42 },
-    watches: [],
-  },
+  scene: WORKSHOP,
 }
 
 /**

@@ -48,8 +48,22 @@ export type Prop =
    *  value the player has thought of placed in its ring. */
   | { kind: 'kinds' }
   /** Numbers as blocks and text as letter tiles: `7 + 7` against
-   *  `"7" + "7"`. */
-  | { kind: 'tiles' }
+   *  `"7" + "7"`. `parts` is what is shown before the answer, as Python
+   *  literals and operators; `7 + 7` when omitted. */
+  | { kind: 'tiles'; parts?: string[] }
+  /** Crates in a row, each holding `each` bolts: multiplication as an
+   *  array. The answer lights that many bolts. */
+  | { kind: 'crates'; crates: number; each: number }
+  /** A jug of `litres` and `robots` tanks; the answer is what each tank
+   *  gets, and anything not shared stays in the jug. */
+  | { kind: 'share'; litres: number; robots: number }
+  /** `have` bolts, `use` of them used up; the answer is ringed. */
+  | { kind: 'bolts'; have: number; use: number }
+  /** A balance with `left` and `right` blocks, asked `left op right`. */
+  | { kind: 'balance'; left: number; right: number; op: '>' | '==' }
+  /** An expression worked one operation at a time: `first` is done
+   *  first, then each of `then`. The working shows once answered. */
+  | { kind: 'expr'; text: string; first: string; then: string[] }
   /** A phone whose screen shows the number exactly as the robot has it. */
   | { kind: 'phone'; number: string }
   /** A locked door, and a note to the person on the other side. */

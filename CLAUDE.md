@@ -330,6 +330,9 @@ npm run collection    # regenerate content/collection/generated/ from the markdo
    not move the lesson, so it never mistakes a right answer for a wrong
    one to the next question. An **ordered** lesson walks the thoughts in
    order and counts each for at most one step, and only for the step that
-   was asking — still derived, still monotonic. The first two levels are
-   ordered because a type-only step answered early skipped the line that
-   named it.
+   was asking — still derived, still monotonic. The warm-up's three lessons
+   are ordered because a type-only step answered early skipped the line
+   that named it. Animate an SVG piece placed by its own `transform`
+   attribute with the individual `translate`/`scale`/`rotate` properties:
+   a `transform` keyframe replaces the placement for the length of the
+   demonstration.

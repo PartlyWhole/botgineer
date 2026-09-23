@@ -334,53 +334,90 @@ describe('talking to humans', () => {
 
 /* ------------------------- two: working things out ------------------------- */
 
+const OPS_RIGHT: Line[] = [
+  line('7 * 6', th('int', '42')),
+  line('9 / 2', th('float', '4.5')),
+  line('8 / 2', th('float', '4.0')),
+  line('20 - 7', th('int', '13')),
+  line('3 > 5', th('bool', 'False')),
+  line('2 + 2 == 4', th('bool', 'True')),
+  line('"bot" + "gineer"', th('str', "'botgineer'")),
+  line('"ha" * 3', th('str', "'hahaha'")),
+  line('2 + 3 * 4', th('int', '14')),
+  line('(2 + 3) * 4', th('int', '20')),
+]
+
 describe('working things out', () => {
-  it('wants the answer, not the question', () => {
+  it('walks every operation, in order', () => {
     expect(progress(operations, NOTHING)).toBe(0)
-    expect(progress(operations, thinking(th('int', '42')))).toBe(1)
+    for (let i = 1; i <= OPS_RIGHT.length; i++) {
+      expect(progress(operations, typed(...OPS_RIGHT.slice(0, i)))).toBe(i)
+    }
   })
 
-  it('wants a float from division', () => {
-    const got = thinking(th('int', '42'), th('float', '4.5'))
-    expect(progress(operations, got)).toBe(2)
-    // `4` would be the wrong answer, and a different type as well.
-    expect(progress(operations, thinking(th('int', '42'), th('int', '4')))).toBe(1)
-  })
-
-  it('joins words and answers a comparison', () => {
-    const e = thinking(th('int', '42'), th('float', '4.5'), th('str', "'botgineer'"))
-    expect(progress(operations, e)).toBe(3)
-    expect(progress(operations, thinking(...e.thoughts, th('bool', 'False')))).toBe(4)
-  })
-
-  it('finishes on the two-part sum, and says the answer went nowhere', () => {
-    const e = thinking(
-      th('int', '42'),
-      th('float', '4.5'),
-      th('str', "'botgineer'"),
-      th('bool', 'False'),
-      th('int', '20'),
-    )
-    expect(progress(operations, e)).toBe(operations.steps.length)
+  it('finishes on the brackets, and says the answer went nowhere', () => {
+    const e = typed(...OPS_RIGHT)
     expect(guidance(operations, e).text).toMatch(/nobody else ever knew it/)
-  })
-
-  it('needs no memory at all to be completed', () => {
-    const e = thinking(
-      th('int', '42'),
-      th('float', '4.5'),
-      th('str', "'botgineer'"),
-      th('bool', 'False'),
-      th('int', '20'),
-    )
     expect(Object.keys(e.snapshot.objects)).toEqual([])
-    expect(progress(operations, e)).toBe(operations.steps.length)
   })
 
-  it('has no two steps answered by the same value', () => {
-    // Otherwise one answer would satisfy a step it was not for.
-    const answers = ['42', '4.5', "'botgineer'", 'False', '20']
-    expect(new Set(answers).size).toBe(answers.length)
+  it('wants the robot to do the working, not the player', () => {
+    // Typing the answer is not asking the robot.
+    expect(progress(operations, typed(line('42', th('int', '42'))))).toBe(0)
+    expect(guidance(operations, typed(line('42', th('int', '42')))).text).toMatch(/let the robot/)
+  })
+
+  it('wants a float from sharing, even when it shares exactly', () => {
+    const at = OPS_RIGHT.slice(0, 2)
+    expect(progress(operations, typed(...at, line('8 // 2', th('int', '4'))))).toBe(2)
+    expect(progress(operations, typed(...at, line('8 / 2', th('float', '4.0'))))).toBe(3)
+  })
+
+  it('leaves the choice of operator to the player once', () => {
+    // No operator is named for the bolts: any line that takes 7 from 20.
+    const at = OPS_RIGHT.slice(0, 3)
+    expect(progress(operations, typed(...at, line('20-7', th('int', '13'))))).toBe(4)
+    expect(progress(operations, typed(...at, line('13', th('int', '13'))))).toBe(3)
+  })
+
+  describe('replies to a miss', () => {
+    const reply = (...lines: Line[]) => guidance(operations, typed(...lines)).text
+
+    it('on times', () => {
+      expect(reply(line('7 + 6', th('int', '13')))).toMatch(/`7 \+ 6`/)
+      expect(reply(line('7 x 6', null, 'SyntaxError — the robot stopped there.'))).toMatch(/star/)
+    })
+
+    it('on sharing whole litres only', () => {
+      expect(reply(...OPS_RIGHT.slice(0, 1), line('9 // 2', th('int', '4')))).toMatch(/one is left in the jug/)
+    })
+
+    it('on taking away', () => {
+      const at = OPS_RIGHT.slice(0, 3)
+      expect(reply(...at, line('20 + 7', th('int', '27')))).toMatch(/takes them away/)
+    })
+
+    it('on asking the question the wrong way round', () => {
+      const at = OPS_RIGHT.slice(0, 4)
+      expect(reply(...at, line('5 > 3', th('bool', 'True')))).toMatch(/other way round/)
+    })
+
+    it('on one equals sign where two ask', () => {
+      const at = OPS_RIGHT.slice(0, 5)
+      expect(reply(...at, line('2 + 2 = 4', null, 'SyntaxError — the robot stopped there.'))).toMatch(/give it a name/)
+    })
+
+    it('on working left to right', () => {
+      const at = OPS_RIGHT.slice(0, 8)
+      expect(reply(...at, line('20', th('int', '20')))).toMatch(/left to right/)
+    })
+  })
+
+  it('shows the leftover litre when shared in whole litres', () => {
+    const s = staging(operations, typed(...OPS_RIGHT.slice(0, 1), line('9 // 2', th('int', '4'))))
+    expect(s.current?.prop).toEqual({ kind: 'share', litres: 9, robots: 2 })
+    expect(s.current?.answer).toEqual(th('int', '4'))
+    expect(s.current?.verdict).toBe('miss')
   })
 })
 
