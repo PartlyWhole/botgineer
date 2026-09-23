@@ -30,6 +30,7 @@ export const SKILLS: Concept[] = [
   { id: 'float', title: 'Decimals', can: 'Measure with a float', unit: 'thinking' },
   { id: 'str', title: 'Text', can: 'Write a word as a str, in quotes', unit: 'thinking' },
   { id: 'bool', title: 'True and False', can: 'Answer yes or no with a bool', unit: 'thinking' },
+  { id: 'kind', title: 'Choosing the kind', can: 'Pick bool, int, float or str for the question being asked', unit: 'thinking' },
   { id: 'arith', title: 'Arithmetic', can: 'Add, subtract and multiply', unit: 'thinking' },
   { id: 'divide', title: 'Division', can: 'Share out with /, which always gives a float', unit: 'thinking' },
   { id: 'join', title: 'Joining text', can: 'Stick words together with +', unit: 'thinking' },

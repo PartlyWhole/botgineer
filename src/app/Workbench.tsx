@@ -22,14 +22,15 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { session, useRuntime } from '../runtime/shared'
 import type { StepRecord, TerminalRecord } from '../runtime/types'
-import { extractMemory, runEvidence, thought, type RunEvidence, type Thought } from '../memory/extract'
+import { extractMemory, runEvidence, thought, type RunEvidence } from '../memory/extract'
 import { useHandles } from '../memory/handles'
 import { EMPTY, type MemorySnapshot } from '../memory/model'
 import { buildProgram, isExpression, type Entry } from '../repl/program'
 import { events } from '../game/events'
 import { useCast } from '../game/director'
 import type { Activity } from '../../content/activities'
-import { LESSONS, guidance, progress } from '../../content/lessons'
+import { LESSONS, guidance, progress, staging as stageOf, type Heard, type Line } from '../../content/lessons'
+import { NO_STAGING } from '../scene/props'
 import { goToMap } from './router'
 import { usePractice } from '../practice/usePractice'
 import type { Attempt } from '../practice/exercises'
@@ -102,7 +103,10 @@ export function Workbench({ activity }: { activity: Activity }) {
    *  expression's value is gone the moment the line ends, and only this
    *  description of it survives. The lessons about primitives and
    *  operations are judged on these. */
-  const [thoughts, setThoughts] = useState<Thought[]>([])
+  const [thoughts, setThoughts] = useState<Heard[]>([])
+  /** The last line typed, worked or not. A lesson's reply to a miss reads
+   *  it, and so does the picture on the stage; progress never does. */
+  const [lastLine, setLastLine] = useState<Line | null>(null)
   const programRef = useRef(program)
   programRef.current = program
 
@@ -115,6 +119,7 @@ export function Workbench({ activity }: { activity: Activity }) {
     setExchanges([])
     setLineMemory([])
     setThoughts([])
+    setLastLine(null)
     spokenRef.current = ''
     setProgram(activity.starter)
     editorRef.current?.replace(activity.starter)
@@ -361,6 +366,7 @@ export function Workbench({ activity }: { activity: Activity }) {
       const said = outcome.ok && entry.echo ? thought(last) : null
       const made = said !== null && said.repr !== 'None'
       const echo = made ? said!.repr : null
+      const error = outcome.ok ? null : outcomeLine(outcome.threw, outcome.terminal)
 
       setExchanges((xs) => [
         ...xs,
@@ -369,9 +375,10 @@ export function Workbench({ activity }: { activity: Activity }) {
           source,
           echo,
           output: fresh,
-          error: outcome.ok ? null : outcomeLine(outcome.threw, outcome.terminal),
+          error,
         },
       ])
+      setLastLine({ source, ok: outcome.ok, error, thought: made ? said : null })
       // Only an accepted line joins the history, so only its output becomes
       // part of what the next replay is expected to repeat.
       const after = extractMemory(last)
@@ -379,7 +386,7 @@ export function Workbench({ activity }: { activity: Activity }) {
         spokenRef.current = outcome.output
         setHistory((h) => [...h, entry])
         setLineMemory((m) => [...m, after])
-        if (made) setThoughts((t) => [...t, said!])
+        if (made) setThoughts((t) => [...t, { ...said!, source }])
       }
 
       // A practice session judges every line, including one that failed:
@@ -387,7 +394,7 @@ export function Workbench({ activity }: { activity: Activity }) {
       const attempt: Attempt = {
         source,
         ok: outcome.ok,
-        error: outcome.ok ? null : outcomeLine(outcome.threw, outcome.terminal),
+        error,
         thought: said,
         snapshot: after,
       }
@@ -408,6 +415,7 @@ export function Workbench({ activity }: { activity: Activity }) {
       stepsRef.current = []
       setIndex(0)
       setThoughts([])
+      setLastLine(null)
       setLineMemory([])
       spokenRef.current = ''
       historyRef.current = entries
@@ -448,8 +456,8 @@ export function Workbench({ activity }: { activity: Activity }) {
   // trace in memory — so the evidence includes everything the robot has
   // said back. Both halves only ever grow.
   const evidence = useMemo(
-    () => ({ snapshot, thoughts, history: [...lineMemory, snapshot] }),
-    [snapshot, thoughts, lineMemory],
+    () => ({ snapshot, thoughts, history: [...lineMemory, snapshot], last: lastLine }),
+    [snapshot, thoughts, lineMemory, lastLine],
   )
   const ideas = read.level?.kind === 'ideas'
   const guide = reading
@@ -469,6 +477,9 @@ export function Workbench({ activity }: { activity: Activity }) {
   useEffect(() => {
     if (said) events.emit({ type: 'npc-spoke', text: said })
   }, [said])
+  // The lesson's picture, and the last one leaving with its answer.
+  // Nothing new is known here: it is the same evidence the guide reads.
+  const stage = useMemo(() => (lesson && !practice && !reading ? stageOf(lesson, evidence) : NO_STAGING), [lesson, practice, reading, evidence])
   // The whole progression: the guide offers the next lesson once this one
   // is genuinely done. Derived like everything else, so scrubbing back
   // through the trace withdraws the offer too.
@@ -588,6 +599,7 @@ export function Workbench({ activity }: { activity: Activity }) {
           // itself instead of being told it has finished nothing.
           triumph={reading ? complete : practice ? practice.done : lesson ? finished : undefined}
           meter={practice?.meter}
+          staging={stage}
           compact={reading}
         >
           {reading && ideas && read.stage ? (

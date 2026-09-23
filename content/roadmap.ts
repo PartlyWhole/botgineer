@@ -41,9 +41,9 @@ export const ROADMAP: Unit[] = [
   {
     id: 'thinking',
     title: 'Warm-up: Thinking',
-    blurb: 'What the robot can think of, and work out',
+    blurb: 'Yes, how many, how much — and words for people',
     theme: 'sky',
-    levels: ['sandbox', 'operations', 'practice-thinking'],
+    levels: ['sandbox', 'words', 'operations', 'practice-thinking'],
     mascot: 'crow',
   },
   ...STAGES.map(

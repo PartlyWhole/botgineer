@@ -6,6 +6,7 @@ import '@fontsource/nunito/800.css'
 import '@fontsource/nunito/900.css'
 import './app/styles.css'
 import './app/console.css'
+import './app/props.css'
 import './app/roadmap.css'
 import './app/read.css'
 

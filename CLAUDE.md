@@ -52,7 +52,10 @@ npm run collection    # regenerate content/collection/generated/ from the markdo
 | `src/memory/extract.ts` | the ONLY module that knows both the wire format and the model |
 | `src/repl/program.ts` | the console's program builder: expression-or-statement, continuation, and the replay that makes a line-at-a-time session possible. Pure and unit-tested |
 | `src/ui/RobotConsole.tsx` | the console. Owns the caret and the input history and nothing else; it cannot run anything |
-| `content/lessons.ts` | guided lessons. A step's progress is **derived from evidence**, never stored: the snapshot, what the robot thought, and memory after each accepted line |
+| `content/lessons.ts` | guided lessons. A step's progress is **derived from evidence**, never stored: the snapshot, what the robot thought, and memory after each accepted line. A step may also `show` a picture, `nudge` a miss, and an `ordered` lesson counts a thought only for the step that asked (invariant 26) |
+| `src/scene/props.ts` | the pictures a lesson step stands on the stage, and how an answer is read into them (`numberOf`, `boolOf`, `textOf`). Pure |
+| `src/ui/Props.tsx` | draws them: one small SVG per picture, the answer drawn in, a CSS demonstration on arrival, pressed to replay |
+| `src/app/props.css` | the pictures' look, and one colour per kind (`--k-bool` …), deliberately separate |
 | `src/app/console.css` | console and speech-bubble styling, deliberately separate from `styles.css` |
 | `src/scene/spec.ts` | a scene is data, and a view of memory: watches map global names to visual effects |
 | `src/panels/ScenePanel.tsx` | (A) the situation, drawn from the snapshot |
@@ -67,7 +70,7 @@ npm run collection    # regenerate content/collection/generated/ from the markdo
 | `content/roadmap.ts` | the levels, grouped into units, in play order. The only place the order lives |
 | `src/progress/progress.ts` | which levels are finished (localStorage) and what that unlocks. One of the **two stored things** — see invariant 19 |
 | `src/roadmap/RoadmapScreen.tsx` | the home screen: a Duolingo-style winding path of levels, one unit per coloured stretch, the cast beside it |
-| `content/concepts.ts` | the concepts: the warm-up's 13 skills (a lesson's `teaches` introduces them, practice exercises them) and the collection's ~45, tagged by its specs. Mastery tracks each |
+| `content/concepts.ts` | the concepts: the warm-up's 14 skills (a lesson's `teaches` introduces them, practice exercises them) and the collection's ~45, tagged by its specs. Mastery tracks each |
 | `src/practice/python.ts` | just enough Python (literals, names, `+ - * / // % <` …) to know an exercise's answer before asking it. Pure; checked against CPython by the browser suite |
 | `src/practice/exercises.ts` | one seeded generator per skill: the question, setup lines, a working answer, and a judge that names the mistake |
 | `src/practice/session.ts` | which exercises a session asks, weighted towards weak and faded skills. Pure and seeded |
@@ -314,4 +317,19 @@ npm run collection    # regenerate content/collection/generated/ from the markdo
    not finished; its missed questions' "go back to" exercises are an
    amber review before it, owed until each has been done since. All of it
    is read from `ex:` records — nothing about a checkpoint is stored.
-
+26. **A lesson's picture is the same evidence, drawn.** A step's `show`
+   stands in the scene's `props` slot, and what it shows is a function of
+   the step, the last line and what the robot thought of it — the same
+   evidence the crow reads (`staging` in `content/lessons.ts`). A right
+   answer's picture leaves *as the same element* (one keyed list), so its
+   effect plays as a transition and its demonstration is not replayed; a
+   miss is drawn into the picture that asked. Demonstrations are CSS
+   `backwards` keyframes, so the resting picture is the plain style and
+   reduced motion simply skips to it. Nothing here is stored or timed.
+   A reply to a miss (`nudge`) is only ever asked about a line that did
+   not move the lesson, so it never mistakes a right answer for a wrong
+   one to the next question. An **ordered** lesson walks the thoughts in
+   order and counts each for at most one step, and only for the step that
+   was asking — still derived, still monotonic. The first two levels are
+   ordered because a type-only step answered early skipped the line that
+   named it.

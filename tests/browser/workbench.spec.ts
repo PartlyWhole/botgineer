@@ -575,25 +575,85 @@ test('a line that fails is reported and not kept', async ({ page }) => {
   await expect(page.getByTestId('echo').last()).toHaveText('4')
 })
 
-test('the first lesson walks the four kinds of thing', async ({ page }) => {
+/** Lines that answer the first level right, in order. */
+const KINDS = ['True', 'False', '3', '-1', '0.5', '1.4', '12', 'True', '1.5', 'True + True', '2 + 0.5']
+
+test('the first lesson asks by situation, and the answer is drawn into it', async ({ page }) => {
   await open(page, 'sandbox')
-  await expect(page.getByTestId('guide')).toContainText('whole number')
+  await expect(page.getByTestId('guide')).toContainText('switch')
+  await expect(page.getByTestId('prop')).toHaveAttribute('data-prop', 'lamp')
+  await expect(page.getByTestId('prop-ask')).toHaveText('Turn the lamp on.')
 
-  // Any int will do: the kind is what is being taught, not the value.
-  await say(page, '41')
-  await expect(page.getByTestId('guide')).toContainText('Measuring needs a dot')
-
-  await say(page, '2.5')
-  await expect(page.getByTestId('guide')).toContainText('quotes')
-
-  // `"True"` is a str, so it answers this step and not the next one.
+  // A miss is answered, not repeated — and drawn: the word sits on the
+  // lamp as a note, and the lamp stays dark.
   await say(page, '"True"')
-  await expect(page.getByTestId('guide')).toContainText('True')
-  await expect(page.getByTestId('advance')).toHaveCount(0)
+  await expect(page.getByTestId('guide')).toContainText('word, for people')
+  await expect(page.getByTestId('prop')).toHaveAttribute('aria-label', /dark, with a note/)
+  await expect(page.getByTestId('answer-tag')).toContainText('str')
 
+  // Right: the lamp leaves lit, with its answer, and the fish arrives.
   await say(page, 'True')
-  await expect(page.getByTestId('guide')).toContainText('none of them had a name')
+  await expect(page.getByTestId('prop-leaving')).toHaveAttribute('data-prop', 'lamp')
+  await expect(page.locator('[data-testid="prop-leaving"] .lamp')).toHaveClass(/on/)
+  await expect(page.getByTestId('prop')).toHaveAttribute('data-prop', 'fish')
+  await expect(page.getByTestId('guide')).toContainText('bool')
+
+  await say(page, 'False')
+  // An answer typed as the wrong kind shows what goes wrong with it.
+  await say(page, '3.0')
+  await expect(page.getByTestId('guide')).toContainText('counted')
+  await say(page, '3')
+  await say(page, '1.5')
+  await expect(page.getByTestId('guide')).toContainText('Stuck between floors')
+  await expect(page.getByTestId('prop')).toHaveAttribute('aria-label', /stuck between floors/)
+
+  for (const line of KINDS.slice(3)) await say(page, line)
+  await expect(page.getByTestId('guide')).toContainText('fits inside the next')
+  await expect(page.getByTestId('prop')).toHaveAttribute('data-prop', 'kinds')
+  // Memory stayed empty the whole way: nothing had a name.
   await expect(page.getByTestId('memory')).toContainText('Memory is empty')
+  await expect(page.getByTestId('advance')).toBeVisible()
+})
+
+test('an answer given before its question does not skip the question', async ({ page }) => {
+  await open(page, 'sandbox')
+  // The apple count, typed at the lamp. It moves nothing.
+  await say(page, '3')
+  await say(page, 'True')
+  await say(page, 'False')
+  await expect(page.getByTestId('prop')).toHaveAttribute('data-prop', 'basket')
+  await expect(page.getByTestId('guide')).toContainText('How many apples')
+})
+
+test('the strings level: words are for people, and Python agrees', async ({ page }) => {
+  await open(page, 'words')
+  await expect(page.getByTestId('actor-courier')).toBeVisible()
+  await expect(page.getByTestId('prop')).toHaveAttribute('data-prop', 'card')
+
+  await say(page, 'hello')
+  await expect(page.getByTestId('guide')).toContainText('Without quotes')
+  await say(page, '"hello Mira"')
+  // Mira answers for herself.
+  await expect(page.getByTestId('guide')).toHaveAttribute('data-speaker', 'courier')
+
+  await say(page, '7 + 7')
+  await say(page, '"7" + "7"')
+  await expect(page.getByTestId('thought')).toHaveText("'77'")
+
+  // Real CPython refuses a number with a leading zero, and an int loses it.
+  await say(page, '0412 555 019')
+  await expect(page.getByTestId('console-error').last()).toContainText('SyntaxError')
+  await expect(page.getByTestId('guide')).toContainText('starts with 0')
+  await say(page, '412555019')
+  await expect(page.getByTestId('guide')).toContainText('vanished')
+  await say(page, '"0412 555 019"')
+
+  await say(page, '"True"')
+  await say(page, 'True')
+  await say(page, '"Yes, the door is locked"')
+  await say(page, 'ord("A")')
+  await expect(page.getByTestId('thought')).toHaveText('65')
+  await expect(page.getByTestId('guide')).toContainText('computers like bits, humans like words')
   await expect(page.getByTestId('advance')).toBeVisible()
 })
 
@@ -684,7 +744,7 @@ test('the naming lesson teaches that a name is an arrow', async ({ page }) => {
 })
 
 test('finishing a lesson offers the way back to the map, and only then', async ({ page }) => {
-  await seedProgress(page, ['sandbox', 'operations', 'practice-thinking'])
+  await seedProgress(page, ['sandbox', 'words', 'operations', 'practice-thinking'])
   await open(page, 'names')
   await expect(page.getByTestId('advance')).toHaveCount(0)
 
@@ -742,7 +802,7 @@ test('everyone stands on the floor, at every panel shape', async ({ page }) => {
   // panel's aspect ratio: it ran from 65px to 359px and swung 2.4x as
   // the panel was dragged. Anchoring by the feet makes it exactly zero,
   // which is why this can be an equality rather than a tolerance.
-  for (const activity of ['sandbox', 'operations', 'order', 'wake']) {
+  for (const activity of ['sandbox', 'words', 'operations', 'order', 'wake']) {
     await open(page, activity)
     for (const [w, h] of [
       [1440, 900],
@@ -1088,10 +1148,10 @@ test('the game opens on the map, inviting you to the first level', async ({ page
   await page.evaluate(() => localStorage.clear())
   await page.reload()
   await expect(page.getByTestId('map')).toBeVisible()
-  // The warm-up's three, then the collection's nine stages.
-  await expect(page.locator('.map-node')).toHaveCount(61)
+  // The warm-up's four, then the collection's nine stages.
+  await expect(page.locator('.map-node')).toHaveCount(62)
   await expect(page.getByTestId('level-sandbox')).toHaveAttribute('data-state', 'current')
-  for (const id of ['operations', 'practice-thinking', 'names', 'order', 'practice-remembering', 'wake']) {
+  for (const id of ['words', 'operations', 'practice-thinking', 'names', 'order', 'practice-remembering', 'wake']) {
     await expect(page.getByTestId(`level-${id}`)).toHaveAttribute('data-state', 'locked')
   }
   // The top bar stays on screen: the map scrolls, not the page.
@@ -1101,10 +1161,10 @@ test('the game opens on the map, inviting you to the first level', async ({ page
 test('a level opens from its card, and the map is one click back', async ({ page }) => {
   await page.goto('./#/map')
   await page.getByTestId('level-sandbox').click()
-  await expect(page.getByTestId('map-card')).toContainText('Four Kinds of Thing')
+  await expect(page.getByTestId('map-card')).toContainText('Yes, How Many, How Much')
   await page.getByTestId('map-go').click()
   expect(page.url()).toContain('#/sandbox')
-  await expect(page.getByTestId('level-label')).toHaveText('Level 1 · Four Kinds of Thing')
+  await expect(page.getByTestId('level-label')).toHaveText('Level 1 · Yes, How Many, How Much')
 
   await page.getByTestId('to-map').click()
   await expect(page.getByTestId('map')).toBeVisible()
@@ -1124,13 +1184,13 @@ test('finishing a level marks it done on the map and unlocks the next', async ({
   await page.evaluate(() => localStorage.clear())
   await page.reload()
   await expect(page.locator('.app')).toHaveAttribute('data-boot', 'ready', { timeout: 60_000 })
-  for (const line of ['41', '2.5', '"crow"', 'True']) await say(page, line)
+  for (const line of KINDS) await say(page, line)
   await expect(page.getByTestId('advance')).toBeVisible()
 
   await page.getByTestId('to-map').click()
   await expect(page.getByTestId('level-sandbox')).toHaveAttribute('data-state', 'done')
-  await expect(page.getByTestId('level-operations')).toHaveAttribute('data-state', 'current')
-  await expect(page.getByTestId('map-tally')).toContainText('1 of 61')
+  await expect(page.getByTestId('level-words')).toHaveAttribute('data-state', 'current')
+  await expect(page.getByTestId('map-tally')).toContainText('1 of 62')
 
   // And it survives a reload: this is the one thing that is stored.
   await page.reload()
@@ -1143,15 +1203,15 @@ test("a unit's trophy is earned when its last level is", async ({ page }) => {
   await page.reload()
   await expect(page.getByTestId('trophy-thinking')).not.toHaveClass(/earned/)
   await page.evaluate(() =>
-    localStorage.setItem('botgineer.progress.v1', JSON.stringify(['sandbox', 'operations', 'practice-thinking'])),
+    localStorage.setItem('botgineer.progress.v1', JSON.stringify(['sandbox', 'words', 'operations', 'practice-thinking'])),
   )
   await page.reload()
   await expect(page.getByTestId('trophy-thinking')).toHaveClass(/earned/)
-  await expect(page.getByTestId('unit-thinking').locator('.map-banner-count')).toContainText('3/3')
+  await expect(page.getByTestId('unit-thinking').locator('.map-banner-count')).toContainText('4/4')
 })
 
 test('the last lesson offers somewhere to go, and only once it is done', async ({ page }) => {
-  await seedProgress(page, ['sandbox', 'operations', 'practice-thinking', 'names'])
+  await seedProgress(page, ['sandbox', 'words', 'operations', 'practice-thinking', 'names'])
   await open(page, 'order')
   await expect(page.getByTestId('advance')).toHaveCount(0)
 

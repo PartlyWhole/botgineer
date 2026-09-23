@@ -23,6 +23,8 @@ import { Crow } from '../ui/Crow'
 import { richText } from '../ui/richText'
 import type { Cast, Mood } from '../game/director'
 import type { PracticeMeter } from '../practice/usePractice'
+import type { Staging } from '../scene/props'
+import { PropLayer } from '../ui/Props'
 
 export function ScenePanel({
   spec,
@@ -34,6 +36,7 @@ export function ScenePanel({
   thought,
   thinking,
   meter,
+  staging,
   compact,
   children,
 }: {
@@ -72,6 +75,13 @@ export function ScenePanel({
   thinking?: boolean | undefined
   /** A practice session's progress, drawn across the top of the stage. */
   meter?: PracticeMeter | undefined
+  /**
+   * The lesson's picture for the question being asked, and the last one
+   * on its way out with the answer that finished it. Derived by the
+   * lesson from the same evidence as the guide; drawn in the scene's
+   * `props` slot, and nowhere if the scene has none.
+   */
+  staging?: Staging | undefined
   /**
    * Reading: a short stage — the crow and the robot, and what the crow
    * says — over a sheet that carries the question and, later, the key.
@@ -165,6 +175,42 @@ export function ScenePanel({
           <button type="button" className="advance" onClick={onAdvance} data-testid="advance">
             Continue
           </button>
+        )}
+
+        {spec.props && staging && (staging.current || staging.leaving) && (
+          // Stands on the floor between the cast, drawn before them so a
+          // character's shadow is never under a picture's edge.
+          <div
+            className="props-slot"
+            data-testid="props"
+            style={{
+              left: `${spec.props.x}%`,
+              width: `${spec.props.w}%`,
+              bottom: `${100 - (spec.floor?.at ?? 80)}%`,
+            }}
+          >
+            {/* One keyed list, so the picture the player just answered is
+                the *same element* when it becomes the leaving one: its
+                demonstration is not replayed, and the answer's effect —
+                the lamp coming on — plays as a transition on it. */}
+            {[staging.leaving, staging.current].map((v) =>
+              v === null ? null : (
+                <PropLayer
+                  key={v.key}
+                  view={v}
+                  role={v === staging.leaving ? 'leaving' : 'current'}
+                  beat={v === staging.current && staging.leaving !== null}
+                />
+              ),
+            )}
+            {staging.current?.ask && (
+              // The question stays put while the crow answers a miss —
+              // under the picture, on the floor, where nothing else goes.
+              <p key={staging.current.key} className="prop-ask" data-testid="prop-ask" style={{ ['--beat' as string]: staging.leaving ? '1.7s' : '0s' }}>
+                {staging.current.ask}
+              </p>
+            )}
+          </div>
         )}
 
         {view.actors.map((a, i) => (

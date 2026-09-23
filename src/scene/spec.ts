@@ -129,6 +129,14 @@ export type SceneSpec = {
   floor?: Floor
   actors: Actor[]
   watches: Watch[]
+  /**
+   * Where a lesson's pictures stand (`src/scene/props`): a horizontal
+   * centre and a width, in percent, on the floor. The scene says where;
+   * the lesson says what. Keep it between the cast — a picture is drawn
+   * no taller than 0.65 of its width, so at the robot's width or less it
+   * stays under the speech band.
+   */
+  props?: { x: number; w: number }
 }
 
 /* ------------------------------------------------------------------ */

@@ -178,7 +178,7 @@ test('execution order is numbered by clicking the lines', async ({ page }) => {
 })
 
 test('a whole set, played with the key’s answers, finishes and returns to the map', async ({ page }) => {
-  await seedProgress(page, ['sandbox', 'operations', 'practice-thinking', 'names', 'order', 'practice-remembering', 's1-ideas', 'wake'])
+  await seedProgress(page, ['sandbox', 'words', 'operations', 'practice-thinking', 'names', 'order', 'practice-remembering', 's1-ideas', 'wake'])
   await open(page, 's1-set-1')
   for (let i = 0; i < 6; i++) await play(page)
   await expect(page.getByTestId('guide')).toContainText('6 of 6 right first time')
@@ -189,7 +189,7 @@ test('a whole set, played with the key’s answers, finishes and returns to the 
 
 test('a failed checkpoint sends you to review, and passing it earns the stage', async ({ page }) => {
   const stage1 = ['names', 'order', 'practice-remembering', 's1-ideas', 'wake', 's1-set-1', 's1-set-2', 's1-set-3', 's1-practice']
-  await seedProgress(page, ['sandbox', 'operations', 'practice-thinking', ...stage1])
+  await seedProgress(page, ['sandbox', 'words', 'operations', 'practice-thinking', ...stage1])
   test.setTimeout(240_000)
 
   // Two wrong of six: below the pass mark.
@@ -309,7 +309,7 @@ test('unlocking opens every level without finishing any, and starting over forge
   await page.getByTestId('map-end').getByTestId('unlock-all').click()
   await expect(page.getByTestId('level-s9-capstone')).toHaveAttribute('data-state', 'unlocked')
   await expect(page.getByTestId('level-sandbox')).toHaveAttribute('data-state', 'current')
-  await expect(page.getByTestId('map-tally')).toContainText('0 of 61')
+  await expect(page.getByTestId('map-tally')).toContainText('0 of 62')
   await page.getByTestId('level-s9-capstone').click()
   await expect(page.getByTestId('map-go')).toBeVisible()
   await expect(page.getByTestId('trophy-stage-9')).not.toHaveClass(/earned/)

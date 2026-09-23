@@ -205,36 +205,70 @@ const wakeTheRobot: Activity = {
 }
 
 /**
- * The starting point: a guided console session.
+ * The starting point: yes, how many, how much.
  *
- * No program, no Run button, no problem to solve — the player says one
- * thing to the robot, the robot thinks of it, and the crow keeps the
- * thread. Nothing is named, so nothing reaches memory: the value appears
- * in the robot's thought bubble and is collected when the line ends.
- * That memory stays empty here is the point, not an omission.
+ * No program, no Run button: the crow asks about a situation on the
+ * stage, the player answers in one line, and the answer is drawn into the
+ * picture — `True` lights the lamp, `-1` sends the lift down. Nothing is
+ * named, so nothing reaches memory; that memory stays empty here is the
+ * point, not an omission.
+ *
+ * The cast stands at the edges so the question's picture can stand
+ * between them (`scene.props`), no taller than the robot, which keeps it
+ * under the speech band.
  */
 const firstThoughts: Activity = {
   id: 'sandbox',
-  title: 'Four Kinds of Thing',
+  title: 'Yes, How Many, How Much',
   /** Kept as data, rendered nowhere: the starting point does not need to
    *  be introduced. Activities with something to solve will want it. */
-  brief: 'The four basic kinds of value, thought of and let go.',
+  brief: 'True and False, counting numbers and measurements: which kind of value answers which kind of question.',
   mode: 'console',
-  lesson: 'primitives',
-  next: 'operations',
-  greeting: 'Tell me something and I will think of it. One line at a time.',
+  lesson: 'kinds',
+  next: 'words',
+  greeting: 'Type an answer and press Enter. I will think of it.',
   starter: '',
   options: { max_steps: 3000, wall_clock_s: 15 },
   scene: {
     id: 'workshop',
     title: 'Workshop',
-    // The bench is gone: it was a floating pill that nobody stood on.
-    // The floor is the thing they stand on now.
-    floor: { at: 78 },
+    floor: { at: 76 },
     actors: [
-      { id: 'crow', kind: 'crow', x: 32, y: 0, w: 17, stand: true },
-      { id: 'robot', kind: 'robot', x: 66, y: 0, w: 24, stand: true },
+      { id: 'crow', kind: 'crow', x: 15, y: 0, w: 16, stand: true },
+      { id: 'robot', kind: 'robot', x: 84, y: 0, w: 22, stand: true },
     ],
+    props: { x: 49.5, w: 42 },
+    watches: [],
+  },
+}
+
+/**
+ * Talking to humans: text.
+ *
+ * Mira is a person, so words have someone to be for. The robot stands
+ * between the crow and her, and what it says to her appears between the
+ * robot and her — on a card, a phone, a note on a door.
+ */
+const talkingToHumans: Activity = {
+  id: 'words',
+  title: 'Talking to Humans',
+  brief: 'Text is for people: words in quotes, and why a phone number is text, not a number.',
+  mode: 'console',
+  lesson: 'talking',
+  next: 'operations',
+  greeting: 'I think in True, 12 and 0.5. Mira thinks in words.',
+  starter: '',
+  options: { max_steps: 3000, wall_clock_s: 15 },
+  scene: {
+    id: 'porch',
+    title: 'The porch',
+    floor: { at: 76 },
+    actors: [
+      { id: 'crow', kind: 'crow', x: 9, y: 0, w: 16, stand: true },
+      { id: 'robot', kind: 'robot', x: 30, y: 0, w: 17, stand: true },
+      { id: 'courier', kind: 'courier', x: 88.5, y: 0, w: 17, stand: true },
+    ],
+    props: { x: 59, w: 34 },
     watches: [],
   },
 }
@@ -289,6 +323,7 @@ const practiceRemembering: Activity = {
  *  like, once there is a progression to unlock them from. */
 export const ACTIVITIES: Activity[] = [
   firstThoughts,
+  talkingToHumans,
   workingOut,
   practiceThinking,
   namingThings,

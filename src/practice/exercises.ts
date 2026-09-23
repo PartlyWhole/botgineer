@@ -125,6 +125,38 @@ const PAIRS = [
 ] as const
 const THINGS = ['bolts', 'gears', 'sparks', 'crates', 'wheels', 'wires'] as const
 
+/** Questions whose kind is decided by what they ask, and their answers
+ *  as Python writes them. */
+const SITUATIONS: { say: string; type: 'bool' | 'int' | 'float' | 'str'; value: string; hint: string }[] = [
+  { say: 'How many wheels does a bicycle have?', type: 'int', value: '2', hint: 'but count the wheels again.' },
+  { say: 'How many legs does a spider have?', type: 'int', value: '8', hint: 'but a spider has more legs than that.' },
+  { say: 'How many days are in a week?', type: 'int', value: '7', hint: 'Monday to Sunday — count them.' },
+  { say: 'Half a pizza is left. How much of the pizza is that?', type: 'float', value: '0.5', hint: 'half is exactly in the middle of 0 and 1.' },
+  { say: 'A quarter of a cake is left. How much of the cake is that?', type: 'float', value: '0.25', hint: 'a quarter is half of a half.' },
+  { say: 'A big bottle holds one and a half litres. How many litres?', type: 'float', value: '1.5', hint: 'halfway between 1 and 2.' },
+  { say: 'Is ice cold?', type: 'bool', value: 'True', hint: 'but touch some ice!' },
+  { say: 'Can a cat fly?', type: 'bool', value: 'False', hint: 'but have you seen a cat fly?' },
+  { say: 'Does a triangle have three corners?', type: 'bool', value: 'True', hint: 'but count the corners.' },
+  { say: 'Is 3 more than 10?', type: 'bool', value: 'False', hint: 'but look at the numbers again.' },
+  { say: 'Write the name Sam so a person can read it.', type: 'str', value: 'Sam', hint: 'spell it exactly: Sam.' },
+  { say: 'Write the word hello for a person to read.', type: 'str', value: 'hello', hint: 'spell it exactly: hello.' },
+]
+
+/** Why a question wants its kind, said when the kind was wrong. */
+const KIND_WHY: Record<'bool' | 'int' | 'float' | 'str', string> = {
+  bool: 'A yes-or-no question is answered `True` or `False`.',
+  int: 'Things you count are whole numbers — no dot.',
+  float: 'Something measured, between whole numbers, needs a dot.',
+  str: 'Words for people go in quotes.',
+}
+
+const KIND_PRAISE: Record<'bool' | 'int' | 'float' | 'str', string> = {
+  bool: 'Yes or no, so a `bool`.',
+  int: 'Counted, so an `int`.',
+  float: 'Measured, so a `float`.',
+  str: 'Words for a person, so a `str`.',
+}
+
 export const GENERATORS: Record<string, Generator> = {
   int(r) {
     const lo = between(r, 3, 40)
@@ -215,6 +247,36 @@ export const GENERATORS: Record<string, Generator> = {
         if (!t) return { verdict: 'ignore' }
         if (said !== 'True' && said !== 'False') return { verdict: 'wrong', why: 'Say it yourself — just `True` or `False`.' }
         return t.repr === word ? { verdict: 'correct' } : { verdict: 'wrong', why: `Look again: ${x} and ${y}.` }
+      },
+    }
+  },
+
+  kind(r) {
+    // The question decides the kind: this is the first level's lesson,
+    // asked without a hint about which kind to use.
+    const s = pick(r, SITUATIONS)
+    const want = s.type === 'str' ? repr({ t: 'str', v: s.value }) : s.value
+    return {
+      key: `kind:${s.say}`,
+      skill: 'kind',
+      say: `${s.say} You choose the kind.`,
+      setup: [],
+      answer: s.type === 'str' ? `"${s.value}"` : s.value,
+      expect: { type: s.type, repr: want },
+      praise: KIND_PRAISE[s.type],
+      judge(a) {
+        const said = a.source.trim()
+        if (said === 'true' || said === 'false') return { verdict: 'wrong', why: 'Capital letter: `True` or `False`.' }
+        if (!a.ok) {
+          return failed(a, {
+            NameError: s.type === 'str' ? 'Words for people go in quotes.' : KIND_WHY[s.type],
+          })
+        }
+        const t = a.thought
+        if (!t) return { verdict: 'ignore' }
+        if (t.type !== s.type) return { verdict: 'wrong', why: `That is a \`${t.type}\`. ${KIND_WHY[s.type]}` }
+        if (t.repr !== want) return { verdict: 'wrong', why: `Right kind — ${s.hint}` }
+        return { verdict: 'correct' }
       },
     }
   },

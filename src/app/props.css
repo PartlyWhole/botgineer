@@ -1,0 +1,1263 @@
+/**
+ * The lesson's pictures on the stage (`ui/Props.tsx`).
+ *
+ * Kept apart from styles.css for the same reason console.css is. Every
+ * demonstration is a keyframe written as a `from` state, so the resting
+ * picture is the plain style below it, and reduced motion skips straight
+ * there. `--beat` is how long a picture waits when it arrives behind the
+ * payoff of the one before; it is set on the layer when it mounts.
+ *
+ * The kinds have one colour each, everywhere in these lessons — the
+ * answer's tag, the kinds diagram, the tiles — and every one is also
+ * named in words. On their tints each measures above 4.5:1.
+ */
+
+:root {
+  --k-bool: #6a3fc9;
+  --k-bool-bg: #f1ecfd;
+  --k-bool-soft: #ddd0fb;
+  --k-int: #3453cc;
+  --k-int-bg: #eaf0ff;
+  --k-float: #1f6b57;
+  --k-float-bg: #e3f4ed;
+  --k-str: #8f4700;
+  --k-str-bg: #fff0e0;
+  --beat-len: 1.7s;
+}
+
+/* ------------------------------ the slot ------------------------------ */
+
+.stage .props-slot {
+  position: absolute;
+  transform: translateX(-50%);
+  aspect-ratio: 200 / 130;
+  z-index: 1;
+}
+
+.prop-layer {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  border-radius: 12px;
+}
+
+.prop-layer:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 4px;
+}
+
+.prop-layer svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.prop-layer[data-role='current'] {
+  animation: prop-enter 420ms cubic-bezier(0.2, 0.8, 0.3, 1) var(--beat, 0s) both;
+}
+
+.prop-layer[data-role='leaving'] {
+  pointer-events: none;
+  animation: prop-leave var(--beat-len) ease-in both;
+}
+
+@keyframes prop-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.97);
+  }
+}
+
+@keyframes prop-leave {
+  0%,
+  80% {
+    opacity: 1;
+    transform: none;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(8px) scale(0.96);
+  }
+}
+
+/* The question, on the floor under the picture. */
+.stage .prop-ask {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 300px;
+  margin: 0;
+  padding: 4px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+  text-align: center;
+  box-shadow: var(--shadow);
+  animation: prop-ask-in 300ms ease-out var(--beat, 0s) both;
+}
+
+@keyframes prop-ask-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* The robot's answer: its value, and its kind in words. */
+/* Under the question, on the floor: nothing else goes there, and the
+   question and its answer read as a pair. */
+.answer-tag {
+  position: absolute;
+  top: calc(100% + 40px);
+  left: 0;
+  right: 0;
+  width: max-content;
+  margin: 0 auto;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 3px 10px;
+  border: 1.5px solid currentColor;
+  border-radius: 999px;
+  background: var(--surface);
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.3;
+  box-shadow: var(--shadow);
+  animation: tag-pop 280ms cubic-bezier(0.2, 0.9, 0.3, 1.3) both;
+}
+
+.answer-tag .answer-kind {
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.answer-tag .answer-right {
+  color: var(--good);
+  font-weight: 900;
+}
+
+.answer-tag[data-kind='bool'] {
+  color: var(--k-bool);
+  background: var(--k-bool-bg);
+}
+.answer-tag[data-kind='int'] {
+  color: var(--k-int);
+  background: var(--k-int-bg);
+}
+.answer-tag[data-kind='float'] {
+  color: var(--k-float);
+  background: var(--k-float-bg);
+}
+.answer-tag[data-kind='str'] {
+  color: var(--k-str);
+  background: var(--k-str-bg);
+}
+.answer-tag[data-kind='other'] {
+  color: var(--ink-soft);
+}
+
+@keyframes tag-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+}
+
+/* ------------------------------ in common ------------------------------ */
+
+.prop text {
+  font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+  font-size: 9px;
+  fill: var(--ink-soft);
+  text-anchor: middle;
+}
+
+.prop .tick-label.end {
+  text-anchor: end;
+}
+
+.prop .tick {
+  stroke: #9aa4bf;
+  stroke-width: 1.5;
+}
+
+/* Anything drawn from its own box: scales and turns about itself. */
+.prop .apple-drop,
+.prop .fish-wings,
+.prop .bird-wing,
+.prop .hollow,
+.prop .egg,
+.prop .figure,
+.prop .half,
+.prop .reach rect,
+.prop .ring,
+.prop .dot,
+.prop .tile,
+.prop .phone-shake,
+.prop .dome,
+.prop .card-flip,
+.prop .face,
+.prop .letter-wiggle,
+.prop .liquid {
+  transform-box: fill-box;
+}
+
+/* ------------------------------ lamp ------------------------------ */
+
+.lamp .pole {
+  stroke: #5b6784;
+  stroke-width: 3;
+}
+.lamp .lamp-base {
+  fill: #5b6784;
+}
+.lamp .cable {
+  fill: none;
+  stroke: #9aa4bf;
+  stroke-width: 1.5;
+}
+.lamp .shade {
+  fill: var(--brand);
+}
+.lamp .bulb-glass {
+  fill: #e7eaf3;
+  stroke: #9aa4bf;
+  stroke-width: 1.5;
+  transition: fill 300ms;
+}
+.lamp .lamp-glow {
+  fill: #ffd84a;
+  opacity: 0;
+  transition: opacity 350ms;
+}
+.lamp.on .lamp-glow {
+  opacity: 0.55;
+}
+.lamp.on .bulb-glass {
+  fill: #ffe066;
+}
+.lamp .plate-switch {
+  fill: #fff;
+  stroke: #c4cbe0;
+  stroke-width: 1.5;
+}
+.lamp .pill-true,
+.lamp .pill-false {
+  fill: var(--k-bool-soft);
+  stroke: var(--k-bool);
+  opacity: 0;
+  transition: opacity 250ms;
+}
+.lamp.on .pill-true,
+.lamp:not(.on) .pill-false {
+  opacity: 1;
+}
+.lamp .switch-label {
+  font-family: var(--mono);
+  font-size: 8.5px;
+  font-weight: 800;
+  fill: var(--k-bool);
+}
+.lamp .lever rect {
+  fill: #5b6784;
+}
+.lamp .lever {
+  transform: translateY(4px);
+  transition: transform 250ms cubic-bezier(0.3, 1.4, 0.6, 1);
+}
+.lamp.on .lever {
+  transform: translateY(-12px);
+}
+.lamp .note rect {
+  fill: #fff6b8;
+  stroke: #e0cf6a;
+}
+.lamp .note text {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 800;
+  fill: var(--k-str);
+}
+.lamp .note {
+  animation: note-stick 320ms cubic-bezier(0.2, 0.9, 0.3, 1.3) backwards;
+}
+
+/* The demonstration: on, off, on, off — then as the answer leaves it. */
+.lamp .lamp-glow {
+  animation: flick-glow 2.6s linear calc(var(--beat, 0s) + 0.5s) backwards;
+}
+.lamp .lever {
+  animation: flick-lever 2.6s linear calc(var(--beat, 0s) + 0.5s) backwards;
+}
+.lamp .pill-true {
+  animation: flick-on 2.6s linear calc(var(--beat, 0s) + 0.5s) backwards;
+}
+.lamp .pill-false {
+  animation: flick-off 2.6s linear calc(var(--beat, 0s) + 0.5s) backwards;
+}
+@keyframes flick-glow {
+  0%, 12% { opacity: 0; }
+  16%, 34% { opacity: 0.55; }
+  38%, 56% { opacity: 0; }
+  60%, 78% { opacity: 0.55; }
+  82% { opacity: 0; }
+}
+@keyframes flick-lever {
+  0%, 12% { transform: translateY(4px); }
+  16%, 34% { transform: translateY(-12px); }
+  38%, 56% { transform: translateY(4px); }
+  60%, 78% { transform: translateY(-12px); }
+  82% { transform: translateY(4px); }
+}
+@keyframes flick-on {
+  0%, 12% { opacity: 0; }
+  16%, 34% { opacity: 1; }
+  38%, 56% { opacity: 0; }
+  60%, 78% { opacity: 1; }
+  82% { opacity: 0; }
+}
+@keyframes flick-off {
+  0%, 12% { opacity: 1; }
+  16%, 34% { opacity: 0; }
+  38%, 56% { opacity: 1; }
+  60%, 78% { opacity: 0; }
+  82% { opacity: 1; }
+}
+@keyframes note-stick {
+  from {
+    opacity: 0;
+    transform: translate(20px, 60px) rotate(-30deg) scale(0.6);
+  }
+}
+
+/* ------------------------------ fish ------------------------------ */
+
+.fishbowl .water {
+  fill: #d8ecfb;
+}
+.fishbowl .wave {
+  fill: none;
+  stroke: #9cc9ee;
+  stroke-width: 2;
+}
+.fishbowl .fish-body {
+  fill: #ff9f43;
+}
+.fishbowl .fish-tail {
+  fill: #f08a24;
+}
+.fishbowl .fish-fin {
+  fill: none;
+  stroke: #f08a24;
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+.fishbowl .fish-eye {
+  fill: #16203a;
+}
+.fishbowl .fish-wings path {
+  fill: #fff;
+  stroke: #9aa4bf;
+}
+.fishbowl .fish-wings {
+  opacity: 0;
+  transform: scale(0.3);
+  transform-origin: 50% 100%;
+  transition:
+    opacity 300ms,
+    transform 400ms cubic-bezier(0.3, 1.5, 0.6, 1);
+}
+.fishbowl.said-true .fish-wings {
+  opacity: 1;
+  transform: none;
+}
+.fishbowl .same-sign {
+  font-size: 22px;
+  font-weight: 800;
+  fill: var(--ink-soft);
+}
+.fishbowl.said-false .same-sign,
+.fishbowl.said-true .same-sign {
+  fill: var(--k-bool);
+}
+.fishbowl .bird-body {
+  fill: #7fb2ff;
+}
+.fishbowl .beak {
+  fill: #ffc53d;
+}
+.fishbowl .bird-wing path {
+  fill: #4b8df0;
+}
+.fishbowl .bird-wing {
+  transform-origin: 0% 100%;
+}
+.fishbowl .legs {
+  stroke: #e0a020;
+  stroke-width: 2;
+}
+.fishbowl .fish-swim {
+  animation: swim-in 1.4s cubic-bezier(0.3, 0.8, 0.4, 1) calc(var(--beat, 0s) + 0.3s) backwards;
+}
+.fishbowl .bird-wing {
+  animation: flap 0.36s ease-in-out calc(var(--beat, 0s) + 0.6s) 4;
+}
+@keyframes swim-in {
+  from {
+    transform: translateX(-70px);
+  }
+  50% {
+    transform: translate(-20px, -4px);
+  }
+}
+@keyframes flap {
+  50% {
+    transform: rotate(-28deg);
+  }
+}
+
+/* ------------------------------ basket ------------------------------ */
+
+.basket .apple-skin {
+  fill: #e8453c;
+}
+.basket .stalk {
+  fill: none;
+  stroke: #6b4a2b;
+  stroke-width: 2;
+}
+.basket .leaf {
+  fill: #3fae5a;
+}
+.basket .apple-drop {
+  animation: drop 520ms cubic-bezier(0.3, 1.4, 0.6, 1) calc(var(--beat, 0s) + 0.3s + var(--i) * 0.32s) backwards;
+}
+.basket .basket-body {
+  fill: #c98b4b;
+  stroke: #9c6630;
+  stroke-width: 2;
+}
+.basket .weave {
+  fill: none;
+  stroke: #9c6630;
+  stroke-width: 1.5;
+}
+.prop .token circle,
+.prop .token path {
+  fill: var(--k-int-bg);
+  stroke: var(--k-int);
+  stroke-width: 1.5;
+}
+.prop .token text {
+  font-family: var(--mono);
+  font-size: 8px;
+  font-weight: 800;
+  fill: var(--k-int);
+}
+.prop .token.extra circle {
+  fill: #fff;
+  stroke: var(--bad);
+  stroke-dasharray: 3 2;
+}
+.prop .token.extra text {
+  fill: var(--bad);
+}
+.prop .token.half path {
+  fill: var(--k-float-bg);
+  stroke: var(--k-float);
+}
+.prop .token-more {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 800;
+  fill: var(--ink-soft);
+  text-anchor: start;
+}
+@keyframes drop {
+  from {
+    opacity: 0;
+    transform: translateY(-70px);
+  }
+}
+
+/* ------------------------------ lift ------------------------------ */
+
+.lift .earth {
+  fill: #eadfcd;
+}
+.lift .storeys {
+  fill: #fff;
+  stroke: #c4cbe0;
+}
+.lift .storeys.under {
+  fill: #f3ede3;
+}
+.lift .floor-line {
+  stroke: #dde3f2;
+}
+.lift .floor-num {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 800;
+  text-anchor: end;
+  fill: var(--ink-soft);
+}
+.lift .floor-num.here {
+  font-size: 11.5px;
+  fill: var(--k-int);
+}
+.lift .park {
+  font-size: 9px;
+  font-weight: 900;
+  fill: #7d6a4e;
+}
+.lift .grass {
+  stroke: #3fae5a;
+  stroke-width: 3;
+}
+.lift .ground-label {
+  font-size: 8px;
+  font-weight: 700;
+  fill: #2f6b3c;
+}
+.lift .shaft {
+  fill: #eef1f8;
+  stroke: #c4cbe0;
+}
+.lift .car {
+  fill: var(--brand);
+}
+.lift .car.stuck {
+  fill: #e0a020;
+}
+.lift .car-door {
+  stroke: rgb(255 255 255 / 0.7);
+  stroke-width: 1.5;
+}
+.lift .car-move {
+  transition: transform 900ms cubic-bezier(0.45, 0, 0.2, 1);
+}
+.lift .car-demo {
+  animation: ride 1.8s cubic-bezier(0.45, 0, 0.2, 1) calc(var(--beat, 0s) + 0.4s) backwards;
+}
+.lift .warn path {
+  fill: #ffd24d;
+  stroke: #9a5b00;
+}
+.lift .warn text {
+  font-size: 10px;
+  font-weight: 900;
+  fill: #5a3a00;
+}
+.lift .no-floor {
+  font-size: 8.5px;
+  font-weight: 800;
+  fill: var(--bad);
+}
+@keyframes ride {
+  from {
+    transform: translateY(var(--from));
+  }
+}
+
+/* ------------------------------ glass ------------------------------ */
+
+.glasses .glass-edge {
+  fill: rgb(255 255 255 / 0.35);
+  stroke: #8fa0c4;
+  stroke-width: 2;
+}
+.glasses .liquid {
+  fill: #6fb8f2;
+  transform-origin: 50% 100%;
+  transition: transform 800ms cubic-bezier(0.3, 0.8, 0.4, 1);
+}
+.glasses .yours .glass-edge {
+  stroke-dasharray: 4 3;
+}
+.glasses .yours .liquid {
+  fill: #7fcfb3;
+}
+.glasses .given .liquid {
+  animation: fill-up 1.3s ease-out calc(var(--beat, 0s) + 0.5s) backwards;
+}
+.glasses .pour {
+  stroke: #6fb8f2;
+  stroke-width: 4;
+  opacity: 0;
+  animation: pour 1.5s linear calc(var(--beat, 0s) + 0.4s) backwards;
+}
+.glasses .spill {
+  fill: none;
+  stroke: #7fcfb3;
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+.glasses .glass-caption {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 800;
+}
+@keyframes fill-up {
+  from {
+    transform: scaleY(0);
+  }
+}
+@keyframes pour {
+  0% {
+    opacity: 0;
+  }
+  8%,
+  88% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* ------------------------------ height ------------------------------ */
+
+.height .ruler {
+  stroke: #5b6784;
+  stroke-width: 2;
+}
+.height .major {
+  stroke: #5b6784;
+  stroke-width: 1.5;
+}
+.height .minor {
+  stroke: #9aa4bf;
+}
+.height .mark {
+  animation: mark-in 200ms ease-out calc(var(--beat, 0s) + 0.3s + var(--i) * 0.045s) backwards;
+}
+.height .door-frame {
+  fill: #f4efe6;
+  stroke: #a58b62;
+  stroke-width: 2;
+}
+.height .ref-label {
+  font-size: 7.5px;
+}
+.height .cat path {
+  fill: #5b6784;
+}
+.height .figure-at {
+  transition: transform 800ms cubic-bezier(0.3, 0.8, 0.4, 1);
+}
+.height .figure circle,
+.height .figure path {
+  fill: var(--k-float);
+}
+.height .figure.ghost circle,
+.height .figure.ghost path {
+  fill: none;
+  stroke: #9aa4bf;
+  stroke-dasharray: 3 2;
+  vector-effect: non-scaling-stroke;
+}
+.height .figure {
+  transform-origin: 50% 100%;
+  animation: grow 900ms cubic-bezier(0.3, 1.2, 0.5, 1) calc(var(--beat, 0s) + 1.2s) backwards;
+}
+.height .height-mark line {
+  stroke: var(--k-float);
+  stroke-dasharray: 3 2;
+}
+.height .height-mark text {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 800;
+  fill: var(--k-float);
+  text-anchor: start;
+}
+@keyframes mark-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes grow {
+  from {
+    transform: scaleY(0.1);
+  }
+}
+
+/* ------------------------------ carton ------------------------------ */
+
+.carton .lid {
+  fill: #d9c3a0;
+  stroke: #b39469;
+}
+.carton .box {
+  fill: #e8d5b5;
+  stroke: #b39469;
+  stroke-width: 2;
+}
+.carton .cup {
+  fill: #d4bc93;
+}
+.carton .egg {
+  fill: #fffaf0;
+  stroke: #d8c7a6;
+  transform-origin: 50% 100%;
+  animation: egg-in 320ms cubic-bezier(0.3, 1.4, 0.6, 1) calc(var(--i) * 0.04s) backwards;
+}
+.carton .hollow {
+  transform-origin: 50% 50%;
+  animation: pop-in 260ms cubic-bezier(0.3, 1.5, 0.6, 1) calc(var(--beat, 0s) + 0.3s + var(--i) * 0.07s) backwards;
+}
+@keyframes egg-in {
+  from {
+    opacity: 0;
+    transform: translateY(-14px);
+  }
+}
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.2);
+  }
+}
+
+/* ------------------------------ plate ------------------------------ */
+
+.breakfast .table {
+  stroke: #b39469;
+  stroke-width: 3;
+}
+.breakfast .cutlery {
+  fill: none;
+  stroke: #9aa4bf;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
+.breakfast .dish {
+  fill: #fff;
+  stroke: #c4cbe0;
+  stroke-width: 1.5;
+}
+.breakfast .dish-well {
+  fill: #f3f6fd;
+}
+.breakfast .toast {
+  fill: #e2a857;
+  stroke: #b87a2c;
+  stroke-width: 2;
+}
+.breakfast .egg-white {
+  fill: #fff;
+  stroke: #e0e4ef;
+}
+.breakfast .yolk {
+  fill: #ffc53d;
+}
+.breakfast .steam {
+  fill: none;
+  stroke: #c4cbe0;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+.breakfast .food {
+  opacity: 0;
+  transition: opacity 300ms 300ms;
+}
+.breakfast.full .food {
+  opacity: 1;
+}
+.breakfast .dome-body {
+  fill: #dfe5f3;
+  stroke: #9aa4bf;
+  stroke-width: 2;
+}
+.breakfast .dome-knob {
+  fill: #9aa4bf;
+}
+.breakfast .dome {
+  transform-origin: 50% 100%;
+  transition:
+    transform 600ms cubic-bezier(0.3, 1.2, 0.5, 1),
+    opacity 400ms 200ms;
+  animation: wiggle 700ms ease-in-out calc(var(--beat, 0s) + 0.5s) 2;
+}
+.breakfast:not(.covered) .dome {
+  transform: translateY(-46px) rotate(-14deg);
+  opacity: 0;
+}
+@keyframes wiggle {
+  25% {
+    transform: rotate(-5deg);
+  }
+  75% {
+    transform: rotate(5deg);
+  }
+}
+
+/* ------------------------------ match ------------------------------ */
+
+.match .ball-skin {
+  fill: #fff;
+  stroke: #16203a;
+  stroke-width: 1.5;
+}
+.match .ball-patch {
+  fill: #16203a;
+}
+.match .ball-roll {
+  /* Rests at the final whistle; the demonstration rolls it there. */
+  transform: translateX(var(--to)) rotate(360deg);
+  animation: roll 1.6s ease-in-out calc(var(--beat, 0s) + 1.6s) backwards;
+}
+.match .half {
+  stroke-width: 1.5;
+  transform-origin: 0% 50%;
+}
+.match .half.first {
+  fill: #c3e6cb;
+  stroke: #3f9e5a;
+  animation: grow-x 600ms ease-out calc(var(--beat, 0s) + 0.4s) backwards;
+}
+.match .half.second {
+  fill: #a9d9b5;
+  stroke: #3f9e5a;
+  animation: grow-x 600ms ease-out calc(var(--beat, 0s) + 1s) backwards;
+}
+.match .half-label {
+  font-size: 8px;
+  font-weight: 800;
+  fill: #1e5a31;
+}
+.match .axis {
+  stroke: #5b6784;
+  stroke-width: 2;
+}
+.match .reach rect {
+  fill: var(--k-float);
+  transform-origin: 0% 50%;
+  animation: grow-x 600ms ease-out backwards;
+}
+.match .reach text {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 800;
+  fill: var(--k-float);
+  text-anchor: start;
+}
+@keyframes grow-x {
+  from {
+    transform: scaleX(0);
+  }
+}
+@keyframes roll {
+  from {
+    transform: none;
+  }
+}
+
+/* ------------------------------ kinds ------------------------------ */
+
+.kinds .ring rect {
+  stroke-width: 1.5;
+}
+.kinds .ring text {
+  font-size: 8.5px;
+  font-weight: 800;
+  text-anchor: start;
+}
+.kinds .ring.float rect {
+  fill: var(--k-float-bg);
+  stroke: var(--k-float);
+}
+.kinds .ring.float text {
+  fill: var(--k-float);
+}
+.kinds .ring.int rect {
+  fill: var(--k-int-bg);
+  stroke: var(--k-int);
+}
+.kinds .ring.int text {
+  fill: var(--k-int);
+}
+.kinds .ring.bool rect {
+  fill: var(--k-bool-bg);
+  stroke: var(--k-bool);
+}
+.kinds .ring.bool text {
+  fill: var(--k-bool);
+}
+.kinds .ring {
+  transform-origin: 50% 50%;
+  animation: ring-in 500ms cubic-bezier(0.2, 0.9, 0.3, 1.2) calc(var(--beat, 0s) + 0.3s + var(--i) * 0.45s) backwards;
+}
+.kinds .chip rect {
+  fill: #fff;
+  stroke-width: 1.2;
+}
+.kinds .chip text {
+  font-family: var(--mono);
+  font-size: 7.5px;
+  font-weight: 800;
+}
+.kinds .chip[data-kind='bool'] rect {
+  stroke: var(--k-bool);
+}
+.kinds .chip[data-kind='bool'] text {
+  fill: var(--k-bool);
+}
+.kinds .chip[data-kind='int'] rect {
+  stroke: var(--k-int);
+}
+.kinds .chip[data-kind='int'] text {
+  fill: var(--k-int);
+}
+.kinds .chip[data-kind='float'] rect {
+  stroke: var(--k-float);
+}
+.kinds .chip[data-kind='float'] text {
+  fill: var(--k-float);
+}
+.kinds .chip.fixed rect {
+  stroke-dasharray: 2 2;
+}
+.kinds .chip.fixed.said rect {
+  stroke-dasharray: none;
+  fill: var(--k-bool-soft);
+}
+.kinds .chip.latest rect {
+  stroke-width: 2.6;
+}
+@keyframes ring-in {
+  from {
+    opacity: 0;
+    transform: scale(0.88);
+  }
+}
+
+/* ------------------------------ tiles ------------------------------ */
+
+.tiles .block {
+  fill: var(--k-int-bg);
+  stroke: var(--k-int);
+  stroke-width: 2;
+}
+.tiles .block-num {
+  font-family: var(--mono);
+  font-size: 20px;
+  font-weight: 800;
+  fill: var(--k-int);
+}
+.tiles .plus {
+  font-size: 22px;
+  font-weight: 800;
+}
+.tiles .dot {
+  fill: var(--k-int);
+  transform-origin: 50% 50%;
+  animation: pop-in 220ms ease-out calc(var(--i) * 0.035s) backwards;
+}
+.tiles .tile rect {
+  fill: var(--k-str-bg);
+  stroke: var(--k-str);
+  stroke-width: 1.5;
+}
+.tiles .tile text {
+  font-family: var(--mono);
+  font-weight: 800;
+  fill: var(--k-str);
+}
+.tiles .tile {
+  animation: tile-in 320ms cubic-bezier(0.3, 1.4, 0.6, 1) calc(var(--i) * 0.09s) backwards;
+}
+.tiles .tiles-caption {
+  font-size: 10px;
+  font-weight: 700;
+}
+.tiles .block-left {
+  animation: slide-right 700ms cubic-bezier(0.3, 1.2, 0.5, 1) calc(var(--beat, 0s) + 0.3s) backwards;
+}
+.tiles .block-right {
+  animation: slide-left 700ms cubic-bezier(0.3, 1.2, 0.5, 1) calc(var(--beat, 0s) + 0.3s) backwards;
+}
+@keyframes tile-in {
+  from {
+    opacity: 0;
+    transform: translateY(-14px);
+  }
+}
+@keyframes slide-right {
+  from {
+    opacity: 0;
+    transform: translateX(-24px);
+  }
+}
+@keyframes slide-left {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+}
+
+/* ------------------------------ phone ------------------------------ */
+
+.phone .phone-body {
+  fill: #2b3350;
+}
+.phone .screen {
+  fill: #e9f0ff;
+  transition: fill 300ms;
+}
+.phone.calling .screen {
+  fill: #e3f6ea;
+}
+.phone .screen-hint {
+  font-size: 8.5px;
+  fill: #5b6784;
+}
+.phone .screen-text {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  font-weight: 800;
+}
+.phone .screen-text.text {
+  fill: var(--k-str);
+}
+.phone .screen-text.num {
+  fill: var(--k-int);
+}
+.phone .screen-call {
+  font-size: 8.5px;
+  font-weight: 800;
+  fill: #1c6e3d;
+}
+.phone .ghost-zero rect {
+  fill: var(--bad-bg);
+  stroke: var(--bad);
+  stroke-dasharray: 2 1.5;
+}
+.phone .ghost-zero text {
+  font-family: var(--mono);
+  font-size: 8px;
+  font-weight: 800;
+  fill: var(--bad);
+}
+.phone .key {
+  fill: #4a5578;
+}
+.phone .phone-shake {
+  transform-origin: 50% 50%;
+  animation: buzz 480ms ease-in-out calc(var(--beat, 0s) + 0.4s) 2;
+}
+.phone.calling .phone-shake {
+  animation: buzz 480ms ease-in-out 3;
+}
+.phone .rings path {
+  fill: none;
+  stroke: #1f9d55;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  animation: ring-pulse 900ms ease-in-out 4 backwards;
+}
+@keyframes buzz {
+  20% {
+    transform: rotate(-5deg);
+  }
+  40% {
+    transform: rotate(5deg);
+  }
+  60% {
+    transform: rotate(-3deg);
+  }
+  80% {
+    transform: rotate(3deg);
+  }
+}
+@keyframes ring-pulse {
+  0%,
+  100% {
+    opacity: 0.2;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* ------------------------------ door ------------------------------ */
+
+.door .frame {
+  fill: #8a6a45;
+}
+.door .panel {
+  fill: #b98b5a;
+}
+.door .knob {
+  fill: #ffd24d;
+}
+.door .shackle {
+  fill: none;
+  stroke: #7c87a6;
+  stroke-width: 3;
+  animation: click-shut 360ms cubic-bezier(0.5, 0, 0.7, 1.4) calc(var(--beat, 0s) + 0.7s) backwards;
+}
+.door .lock-body {
+  fill: #ffc53d;
+  stroke: #9a5b00;
+}
+.door .knows rect {
+  fill: var(--k-bool-soft);
+  stroke: var(--k-bool);
+}
+.door .knows text {
+  font-family: var(--mono);
+  font-size: 7px;
+  font-weight: 800;
+  fill: var(--k-bool);
+}
+.door .note rect {
+  fill: #fff;
+  stroke: #c4cbe0;
+  stroke-width: 1.5;
+}
+.door .note:not(.blank) rect {
+  stroke: var(--k-str);
+}
+.door .note text {
+  font-size: 9.5px;
+  font-weight: 800;
+  fill: var(--k-str);
+}
+.prop .blank-lines {
+  stroke: #dde3f2;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+@keyframes click-shut {
+  from {
+    transform: translateY(-7px);
+  }
+}
+
+/* ------------------------------ card ------------------------------ */
+
+.card .easel {
+  stroke: #a58b62;
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+.card .card-face {
+  fill: #fff;
+  stroke: #c4cbe0;
+  stroke-width: 1.5;
+}
+.card .card-text {
+  font-size: 19px;
+  font-weight: 800;
+  fill: var(--k-str);
+}
+.card .card-flip {
+  transform-origin: 50% 50%;
+  animation: flip-in 500ms cubic-bezier(0.3, 1.2, 0.5, 1) calc(var(--beat, 0s) + 0.3s) backwards;
+}
+@keyframes flip-in {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+/* ------------------------------ letter ------------------------------ */
+
+.letter .face rect {
+  stroke-width: 2;
+}
+.letter .front rect {
+  fill: var(--k-str-bg);
+  stroke: var(--k-str);
+}
+.letter .front text {
+  font-family: var(--mono);
+  font-size: 40px;
+  font-weight: 800;
+  fill: var(--k-str);
+}
+.letter .back rect {
+  fill: var(--k-int-bg);
+  stroke: var(--k-int);
+}
+.letter .back text {
+  font-family: var(--mono);
+  font-size: 28px;
+  font-weight: 800;
+  fill: var(--k-int);
+}
+.letter .face {
+  transform-origin: 50% 50%;
+  transition: transform 300ms ease-in;
+}
+.letter .back {
+  transform: scaleX(0);
+}
+.letter:not(.turned) .front,
+.letter.turned .back {
+  transition: transform 300ms ease-out 300ms;
+}
+.letter.turned .front {
+  transform: scaleX(0);
+}
+.letter.turned .back {
+  transform: none;
+}
+.letter .letter-caption {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 800;
+}
+.letter .letter-wiggle {
+  transform-origin: 50% 100%;
+  animation: wiggle 700ms ease-in-out calc(var(--beat, 0s) + 0.5s) 2;
+}
+
+/* ------------------------------ calm ------------------------------ */
+
+/* Without motion, every picture is its resting state: the answer still
+   shows, only nothing travels to it. The payoff still stays for its beat
+   and then gives way, by fading alone. */
+@media (prefers-reduced-motion: reduce) {
+  .prop,
+  .prop *,
+  .answer-tag {
+    animation: none !important;
+    transition: none !important;
+  }
+  .prop-layer[data-role='current'] {
+    animation: prop-ask-in 200ms linear var(--beat, 0s) both;
+  }
+  .prop-layer[data-role='leaving'] {
+    animation: prop-leave-calm var(--beat-len) linear both;
+  }
+  @keyframes prop-leave-calm {
+    0%,
+    85% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+    }
+  }
+}

@@ -210,7 +210,7 @@ lifts — in that order, so the eye follows the path down.
 
 ### Practice and mastery — `src/practice/`, `src/mastery/`, `content/concepts.ts`
 
-**Introduce, then practise.** Lessons introduce **skills** — thirteen
+**Introduce, then practise.** Lessons introduce **skills** — fourteen
 small ones, like "division gives a float" or "a copied name does not
 follow the original" — and each unit ends with a **practice** level: five
 generated questions on that unit's skills, weighted towards the ones you
