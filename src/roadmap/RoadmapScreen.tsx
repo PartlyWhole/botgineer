@@ -19,6 +19,8 @@ import { Robot, Courier } from '../ui/Characters'
 import { Crow } from '../ui/Crow'
 import { idleTiming } from '../panels/ScenePanel'
 import { mascotAt, stops, stretchHeight, trail } from './layout'
+import { LEVEL_NAMES, level, levelIndex, useMastery } from '../mastery/mastery'
+import { skillsOfUnit } from '../../content/skills'
 
 export function RoadmapScreen() {
   const done = useProgress()
@@ -287,6 +289,8 @@ function LevelNode({
 }) {
   const activity = levelActivity(id)
   const build = activity.mode === 'editor'
+  const drill = activity.practice !== undefined
+  const kind = drill ? 'Practice' : build ? 'Build' : 'Lesson'
   const label =
     state === 'done' ? 'done' : state === 'current' ? 'up next' : 'locked — finish the levels before it first'
 
@@ -328,6 +332,8 @@ function LevelNode({
             <LockIcon />
           ) : state === 'done' ? (
             <CheckIcon />
+          ) : drill ? (
+            <DumbbellIcon />
           ) : build ? (
             <CodeIcon />
           ) : (
@@ -339,10 +345,11 @@ function LevelNode({
       {open && (
         <div className="map-card" role="dialog" aria-label={activity.title} data-testid="map-card">
           <p className="map-card-kicker">
-            Level {number} · {build ? 'Build' : 'Lesson'}
+            Level {number} · {kind}
           </p>
           <h3>{activity.title}</h3>
           <p className="map-card-brief">{activity.brief}</p>
+          {drill && <SkillChips unit={activity.practice!.unit} />}
           {state === 'locked' ? (
             <p className="map-card-locked">Finish the levels before this one to unlock it.</p>
           ) : (
@@ -356,7 +363,42 @@ function LevelNode({
   )
 }
 
+/** The unit's skills and how well each is known, on a practice level's
+ *  card: the reason to practise is on the card that offers it. */
+function SkillChips({ unit }: { unit: string }) {
+  const mastery = useMastery()
+  const now = Date.now()
+  return (
+    <ul className="map-card-skills" data-testid="map-card-skills">
+      {skillsOfUnit(unit).map((s) => {
+        const l = level(mastery[s.id], now)
+        return (
+          <li key={s.id} data-level={l} title={`${s.title}: ${LEVEL_NAMES[l]}`}>
+            <span className="chip-dots" aria-hidden="true">
+              {[1, 2, 3, 4].map((n) => (
+                <i key={n} className={levelIndex(l) >= n ? 'on' : ''} />
+              ))}
+            </span>
+            {s.title}
+            <span className="sr-only">: {LEVEL_NAMES[l]}</span>
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
 /* -------------------------------- icons -------------------------------- */
+
+const DumbbellIcon = () => (
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <rect x="1.5" y="8.5" width="3" height="7" rx="1.2" />
+    <rect x="4.5" y="6" width="3.6" height="12" rx="1.4" />
+    <rect x="15.9" y="6" width="3.6" height="12" rx="1.4" />
+    <rect x="19.5" y="8.5" width="3" height="7" rx="1.2" />
+    <rect x="8" y="10.6" width="8" height="2.8" rx="1" />
+  </svg>
+)
 
 const StarIcon = () => (
   <svg viewBox="0 0 24 24" aria-hidden="true">

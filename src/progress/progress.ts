@@ -1,8 +1,8 @@
 /**
  * Which levels the player has finished, and what that unlocks.
  *
- * This is the one thing in the app that is **stored** rather than derived,
- * and it is stored because it has to outlive the page: a run's memory
+ * This is one of the two things the app **stores** rather than derives
+ * (the other is mastery), and it is stored because it has to outlive the page: a run's memory
  * belongs to the run, a lesson's progress is derived from evidence
  * (invariant 11), but "you have done level three" is a fact about the
  * player, and it has nowhere else to live on a static site with no
@@ -13,7 +13,7 @@
  * derived from that set and the roadmap's order, so there is exactly one
  * fact to get wrong.
  */
-import { useSyncExternalStore } from 'react'
+import { stored } from './storage'
 
 export type LevelState = 'done' | 'current' | 'locked'
 
@@ -45,68 +45,29 @@ export const unitDone = (levels: string[], done: ReadonlySet<string>): boolean =
 
 /* ------------------------------- the store ------------------------------- */
 
-const KEY = 'botgineer.progress.v1'
-
-let cache: ReadonlySet<string> | null = null
-const listeners = new Set<() => void>()
-
-/** Read once, then served from memory. Storage can throw (a private
- *  window, blocked site data) or hold something that is not ours; either
- *  way the answer is "nothing finished yet", never a crash. */
-function read(): ReadonlySet<string> {
-  if (cache) return cache
-  let ids: string[] = []
-  try {
-    const raw = window.localStorage.getItem(KEY)
-    const parsed: unknown = raw ? JSON.parse(raw) : []
-    if (Array.isArray(parsed)) ids = parsed.filter((x): x is string => typeof x === 'string')
-  } catch {
-    ids = []
-  }
-  cache = new Set(ids)
-  return cache
-}
-
-function write(next: ReadonlySet<string>) {
-  cache = next
-  try {
-    window.localStorage.setItem(KEY, JSON.stringify([...next]))
-  } catch {
-    // Not saved, but still true for this visit.
-  }
-  for (const fn of [...listeners]) fn()
-}
+const store = stored<ReadonlySet<string>>(
+  'botgineer.progress.v1',
+  new Set(),
+  (raw) => new Set(Array.isArray(raw) ? raw.filter((x): x is string => typeof x === 'string') : []),
+  (v) => [...v],
+)
 
 /** Records a level as finished. Idempotent, and never un-finishes one:
  *  scrubbing back through a finished run does not take the trophy away. */
 export function markDone(id: string): void {
-  const now = read()
+  const now = store.read()
   if (now.has(id)) return
-  write(new Set([...now, id]))
+  store.write(new Set([...now, id]))
 }
 
 /** Forgets everything. For tests, and for a "start over" if one is ever
  *  offered. */
 export function resetProgress(): void {
-  write(new Set())
+  store.write(new Set())
 }
 
-function subscribe(fn: () => void): () => void {
-  listeners.add(fn)
-  // Another tab finishing a level shows up here too.
-  const onStorage = (e: StorageEvent) => {
-    if (e.key !== KEY) return
-    cache = null
-    fn()
-  }
-  window.addEventListener('storage', onStorage)
-  return () => {
-    listeners.delete(fn)
-    window.removeEventListener('storage', onStorage)
-  }
-}
+/** The finished levels, now, outside React. */
+export const finishedLevels = (): ReadonlySet<string> => store.read()
 
 /** The finished levels, kept current. */
-export function useProgress(): ReadonlySet<string> {
-  return useSyncExternalStore(subscribe, read, read)
-}
+export const useProgress = (): ReadonlySet<string> => store.use()

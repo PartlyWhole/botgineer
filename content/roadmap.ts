@@ -30,7 +30,7 @@ export const ROADMAP: Unit[] = [
     title: 'Thinking',
     blurb: 'What the robot can think of, and work out',
     theme: 'sky',
-    levels: ['sandbox', 'operations'],
+    levels: ['sandbox', 'operations', 'practice-thinking'],
     mascot: 'crow',
   },
   {
@@ -38,7 +38,7 @@ export const ROADMAP: Unit[] = [
     title: 'Remembering',
     blurb: 'Give things names, and they stay',
     theme: 'grass',
-    levels: ['names', 'order'],
+    levels: ['names', 'order', 'practice-remembering'],
     mascot: 'courier',
   },
   {

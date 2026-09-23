@@ -423,3 +423,109 @@
     animation: none;
   }
 }
+
+/* An exercise's setup: run for the player, and marked as such, so a
+   given line is never mistaken for one they typed. */
+.console .exchange.given {
+  position: relative;
+  opacity: 0.62;
+}
+
+.console .given-tag {
+  position: absolute;
+  top: 1px;
+  right: 0;
+  padding: 0 6px;
+  border-radius: 6px;
+  background: var(--brand-soft);
+  color: var(--brand-deep);
+  font: 700 10px/16px system-ui, sans-serif;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+/* ---------------- practice ----------------
+
+   A segmented bar across the top of the stage: one segment per exercise,
+   green when it was right first time, amber when it took another go, the
+   current one pulsing. Under it, while the crow is talking about an
+   answer, the question itself. */
+
+.stage .practice-meter {
+  position: absolute;
+  top: 12px;
+  left: 14px;
+  right: 14px;
+  z-index: 4;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 6px 10px;
+  pointer-events: none;
+}
+
+.practice-track {
+  display: flex;
+  gap: 5px;
+}
+
+.practice-seg {
+  flex: 1;
+  height: 12px;
+  border-radius: 999px;
+  background: rgb(22 32 58 / 0.1);
+  box-shadow: inset 0 -2px 0 rgb(0 0 0 / 0.05);
+  transition: background 300ms ease;
+}
+
+.practice-seg.right {
+  background: #4cbf2a;
+}
+
+.practice-seg.recovered {
+  background: #ffb020;
+}
+
+.practice-seg.now {
+  background: var(--brand-line);
+}
+
+.practice-count {
+  font: 800 13px/1 'Nunito', ui-rounded, system-ui, sans-serif;
+  color: var(--ink-soft);
+}
+
+.practice-task {
+  grid-column: 1 / -1;
+  justify-self: start;
+  max-width: 100%;
+  margin: 2px 0 0;
+  padding: 7px 12px;
+  border-radius: 12px;
+  background: rgb(255 255 255 / 0.9);
+  border: 1.5px solid var(--line);
+  font-size: 13.5px;
+  line-height: 1.4;
+  color: var(--ink);
+}
+
+.practice-task code {
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: var(--brand-soft);
+  border: 1px solid var(--brand-line);
+  color: var(--brand-deep);
+  font-family: var(--mono);
+  font-size: 0.92em;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .practice-seg.now {
+    animation: seg-now 1.4s ease-in-out infinite;
+  }
+  @keyframes seg-now {
+    50% {
+      background: var(--brand);
+    }
+  }
+}

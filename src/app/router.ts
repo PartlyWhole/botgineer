@@ -6,6 +6,7 @@
  * makes deep links and reloads work with no server configuration.
  *
  *   `#/` or `#/map`   the roadmap — where the game starts, like a home
+ *   `#/skills`        how well each skill is known
  *   `#/<level id>`    that level's workbench
  *
  * Anything unrecognised is the map, which is always somewhere sensible to
@@ -17,10 +18,11 @@
 import { useEffect, useState } from 'react'
 import { activityById, type Activity } from '../../content/activities'
 
-export type Route = { kind: 'map' } | { kind: 'level'; activity: Activity }
+export type Route = { kind: 'map' } | { kind: 'skills' } | { kind: 'level'; activity: Activity }
 
 function read(): Route {
   const id = window.location.hash.replace(/^#\/?/, '')
+  if (id === 'skills') return { kind: 'skills' }
   const activity = id === '' || id === 'map' ? null : activityById(id)
   return activity ? { kind: 'level', activity } : { kind: 'map' }
 }

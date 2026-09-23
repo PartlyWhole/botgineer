@@ -29,6 +29,8 @@ export type Exchange = {
   output: string
   /** Why it did not complete. A failed line is not kept. */
   error: string | null
+  /** Run for the player, not by them: an exercise's setup. */
+  given?: boolean
 }
 
 type Props = {
@@ -132,7 +134,13 @@ export function RobotConsole({ exchanges, onSubmit, busy, disabled, greeting }: 
         {greeting && <p className="says">{greeting}</p>}
 
         {exchanges.map((x) => (
-          <div key={x.id} className="exchange" data-testid="exchange">
+          <div
+            key={x.id}
+            className={`exchange ${x.given ? 'given' : ''}`}
+            data-testid={x.given ? 'given' : 'exchange'}
+            title={x.given ? 'Already run for you' : undefined}
+          >
+            {x.given && <span className="given-tag">given</span>}
             <Typed source={x.source} />
             {x.output !== '' && <pre className="said out">{x.output.replace(/\n$/, '')}</pre>}
             {x.echo !== null && (

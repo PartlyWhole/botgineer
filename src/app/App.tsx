@@ -11,6 +11,7 @@ import { LEVEL_ORDER } from '../../content/roadmap'
 import { goToMap, useRoute } from './router'
 import { Workbench } from './Workbench'
 import { RoadmapScreen } from '../roadmap/RoadmapScreen'
+import { SkillsScreen } from '../roadmap/SkillsScreen'
 
 export function App() {
   const route = useRoute()
@@ -32,6 +33,29 @@ export function App() {
           </a>
         </h1>
         <span className="spacer" />
+
+        {!level && (
+          <nav className="whereabouts" aria-label="Screens">
+            <a
+              href="#/map"
+              className={`to-map ${route.kind === 'map' ? 'here' : ''}`}
+              aria-current={route.kind === 'map' ? 'page' : undefined}
+              data-testid="nav-map"
+            >
+              <MapIcon />
+              Map
+            </a>
+            <a
+              href="#/skills"
+              className={`to-map ${route.kind === 'skills' ? 'here' : ''}`}
+              aria-current={route.kind === 'skills' ? 'page' : undefined}
+              data-testid="nav-skills"
+            >
+              <SkillsIcon />
+              Skills
+            </a>
+          </nav>
+        )}
 
         {/* The way back to the path from inside a level, and where you are
             on it. The map is the progression now; the row of dots it
@@ -58,10 +82,22 @@ export function App() {
       )}
 
       {/* Remounting per activity keeps each one's run state its own. */}
-      {level ? <Workbench key={level.id} activity={level} /> : <RoadmapScreen />}
+      {level ? (
+        <Workbench key={level.id} activity={level} />
+      ) : route.kind === 'skills' ? (
+        <SkillsScreen />
+      ) : (
+        <RoadmapScreen />
+      )}
     </div>
   )
 }
+
+const SkillsIcon = () => (
+  <svg viewBox="0 0 24 24" aria-hidden="true" width="16" height="16">
+    <path d="M5 19V13M12 19V8M19 19V4" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" />
+  </svg>
+)
 
 const MapIcon = () => (
   <svg viewBox="0 0 24 24" aria-hidden="true" width="16" height="16">

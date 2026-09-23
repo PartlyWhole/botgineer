@@ -76,6 +76,9 @@ export type LessonStep = {
 
 export type Lesson = {
   id: string
+  /** The skills (`content/skills`) finishing this lesson introduces, and
+   *  so makes available to practise. */
+  teaches: string[]
   steps: LessonStep[]
   /** Said once every step is done. */
   outro: string
@@ -121,6 +124,7 @@ const sameObject = (snapshot: MemorySnapshot, a: string, b: string): boolean => 
  */
 export const primitives: Lesson = {
   id: 'primitives',
+  teaches: ['int', 'float', 'str', 'bool'],
   steps: [
     {
       say: 'Let\'s see what it can think of. Counting first — give it a whole number, like `3` or `12`.',
@@ -160,6 +164,7 @@ export const primitives: Lesson = {
  */
 export const operations: Lesson = {
   id: 'operations',
+  teaches: ['arith', 'divide', 'join', 'compare', 'order'],
   steps: [
     {
       say: 'It can work things out, too. Seven crates, six bolts in each — how many bolts? `7 * 6`',
@@ -231,6 +236,7 @@ export function guidance(lesson: Lesson, evidence: Evidence): Utterance {
  */
 export const namesPoint: Lesson = {
   id: 'names-point',
+  teaches: ['bind', 'alias', 'rebind'],
   steps: [
     {
       say: 'Tired of it forgetting? Give a thing a name and the robot keeps it: `x = 10`',
@@ -277,6 +283,7 @@ export const namesPoint: Lesson = {
  */
 export const takeAnOrder: Lesson = {
   id: 'take-an-order',
+  teaches: ['bind', 'recall'],
   steps: [
     {
       speaker: 'courier',

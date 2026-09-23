@@ -613,6 +613,50 @@
   outline-offset: 3px;
 }
 
+/* The skills a practice level works on, and how well each is known. */
+.map-card-skills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.map-card-skills li {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px 3px 7px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.18);
+  font-size: 12.5px;
+  font-weight: 800;
+}
+
+.chip-dots {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.chip-dots i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 0.35);
+}
+
+.chip-dots i.on {
+  background: #ffd24a;
+}
+
+.map-stop.locked .map-card-skills li {
+  background: var(--bg);
+}
+.map-stop.locked .chip-dots i {
+  background: var(--locked);
+}
+
 /* ---- the trophy at the end of a unit ---- */
 
 .map-trophy {
@@ -940,10 +984,190 @@
    inside itself instead, under a top bar that stays put — so on the map
    the app keeps to the height of the screen at every width. */
 @media (max-width: 1000px) {
-  body:has(.app[data-route='map']) {
+  body:has(.app[data-route='map']),
+  body:has(.app[data-route='skills']) {
     overflow: hidden;
   }
-  .app[data-route='map'] {
+  .app[data-route='map'],
+  .app[data-route='skills'] {
     height: 100%;
   }
+}
+
+/* ================ skills ================ */
+
+.skills-column {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 22px 16px 64px;
+}
+
+.skills-head h2 {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 900;
+  color: var(--ink);
+}
+
+.skills-head p {
+  margin: 2px 0 18px;
+  font-size: 15.5px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.skills-head strong {
+  color: var(--ink);
+}
+
+.skills-unit {
+  margin-bottom: 20px;
+  border-radius: 20px;
+  background: var(--surface);
+  border: 2px solid var(--line);
+  box-shadow: 0 4px 0 var(--line);
+  overflow: hidden;
+}
+
+.skills-unit-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  background: var(--u);
+  color: #fff;
+}
+
+.skills-unit-head p,
+.skills-unit-head h3 {
+  margin: 0;
+}
+
+.skills-unit-head h3 {
+  font-size: 21px;
+  font-weight: 900;
+}
+
+.skills-go {
+  flex: none;
+  padding: 9px 16px 8px;
+  border: 0;
+  border-radius: 12px;
+  background: #fff;
+  color: var(--u);
+  box-shadow: 0 4px 0 rgb(0 0 0 / 0.16);
+  font: 900 14px/1 var(--map-font);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.skills-go:active {
+  translate: 0 3px;
+  box-shadow: 0 1px 0 rgb(0 0 0 / 0.16);
+}
+
+.skills-list {
+  margin: 0;
+  padding: 4px 0;
+  list-style: none;
+}
+
+.skill {
+  display: grid;
+  grid-template-columns: 1fr 190px;
+  gap: 14px;
+  align-items: center;
+  padding: 12px 18px;
+}
+
+.skill + .skill {
+  border-top: 2px solid var(--line);
+}
+
+.skill p {
+  margin: 0;
+}
+
+.skill-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 16.5px;
+  font-weight: 900;
+  color: var(--ink);
+}
+
+.skill-can {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.skill-review {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #fff1d6;
+  color: #9a5b00;
+  font-size: 11.5px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.skill-level {
+  font-size: 13px;
+  font-weight: 900;
+  color: var(--u-deep);
+}
+
+.skill[data-level='new'] .skill-level {
+  color: var(--ink-soft);
+}
+
+.skill-bar {
+  display: flex;
+  gap: 4px;
+  margin: 5px 0 4px;
+}
+
+.skill-bar i {
+  flex: 1;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--locked);
+}
+
+.skill-bar i.on {
+  background: var(--u);
+}
+
+.skill[data-level='mastered'] .skill-bar i.on {
+  background: linear-gradient(#ffd24a, #ffb800);
+}
+
+.skill-stats {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+@media (max-width: 520px) {
+  .skill {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+}
+
+/* The screen switcher in the top bar: the current one reads as pressed. */
+.to-map.here {
+  background: var(--brand-soft);
+  box-shadow: 0 1px 0 var(--brand-line);
+  translate: 0 2px;
+}
+
+a.to-map {
+  text-decoration: none;
 }

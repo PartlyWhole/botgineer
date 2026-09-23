@@ -31,6 +31,9 @@ import { useCast } from '../game/director'
 import type { Activity } from '../../content/activities'
 import { LESSONS, guidance, progress } from '../../content/lessons'
 import { goToMap } from './router'
+import { usePractice } from '../practice/usePractice'
+import type { Attempt } from '../practice/exercises'
+import { skillsOfUnit } from '../../content/skills'
 import { markDone } from '../progress/progress'
 import { readScene } from '../scene/spec'
 import { ScenePanel } from '../panels/ScenePanel'
@@ -69,6 +72,10 @@ export function Workbench({ activity }: { activity: Activity }) {
   /** Bumped per run. Object handles are assigned on first sight and kept
    *  for a whole run, so they must start over when a new one does. */
   const [runSeq, setRunSeq] = useState(0)
+  /** Bumped when the console starts over inside one activity — a practice
+   *  session gives every exercise a clean memory, and the handles and the
+   *  grid must start over with it. */
+  const [epoch, setEpoch] = useState(0)
   const [, rerender] = useReducer((x: number) => x + 1, 0)
 
   const [sceneW, setSceneW] = useRemembered('botgineer.wb.scene', 560)
@@ -267,15 +274,64 @@ export function Workbench({ activity }: { activity: Activity }) {
       ])
       // Only an accepted line joins the history, so only its output becomes
       // part of what the next replay is expected to repeat.
+      const after = extractMemory(last)
       if (outcome.ok) {
         spokenRef.current = outcome.output
         setHistory((h) => [...h, entry])
-        setLineMemory((m) => [...m, extractMemory(last)])
+        setLineMemory((m) => [...m, after])
         if (made) setThoughts((t) => [...t, said!])
       }
+
+      // A practice session judges every line, including one that failed:
+      // forgetting the quotes round a word is an answer, and a wrong one.
+      const attempt: Attempt = {
+        source,
+        ok: outcome.ok,
+        error: outcome.ok ? null : outcomeLine(outcome.threw, outcome.terminal),
+        thought: said,
+        snapshot: after,
+      }
+      attemptRef.current?.(attempt)
     },
     [boot.state, busy, execute],
   )
+
+  /**
+   * Starts the console over, inside this activity, with `setup` already
+   * run — for a practice exercise, which needs a clean memory and sometimes
+   * a few names in it. The setup lines become the history, exactly as if
+   * they had been typed, so replay carries them; they are shown as given.
+   */
+  const restart = useCallback(
+    async (setup: string[]) => {
+      const entries: Entry[] = setup.map((source) => ({ source, echo: false }))
+      stepsRef.current = []
+      setIndex(0)
+      setThoughts([])
+      setLineMemory([])
+      spokenRef.current = ''
+      historyRef.current = entries
+      setHistory(entries)
+      setExchanges(entries.map((e, i) => ({ id: i, source: e.source, echo: null, output: '', error: null, given: true })))
+      setEpoch((n) => n + 1)
+      if (entries.length === 0) {
+        rerender()
+        return
+      }
+      const outcome = await execute(buildProgram(entries, null).source)
+      spokenRef.current = outcome.output
+      setLineMemory([extractMemory(stepsRef.current[stepsRef.current.length - 1])])
+    },
+    [execute],
+  )
+
+  const pool = useMemo(
+    () => (activity.practice ? skillsOfUnit(activity.practice.unit).map((s) => s.id) : null),
+    [activity],
+  )
+  const practice = usePractice(pool, restart, boot.state === 'ready')
+  const attemptRef = useRef<((a: Attempt) => void) | null>(null)
+  attemptRef.current = practice?.onAttempt ?? null
 
   // The guide reads the same snapshot as everything else, so it rewinds
   // with the scrubber and cannot claim progress the robot does not have.
@@ -284,7 +340,7 @@ export function Workbench({ activity }: { activity: Activity }) {
   //
   // A console session is one continuous memory, so handles have to
   // survive each submission; only the editor starts over per run.
-  const runKey = talking ? `${activity.id}:talk` : `${activity.id}:${runSeq}`
+  const runKey = talking ? `${activity.id}:talk:${epoch}` : `${activity.id}:${runSeq}`
   const handles = useHandles(snapshot, runKey)
 
   const lesson = activity.lesson ? (LESSONS[activity.lesson] ?? null) : null
@@ -295,7 +351,7 @@ export function Workbench({ activity }: { activity: Activity }) {
     () => ({ snapshot, thoughts, history: [...lineMemory, snapshot] }),
     [snapshot, thoughts, lineMemory],
   )
-  const guide = lesson ? guidance(lesson, evidence) : undefined
+  const guide = practice ? practice.guide : lesson ? guidance(lesson, evidence) : undefined
   // Tells the director someone spoke, so the cast turns to listen. Emitted
   // only: nothing reads it back to decide anything.
   const said = guide?.text
@@ -309,7 +365,7 @@ export function Workbench({ activity }: { activity: Activity }) {
   // Finished, by the same one-or-the-other rule the scene celebrates on
   // (invariant 9), and recorded so the map remembers it. This is the only
   // thing written down: the map derives everything else from it.
-  const complete = lesson ? finished : readScene(activity.scene, snapshot).solved
+  const complete = practice ? practice.done : lesson ? finished : readScene(activity.scene, snapshot).solved
   useEffect(() => {
     if (complete) markDone(activity.id)
   }, [complete, activity.id])
@@ -332,6 +388,13 @@ export function Workbench({ activity }: { activity: Activity }) {
       /** The console's equivalent of typing a line and pressing Enter. */
       say: (line: string) => say(line),
       snapshot: () => snapshot,
+      /** The practice exercise being asked, so a test can answer it with
+       *  the line the generator says works, and check the judge against
+       *  what real Python does with it. */
+      exercise: () =>
+        practice?.current
+          ? { skill: practice.current.skill, say: practice.current.say, answer: practice.current.answer, at: practice.meter.at }
+          : null,
       state: () => ({
         boot: boot.state,
         busy,
@@ -341,7 +404,7 @@ export function Workbench({ activity }: { activity: Activity }) {
       }),
     }
     ;(window as unknown as { botgineer: typeof api }).botgineer = api
-  }, [activity.mode, boot.state, busy, run, say, snapshot])
+  }, [activity.mode, boot.state, busy, run, say, snapshot, practice])
 
   return (
     <main className="workbench" style={{ ['--scene-w' as string]: `${sceneW}px` }}>
@@ -361,7 +424,8 @@ export function Workbench({ activity }: { activity: Activity }) {
           thinking={busy}
           // `undefined` when there is no lesson, so the scene judges
           // itself instead of being told it has finished nothing.
-          triumph={lesson ? finished : undefined}
+          triumph={practice ? practice.done : lesson ? finished : undefined}
+          meter={practice?.meter}
         />
       </section>
 

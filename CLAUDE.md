@@ -59,8 +59,16 @@ npm run test:browser  # playwright against the PRODUCTION build at /botgineer/
 | `src/ui/Split.tsx` | draggable, keyboard-operable gutters; sizes remembered in localStorage |
 | `src/app/Workbench.tsx` | the wiring: owns the run, the steps, the index, the snapshot |
 | `content/roadmap.ts` | the levels, grouped into units, in play order. The only place the order lives |
-| `src/progress/progress.ts` | which levels are finished (localStorage) and what that unlocks. **The one stored fact** — see invariant 19 |
+| `src/progress/progress.ts` | which levels are finished (localStorage) and what that unlocks. One of the **two stored things** — see invariant 19 |
 | `src/roadmap/RoadmapScreen.tsx` | the home screen: a Duolingo-style winding path of levels, one unit per coloured stretch, the cast beside it |
+| `content/skills.ts` | the skills. A lesson's `teaches` introduces them; practice exercises them; mastery tracks each |
+| `src/practice/python.ts` | just enough Python (literals, names, `+ - * / // % <` …) to know an exercise's answer before asking it. Pure; checked against CPython by the browser suite |
+| `src/practice/exercises.ts` | one seeded generator per skill: the question, setup lines, a working answer, and a judge that names the mistake |
+| `src/practice/session.ts` | which exercises a session asks, weighted towards weak and faded skills. Pure and seeded |
+| `src/practice/usePractice.ts` | runs a session inside the workbench: judges each line, records first tries, says what the crow says |
+| `src/mastery/mastery.ts` | per-skill mastery: score, streak, fading with time, levels. Pure update + the stored record |
+| `src/progress/storage.ts` | the one localStorage helper both stored things use |
+| `src/roadmap/SkillsScreen.tsx` | `#/skills`: every skill's level, first-try tally, and what needs review |
 | `src/roadmap/layout.ts` | where stops, trail and mascots go on the path. Pure and unit-tested |
 | `src/app/roadmap.css` | the map's look, deliberately separate from `styles.css`. Nunito, bundled from npm |
 | `content/activities/` | the activities: brief, scene, starter |
@@ -208,15 +216,29 @@ npm run test:browser  # playwright against the PRODUCTION build at /botgineer/
 18. **Tests run like production.** Playwright serves the built site at the
    sub-path with **no** isolation headers, so the `coi-serviceworker` path
    is what gets exercised. Do not add COOP/COEP to the test server.
-19. **Finished levels are the only stored fact.** `progress.ts` keeps a
-   set of finished level ids in this browser's localStorage, written by
-   the Workbench when an activity is finished by invariant 9's rule, and
-   never un-written. Everything the map shows — done, current, locked,
-   trophies, the tally — is derived from that set and `content/roadmap`'s
-   order. The map is home (`#/`, `#/map`); a level's own hash always goes
-   straight in, locked or not, because locks are an invitation to play in
-   order and deep links are how tests and shared links work. The roadmap's
-   order must agree with each activity's `next` (there is a test).
+19. **Two things are stored, and only two.** Finished level ids
+   (`progress.ts`) and per-skill mastery (`mastery.ts`), both in this
+   browser's localStorage through `storage.ts`. Everything the map and the
+   skills screen show is derived from those, the roadmap's order and the
+   clock — including a skill's fading, which is computed when read and
+   never written. Finished levels are written by the Workbench on
+   invariant 9's rule and never un-written. The map is home (`#/`,
+   `#/map`); a level's own hash always goes straight in, locked or not,
+   because locks are an invitation to play in order and deep links are how
+   tests and shared links work. The roadmap's order must agree with each
+   activity's `next` (there is a test).
+20. **Introduce, then practise; only first tries count.** A lesson
+   *introduces* skills (`teaches`); a practice level after each unit's
+   lessons *exercises* them with generated questions. An exercise's
+   answer is computed from its expression tree by `practice/python.ts`,
+   and the browser suite plays whole sessions against real CPython, so the
+   interpreter is still the answer key. A judge reads the same evidence a
+   lesson step does, and says *which* mistake when it knows. Only an
+   exercise's first judged try is recorded against mastery — the player
+   still has to get it right to move on, but a third attempt is learning,
+   not evidence. A session is React state and is never stored; mastery is
+   what persists. Each exercise gets a clean console (`Workbench.restart`)
+   with its setup lines run and shown as given.
 
 ## Engine facts that shape the UI
 

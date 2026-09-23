@@ -25,6 +25,9 @@ export type Activity = {
   greeting?: string
   /** Console only: the guide's lesson, by id in `content/lessons`. */
   lesson?: string
+  /** Console only: a practice session instead of a lesson — generated
+   *  exercises on the skills of this roadmap unit. */
+  practice?: { unit: string }
   /** The level after this one. Play order only — finishing returns to the
    *  map, which is where the order is shown — and it must agree with
    *  `content/roadmap` (there is a test). */
@@ -51,7 +54,7 @@ const workingOut: Activity = {
   brief: 'Arithmetic, comparisons and joining words — none of it kept.',
   mode: 'console',
   lesson: 'operations',
-  next: 'names',
+  next: 'practice-thinking',
   greeting: 'Give me something to work out.',
   starter: '',
   options: { max_steps: 3000, wall_clock_s: 15 },
@@ -119,7 +122,7 @@ const takeAnOrder: Activity = {
   lesson: 'take-an-order',
   // Where the editor is unlocked: the next activity hands over a whole
   // program instead of a line at a time.
-  next: 'wake',
+  next: 'practice-remembering',
   greeting: 'Someone is coming. Keep whatever she tells you — she will want it back.',
   starter: '',
   options: { max_steps: 3000, wall_clock_s: 15 },
@@ -228,6 +231,50 @@ const firstThoughts: Activity = {
   },
 }
 
+/**
+ * Practice: generated exercises on what a unit taught, after its lessons.
+ *
+ * The same workshop and cast, because practice is more of the same world
+ * rather than a quiz bolted on beside it. What the crow asks comes from
+ * `src/practice`; what these define is only where, and on which skills.
+ */
+const practiceScene = (id: string): SceneSpec => ({
+  id,
+  title: 'Practice yard',
+  floor: { at: 78 },
+  actors: [
+    { id: 'crow', kind: 'crow', x: 32, y: 0, w: 17, stand: true },
+    { id: 'robot', kind: 'robot', x: 66, y: 0, w: 24, stand: true },
+  ],
+  watches: [],
+})
+
+const practiceThinking: Activity = {
+  id: 'practice-thinking',
+  title: 'Practice: Thinking',
+  brief: 'Fresh questions on values and working things out, weighted towards what you know least.',
+  mode: 'console',
+  practice: { unit: 'thinking' },
+  next: 'names',
+  greeting: 'Practice time. Every question is new.',
+  starter: '',
+  options: { max_steps: 3000, wall_clock_s: 15 },
+  scene: practiceScene('practice-thinking'),
+}
+
+const practiceRemembering: Activity = {
+  id: 'practice-remembering',
+  title: 'Practice: Remembering',
+  brief: 'Fresh questions on names: keeping things, sharing them and moving them.',
+  mode: 'console',
+  practice: { unit: 'remembering' },
+  next: 'wake',
+  greeting: 'Practice time. Watch the arrows.',
+  starter: '',
+  options: { max_steps: 3000, wall_clock_s: 15 },
+  scene: practiceScene('practice-remembering'),
+}
+
 /** The console lesson first: it is the starting point, and `ACTIVITIES[0]`
  *  is what the router opens with. The editor activities are reachable by
  *  hash but are not offered anywhere yet — they are what unlocking looks
@@ -235,8 +282,10 @@ const firstThoughts: Activity = {
 export const ACTIVITIES: Activity[] = [
   firstThoughts,
   workingOut,
+  practiceThinking,
   namingThings,
   takeAnOrder,
+  practiceRemembering,
   wakeTheRobot,
 ]
 

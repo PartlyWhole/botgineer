@@ -22,6 +22,7 @@ import { Robot, Courier } from '../ui/Characters'
 import { Crow } from '../ui/Crow'
 import { richText } from '../ui/richText'
 import type { Cast, Mood } from '../game/director'
+import type { PracticeMeter } from '../practice/usePractice'
 
 export function ScenePanel({
   spec,
@@ -32,6 +33,7 @@ export function ScenePanel({
   triumph,
   thought,
   thinking,
+  meter,
 }: {
   spec: SceneSpec
   snapshot: MemorySnapshot
@@ -66,6 +68,8 @@ export function ScenePanel({
    */
   thought?: string | null | undefined
   thinking?: boolean | undefined
+  /** A practice session's progress, drawn across the top of the stage. */
+  meter?: PracticeMeter | undefined
 }) {
   const view = readScene(spec, snapshot)
   // Finished, by whichever measure this activity has — and only one of
@@ -112,6 +116,36 @@ export function ScenePanel({
             data-testid="floor"
             style={{ top: `${spec.floor.at}%` }}
           />
+        )}
+
+        {meter && (
+          <div className="practice-meter" data-testid="practice-meter">
+            <div
+              className="practice-track"
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={meter.of}
+              aria-valuenow={meter.at}
+              aria-label="Practice progress"
+            >
+              {meter.results.map((r, i) => (
+                <span
+                  key={i}
+                  className={`practice-seg ${i < meter.at ? (r ? 'right' : 'recovered') : i === meter.at ? 'now' : ''}`}
+                />
+              ))}
+            </div>
+            <span className="practice-count">
+              {Math.min(meter.at + 1, meter.of)} / {meter.of}
+            </span>
+            {/* The question stays on screen while the crow talks about the
+                answer, so a hint never costs the player the question. */}
+            {meter.task && guide && guide.text !== meter.task && (
+              <p className="practice-task" data-testid="practice-task">
+                {richText(meter.task)}
+              </p>
+            )}
+          </div>
         )}
 
         {/* The way on: back to the map, to see what finishing unlocked. It

@@ -684,7 +684,7 @@ test('the naming lesson teaches that a name is an arrow', async ({ page }) => {
 })
 
 test('finishing a lesson offers the way back to the map, and only then', async ({ page }) => {
-  await seedProgress(page, ['sandbox', 'operations'])
+  await seedProgress(page, ['sandbox', 'operations', 'practice-thinking'])
   await open(page, 'names')
   await expect(page.getByTestId('advance')).toHaveCount(0)
 
@@ -1088,9 +1088,9 @@ test('the game opens on the map, inviting you to the first level', async ({ page
   await page.evaluate(() => localStorage.clear())
   await page.reload()
   await expect(page.getByTestId('map')).toBeVisible()
-  await expect(page.locator('.map-node')).toHaveCount(5)
+  await expect(page.locator('.map-node')).toHaveCount(7)
   await expect(page.getByTestId('level-sandbox')).toHaveAttribute('data-state', 'current')
-  for (const id of ['operations', 'names', 'order', 'wake']) {
+  for (const id of ['operations', 'practice-thinking', 'names', 'order', 'practice-remembering', 'wake']) {
     await expect(page.getByTestId(`level-${id}`)).toHaveAttribute('data-state', 'locked')
   }
   // The top bar stays on screen: the map scrolls, not the page.
@@ -1129,7 +1129,7 @@ test('finishing a level marks it done on the map and unlocks the next', async ({
   await page.getByTestId('to-map').click()
   await expect(page.getByTestId('level-sandbox')).toHaveAttribute('data-state', 'done')
   await expect(page.getByTestId('level-operations')).toHaveAttribute('data-state', 'current')
-  await expect(page.getByTestId('map-tally')).toContainText('1 of 5')
+  await expect(page.getByTestId('map-tally')).toContainText('1 of 7')
 
   // And it survives a reload: this is the one thing that is stored.
   await page.reload()
@@ -1142,15 +1142,15 @@ test("a unit's trophy is earned when its last level is", async ({ page }) => {
   await page.reload()
   await expect(page.getByTestId('trophy-thinking')).not.toHaveClass(/earned/)
   await page.evaluate(() =>
-    localStorage.setItem('botgineer.progress.v1', JSON.stringify(['sandbox', 'operations'])),
+    localStorage.setItem('botgineer.progress.v1', JSON.stringify(['sandbox', 'operations', 'practice-thinking'])),
   )
   await page.reload()
   await expect(page.getByTestId('trophy-thinking')).toHaveClass(/earned/)
-  await expect(page.getByTestId('unit-thinking').locator('.map-banner-count')).toContainText('2/2')
+  await expect(page.getByTestId('unit-thinking').locator('.map-banner-count')).toContainText('3/3')
 })
 
 test('the last lesson offers somewhere to go, and only once it is done', async ({ page }) => {
-  await seedProgress(page, ['sandbox', 'operations', 'names'])
+  await seedProgress(page, ['sandbox', 'operations', 'practice-thinking', 'names'])
   await open(page, 'order')
   await expect(page.getByTestId('advance')).toHaveCount(0)
 
@@ -1164,8 +1164,8 @@ test('the last lesson offers somewhere to go, and only once it is done', async (
   await expect(page.getByTestId('guide')).toContainText('Fourteen')
   await page.getByTestId('advance').click()
   expect(page.url()).toContain('#/map')
-  // The last level of a unit earns its trophy on the way back.
-  await expect(page.getByTestId('trophy-remembering')).toHaveClass(/just-earned/)
+  // Which unlocks the unit's practice, bouncing on the way back.
+  await expect(page.locator('[data-cheer="unlocked"] [data-testid="level-practice-remembering"]')).toHaveCount(1)
 })
 
 test('the last level celebrates, and still has somewhere to send you', async ({ page }) => {
@@ -1395,4 +1395,96 @@ test('no bubble covers a character, whoever is speaking', async ({ page }) => {
     return out
   })
   expect(clashes).toEqual([])
+})
+
+/* -------------------------------- practice -------------------------------- */
+
+/** The exercise being asked, from the test surface. */
+const exercise = (page: Page) =>
+  page.evaluate(() => (window.botgineer as unknown as { exercise: () => { skill: string; answer: string; at: number } | null }).exercise())
+
+/** Answers every exercise with the line its generator says works, and
+ *  returns which skills were asked. The judge sees what *real Python* made
+ *  of that line — so a session that finishes is the Python subset agreeing
+ *  with CPython on every question it generated. */
+async function playSession(page: Page): Promise<string[]> {
+  const asked: string[] = []
+  for (let i = 0; i < 8; i++) {
+    await expect.poll(() => page.evaluate(() => window.botgineer.state().busy)).toBe(false)
+    const ex = await exercise(page)
+    if (!ex) break
+    asked.push(ex.skill)
+    await say(page, ex.answer)
+    // Right answers move on by themselves, after the praise is read.
+    await expect.poll(async () => (await exercise(page))?.at ?? 99, { timeout: 8_000 }).toBeGreaterThan(ex.at)
+  }
+  return asked
+}
+
+for (const unit of ['thinking', 'remembering']) {
+  test(`a ${unit} practice session asks generated questions, and real Python agrees with every answer`, async ({
+    page,
+  }) => {
+    // Three sessions, so a spread of generators and seeds meets CPython.
+    for (let round = 0; round < 3; round++) {
+      await open(page, `practice-${unit}`)
+      const asked = await playSession(page)
+      expect(asked).toHaveLength(5)
+      await expect(page.getByTestId('guide')).toContainText('5 of 5 right first time')
+      await expect(page.getByTestId('advance')).toBeVisible()
+      await page.goto('./#/map')
+    }
+  })
+}
+
+test('a wrong answer says why, keeps the question on screen, and counts against mastery', async ({ page }) => {
+  await open(page, 'practice-thinking')
+  await expect.poll(() => page.evaluate(() => window.botgineer.state().busy)).toBe(false)
+  const ex = (await exercise(page))!
+  // A line that is an answer, and wrong, for every skill in this unit: a
+  // failed line counts as an attempt.
+  await say(page, 'undefined_name')
+  await expect(page.getByTestId('guide')).toContainText('Not quite')
+  await expect(page.getByTestId('practice-task')).toBeVisible()
+
+  await say(page, 'undefined_name')
+  // Two misses and the crow shows a way.
+  await expect(page.getByTestId('guide')).toContainText('One way:')
+  await say(page, ex.answer)
+  await expect(page.locator('.practice-seg').first()).toHaveClass(/recovered/)
+
+  const record = await page.evaluate(
+    (skill) => JSON.parse(localStorage.getItem('botgineer.mastery.v1') ?? '{}')[skill],
+    ex.skill,
+  )
+  expect(record.tries).toBe(1)
+  expect(record.right).toBe(0)
+})
+
+test('an exercise with setup starts from it, shown as given', async ({ page }) => {
+  // Remembering's exercises mostly begin with names already in memory.
+  for (let round = 0; round < 6; round++) {
+    // Through the map, so each round is a new session: going to the same
+    // hash again is not a navigation, and would keep the old one.
+    await page.goto('./#/map')
+    await open(page, 'practice-remembering')
+    await expect.poll(() => page.evaluate(() => window.botgineer.state().busy)).toBe(false)
+    const ex = (await exercise(page))!
+    if (ex.skill === 'bind') continue
+    await expect(page.getByTestId('given').first()).toBeVisible()
+    expect(await page.evaluate(() => window.botgineer.snapshot().bindings.length)).toBeGreaterThan(0)
+    return
+  }
+  throw new Error('six sessions in a row opened on an exercise with no setup')
+})
+
+test('the skills screen shows what practice recorded', async ({ page }) => {
+  await open(page, 'practice-thinking')
+  await playSession(page)
+  await page.getByTestId('advance').click()
+  await page.getByTestId('nav-skills').click()
+  await expect(page.getByTestId('skills')).toBeVisible()
+  // Every skill that was asked shows a first-time tally.
+  await expect(page.locator('.skill-stats').first()).toContainText('first time')
+  await expect(page.getByTestId('skill-bind')).toContainText('Not introduced yet')
 })

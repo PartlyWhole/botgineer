@@ -208,6 +208,35 @@ just finished pops with a burst of stars, the one it unlocked turns from
 grey to its colour and its "Start" arrives, and a trophy just earned
 lifts — in that order, so the eye follows the path down.
 
+### Practice and mastery — `src/practice/`, `src/mastery/`, `content/skills.ts`
+
+**Introduce, then practise.** Lessons introduce **skills** — thirteen
+small ones, like "division gives a float" or "a copied name does not
+follow the original" — and each unit ends with a **practice** level: five
+generated questions on that unit's skills, weighted towards the ones you
+know least and the ones that have faded.
+
+- **Generated, and still answered by the interpreter.** A generator builds
+  a small expression tree from a seed; `render` gives the source to show
+  and `evaluate` the value Python will produce, by a tiny copy of Python's
+  rules (`/` always a float, `//` flooring, repr's quotes). The browser
+  suite plays whole sessions against real CPython, so the copy is checked
+  by the original.
+- **Judged like a lesson step, but specific.** A judge sees what the line
+  did — the thought, memory, an error — and says which mistake it was:
+  no quotes round a word, `*` before `+`, the number typed where the name
+  was asked for. Two misses and the crow shows a line that works; the
+  player still types it. The question stays pinned under the meter while
+  the crow talks about the answer.
+- **Only first tries count.** Mastery is a score per skill that moves 35%
+  of the way to right or wrong on each first try, with a streak. Levels:
+  Attempted, Familiar, Proficient, Mastered (which needs a streak of three
+  as well as the score). It fades with time since last practised — never
+  below half — and the time it holds doubles with the streak, which is
+  spaced repetition at its simplest.
+- **Skills screen** (`#/skills`): every skill's level, first-try tally,
+  when it was last practised, and which need review.
+
 ## 4. Execution
 
 One session per page, booted once from a module-level promise. Run
