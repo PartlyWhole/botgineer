@@ -22,12 +22,15 @@ export function MemoryPanel({
   snapshot,
   handles,
   runKey = 'one',
+  emptyText,
 }: {
   snapshot: MemorySnapshot
   /** Owned by the workbench, so every view that shows a handle shows the
    *  same one. See `memory/handles`. */
   handles: Map<ObjectId, string>
   runKey?: string
+  /** What an empty memory says. Reading has its own reason to be empty. */
+  emptyText?: string | undefined
 }) {
   const [picked, setPicked] = useState<GraphPick>(null)
 
@@ -73,7 +76,7 @@ export function MemoryPanel({
       />
       {empty && (
         <p className="memory-empty">
-          Memory is empty. Send the robot some code and whatever it builds turns up here.
+          {emptyText ?? 'Memory is empty. Send the robot some code and whatever it builds turns up here.'}
         </p>
       )}
     </div>

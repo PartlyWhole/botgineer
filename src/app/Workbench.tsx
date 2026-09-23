@@ -22,7 +22,7 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { session, useRuntime } from '../runtime/shared'
 import type { StepRecord, TerminalRecord } from '../runtime/types'
-import { extractMemory, thought, type Thought } from '../memory/extract'
+import { extractMemory, runEvidence, thought, type RunEvidence, type Thought } from '../memory/extract'
 import { useHandles } from '../memory/handles'
 import { EMPTY, type MemorySnapshot } from '../memory/model'
 import { buildProgram, isExpression, type Entry } from '../repl/program'
@@ -33,7 +33,15 @@ import { LESSONS, guidance, progress } from '../../content/lessons'
 import { goToMap } from './router'
 import { usePractice } from '../practice/usePractice'
 import type { Attempt } from '../practice/exercises'
-import { skillsOfUnit } from '../../content/skills'
+import { skillsOfUnit } from '../../content/concepts'
+import { useReadLevel } from './useReadLevel'
+import { ReadPanel } from '../panels/ReadPanel'
+import { ReadSheet } from '../panels/ReadSheet'
+import { IdeasSheet } from '../panels/IdeasSheet'
+import { IdeasPanel } from '../panels/IdeasPanel'
+import type { ReadEnv } from '../collection/useReadSession'
+import type { Answer } from '../collection/model'
+import { modelAnswer } from '../collection/runner'
 import { markDone } from '../progress/progress'
 import { readScene } from '../scene/spec'
 import { ScenePanel } from '../panels/ScenePanel'
@@ -57,6 +65,7 @@ export function Workbench({ activity }: { activity: Activity }) {
   const boot = useRuntime()
   const cast = useCast()
   const talking = activity.mode === 'console'
+  const reading = activity.mode === 'read'
 
   const [program, setProgram] = useState(activity.starter)
   const [busy, setBusy] = useState(false)
@@ -211,6 +220,97 @@ export function Workbench({ activity }: { activity: Activity }) {
     [activity],
   )
 
+  /**
+   * Reading runs more than one program per item — each snippet, Python's
+   * own block finder, a checker after a repair — and some of them are not
+   * for showing. They are queued, so a run the player asked to see and one
+   * the grader needs can never be in flight at once (invariant 5: the
+   * engine takes one run at a time, and the second would be rejected).
+   */
+  const queue = useRef<Promise<unknown>>(Promise.resolve())
+  const enqueue = useCallback(<T,>(fn: () => Promise<T>): Promise<T> => {
+    const next = queue.current.then(fn, fn)
+    queue.current = next.catch(() => {})
+    return next
+  }, [])
+
+  /** A run nobody watches: its evidence, for grading. */
+  const quiet = useCallback(
+    (source: string, opts?: { max_steps?: number }): Promise<RunEvidence> =>
+      enqueue(async () => {
+        const steps: StepRecord[] = []
+        let terminal: TerminalRecord | null = null
+        try {
+          const outcome = await session.run({
+            source,
+            options: { ...activity.options, ...(opts?.max_steps ? { max_steps: opts.max_steps } : {}) },
+            onRecord: (r) => {
+              if (r.kind === 'step') steps.push(r)
+            },
+          })
+          terminal = outcome.terminal
+        } catch {
+          // A run that could not start is evidence of nothing; the grader
+          // sees an engine error rather than a wrong answer.
+        }
+        return runEvidence(steps, terminal)
+      }),
+    [activity.options, enqueue],
+  )
+
+  /** A run the player watches: memory, the scrubber and the output. */
+  const show = useCallback(
+    (source: string): Promise<void> =>
+      enqueue(async () => {
+        setTranscript([])
+        const outcome = await execute(source)
+        setTranscript((t) => [...t, { kind: outcome.ok ? 'note' : 'err', text: outcomeLine(outcome.threw, outcome.terminal) }])
+      }),
+    [enqueue, execute],
+  )
+
+  const readEnv = useMemo<ReadEnv>(() => ({ evaluate: quiet, show, ready: boot.state === 'ready' }), [quiet, show, boot.state])
+  const read = useReadLevel(activity, readEnv)
+  const [ideasCode, setIdeasCode] = useState<string | null>(null)
+  const [ideasRead, setIdeasRead] = useState(false)
+  const [ideasNote, setIdeasNote] = useState<string | null>(null)
+  /** The example whose button was pressed, as written in the text. */
+  const [ideasPicked, setIdeasPicked] = useState<string | null>(null)
+  /**
+   * Runs an example from the ideas. Many are fragments of a running
+   * explanation — `same = original` after the text has said what
+   * `original` is — so one that stops on a name it never saw is tried
+   * again after the section's earlier examples. If it still cannot run,
+   * the page says what it is rather than calling it a failure: the example
+   * leans on names the prose defines.
+   */
+  const tryIdea = useCallback(
+    async (code: string, context: string[]) => {
+      setIdeasNote(null)
+      setIdeasPicked(code.replace(/\n$/, ''))
+      const alone = await quiet(code)
+      let source = code
+      if (alone.raised === 'NameError' && context.length > 0) {
+        // The shortest run of what came before that lets it run: the
+        // nearest context first, widening until the name is found.
+        for (let from = context.length - 1; from >= 0; from--) {
+          const joined = [...context.slice(from), code.replace(/\n$/, '')].join('\n') + '\n'
+          const withContext = await quiet(joined)
+          if (withContext.raised === 'NameError') continue
+          source = joined
+          setIdeasNote('This example continues what the section set up before it, so that runs first.')
+          break
+        }
+      }
+      if (source === code && alone.raised === 'NameError') {
+        setIdeasNote('This one is a fragment: it uses a name the text sets up in words, so on its own Python stops with a NameError.')
+      }
+      setIdeasCode(source)
+      void show(source)
+    },
+    [quiet, show],
+  )
+
   /** The editor's instrument: hand over the whole program. */
   const run = useCallback(async () => {
     if (busy || boot.state !== 'ready') return
@@ -351,7 +451,18 @@ export function Workbench({ activity }: { activity: Activity }) {
     () => ({ snapshot, thoughts, history: [...lineMemory, snapshot] }),
     [snapshot, thoughts, lineMemory],
   )
-  const guide = practice ? practice.guide : lesson ? guidance(lesson, evidence) : undefined
+  const ideas = read.level?.kind === 'ideas'
+  const guide = reading
+    ? ideas
+      ? { text: ideasRead ? 'That is the idea. The exercises are next — back to the map.' : 'Read it through. Every example can be run — watch what it builds.' }
+      : read.guide
+        ? { text: read.guide }
+        : undefined
+    : practice
+      ? practice.guide
+      : lesson
+        ? guidance(lesson, evidence)
+        : undefined
   // Tells the director someone spoke, so the cast turns to listen. Emitted
   // only: nothing reads it back to decide anything.
   const said = guide?.text
@@ -365,10 +476,21 @@ export function Workbench({ activity }: { activity: Activity }) {
   // Finished, by the same one-or-the-other rule the scene celebrates on
   // (invariant 9), and recorded so the map remembers it. This is the only
   // thing written down: the map derives everything else from it.
-  const complete = practice ? practice.done : lesson ? finished : readScene(activity.scene, snapshot).solved
+  const complete = reading
+    ? ideas
+      ? ideasRead
+      : read.complete
+    : practice
+      ? practice.done
+      : lesson
+        ? finished
+        : readScene(activity.scene, snapshot).solved
+  // A review and a single item are not levels on the path: what they
+  // change is mastery, which the map reads for itself.
+  const onPath = !(read.level?.kind === 'review' || read.level?.kind === 'single')
   useEffect(() => {
-    if (complete) markDone(activity.id)
-  }, [complete, activity.id])
+    if (complete && onPath) markDone(activity.id)
+  }, [complete, activity.id, onPath])
   // The way on is back to the map, where finishing this shows as a level
   // done and the next one unlocking — the loop Duolingo made familiar, and
   // one every level has, the last included. The scene decides *when* to
@@ -388,6 +510,44 @@ export function Workbench({ activity }: { activity: Activity }) {
       /** The console's equivalent of typing a line and pressing Enter. */
       say: (line: string) => say(line),
       snapshot: () => snapshot,
+      /** Reading: the item being asked and where it is, and the moves a
+       *  player makes — answer a part, commit, repair, mark, move on. */
+      read: {
+        state: () => ({
+          item: read.session.current?.id ?? null,
+          phase: read.session.state?.phase ?? null,
+          at: read.session.at,
+          of: read.session.items.length,
+          results: read.session.results,
+          canCommit: read.session.canCommit,
+          resolved: read.session.resolved,
+          finished: read.session.finished,
+          outcome: read.session.state?.outcome ?? null,
+          graded: read.session.state?.graded ?? [],
+          parts: read.session.current?.spec.parts.map((p) => p.kind) ?? [],
+          complete,
+        }),
+        answer: (part: number, a: Answer) => read.session.setAnswer(part, a),
+        commit: () => read.session.commit(),
+        submit: (part: number, source: string) => read.session.submit(part, source),
+        mark: (part: number, m: 'right' | 'word' | 'missed') => read.session.mark(part, m),
+        next: () => read.session.next(),
+        /** The key's answer to each part, as a player would give it —
+         *  so a journey can answer right (or change one to answer wrong)
+         *  through the same path a player does. Null until the item has
+         *  been run, and for a part whose answer is a program. */
+        models: () => {
+          const cur = read.session.current
+          const truth = read.session.state?.truth
+          if (!cur || !truth) return null
+          return cur.spec.parts.map((p, i) => (p.kind === 'fix' || p.kind === 'write' ? null : modelAnswer(p, truth, i)))
+        },
+        /** The key's program for a repair or a write part. */
+        program: (part: number) => {
+          const p = read.session.current?.spec.parts[part]
+          return p && (p.kind === 'fix' || p.kind === 'write') ? p.model : null
+        },
+      },
       /** The practice exercise being asked, so a test can answer it with
        *  the line the generator says works, and check the judge against
        *  what real Python does with it. */
@@ -404,7 +564,7 @@ export function Workbench({ activity }: { activity: Activity }) {
       }),
     }
     ;(window as unknown as { botgineer: typeof api }).botgineer = api
-  }, [activity.mode, boot.state, busy, run, say, snapshot, practice])
+  }, [activity.mode, boot.state, busy, run, say, snapshot, practice, read.session, complete])
 
   return (
     <main className="workbench" style={{ ['--scene-w' as string]: `${sceneW}px` }}>
@@ -420,13 +580,38 @@ export function Workbench({ activity }: { activity: Activity }) {
           onAdvance={onAdvance}
           // The last thing the robot worked out. It lives nowhere else:
           // the value itself was collected when the line ended.
-          thought={thoughts.length > 0 ? (thoughts[thoughts.length - 1]?.repr ?? null) : null}
-          thinking={busy}
+          thought={!reading && thoughts.length > 0 ? (thoughts[thoughts.length - 1]?.repr ?? null) : null}
+          // Reading has nothing to think aloud: the run is the answer, and
+          // on the short stage a cloud would sit on the crow's words.
+          thinking={reading ? false : busy}
           // `undefined` when there is no lesson, so the scene judges
           // itself instead of being told it has finished nothing.
-          triumph={practice ? practice.done : lesson ? finished : undefined}
+          triumph={reading ? complete : practice ? practice.done : lesson ? finished : undefined}
           meter={practice?.meter}
-        />
+          compact={reading}
+        >
+          {reading && ideas && read.stage ? (
+            <IdeasSheet
+              stage={read.stage}
+              running={ideasPicked}
+              onTry={(code, context) => void tryIdea(code, context)}
+              onEnd={() => setIdeasRead(true)}
+              {...(read.stage.stage === 1 ? { lead: 'The console lessons on names came first; this is the same idea, written down.' } : {})}
+            />
+          ) : reading ? (
+            <>
+              <ReadSheet session={read.session} title={activity.title} />
+              {read.session.finished && read.didPass === false && (
+                <div className="card finish-card" data-testid="checkpoint-failed">
+                  <p>{read.guide}</p>
+                  <button type="button" className="primary" onClick={() => goToMap()} data-testid="to-review">
+                    Back to the map
+                  </button>
+                </div>
+              )}
+            </>
+          ) : undefined}
+        </ScenePanel>
       </section>
 
       <Gutter
@@ -444,7 +629,22 @@ export function Workbench({ activity }: { activity: Activity }) {
         </div>
         <RobotPanel
           mode={activity.mode}
-          memory={<MemoryPanel snapshot={snapshot} handles={handles} runKey={runKey} />}
+          memory={
+            <MemoryPanel
+              snapshot={snapshot}
+              handles={handles}
+              runKey={runKey}
+              emptyText={
+                reading
+                  ? ideas
+                    ? 'Nothing has run yet. Pick “Run this” under an example and memory draws what it builds.'
+                    : read.vocab === 'formal'
+                      ? 'Empty until you commit. Then the robot runs the code and every binding and object appears here.'
+                      : 'Empty until you commit. Then the robot runs the code, and every name and the object it points at appear here.'
+                  : undefined
+              }
+            />
+          }
           program={program}
           onProgram={setProgram}
           onReady={(api) => {
@@ -465,6 +665,15 @@ export function Workbench({ activity }: { activity: Activity }) {
             setIndex(i)
           }}
           traceLine={traceLine}
+          instrument={
+            reading ? (
+              ideas ? (
+                <IdeasPanel code={ideasCode} traceLine={traceLine} note={ideasNote} />
+              ) : (
+                <ReadPanel session={read.session} traceLine={traceLine} onShow={(src) => void show(src)} busy={busy} />
+              )
+            ) : undefined
+          }
         />
       </section>
     </main>

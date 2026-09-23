@@ -1,0 +1,978 @@
+/**
+ * Reading: the compact scene with its sheet, the code view, the answer
+ * widgets and the key.
+ *
+ * Its own file, like console.css and roadmap.css, and like them it takes
+ * every colour from the tokens in styles.css — there is one palette.
+ */
+
+/* ------------------------- the scene, compacted ------------------------- */
+
+.scene-panel.compact .stage {
+  flex: none;
+  /* Tall enough for the speech band: the tallest actor, a bubble of up to
+     three lines and its tail. Shorter, and the bubble slides down past
+     the foot of its rail and the tail lands on the words. */
+  height: clamp(200px, 30vh, 240px);
+}
+
+/* A little wider than a lesson's bubble, since the crow says a whole
+   verdict here — but no wider than 62%, which the 31–69 clamp on its
+   centre keeps on stage at any width (see `bubbleX`). */
+.scene-panel.compact .bubble {
+  max-width: min(340px, 62%);
+  font-size: 13.5px;
+}
+
+.sheet-scroll {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  border-top: 1px solid var(--line);
+  background: var(--bg);
+}
+
+.read-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 14px 28px;
+}
+
+.sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.sheet-kicker {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.sheet-meter {
+  display: flex;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sheet-meter li {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: var(--line);
+  border: 2px solid transparent;
+}
+
+.sheet-meter li.now {
+  border-color: var(--brand);
+  background: var(--brand-soft);
+}
+.sheet-meter li.right {
+  background: var(--good);
+}
+.sheet-meter li.wrong {
+  background: var(--warn);
+}
+
+/* ------------------------------- cards ------------------------------- */
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 14px;
+  box-shadow: var(--shadow);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.card p {
+  margin: 0 0 8px;
+}
+.card p:last-child {
+  margin-bottom: 0;
+}
+
+.card-kicker {
+  margin: 0 0 6px !important;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--brand-deep);
+}
+
+.card-aside {
+  font-size: 12.5px;
+}
+
+.card h4,
+.card h5 {
+  margin: 10px 0 4px;
+  font-size: 13.5px;
+}
+
+.card ul,
+.card ol {
+  margin: 0 0 8px;
+  padding-left: 20px;
+}
+
+.card blockquote {
+  margin: 0 0 8px;
+  padding: 4px 10px;
+  border-left: 3px solid var(--brand-line);
+  color: var(--ink-soft);
+}
+
+.card .table-wrap {
+  overflow-x: auto;
+  margin: 0 0 8px;
+}
+
+.card table {
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.card th,
+.card td {
+  border: 1px solid var(--line);
+  padding: 4px 8px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.card th {
+  background: var(--bg);
+}
+
+.block-text {
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  background: #131a2a;
+  color: #dfe6f5;
+  border-radius: 8px;
+  font: 12.5px/1.5 var(--mono);
+  overflow-x: auto;
+  white-space: pre;
+}
+
+.block-code {
+  margin: 0 0 10px;
+}
+
+.block-code .code-view {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.try-it {
+  margin-top: 6px;
+  font-size: 12.5px;
+}
+.try-it.on {
+  background: var(--brand-soft);
+  border-color: var(--brand-line);
+  color: var(--brand-deep);
+}
+
+.key-card {
+  border-color: var(--brand-line);
+}
+
+.key-section h4 {
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.key-reasoning,
+.key-explanation,
+.key-diagnosis {
+  background: var(--brand-soft);
+  border-radius: 8px;
+  padding: 2px 10px 8px;
+  margin: 6px -4px;
+}
+
+.go-back {
+  font-weight: 600;
+}
+
+.go-back a,
+a.term {
+  color: var(--brand-deep);
+}
+
+a.term {
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+
+.authoring summary {
+  cursor: pointer;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+
+.authoring p {
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  margin-top: 6px;
+}
+
+.error-chip {
+  display: inline-block;
+  margin: 0 0 8px !important;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+.error-chip.err-vocabulary {
+  background: var(--value-bg);
+  color: var(--value-deep);
+}
+
+.finish-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.ideas-title {
+  margin: 0 0 4px;
+  font-size: 18px;
+}
+
+.ideas-move {
+  font-weight: 600;
+}
+
+.idea-title {
+  margin-top: 0 !important;
+}
+
+.ideas-end {
+  padding: 8px 4px;
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+
+/* ------------------------------ code view ------------------------------ */
+
+.code-view {
+  background: var(--surface);
+  font: 13px/1.6 var(--mono);
+  overflow-x: auto;
+}
+
+.code-lines {
+  list-style: none;
+  margin: 0;
+  padding: 6px 0;
+}
+
+.code-line {
+  position: relative;
+}
+
+.code-line-body,
+.code-line-button {
+  display: flex;
+  align-items: baseline;
+  gap: 0;
+  width: 100%;
+  min-height: 1.6em;
+  padding: 0 10px 0 0;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+
+.code-line-button {
+  cursor: pointer;
+}
+
+.code-line-button:hover {
+  background: var(--brand-soft);
+}
+
+.code-line-button:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: -2px;
+}
+
+.code-view.picking .ln {
+  color: var(--brand-deep);
+}
+
+.code-line .ln {
+  flex: none;
+  width: 3.2em;
+  padding-right: 10px;
+  text-align: right;
+  color: #9aa6c2;
+  user-select: none;
+}
+
+.code-line .src {
+  flex: 1;
+  white-space: pre;
+  font: inherit;
+  background: transparent;
+  padding: 0;
+}
+
+.code-line.traced {
+  background: #fff4cc;
+  box-shadow: inset 3px 0 0 #e0a500;
+}
+
+.code-line.pick {
+  background: var(--brand-soft);
+  box-shadow: inset 3px 0 0 var(--brand);
+}
+.code-line.body {
+  background: var(--value-bg);
+  box-shadow: inset 3px 0 0 var(--value);
+}
+.code-line.right {
+  background: var(--value-bg);
+  box-shadow: inset 3px 0 0 var(--good);
+}
+.code-line.wrong {
+  background: var(--bad-bg);
+  box-shadow: inset 3px 0 0 var(--bad);
+}
+
+.code-marker {
+  color: var(--warn);
+  font-style: italic;
+}
+
+.badge-slot {
+  flex: none;
+  margin-left: 8px;
+}
+
+.order-badge {
+  display: inline-block;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--brand);
+  color: var(--brand-ink);
+  font: 700 11px/1.7 ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Lezer's class highlighter. */
+.tok-keyword {
+  color: #8250df;
+  font-weight: 600;
+}
+.tok-string,
+.tok-string2 {
+  color: #0a7d4c;
+}
+.tok-number,
+.tok-bool,
+.tok-atom {
+  color: #b3541e;
+}
+.tok-comment {
+  color: #6b7794;
+  font-style: italic;
+}
+.tok-variableName.tok-definition {
+  color: #16203a;
+}
+.tok-operator,
+.tok-punctuation {
+  color: #5b6784;
+}
+.tok-propertyName,
+.tok-function {
+  color: #1a5fd0;
+}
+
+/* ----------------------------- read panel ----------------------------- */
+
+.read-panel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.read-code {
+  flex: none;
+  border-bottom: 1px solid var(--line);
+  /* A long program (the capstone is 33 lines) scrolls in its own box,
+     so the questions about it are still on screen under it. */
+  max-height: min(40vh, 400px);
+  overflow-y: auto;
+}
+
+.read-editor {
+  height: clamp(160px, 30vh, 320px);
+  display: flex;
+  flex-direction: column;
+}
+
+.read-editor .editor {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.read-nocode {
+  margin: 0;
+  padding: 14px;
+}
+
+.snippet-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 6px 8px 0;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+}
+
+.snippet-tabs button {
+  border-radius: 8px 8px 0 0;
+  border-bottom: 0;
+  font-size: 12.5px;
+  padding: 4px 12px;
+}
+
+.snippet-tabs button.on {
+  background: var(--surface);
+  color: var(--brand-deep);
+  font-weight: 700;
+}
+
+.read-parts {
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+}
+
+.read-part {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: var(--surface);
+}
+
+.read-part.picking {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px var(--brand-soft);
+}
+
+.read-part.act {
+  border-color: var(--brand-line);
+  background: var(--brand-soft);
+}
+
+.form {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-label {
+  margin: 0;
+  padding: 0;
+  font-weight: 600;
+  font-size: 13.5px;
+}
+
+.form-hint {
+  font-weight: 400;
+  color: var(--ink-soft);
+  font-size: 12.5px;
+  margin: 0;
+}
+
+.form-value {
+  margin: 0;
+  font-size: 13.5px;
+}
+
+.form-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.output-input,
+.rule-form textarea {
+  width: 100%;
+  font: 13px/1.5 var(--mono);
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  resize: vertical;
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.rule-form textarea {
+  font-family: inherit;
+}
+
+.output-input:focus,
+.rule-form textarea:focus,
+.number-input:focus,
+.trace-table input:focus,
+.count-table input:focus {
+  outline: 2px solid var(--brand);
+  outline-offset: 1px;
+}
+
+.raises {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+
+.raises label {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.number-input {
+  width: 8em;
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font: inherit;
+}
+
+.choice {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 13.5px;
+  cursor: pointer;
+}
+
+.choice input {
+  margin-top: 3px;
+}
+
+.choice.picked {
+  border-color: var(--brand);
+  background: var(--brand-soft);
+}
+.choice.key {
+  border-color: var(--good);
+  background: var(--value-bg);
+}
+.choice.miss {
+  border-color: var(--bad);
+  background: var(--bad-bg);
+}
+
+.pick-toggle {
+  align-self: flex-start;
+  font-size: 12.5px;
+}
+.pick-toggle.on {
+  background: var(--brand);
+  color: var(--brand-ink);
+  border-color: var(--brand);
+}
+
+.order-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12.5px;
+}
+
+.order-chip {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--brand-soft);
+  border: 1px solid var(--brand-line);
+}
+
+.order-n {
+  font-weight: 700;
+  color: var(--brand-deep);
+}
+
+.mono {
+  font-family: var(--mono);
+  font-size: 12.5px;
+}
+
+.trace-table,
+.count-table {
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.trace-table th,
+.trace-table td,
+.count-table th,
+.count-table td {
+  border: 1px solid var(--line);
+  padding: 3px 6px;
+  text-align: left;
+}
+
+.trace-table input,
+.count-table input {
+  width: 7em;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 3px 6px;
+  font: 12.5px var(--mono);
+}
+
+.count-table caption {
+  text-align: left;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  padding-bottom: 4px;
+}
+
+.count-table .ln {
+  display: inline-block;
+  width: 1.6em;
+  color: #9aa6c2;
+  font-family: var(--mono);
+}
+
+.diagram-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 8px;
+}
+
+.diagram-option {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+}
+
+.diagram-option.picked {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px var(--brand-soft);
+}
+.diagram-option.key {
+  border-color: var(--good);
+  box-shadow: 0 0 0 3px var(--value-bg);
+}
+.diagram-option.miss {
+  border-color: var(--bad);
+}
+
+.diagram-pick {
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  font-weight: 700;
+  font-size: 12.5px;
+}
+
+.diagram-option.picked .diagram-pick {
+  background: var(--brand);
+  color: var(--brand-ink);
+}
+
+.diagram-graph {
+  height: 210px;
+  position: relative;
+  display: flex;
+  pointer-events: none;
+}
+
+.diagram-graph .graph {
+  flex: 1;
+}
+
+.diagram-says {
+  margin: 0;
+  padding: 6px 8px;
+  font-size: 12px;
+  color: var(--ink-soft);
+  border-top: 1px solid var(--line);
+}
+
+.labels-line {
+  margin: 0;
+  padding: 6px 10px;
+  background: var(--bg);
+  border-radius: 8px;
+  font: 13.5px var(--mono);
+}
+
+.role-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.role-chip {
+  padding: 2px 9px;
+  border: 1px dashed var(--brand-line);
+  border-radius: 999px;
+  font-size: 12.5px;
+  background: var(--surface);
+  cursor: grab;
+}
+.role-chip.used {
+  opacity: 0.55;
+}
+.role-chip.dragging {
+  border-style: solid;
+  border-color: var(--brand);
+}
+
+.spans {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.span-row {
+  display: grid;
+  grid-template-columns: minmax(70px, auto) 1fr;
+  gap: 8px;
+  align-items: center;
+  padding: 4px 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.span-row.right {
+  border-color: var(--good);
+}
+.span-row.wrong {
+  border-color: var(--bad);
+}
+
+.span-text {
+  font: 13px var(--mono);
+  color: var(--brand-deep);
+}
+
+.span-row select {
+  min-width: 0;
+  width: 100%;
+  font-size: 12.5px;
+}
+
+.span-key {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+
+.self-mark {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.self-mark .form-hint {
+  flex-basis: 100%;
+}
+
+.verdict {
+  margin-top: 4px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.verdict p {
+  margin: 0;
+}
+
+.verdict.right {
+  background: var(--value-bg);
+  color: var(--value-deep);
+}
+.verdict.wrong {
+  background: var(--bad-bg);
+  color: var(--bad);
+}
+.verdict.soft {
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+
+.verdict-head {
+  font-weight: 700;
+}
+
+.verdict-expected {
+  margin-top: 4px;
+  color: var(--ink);
+}
+
+.verdict-expected pre {
+  margin: 2px 0 0;
+  font: 12.5px/1.5 var(--mono);
+  white-space: pre-wrap;
+}
+
+.verdict-label {
+  font-weight: 600;
+  margin-right: 4px;
+}
+
+.verdict-inline {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+.verdict-inline.right {
+  color: var(--good);
+}
+.verdict-inline.soft {
+  color: var(--warn);
+}
+.verdict-inline.wrong {
+  color: var(--bad);
+}
+
+.commit-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+}
+
+.commit-note {
+  margin: 0;
+  font-size: 12px;
+}
+
+/* ------------------------------ glossary ------------------------------ */
+
+.glossary {
+  overflow-y: auto;
+}
+
+.glossary-column {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 18px 16px 48px;
+}
+
+.glossary-column h2 {
+  margin: 0 0 6px;
+}
+
+.glossary-group {
+  margin-top: 18px;
+}
+
+.glossary-term:target {
+  outline: 3px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+@media (max-width: 700px) {
+  .diagram-options {
+    grid-template-columns: 1fr;
+  }
+  .read-sheet {
+    padding: 10px 10px 24px;
+  }
+}
+
+/* Reading needs the room for its answers; the output is short. */
+.robot-panel[data-mode='read'] .transcript {
+  height: 64px;
+}
+
+/* Stacked (phones, narrow windows): the page scrolls, so the sheet does
+   not need a scroll box of its own. The scene pane grows to hold the
+   question and the key; the robot pane keeps its fixed height, which is
+   what the memory grid needs to lay out in. */
+@media (max-width: 1000px) {
+  .workbench:has(.scene-panel.compact) .scene-pane {
+    height: auto;
+  }
+  .scene-panel.compact .sheet-scroll {
+    overflow: visible;
+  }
+  .workbench:has(.scene-panel.compact) .robot-pane {
+    height: 760px;
+  }
+}
+
+.ideas-note {
+  margin: 0;
+  padding: 8px 12px;
+  font-size: 12.5px;
+  background: var(--brand-soft);
+  color: var(--brand-deep);
+  border-bottom: 1px solid var(--brand-line);
+}
+
+/* Three screens and a brand do not fit a phone's top bar in words; below
+   this width the links are their icons, and keep their names for anyone
+   who cannot see them (`aria-label`). */
+@media (max-width: 480px) {
+  .topbar .nav-word {
+    display: none;
+  }
+  .topbar .whereabouts {
+    gap: 6px;
+  }
+}

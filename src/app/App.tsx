@@ -12,6 +12,7 @@ import { goToMap, useRoute } from './router'
 import { Workbench } from './Workbench'
 import { RoadmapScreen } from '../roadmap/RoadmapScreen'
 import { SkillsScreen } from '../roadmap/SkillsScreen'
+import { GlossaryScreen } from '../roadmap/GlossaryScreen'
 
 export function App() {
   const route = useRoute()
@@ -41,18 +42,30 @@ export function App() {
               className={`to-map ${route.kind === 'map' ? 'here' : ''}`}
               aria-current={route.kind === 'map' ? 'page' : undefined}
               data-testid="nav-map"
+              aria-label="Map"
             >
               <MapIcon />
-              Map
+              <span className="nav-word">Map</span>
             </a>
             <a
               href="#/skills"
               className={`to-map ${route.kind === 'skills' ? 'here' : ''}`}
               aria-current={route.kind === 'skills' ? 'page' : undefined}
               data-testid="nav-skills"
+              aria-label="Skills"
             >
               <SkillsIcon />
-              Skills
+              <span className="nav-word">Skills</span>
+            </a>
+            <a
+              href="#/glossary"
+              className={`to-map ${route.kind === 'glossary' ? 'here' : ''}`}
+              aria-current={route.kind === 'glossary' ? 'page' : undefined}
+              data-testid="nav-glossary"
+              aria-label="Glossary"
+            >
+              <BookIcon />
+              <span className="nav-word">Glossary</span>
             </a>
           </nav>
         )}
@@ -62,11 +75,10 @@ export function App() {
             replaced said how many levels there were and nothing else. */}
         {level && (
           <nav className="whereabouts" aria-label="Levels">
-            {number > 0 && (
-              <span className="whereabouts-level" data-testid="level-label">
-                Level {number} · {level.title}
-              </span>
-            )}
+            <span className="whereabouts-level" data-testid="level-label">
+              {number > 0 ? `Level ${number} · ` : ''}
+              {level.title}
+            </span>
             <button type="button" className="to-map" data-testid="to-map" onClick={() => goToMap()}>
               <MapIcon />
               Map
@@ -86,6 +98,8 @@ export function App() {
         <Workbench key={level.id} activity={level} />
       ) : route.kind === 'skills' ? (
         <SkillsScreen />
+      ) : route.kind === 'glossary' ? (
+        <GlossaryScreen term={route.term} />
       ) : (
         <RoadmapScreen />
       )}
@@ -96,6 +110,18 @@ export function App() {
 const SkillsIcon = () => (
   <svg viewBox="0 0 24 24" aria-hidden="true" width="16" height="16">
     <path d="M5 19V13M12 19V8M19 19V4" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" />
+  </svg>
+)
+
+const BookIcon = () => (
+  <svg viewBox="0 0 24 24" aria-hidden="true" width="16" height="16">
+    <path
+      d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5zM4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinejoin="round"
+    />
   </svg>
 )
 

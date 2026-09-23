@@ -1,0 +1,2194 @@
+{
+ "stage": 3,
+ "file": "stage-03-structured-access.md",
+ "title": "Reading Brackets and Keys Precisely",
+ "move": "read an access expression exactly — which container, which position or key, and whether the line is *reading out of* it or *writing into* it.",
+ "adds": [
+  {
+   "kind": "p",
+   "text": "Stage 2 ended on an unfinished thought: a line can have an `=` in it and still not move any name, because the left-hand side is a *slot inside an object*. This stage is about slots — positions in a list, keys in a dictionary — and about reading nested access without guessing."
+  }
+ ],
+ "ideas": [
+  {
+   "title": "Indexing reads a slot",
+   "blocks": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "items = [\"a\", \"b\", \"c\"]\nitems[1]            # \"b\""
+    },
+    {
+     "kind": "p",
+     "text": "`items[1]` means: *look at the object `items` points at, go to position 1, and hand back whatever object is sitting there.* Positions count from 0. Negative positions count from the end: `items[-1]` is the last item, `items[-2]` the one before."
+    },
+    {
+     "kind": "p",
+     "text": "An index that does not exist is an error, not a blank: `items[3]` raises `IndexError`. Python will not invent a slot for you."
+    }
+   ]
+  },
+  {
+   "title": "Indexing on the left of `=` writes a slot",
+   "blocks": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "items[1] = \"z\"      # items is now [\"a\", \"z\", \"c\"]"
+    },
+    {
+     "kind": "p",
+     "text": "Nothing rebinds `items`. The same list object is still there, wearing the same name; one of its slots now points somewhere else. This is a **change**, in the exact sense of Stage 2, and every other name pointing at that list will see it."
+    },
+    {
+     "kind": "p",
+     "text": "The one-line test from Stage 2, restated: *bare name left of `=` → a name moves; anything with brackets or a dot left of `=` → an object changes.*"
+    }
+   ]
+  },
+  {
+   "title": "Slicing reads several slots — and builds a new list",
+   "blocks": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "items = [\"a\", \"b\", \"c\", \"d\"]\npart = items[1:3]   # [\"b\", \"c\"]"
+    },
+    {
+     "kind": "p",
+     "text": "`items[1:3]` takes from position 1 up to *but not including* position 3. The result is a **new list object**. `items[:]` therefore means \"a new list holding everything\" — which is why it was the fix in Exercise 2.11."
+    },
+    {
+     "kind": "p",
+     "text": "The new list is new, but the objects *inside* it are the same objects. Hold that thought; Stage 4 is about exactly this sentence."
+    }
+   ]
+  },
+  {
+   "title": "Dictionaries: lookup by key, not by position",
+   "blocks": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "ages = {\"ann\": 30, \"bo\": 25}\nages[\"ann\"]         # 30\nages[\"cy\"]          # KeyError\nages[\"cy\"] = 41     # adds a new pair\nages[\"ann\"] = 31    # replaces the value for an existing key"
+    },
+    {
+     "kind": "p",
+     "text": "`mapping[key]` reads *\"find the value paired with this key\"*. There is one bracket syntax for two different write behaviors, and which one you get depends only on whether the key is already present: **absent key → add; present key → replace**. There is no separate \"add\" syntax to forget."
+    },
+    {
+     "kind": "p",
+     "text": "`ages.get(\"cy\")` hands back `None` instead of raising, and `ages.get(\"cy\", 0)` hands back `0`. Use them when a missing key is expected, not to paper over a typo."
+    }
+   ]
+  },
+  {
+   "title": "`in` on a dictionary asks about keys",
+   "blocks": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "\"ann\" in ages       # True\n30 in ages          # False — 30 is a value, not a key"
+    },
+    {
+     "kind": "p",
+     "text": "Iterating a dictionary (Stage 6) also gives you keys by default. Dictionaries are key-shaped from the outside."
+    }
+   ]
+  },
+  {
+   "title": "What may be a key",
+   "blocks": [
+    {
+     "kind": "p",
+     "text": "A key must be **unchangeable** — a number, a text object, a tuple of unchangeable things. Lists cannot be keys:"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "d = {}\nd[[1, 2]] = \"x\"     # TypeError: unhashable type: 'list'\nd[(1, 2)] = \"x\"     # fine"
+    },
+    {
+     "kind": "p",
+     "text": "The reason, in plain language: a dictionary files each key by what it looks like. If a key could change after filing, the dictionary would no longer be able to find it. The formal word for \"may be used as a key\" is **hashable**, and it arrives properly in Stage 6. The same requirement applies to items of a set."
+    },
+    {
+     "kind": "p",
+     "text": "A tuple that contains a list is *not* acceptable, because that tuple can still look different later — a direct consequence of Exercise 2.10."
+    }
+   ]
+  },
+  {
+   "title": "Order",
+   "blocks": [
+    {
+     "kind": "p",
+     "text": "A dictionary keeps its pairs in the order they were first inserted. Replacing an existing key's value does **not** move it to the end. A set keeps no order you may rely on. Stage 6 does the ordering rules properly; for now, just do not assume a set will hand you anything in the order you typed it."
+    }
+   ]
+  },
+  {
+   "title": "Nested access reads left to right",
+   "blocks": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "grid = [[1, 2], [3, 4]]\ngrid[1][0]          # 3"
+    },
+    {
+     "kind": "p",
+     "text": "Read it in two steps, never as one symbol: `grid[1]` produces the inner list `[3, 4]`; then `[0]` is applied *to that result*, producing `3`. The same left-to-right rule handles `data[\"users\"][0][\"name\"]`. If you can say aloud what each step produced, you cannot get lost."
+    }
+   ]
+  }
+ ],
+ "exercises": [
+  {
+   "id": "3.1",
+   "stage": 3,
+   "form": "Label the code",
+   "kind": "label",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Say what each line does, and for each, name whether any name moves."
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "row = [10, 20, 30]\nfirst = row[0]\nrow[2] = 99\nrow = row[0:2]"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "row = [10, 20, 30]\nfirst = row[0]\nrow[2] = 99\nrow = row[0:2]\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "table",
+        "head": [
+         "Line",
+         "Event",
+         "Name moved?"
+        ],
+        "rows": [
+         [
+          "`row = [10, 20, 30]`",
+          "builds a list, points `row` at it",
+          "yes, `row`"
+         ],
+         [
+          "`first = row[0]`",
+          "reads slot 0, points `first` at that object",
+          "yes, `first`"
+         ],
+         [
+          "`row[2] = 99`",
+          "changes the list's slot 2",
+          "no"
+         ],
+         [
+          "`row = row[0:2]`",
+          "builds a **new** two-item list, points `row` at it",
+          "yes, `row`"
+         ]
+        ]
+       },
+       {
+        "kind": "p",
+        "text": "After line 4 the three-item list `[10, 20, 99]` has no name left."
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Lines 3 and 4 both contain brackets and an `=`, but only line 4 has a bare name on the left. That is the entire difference."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That any line containing `row` and `=` \"updates `row`\" in the same way."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Syntax-reading error."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "table",
+      "head": [
+       "Line",
+       "Event",
+       "Name moved?"
+      ],
+      "rows": [
+       [
+        "`row = [10, 20, 30]`",
+        "builds a list, points `row` at it",
+        "yes, `row`"
+       ],
+       [
+        "`first = row[0]`",
+        "reads slot 0, points `first` at that object",
+        "yes, `first`"
+       ],
+       [
+        "`row[2] = 99`",
+        "changes the list's slot 2",
+        "no"
+       ],
+       [
+        "`row = row[0:2]`",
+        "builds a **new** two-item list, points `row` at it",
+        "yes, `row`"
+       ]
+      ]
+     },
+     {
+      "kind": "p",
+      "text": "After line 4 the three-item list `[10, 20, 99]` has no name left."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "Lines 3 and 4 both contain brackets and an `=`, but only line 4 has a bare name on the left. That is the entire difference."
+     }
+    ],
+    "misconception": "That any line containing `row` and `=` \"updates `row`\" in the same way.",
+    "missed": "If you missed it. Syntax-reading error.",
+    "errorTypes": [
+     "syntax"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: classify read, write-slot, and rebind. Prereq: 2.16. Syntax lens: what sits left of `=`. Flow lens: once each. Object lens: two lists; one changed then abandoned.",
+     "target": "classify read, write-slot, and rebind",
+     "prereq": [
+      "2.16"
+     ],
+     "syntax": "what sits left of `=`",
+     "flow": "once each",
+     "object": "two lists; one changed then abandoned"
+    }
+   }
+  },
+  {
+   "id": "3.2",
+   "stage": 3,
+   "form": "Predict the result",
+   "kind": "predict",
+   "prompt": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "letters = [\"a\", \"b\", \"c\", \"d\"]\nprint(letters[1])\nprint(letters[-1])\nprint(letters[1:3])\nprint(letters)"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "letters = [\"a\", \"b\", \"c\", \"d\"]\nprint(letters[1])\nprint(letters[-1])\nprint(letters[1:3])\nprint(letters)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "b\nd\n['b', 'c']\n['a', 'b', 'c', 'd']"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Position 1 is the second item. `-1` is the last. `1:3` stops before 3, so it yields positions 1 and 2. Slicing reads; it never changes the original, which is why line 4 shows the list intact."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That `1:3` includes position 3, or that slicing removes the sliced part from the original."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Syntax-reading error."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "b\nd\n['b', 'c']\n['a', 'b', 'c', 'd']"
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "Position 1 is the second item. `-1` is the last. `1:3` stops before 3, so it yields positions 1 and 2. Slicing reads; it never changes the original, which is why line 4 shows the list intact."
+     }
+    ],
+    "misconception": "That `1:3` includes position 3, or that slicing removes the sliced part from the original.",
+    "missed": "If you missed it. Syntax-reading error.",
+    "errorTypes": [
+     "syntax"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: index, negative index, slice bounds. Prereq: 3.1. Syntax lens: `[i]`, `[-i]`, `[a:b]`. Flow lens: once each. Object lens: one new list produced by the slice; original untouched.",
+     "target": "index, negative index, slice bounds",
+     "prereq": [
+      "3.1"
+     ],
+     "syntax": "`[i]`, `[-i]`, `[a:b]`",
+     "flow": "once each",
+     "object": "one new list produced by the slice; original untouched"
+    }
+   }
+  },
+  {
+   "id": "3.3",
+   "stage": 3,
+   "form": "Compare near-matches",
+   "kind": "compare",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Snippet **A**:"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "xs = [1, 2, 3]\nys = xs\nys[0] = 99\nprint(xs)"
+    },
+    {
+     "kind": "p",
+     "text": "Snippet **B**:"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "xs = [1, 2, 3]\nys = xs[:]\nys[0] = 99\nprint(xs)"
+    },
+    {
+     "kind": "p",
+     "text": "Predict both. Name the line that makes the difference, and say what it produces."
+    }
+   ],
+   "snippets": [
+    {
+     "label": "A",
+     "code": "xs = [1, 2, 3]\nys = xs\nys[0] = 99\nprint(xs)\n"
+    },
+    {
+     "label": "B",
+     "code": "xs = [1, 2, 3]\nys = xs[:]\nys[0] = 99\nprint(xs)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "**A** prints `[99, 2, 3]`. **B** prints `[1, 2, 3]`."
+       }
+      ]
+     },
+     {
+      "label": "The difference is line 2",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "In **A** it copies an arrow, so both names are on one list and the slot-write on line 3 is visible through `xs`. In **B**, `xs[:]` *produces a new list object*, so line 3 writes into a slot of a list that only `ys` points at."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That `[:]` is decorative punctuation, or that writing a slot is somehow more \"local\" than other changes."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error. Note this is exercise 2.11 again with slot-writing instead of `.append` — same event, different syntax."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "**A** prints `[99, 2, 3]`. **B** prints `[1, 2, 3]`."
+     }
+    ],
+    "reasoning": [],
+    "misconception": "That `[:]` is decorative punctuation, or that writing a slot is somehow more \"local\" than other changes.",
+    "missed": "If you missed it. Object-model error. Note this is exercise 2.11 again with slot-writing instead of `.append` — same event, different syntax.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [
+     "2.11"
+    ],
+    "authoring": {
+     "text": "Target: slice-copy versus alias, tested via slot write. Prereq: 2.11, 3.1. Syntax lens: `xs` versus `xs[:]` on the right. Flow lens: identical. Object lens: one list versus two.",
+     "target": "slice-copy versus alias, tested via slot write",
+     "prereq": [
+      "2.11",
+      "3.1"
+     ],
+     "syntax": "`xs` versus `xs[:]` on the right",
+     "flow": "identical",
+     "object": "one list versus two"
+    }
+   }
+  },
+  {
+   "id": "3.4",
+   "stage": 3,
+   "form": "Predict the result",
+   "kind": "predict",
+   "prompt": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "grid = [[1, 2], [3, 4]]\nprint(grid[0])\nprint(grid[0][1])\nprint(grid[-1][0])\nprint(len(grid))\nprint(len(grid[0]))"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "grid = [[1, 2], [3, 4]]\nprint(grid[0])\nprint(grid[0][1])\nprint(grid[-1][0])\nprint(len(grid))\nprint(len(grid[0]))\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "[1, 2]\n2\n3\n2\n2"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`grid[0]` produces the inner list itself, not a number. `grid[0][1]` is two steps: inner list, then its position 1. `grid[-1]` is `[3, 4]`, so `grid[-1][0]` is `3`. `len(grid)` counts the *rows* — two — not the six-ish things you might feel are in there."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That `len` on a nested list counts everything, or that `grid[0][1]` means \"row 0 and row 1\"."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Syntax-reading error. Say each bracket step aloud."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "[1, 2]\n2\n3\n2\n2"
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "`grid[0]` produces the inner list itself, not a number. `grid[0][1]` is two steps: inner list, then its position 1. `grid[-1]` is `[3, 4]`, so `grid[-1][0]` is `3`. `len(grid)` counts the *rows* — two — not the six-ish things you might feel are in there."
+     }
+    ],
+    "misconception": "That `len` on a nested list counts everything, or that `grid[0][1]` means \"row 0 and row 1\".",
+    "missed": "If you missed it. Syntax-reading error. Say each bracket step aloud.",
+    "errorTypes": [
+     "syntax"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: nested indexing left to right; `len` counts one level. Prereq: 3.2. Syntax lens: chained brackets. Flow lens: once each. Object lens: inner lists are objects in their own right.",
+     "target": "nested indexing left to right; `len` counts one level",
+     "prereq": [
+      "3.2"
+     ],
+     "syntax": "chained brackets",
+     "flow": "once each",
+     "object": "inner lists are objects in their own right"
+    }
+   }
+  },
+  {
+   "id": "3.5",
+   "stage": 3,
+   "form": "Label the code",
+   "kind": "label",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Read this expression aloud in steps, naming what each step produces."
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "record = {\"name\": \"ann\", \"scores\": [7, 9, 8]}\nvalue = record[\"scores\"][1]"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "record = {\"name\": \"ann\", \"scores\": [7, 9, 8]}\nvalue = record[\"scores\"][1]\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Step 1: `record` points at a dictionary. Step 2: `record[\"scores\"]` looks up the key `\"scores\"` and produces the list object `[7, 9, 8]`. Step 3: `[1]` is applied to *that list* and produces the number `9`. Step 4: `value` is pointed at `9`."
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "The expression is read strictly left to right, and each step must produce something the next step can be applied to. If `record[\"scores\"]` had produced a number, the `[1]` would have failed."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That `record[\"scores\"][1]` is a single two-part key."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Syntax-reading error."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "Step 1: `record` points at a dictionary. Step 2: `record[\"scores\"]` looks up the key `\"scores\"` and produces the list object `[7, 9, 8]`. Step 3: `[1]` is applied to *that list* and produces the number `9`. Step 4: `value` is pointed at `9`."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "The expression is read strictly left to right, and each step must produce something the next step can be applied to. If `record[\"scores\"]` had produced a number, the `[1]` would have failed."
+     }
+    ],
+    "misconception": "That `record[\"scores\"][1]` is a single two-part key.",
+    "missed": "If you missed it. Syntax-reading error.",
+    "errorTypes": [
+     "syntax"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: verbalize chained access. Prereq: 3.4. Syntax lens: `[key][index]`. Flow lens: once. Object lens: lookup produces a shared inner object.",
+     "target": "verbalize chained access",
+     "prereq": [
+      "3.4"
+     ],
+     "syntax": "`[key][index]`",
+     "flow": "once",
+     "object": "lookup produces a shared inner object"
+    }
+   }
+  },
+  {
+   "id": "3.6",
+   "stage": 3,
+   "form": "Predict the result",
+   "kind": "predict",
+   "prompt": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "ages = {\"ann\": 30, \"bo\": 25}\nages[\"cy\"] = 41\nages[\"ann\"] = 31\nprint(ages)\nprint(len(ages))"
+    },
+    {
+     "kind": "p",
+     "text": "Note the order of the printed pairs and say why it is that order."
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "ages = {\"ann\": 30, \"bo\": 25}\nages[\"cy\"] = 41\nages[\"ann\"] = 31\nprint(ages)\nprint(len(ages))\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "{'ann': 31, 'bo': 25, 'cy': 41}\n3"
+       }
+      ]
+     },
+     {
+      "label": "Why that order",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "A dictionary keeps keys in the order they were **first inserted**. `\"ann\"` and `\"bo\"` were inserted first, in that order. `\"cy\"` was added third and goes last. Line 3 replaced `\"ann\"`'s value but did not re-insert the key, so `\"ann\"` stays first."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That updating a key moves it to the end, or that dictionaries sort themselves."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error, with an ordering component."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "{'ann': 31, 'bo': 25, 'cy': 41}\n3"
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "A dictionary keeps keys in the order they were **first inserted**. `\"ann\"` and `\"bo\"` were inserted first, in that order. `\"cy\"` was added third and goes last. Line 3 replaced `\"ann\"`'s value but did not re-insert the key, so `\"ann\"` stays first."
+     }
+    ],
+    "misconception": "That updating a key moves it to the end, or that dictionaries sort themselves.",
+    "missed": "If you missed it. Object-model error, with an ordering component.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: insertion order; add versus replace. Prereq: 3.1. Syntax lens: `d[key] = value` with new and existing keys. Flow lens: once each. Object lens: one dictionary, changed twice.",
+     "target": "insertion order; add versus replace",
+     "prereq": [
+      "3.1"
+     ],
+     "syntax": "`d[key] = value` with new and existing keys",
+     "flow": "once each",
+     "object": "one dictionary, changed twice"
+    }
+   }
+  },
+  {
+   "id": "3.7",
+   "stage": 3,
+   "form": "Find and fix",
+   "kind": "fix",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "The intent is to print `25`. Say what happens instead and fix it."
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "ages = {\"ann\": 30, \"bo\": 25}\nprint(ages[1])"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "ages = {\"ann\": 30, \"bo\": 25}\nprint(ages[1])\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "It raises `KeyError: 1`."
+       }
+      ]
+     },
+     {
+      "label": "Why",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Dictionaries are not indexed by position. `ages[1]` is a lookup for the key `1`, which is not in the dictionary — the fact that `25` is the \"second\" value is irrelevant."
+       }
+      ]
+     },
+     {
+      "label": "Fix",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Ask for the key you mean:"
+       },
+       {
+        "kind": "code",
+        "lang": "python",
+        "text": "print(ages[\"bo\"])"
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That a dictionary can be indexed like a list because it also uses square brackets."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Syntax-reading error. The bracket punctuation is shared; what goes inside it means something different for each container."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "It raises `KeyError: 1`."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "Dictionaries are not indexed by position. `ages[1]` is a lookup for the key `1`, which is not in the dictionary — the fact that `25` is the \"second\" value is irrelevant."
+     }
+    ],
+    "misconception": "That a dictionary can be indexed like a list because it also uses square brackets.",
+    "missed": "If you missed it. Syntax-reading error. The bracket punctuation is shared; what goes inside it means something different for each container.",
+    "errorTypes": [
+     "syntax"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: dictionary access is by key only. Prereq: 3.2, 3.6. Syntax lens: `d[...]`. Flow lens: raises on line 2. Object lens: no change.",
+     "target": "dictionary access is by key only",
+     "prereq": [
+      "3.2",
+      "3.6"
+     ],
+     "syntax": "`d[...]`",
+     "flow": "raises on line 2",
+     "object": "no change"
+    }
+   }
+  },
+  {
+   "id": "3.8",
+   "stage": 3,
+   "form": "Compare near-matches",
+   "kind": "compare",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Snippet **A**:"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "d = {\"a\": 1}\nprint(\"a\" in d)\nprint(1 in d)"
+    },
+    {
+     "kind": "p",
+     "text": "Snippet **B**:"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "xs = [\"a\", 1]\nprint(\"a\" in xs)\nprint(1 in xs)"
+    },
+    {
+     "kind": "p",
+     "text": "Predict both, then state in one sentence what `in` asks about a dictionary versus about a list."
+    }
+   ],
+   "snippets": [
+    {
+     "label": "A",
+     "code": "d = {\"a\": 1}\nprint(\"a\" in d)\nprint(1 in d)\n"
+    },
+    {
+     "label": "B",
+     "code": "xs = [\"a\", 1]\nprint(\"a\" in xs)\nprint(1 in xs)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "**A** prints `True` then `False`. **B** prints `True` then `True`."
+       }
+      ]
+     },
+     {
+      "label": "The rule",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "For a dictionary, `in` asks *\"is this one of the keys?\"*. For a list, `in` asks *\"is this one of the items?\"*."
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`1` is a *value* in **A**'s dictionary, and `in` never looks at values. (`1 in d.values()` would be the question that does.)"
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That `in` searches \"everything in there\"."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Syntax-reading error, of the \"same word, different container\" kind."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "**A** prints `True` then `False`. **B** prints `True` then `True`."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "`1` is a *value* in **A**'s dictionary, and `in` never looks at values. (`1 in d.values()` would be the question that does.)"
+     }
+    ],
+    "misconception": "That `in` searches \"everything in there\".",
+    "missed": "If you missed it. Syntax-reading error, of the \"same word, different container\" kind.",
+    "errorTypes": [
+     "syntax"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: `in` semantics per container. Prereq: 3.6. Syntax lens: `x in container`. Flow lens: once each. Object lens: no change.",
+     "target": "`in` semantics per container",
+     "prereq": [
+      "3.6"
+     ],
+     "syntax": "`x in container`",
+     "flow": "once each",
+     "object": "no change"
+    }
+   }
+  },
+  {
+   "id": "3.9",
+   "stage": 3,
+   "form": "Predict the result",
+   "kind": "predict",
+   "prompt": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "d = {}\nd[(1, 2)] = \"pair\"\nprint(d[(1, 2)])\nprint(d)"
+    },
+    {
+     "kind": "p",
+     "text": "Then say what would happen if line 2 were `d[[1, 2]] = \"pair\"`, and why."
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "d = {}\nd[(1, 2)] = \"pair\"\nprint(d[(1, 2)])\nprint(d)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "pair\n{(1, 2): 'pair'}"
+       },
+       {
+        "kind": "p",
+        "text": "**With a list key**, line 2 would raise `TypeError: unhashable type: 'list'`."
+       }
+      ]
+     },
+     {
+      "label": "Why",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "A dictionary files each key by what it looks like, so a key must be the kind of object that cannot look different later. A tuple of numbers qualifies; a list does not, because it could be changed after filing and the dictionary would lose track of it."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That anything can be a key, or that the failure is about tuples versus lists as *syntax* rather than about changeability."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error — it follows directly from Stage 2's two kinds of object."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "pair\n{(1, 2): 'pair'}"
+     },
+     {
+      "kind": "p",
+      "text": "**With a list key**, line 2 would raise `TypeError: unhashable type: 'list'`."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "A dictionary files each key by what it looks like, so a key must be the kind of object that cannot look different later. A tuple of numbers qualifies; a list does not, because it could be changed after filing and the dictionary would lose track of it."
+     }
+    ],
+    "misconception": "That anything can be a key, or that the failure is about tuples versus lists as *syntax* rather than about changeability.",
+    "missed": "If you missed it. Object-model error — it follows directly from Stage 2's two kinds of object.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: key requirement. Prereq: 2.9, 3.6. Syntax lens: tuple literal as a subscript. Flow lens: once each. Object lens: unchangeable key object.",
+     "target": "key requirement",
+     "prereq": [
+      "2.9",
+      "3.6"
+     ],
+     "syntax": "tuple literal as a subscript",
+     "flow": "once each",
+     "object": "unchangeable key object"
+    }
+   }
+  },
+  {
+   "id": "3.10",
+   "stage": 3,
+   "form": "Draw names and objects",
+   "kind": "draw",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Draw the picture after the last line, showing the inner list separately."
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "inner = [1, 2]\nouter = [inner, \"x\"]\ninner.append(3)"
+    },
+    {
+     "kind": "p",
+     "text": "What does `print(outer)` show?"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "inner = [1, 2]\nouter = [inner, \"x\"]\ninner.append(3)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "inner ──┬───────────────▶ #1 [1, 2, 3]\n        │                   ▲\nouter ─────▶ #2 [ ●, \"x\" ] ─┘"
+       },
+       {
+        "kind": "p",
+        "text": "`outer`'s first slot and the name `inner` point at the same list. `print(outer)` shows `[[1, 2, 3], 'x']`."
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`[inner, \"x\"]` builds a new list whose first slot points at whatever `inner` points at. It does not copy that list in. So line 3's change is visible through `outer` too."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That putting a list inside another list stores a copy of it."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error. This is the entry point to Stage 4 — if this one was a surprise, reread it before continuing."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "inner ──┬───────────────▶ #1 [1, 2, 3]\n        │                   ▲\nouter ─────▶ #2 [ ●, \"x\" ] ─┘"
+     },
+     {
+      "kind": "p",
+      "text": "`outer`'s first slot and the name `inner` point at the same list. `print(outer)` shows `[[1, 2, 3], 'x']`."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "`[inner, \"x\"]` builds a new list whose first slot points at whatever `inner` points at. It does not copy that list in. So line 3's change is visible through `outer` too."
+     }
+    ],
+    "misconception": "That putting a list inside another list stores a copy of it.",
+    "missed": "If you missed it. Object-model error. This is the entry point to Stage 4 — if this one was a surprise, reread it before continuing.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: containers hold arrows, not copies. Prereq: 3.4, 2.2. Syntax lens: a name used inside a list literal. Flow lens: once each. Object lens: two lists, one shared.",
+     "target": "containers hold arrows, not copies",
+     "prereq": [
+      "3.4",
+      "2.2"
+     ],
+     "syntax": "a name used inside a list literal",
+     "flow": "once each",
+     "object": "two lists, one shared"
+    }
+   }
+  },
+  {
+   "id": "3.11",
+   "stage": 3,
+   "form": "Find and fix",
+   "kind": "fix",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "The intent is to set the second row's first item to 0, leaving everything else alone. Say what actually happens and fix it."
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "grid = [[1, 2], [3, 4]]\ngrid[1] = 0\nprint(grid)"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "grid = [[1, 2], [3, 4]]\ngrid[1] = 0\nprint(grid)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "It prints `[[1, 2], 0]`. Line 2 replaced the *entire second row* with the number `0`, because `grid[1]` names the whole row slot."
+       }
+      ]
+     },
+     {
+      "label": "Fix",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Reach one level further in:"
+       },
+       {
+        "kind": "code",
+        "lang": "python",
+        "text": "grid[1][0] = 0\nprint(grid)           # [[1, 2], [0, 4]]"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Each pair of brackets descends one level. Counting brackets is the whole diagnosis."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That `grid[1]` addresses \"item 1 of the grid\" in a flattened sense."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Syntax-reading error."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "It prints `[[1, 2], 0]`. Line 2 replaced the *entire second row* with the number `0`, because `grid[1]` names the whole row slot."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "Each pair of brackets descends one level. Counting brackets is the whole diagnosis."
+     }
+    ],
+    "misconception": "That `grid[1]` addresses \"item 1 of the grid\" in a flattened sense.",
+    "missed": "If you missed it. Syntax-reading error.",
+    "errorTypes": [
+     "syntax"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: bracket depth on the left of `=`. Prereq: 3.4, 3.1. Syntax lens: one bracket versus two. Flow lens: once each. Object lens: outer list slot replaced versus inner list slot replaced.",
+     "target": "bracket depth on the left of `=`",
+     "prereq": [
+      "3.4",
+      "3.1"
+     ],
+     "syntax": "one bracket versus two",
+     "flow": "once each",
+     "object": "outer list slot replaced versus inner list slot replaced"
+    }
+   }
+  },
+  {
+   "id": "3.12",
+   "stage": 3,
+   "form": "Predict the result",
+   "kind": "predict",
+   "prompt": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "stock = {\"apple\": 3}\nprint(stock.get(\"apple\"))\nprint(stock.get(\"pear\"))\nprint(stock.get(\"pear\", 0))\nprint(stock)"
+    },
+    {
+     "kind": "p",
+     "text": "Did any of these four lines change the dictionary?"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "stock = {\"apple\": 3}\nprint(stock.get(\"apple\"))\nprint(stock.get(\"pear\"))\nprint(stock.get(\"pear\", 0))\nprint(stock)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "3\nNone\n0\n{'apple': 3}"
+       },
+       {
+        "kind": "p",
+        "text": "No line changed the dictionary. `.get` only reads; it does not insert a default, and the fourth line proves it."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That `.get(key, default)` stores the default, the way some other languages' equivalents do."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "3\nNone\n0\n{'apple': 3}"
+     },
+     {
+      "kind": "p",
+      "text": "No line changed the dictionary. `.get` only reads; it does not insert a default, and the fourth line proves it."
+     }
+    ],
+    "reasoning": [],
+    "misconception": "That `.get(key, default)` stores the default, the way some other languages' equivalents do.",
+    "missed": "If you missed it. Object-model error.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: `.get` reads without inserting. Prereq: 3.7. Syntax lens: method call with an optional second argument. Flow lens: once each. Object lens: no change.",
+     "target": "`.get` reads without inserting",
+     "prereq": [
+      "3.7"
+     ],
+     "syntax": "method call with an optional second argument",
+     "flow": "once each",
+     "object": "no change"
+    }
+   }
+  },
+  {
+   "id": "3.13",
+   "stage": 3,
+   "form": "What runs next?",
+   "kind": "order",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Number the lines in execution order and give the output."
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "board = [[\"-\", \"-\"], [\"-\", \"-\"]]\nboard[0][1] = \"X\"\nrow = board[1]\nrow[0] = \"O\"\nprint(board)"
+    },
+    {
+     "kind": "p",
+     "text": "Which line changed which object?"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "board = [[\"-\", \"-\"], [\"-\", \"-\"]]\nboard[0][1] = \"X\"\nrow = board[1]\nrow[0] = \"O\"\nprint(board)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "1  board = [[\"-\", \"-\"], [\"-\", \"-\"]]\n2  board[0][1] = \"X\"\n3  row = board[1]\n4  row[0] = \"O\"\n5  print(board)   →  [['-', 'X'], ['O', '-']]"
+       }
+      ]
+     },
+     {
+      "label": "Which line changed what",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Line 2 changed the first inner list. Line 3 changed nothing — it only pointed a new name at the second inner list. Line 4 changed that second inner list, and because `row` and `board[1]` are the same object, the change shows up in `board`."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That line 3 extracted a copy of the row, so line 4 would be a private edit."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error. This is the practical form of the Stage 4 idea: pulling something out of a container gives you the thing, not a copy of it."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "1  board = [[\"-\", \"-\"], [\"-\", \"-\"]]\n2  board[0][1] = \"X\"\n3  row = board[1]\n4  row[0] = \"O\"\n5  print(board)   →  [['-', 'X'], ['O', '-']]"
+     }
+    ],
+    "reasoning": [],
+    "misconception": "That line 3 extracted a copy of the row, so line 4 would be a private edit.",
+    "missed": "If you missed it. Object-model error. This is the practical form of the Stage 4 idea: pulling something out of a container gives you the thing, not a copy of it.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: a name bound to an inner object is an alias. Prereq: 3.10, 3.11. Syntax lens: lookup on the right of `=`, slot write on the left. Flow lens: five lines, once each. Object lens: three lists; two changed.",
+     "target": "a name bound to an inner object is an alias",
+     "prereq": [
+      "3.10",
+      "3.11"
+     ],
+     "syntax": "lookup on the right of `=`, slot write on the left",
+     "flow": "five lines, once each",
+     "object": "three lists; two changed"
+    }
+   }
+  },
+  {
+   "id": "3.14",
+   "stage": 3,
+   "form": "Compare near-matches",
+   "kind": "compare",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Snippet **A**:"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "d = {1: \"one\", True: \"yes\"}\nprint(d)"
+    },
+    {
+     "kind": "p",
+     "text": "Snippet **B**:"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "d = {1: \"one\", \"1\": \"yes\"}\nprint(d)"
+    },
+    {
+     "kind": "p",
+     "text": "Predict both. **A** is surprising; explain it using the idea that a dictionary files a key by what it looks like."
+    }
+   ],
+   "snippets": [
+    {
+     "label": "A",
+     "code": "d = {1: \"one\", True: \"yes\"}\nprint(d)\n"
+    },
+    {
+     "label": "B",
+     "code": "d = {1: \"one\", \"1\": \"yes\"}\nprint(d)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "**A** prints `{1: 'yes'}`. **B** prints `{1: 'one', '1': 'yes'}`."
+       }
+      ]
+     },
+     {
+      "label": "Why A is surprising",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`True` and `1` look the same to a dictionary — `True` *is* a number-like object equal to `1` — so the second pair is filed under the key that is already there and simply replaces its value. The key itself stays as the originally inserted `1`, which is why the printout shows `1` and not `True`."
+       },
+       {
+        "kind": "p",
+        "text": "**B** has no such collision: the text `\"1\"` and the number `1` do not look the same, so they are two separate keys."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That keys are distinguished by their spelling or their type name rather than by what they compare equal to."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error. This one is rarely load-bearing in real code, but it is the sharpest demonstration that a dictionary files by *what a key looks like*, and that is the idea 3.9 depends on."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "**A** prints `{1: 'yes'}`. **B** prints `{1: 'one', '1': 'yes'}`."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "`True` and `1` look the same to a dictionary — `True` *is* a number-like object equal to `1` — so the second pair is filed under the key that is already there and simply replaces its value. The key itself stays as the originally inserted `1`, which is why the printout shows `1` and not `True`."
+     },
+     {
+      "kind": "p",
+      "text": "**B** has no such collision: the text `\"1\"` and the number `1` do not look the same, so they are two separate keys."
+     }
+    ],
+    "misconception": "That keys are distinguished by their spelling or their type name rather than by what they compare equal to.",
+    "missed": "If you missed it. Object-model error. This one is rarely load-bearing in real code, but it is the sharpest demonstration that a dictionary files by *what a key looks like*, and that is the idea 3.9 depends on.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [
+     "3.9"
+    ],
+    "authoring": {
+     "text": "Target: key identity is equality-based. Prereq: 3.6, 3.9. Syntax lens: dictionary literal with two pairs. Flow lens: literal built left to right. Object lens: one key slot versus two.",
+     "target": "key identity is equality-based",
+     "prereq": [
+      "3.6",
+      "3.9"
+     ],
+     "syntax": "dictionary literal with two pairs",
+     "flow": "literal built left to right",
+     "object": "one key slot versus two"
+    }
+   }
+  },
+  {
+   "id": "3.15",
+   "stage": 3,
+   "form": "Write a small program",
+   "kind": "write",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Write code that builds a dictionary mapping each of three names to a list of that person's scores, then:"
+    },
+    {
+     "kind": "list",
+     "ordered": false,
+     "items": [
+      "adds a fourth score to the second person's list **without** rebuilding the dictionary or the list;",
+      "replaces the third person's list entirely with a new one;",
+      "prints the whole dictionary."
+     ]
+    },
+    {
+     "kind": "p",
+     "text": "Then say, for each of your two modifying lines, whether it changed the dictionary itself, changed a list inside it, or both."
+    }
+   ],
+   "snippets": [],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "A correct solution:"
+       },
+       {
+        "kind": "code",
+        "lang": "python",
+        "text": "scores = {\"ann\": [7, 9], \"bo\": [8], \"cy\": [6, 6]}\nscores[\"bo\"].append(10)          # changes the inner list only\nscores[\"cy\"] = [1, 2, 3]         # changes the dictionary only\nprint(scores)\n# {'ann': [7, 9], 'bo': [8, 10], 'cy': [1, 2, 3]}"
+       }
+      ]
+     },
+     {
+      "label": "Classification",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Line 2 changed a list inside the dictionary; the dictionary's own pairs are untouched — `\"bo\"` still points at the same list object it always did. Line 3 changed the dictionary itself: the key `\"cy\"` now points at a different list, and the old `[6, 6]` is abandoned. Neither line changed both."
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Notice that line 2 has brackets on the *right* of the dot-call and no `=` at all — it is a change to the innermost object. Line 3 has the brackets on the left of an `=` and changes the outer object."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That \"modifying the dictionary\" is one undifferentiated act."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "A correct solution:"
+     },
+     {
+      "kind": "code",
+      "lang": "python",
+      "text": "scores = {\"ann\": [7, 9], \"bo\": [8], \"cy\": [6, 6]}\nscores[\"bo\"].append(10)          # changes the inner list only\nscores[\"cy\"] = [1, 2, 3]         # changes the dictionary only\nprint(scores)\n# {'ann': [7, 9], 'bo': [8, 10], 'cy': [1, 2, 3]}"
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "Notice that line 2 has brackets on the *right* of the dot-call and no `=` at all — it is a change to the innermost object. Line 3 has the brackets on the left of an `=` and changes the outer object."
+     }
+    ],
+    "misconception": "That \"modifying the dictionary\" is one undifferentiated act.",
+    "missed": "If you missed it. Object-model error.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: distinguish outer change from inner change. Prereq: 3.10, 3.13. Syntax lens: `d[k].method()` versus `d[k] = ...`. Flow lens: once each. Object lens: dictionary plus three inner lists.",
+     "target": "distinguish outer change from inner change",
+     "prereq": [
+      "3.10",
+      "3.13"
+     ],
+     "syntax": "`d[k].method()` versus `d[k] = ...`",
+     "flow": "once each",
+     "object": "dictionary plus three inner lists"
+    }
+   }
+  },
+  {
+   "id": "3.16",
+   "stage": 3,
+   "form": "Predict the result",
+   "kind": "predict",
+   "prompt": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "xs = [1, 2, 3, 4, 5]\nprint(xs[1:4])\nprint(xs[:2])\nprint(xs[3:])\nprint(xs[:])\nprint(xs[2:2])\nprint(xs is xs[:])"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "xs = [1, 2, 3, 4, 5]\nprint(xs[1:4])\nprint(xs[:2])\nprint(xs[3:])\nprint(xs[:])\nprint(xs[2:2])\nprint(xs is xs[:])\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "[2, 3, 4]\n[1, 2]\n[4, 5]\n[1, 2, 3, 4, 5]\n[]\nFalse"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Omitted bounds mean \"from the start\" and \"to the end\". A slice whose start equals its stop yields an empty list — not an error. The last line is the important one: `xs[:]` has the same contents but is a **different object**, which is exactly why it works as a copy."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That `xs[:]` is just a wordy way of writing `xs`."
+       }
+      ]
+     },
+     {
+      "label": "If you missed the last line",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error. Go back to 1.11."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "[2, 3, 4]\n[1, 2]\n[4, 5]\n[1, 2, 3, 4, 5]\n[]\nFalse"
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "Omitted bounds mean \"from the start\" and \"to the end\". A slice whose start equals its stop yields an empty list — not an error. The last line is the important one: `xs[:]` has the same contents but is a **different object**, which is exactly why it works as a copy."
+     }
+    ],
+    "misconception": "That `xs[:]` is just a wordy way of writing `xs`.",
+    "missed": "If you missed the last line. Object-model error. Go back to 1.11.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [
+     "1.11"
+    ],
+    "authoring": {
+     "text": "Target: slice bounds and slice-as-copy. Prereq: 3.2, 3.3. Syntax lens: all slice forms. Flow lens: once each. Object lens: six new lists produced, original untouched.",
+     "target": "slice bounds and slice-as-copy",
+     "prereq": [
+      "3.2",
+      "3.3"
+     ],
+     "syntax": "all slice forms",
+     "flow": "once each",
+     "object": "six new lists produced, original untouched"
+    }
+   }
+  },
+  {
+   "id": "3.17",
+   "stage": 3,
+   "form": "State the rule",
+   "kind": "rule",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Complete, in plain language:"
+    },
+    {
+     "kind": "quote",
+     "text": "\"When the left of the `=` has brackets on it, the line changes ..., and the name in front of the brackets ...\""
+    },
+    {
+     "kind": "p",
+     "text": "Then give the one-sentence rule for how to read `a[b][c]`."
+    }
+   ],
+   "snippets": [],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "quote",
+        "text": "\"When the left of the `=` has brackets on it, the line changes **the object those brackets are reaching into**, and the name in front of the brackets **does not move — it still points at the same object it did before**.\""
+       },
+       {
+        "kind": "p",
+        "text": "Reading `a[b][c]`: *\"work out `a[b]` first, producing some object, then apply `[c]` to that object\"* — strictly left to right, one level per bracket pair."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That chained brackets are a compound address evaluated all at once."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Vocabulary-only if you had the idea; syntax-reading if the left-to-right rule was not clear to you."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "quote",
+      "text": "\"When the left of the `=` has brackets on it, the line changes **the object those brackets are reaching into**, and the name in front of the brackets **does not move — it still points at the same object it did before**.\""
+     },
+     {
+      "kind": "p",
+      "text": "Reading `a[b][c]`: *\"work out `a[b]` first, producing some object, then apply `[c]` to that object\"* — strictly left to right, one level per bracket pair."
+     }
+    ],
+    "reasoning": [],
+    "misconception": "That chained brackets are a compound address evaluated all at once.",
+    "missed": "If you missed it. Vocabulary-only if you had the idea; syntax-reading if the left-to-right rule was not clear to you.",
+    "errorTypes": [
+     "vocabulary",
+     "syntax"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: generalize slot-write and chained access. Prereq: 3.1–3.16. Syntax lens: left-hand side shape; chaining. Flow lens: n/a. Object lens: change without rebinding.",
+     "target": "generalize slot-write and chained access",
+     "prereq": [
+      "3.1",
+      "3.2",
+      "3.3",
+      "3.4",
+      "3.5",
+      "3.6",
+      "3.7",
+      "3.8",
+      "3.9",
+      "3.10",
+      "3.11",
+      "3.12",
+      "3.13",
+      "3.14",
+      "3.15",
+      "3.16"
+     ],
+     "syntax": "left-hand side shape; chaining",
+     "flow": "n/a",
+     "object": "change without rebinding"
+    }
+   }
+  },
+  {
+   "id": "3.18",
+   "stage": 3,
+   "form": "Find and fix",
+   "kind": "fix",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "The intent is a fresh copy of `settings` whose changes do not affect the original. Say what actually happens and fix it with the smallest change."
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "settings = {\"volume\": 5}\nbackup = settings\nbackup[\"volume\"] = 0\nprint(settings)"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "settings = {\"volume\": 5}\nbackup = settings\nbackup[\"volume\"] = 0\nprint(settings)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "It prints `{'volume': 0}` — the \"backup\" is the original."
+       }
+      ]
+     },
+     {
+      "label": "Why",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`backup = settings` copies an arrow. Line 3 writes a slot in the one dictionary both names point at."
+       }
+      ]
+     },
+     {
+      "label": "Smallest fix",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Produce a new dictionary:"
+       },
+       {
+        "kind": "code",
+        "lang": "python",
+        "text": "backup = dict(settings)      # or settings.copy()"
+       }
+      ]
+     },
+     {
+      "label": "A caution to carry forward",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "This fix is complete *only because* every value in `settings` is unchangeable. If a value were a list, the new dictionary's slots would point at those same lists, and changing one through `backup` would still show up in `settings`. That is Stage 4's entire subject."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That assignment makes a backup."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error. Same shape as 2.11 and 3.3."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "It prints `{'volume': 0}` — the \"backup\" is the original."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "`backup = settings` copies an arrow. Line 3 writes a slot in the one dictionary both names point at."
+     }
+    ],
+    "misconception": "That assignment makes a backup.",
+    "missed": "If you missed it. Object-model error. Same shape as 2.11 and 3.3.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [
+     "2.11",
+     "3.3"
+    ],
+    "authoring": {
+     "text": "Target: dictionary aliasing and its repair, with the shallow caveat flagged. Prereq: 3.3, 3.6. Syntax lens: bare name on the right. Flow lens: once each. Object lens: one dictionary versus two.",
+     "target": "dictionary aliasing and its repair, with the shallow caveat flagged",
+     "prereq": [
+      "3.3",
+      "3.6"
+     ],
+     "syntax": "bare name on the right",
+     "flow": "once each",
+     "object": "one dictionary versus two"
+    }
+   }
+  }
+ ],
+ "checkpoint": {
+  "intro": [],
+  "items": [
+   {
+    "id": "C3.1",
+    "stage": 3,
+    "prompt": [
+     {
+      "kind": "p",
+      "text": "In `row[2] = 7`, which object is changed and which name, if any, is rebound?"
+     }
+    ],
+    "snippets": [],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "The list object that `row` points at is changed, at slot 2. No name is rebound; `row` points where it always did. **Error type if missed:** syntax-reading. Go back to 3.1."
+     }
+    ],
+    "errorTypes": [
+     "syntax"
+    ],
+    "goBack": [
+     "3.1"
+    ]
+   },
+   {
+    "id": "C3.2",
+    "stage": 3,
+    "prompt": [
+     {
+      "kind": "p",
+      "text": "Predict:"
+     },
+     {
+      "kind": "code",
+      "lang": "python",
+      "text": "data = {\"xs\": [1, 2]}\ncopy = data[\"xs\"]\ncopy.append(3)\nprint(data)"
+     }
+    ],
+    "snippets": [
+     {
+      "label": null,
+      "code": "data = {\"xs\": [1, 2]}\ncopy = data[\"xs\"]\ncopy.append(3)\nprint(data)\n"
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "`{'xs': [1, 2, 3]}`. `copy` is a badly named alias for the very list sitting in the dictionary; appending to it is appending to that list. **Error type if missed:** object-model. Go back to 3.13."
+     }
+    ],
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [
+     "3.13"
+    ]
+   },
+   {
+    "id": "C3.3",
+    "stage": 3,
+    "prompt": [
+     {
+      "kind": "p",
+      "text": "Why can a tuple be a dictionary key while a list cannot? Answer in one sentence, without using the word *hashable*."
+     }
+    ],
+    "snippets": [],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "Because a tuple's contents can never change after it is built, so a dictionary can always find it again; a list could be changed after being filed and the dictionary would no longer recognize it. **Error type if missed:** object-model. Go back to 3.9."
+     }
+    ],
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [
+     "3.9"
+    ]
+   },
+   {
+    "id": "C3.4",
+    "stage": 3,
+    "prompt": [
+     {
+      "kind": "p",
+      "text": "Predict, and name the error if there is one:"
+     },
+     {
+      "kind": "code",
+      "lang": "python",
+      "text": "xs = [1, 2, 3]\nprint(xs[3])"
+     }
+    ],
+    "snippets": [
+     {
+      "label": null,
+      "code": "xs = [1, 2, 3]\nprint(xs[3])\n"
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "`IndexError: list index out of range`. Positions run 0, 1, 2 for a three-item list. **Error type if missed:** syntax-reading, of the off-by-one kind."
+     }
+    ],
+    "errorTypes": [
+     "syntax"
+    ],
+    "goBack": []
+   },
+   {
+    "id": "C3.5",
+    "stage": 3,
+    "prompt": [
+     {
+      "kind": "p",
+      "text": "Read `menu[\"drinks\"][0][\"price\"]` aloud in steps, saying what kind of object each step must produce for the next step to work."
+     }
+    ],
+    "snippets": [],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "`menu` must be a dictionary with a `\"drinks\"` key; `menu[\"drinks\"]` must produce something indexable by position, i.e. a list or tuple; `menu[\"drinks\"][0]` must produce a dictionary with a `\"price\"` key; the whole expression produces that price. **Error type if missed:** syntax-reading. Go back to 3.5."
+     }
+    ],
+    "errorTypes": [
+     "syntax"
+    ],
+    "goBack": [
+     "3.5"
+    ]
+   },
+   {
+    "id": "C3.6",
+    "stage": 3,
+    "prompt": [
+     {
+      "kind": "p",
+      "text": "Two lines both \"add to a dictionary\": `d[\"k\"] = 1` when `\"k\"` is absent, and `d[\"k\"] = 1` when `\"k\"` is present. What is different about the resulting dictionary in each case, including its order?"
+     }
+    ],
+    "snippets": [],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "Absent key: the dictionary gains a pair, and the new key goes **last** in order. Present key: the number of pairs is unchanged, the key keeps its original position, and only the value it points at is replaced. **Error type if missed:** object-model. Go back to 3.6."
+     }
+    ],
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [
+     "3.6"
+    ]
+   }
+  ]
+ },
+ "capstone": null,
+ "after": [
+  {
+   "kind": "p",
+   "text": "You can now read any access expression precisely and say whether a line reads a slot, writes a slot, or rebinds a name. Exercises 3.10 and 3.13 planted the question Stage 4 answers: when a container holds another container, what exactly does copying the outer one give you?"
+  }
+ ],
+ "summary": "Read brackets and keys precisely"
+}

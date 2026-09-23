@@ -1,0 +1,304 @@
+{
+ "intro": [
+  {
+   "kind": "p",
+   "text": "Every term here is a **label for something you already practiced**. If you can explain the idea in the left-hand column and forget the right-hand word, that is a vocabulary-only error and the cheapest kind there is."
+  },
+  {
+   "kind": "p",
+   "text": "The \"First met\" column points at the exercise where the idea was introduced, not where the word was."
+  }
+ ],
+ "groups": [
+  {
+   "title": "Names and objects",
+   "terms": [
+    {
+     "plain": "a name pointing at an object",
+     "term": "binding",
+     "formal": "a **binding**",
+     "meaning": "the name is a label attached to an object, not a box holding a value",
+     "firstMet": "1.1"
+    },
+    {
+     "plain": "giving a name a new object",
+     "term": "rebinding",
+     "formal": "**rebinding**",
+     "meaning": "the label moves; nothing about the old object changes",
+     "firstMet": "1.2"
+    },
+    {
+     "plain": "two names for one object",
+     "term": "aliasing",
+     "formal": "**aliasing**",
+     "meaning": "both names reach the same object, so a change through one is visible through the other",
+     "firstMet": "1.3"
+    },
+    {
+     "plain": "the object itself, as opposed to what it looks like",
+     "term": "identity",
+     "formal": "**identity**",
+     "meaning": "tested with `is` or `id()`; distinct from `==`, which compares appearance",
+     "firstMet": "1.11"
+    },
+    {
+     "plain": "changeable",
+     "term": "mutable",
+     "formal": "**mutable**",
+     "meaning": "list, dictionary, set — can be altered while every name stays put",
+     "firstMet": "2.1"
+    },
+    {
+     "plain": "unchangeable",
+     "term": "immutable",
+     "formal": "**immutable**",
+     "meaning": "number, string, tuple, `True`/`False`, `None` — can only be replaced",
+     "firstMet": "2.1"
+    },
+    {
+     "plain": "changing the object",
+     "term": "mutation",
+     "formal": "**mutation**",
+     "meaning": "e.g. `.append()`, `xs[0] = 1`, `d[k] = v` — no name moves",
+     "firstMet": "2.2"
+    },
+    {
+     "plain": "nothing here",
+     "term": "None",
+     "formal": "**`None`**",
+     "meaning": "the object a function hands back when it has nothing to return",
+     "firstMet": "1.9"
+    }
+   ],
+   "notes": []
+  },
+  {
+   "title": "Collections and access",
+   "terms": [
+    {
+     "plain": "position in a list",
+     "term": "index",
+     "formal": "**index**",
+     "meaning": "counted from 0; negative counts from the end",
+     "firstMet": "3.2"
+    },
+    {
+     "plain": "taking a run of positions",
+     "term": "slice",
+     "formal": "**slice**",
+     "meaning": "`xs[a:b]`, stopping before `b`; always produces a new list",
+     "firstMet": "3.2"
+    },
+    {
+     "plain": "may be used as a dictionary key or set item",
+     "term": "hashable",
+     "formal": "**hashable**",
+     "meaning": "the object can be filed by what it looks like and will not change afterward",
+     "firstMet": "3.9"
+    },
+    {
+     "plain": "a copy of the outer container only",
+     "term": "shallow copy",
+     "formal": "**shallow copy**",
+     "meaning": "`xs[:]`, `list(xs)`, `dict(d)`, `copy.copy(x)` — inner objects stay shared",
+     "firstMet": "4.2"
+    },
+    {
+     "plain": "a copy all the way down",
+     "term": "deep copy",
+     "formal": "**deep copy**",
+     "meaning": "`copy.deepcopy(x)` — nothing shared at any level",
+     "firstMet": "4.5"
+    }
+   ],
+   "notes": []
+  },
+  {
+   "title": "Blocks and flow",
+   "terms": [
+    {
+     "plain": "indented lines belonging together",
+     "term": "block",
+     "formal": "a **block**",
+     "meaning": "membership is decided by indentation alone",
+     "firstMet": "5.1"
+    },
+    {
+     "plain": "the order in which lines run",
+     "term": "control flow",
+     "formal": "**control flow**",
+     "meaning": "top to bottom, except where loops and calls redirect it",
+     "firstMet": "5.2"
+    },
+    {
+     "plain": "the lines inside a loop",
+     "term": "body",
+     "formal": "the loop **body**",
+     "meaning": "runs once per pass",
+     "firstMet": "5.1"
+    },
+    {
+     "plain": "one trip through the body",
+     "term": "iteration",
+     "formal": "an **iteration** or **pass**",
+     "meaning": "the loop variable is rebound at the start of each",
+     "firstMet": "5.2"
+    },
+    {
+     "plain": "the running name a loop keeps updating",
+     "term": "loop variable",
+     "formal": "**loop variable**",
+     "meaning": "an ordinary name; it survives after the loop ends",
+     "firstMet": "5.3"
+    },
+    {
+     "plain": "the name that builds up a result",
+     "term": "accumulator",
+     "formal": "an **accumulator**",
+     "meaning": "must be bound *before* the loop",
+     "firstMet": "5.6"
+    }
+   ],
+   "notes": []
+  },
+  {
+   "title": "Iteration",
+   "terms": [
+    {
+     "plain": "anything a `for` loop can walk",
+     "term": "iterable",
+     "formal": "an **iterable**",
+     "meaning": "list, tuple, string, range, dict, set, file, generator",
+     "firstMet": "6.1"
+    },
+    {
+     "plain": "a one-pass position marker over an iterable",
+     "term": "iterator",
+     "formal": "an **iterator**",
+     "meaning": "what `for` makes for you invisibly; `next()` advances it",
+     "firstMet": "6.19"
+    },
+    {
+     "plain": "used up, nothing left",
+     "term": "exhausted",
+     "formal": "**exhausted**",
+     "meaning": "a generator or iterator that has produced its last value",
+     "firstMet": "6.6"
+    },
+    {
+     "plain": "a recipe that produces values on demand",
+     "term": "generator",
+     "formal": "a **generator**",
+     "meaning": "holds no items; one pass only",
+     "firstMet": "6.6"
+    },
+    {
+     "plain": "building a list in one expression",
+     "term": "list comprehension",
+     "formal": "a **list comprehension**",
+     "meaning": "`[expr for x in it if cond]`; produces a new object",
+     "firstMet": "6.14"
+    },
+    {
+     "plain": "pulling several names out of one item",
+     "term": "unpacking",
+     "formal": "**unpacking**",
+     "meaning": "`k, v = pair` — the same thing `for k, v in ...` does per pass",
+     "firstMet": "6.4"
+    },
+    {
+     "plain": "producing values only as asked",
+     "term": "lazy",
+     "formal": "**lazy**",
+     "meaning": "`range` and generators; contrast the **eager** list comprehension",
+     "firstMet": "6.14"
+    }
+   ],
+   "notes": []
+  },
+  {
+   "title": "Functions",
+   "terms": [
+    {
+     "plain": "a function recipe",
+     "term": "function definition",
+     "formal": "a **function definition**",
+     "meaning": "`def` builds a function object and binds a name to it",
+     "firstMet": "8.1"
+    },
+    {
+     "plain": "running it",
+     "term": "call",
+     "formal": "a **call**",
+     "meaning": "`f()` — the parentheses are the call, and nothing else is",
+     "firstMet": "8.2"
+    },
+    {
+     "plain": "local names in the recipe",
+     "term": "parameters",
+     "formal": "**parameters**",
+     "meaning": "bound in a fresh set of names for each call",
+     "firstMet": "8.4"
+    },
+    {
+     "plain": "values sent into the function",
+     "term": "arguments",
+     "formal": "**arguments**",
+     "meaning": "the objects the caller's expressions produced",
+     "firstMet": "8.4"
+    },
+    {
+     "plain": "the fresh set of names a call gets",
+     "term": "local scope",
+     "formal": "the **local scope**",
+     "meaning": "created on entry, gone on return",
+     "firstMet": "8.8"
+    },
+    {
+     "plain": "an inner name hiding an outer one of the same spelling",
+     "term": "shadowing",
+     "formal": "**shadowing**",
+     "meaning": "they are different names; assigning to one does not touch the other",
+     "firstMet": "8.9"
+    },
+    {
+     "plain": "the value sent back",
+     "term": "return value",
+     "formal": "the **return value**",
+     "meaning": "an object, not a copy of one",
+     "firstMet": "8.11"
+    },
+    {
+     "plain": "a stand-in default meaning \"nothing was given\"",
+     "term": "sentinel",
+     "formal": "a **sentinel**",
+     "meaning": "usually `None`, because it cannot be changed",
+     "firstMet": "8.17"
+    }
+   ],
+   "notes": []
+  },
+  {
+   "title": "Words this collection avoids, and why",
+   "terms": [],
+   "notes": [
+    {
+     "kind": "p",
+     "text": "**\"Variable.\"** Not wrong, but it invites the box-and-contents picture. *Name* and *binding* keep the arrow visible. Use \"variable\" freely once the picture is secure."
+    },
+    {
+     "kind": "p",
+     "text": "**\"Value.\"** Ambiguous between *the object* and *what the object looks like* — precisely the distinction Exercises 1.11 and 4.13 turn on. Say \"object\" when you mean the thing and \"contents\" when you mean its appearance."
+    },
+    {
+     "kind": "p",
+     "text": "**\"Pass by reference\" / \"pass by value.\"** These describe a choice Python does not make. Arguments are bound to parameter names; a caller sees a change if and only if the body changed an object the caller can also reach (8.6). Any sentence starting \"Python passes by...\" is about to be less accurate than the sentence it replaced."
+    },
+    {
+     "kind": "p",
+     "text": "**\"Copy,\" unqualified.** Always say which level: *shallow* or *deep*. An unqualified \"copy\" is where the bugs in Stage 4 live."
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,2468 @@
+{
+ "stage": 5,
+ "file": "stage-05-following-one-block.md",
+ "title": "Following One Block",
+ "move": "decide which lines run repeatedly, which run once afterward, and what each name points at on every pass.",
+ "adds": [
+  {
+   "kind": "p",
+   "text": "Until now every line ran exactly once, in written order. A `for` line breaks that, and it breaks it in a way that is entirely visible on the page: the colon and the indentation tell you which lines repeat. Nothing about the object model changes. Names are bound and objects are changed exactly as before — just more than once."
+  }
+ ],
+ "ideas": [
+  {
+   "title": "Reading a `for` line",
+   "blocks": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "for item in [10, 20, 30]:\n    print(item)"
+    },
+    {
+     "kind": "p",
+     "text": "Read it aloud as: *\"For each value that comes out of this collection, point the name `item` at it, then run the indented lines.\"*"
+    },
+    {
+     "kind": "p",
+     "text": "Three things are worth noticing immediately:"
+    },
+    {
+     "kind": "list",
+     "ordered": false,
+     "items": [
+      "`item` is an ordinary name. The `for` line **rebinds** it before each pass — the same event as any assignment.",
+      "The colon at the end says *a block starts here*.",
+      "The indented lines are the **body**. They run once per pass."
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Indentation is the block, and nothing else is",
+   "blocks": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "for n in [1, 2, 3]:\n    print(\"inside\", n)\nprint(\"after\")"
+    },
+    {
+     "kind": "p",
+     "text": "`print(\"inside\", n)` is indented, so it belongs to the loop and runs three times. `print(\"after\")` is back at the left margin, so the loop is over by the time it runs, and it runs once. Move that last line four spaces right and the program prints \"after\" three times. Indentation is not decoration; it *is* the structure."
+    },
+    {
+     "kind": "p",
+     "text": "Python is strict about it: a block's lines must be indented consistently, and mixing tabs and spaces is an error rather than a style complaint."
+    }
+   ]
+  },
+  {
+   "title": "Execution-order numbering",
+   "blocks": [
+    {
+     "kind": "p",
+     "text": "The way to make a loop concrete before you have any vocabulary for it is to number the lines in the order Python actually reaches them:"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "total = 0                    # 1\nfor n in [5, 7]:             # 2, 4, 6\n    total = total + n        # 3, 5\nprint(total)                 # 7"
+    },
+    {
+     "kind": "p",
+     "text": "Reading that: line 2 runs to fetch 5; line 3 runs; line 2 runs again to fetch 7; line 3 runs again; line 2 runs a *third* time, finds nothing left, and the loop ends; line 4 runs once. The `for` line runs one more time than the body does — that final pass is the one that discovers there is nothing left."
+    }
+   ]
+  },
+  {
+   "title": "Trace tables",
+   "blocks": [
+    {
+     "kind": "p",
+     "text": "For anything longer than two lines, write a table with one row per pass:"
+    },
+    {
+     "kind": "table",
+     "head": [
+      "pass",
+      "`n`",
+      "`total` before",
+      "`total` after"
+     ],
+     "rows": [
+      [
+       "1",
+       "5",
+       "0",
+       "5"
+      ],
+      [
+       "2",
+       "7",
+       "5",
+       "12"
+      ],
+      [
+       "—",
+       "7",
+       "12",
+       "12 (loop ends)"
+      ]
+     ]
+    },
+    {
+     "kind": "p",
+     "text": "The last row matters: **the loop name still exists after the loop**, still pointing at the final value. `for` does not clean up after itself."
+    }
+   ]
+  },
+  {
+   "title": "`range`",
+   "blocks": [
+    {
+     "kind": "p",
+     "text": "`range(n)` produces the numbers from 0 up to but not including `n`. `range(a, b)` goes from `a` up to but not including `b`. `range(a, b, step)` counts by `step`. `range(3)` gives 0, 1, 2 — three numbers, starting at zero."
+    },
+    {
+     "kind": "p",
+     "text": "A `range` is not a list. `print(range(3))` shows `range(0, 3)`, not `[0, 1, 2]`, because a range does not build its numbers in advance — it produces each one as the loop asks for it. This is why `range(10000000)` costs nothing to create. Use `list(range(3))` when you genuinely want the list."
+    }
+   ]
+  },
+  {
+   "title": "The accumulator pattern",
+   "blocks": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "total = 0\nfor n in [1, 2, 3]:\n    total = total + n\nprint(total)          # 6"
+    },
+    {
+     "kind": "p",
+     "text": "The name `total` must be bound **before** the loop, because the first pass reads it. Each pass rebinds it. The post-loop line reads the last binding. Almost every loop you write is a variation on this shape, with `total = 0` replaced by `results = []` and the body doing `results.append(...)`."
+    }
+   ]
+  },
+  {
+   "title": "Rebinding the loop name does not touch the collection",
+   "blocks": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "xs = [1, 2, 3]\nfor x in xs:\n    x = x * 2\nprint(xs)             # [1, 2, 3]"
+    },
+    {
+     "kind": "p",
+     "text": "Each pass points `x` at an item, then points `x` somewhere else. The list's slots were never involved — nothing wrote into `xs`. Compare:"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "grid = [[1], [2]]\nfor row in grid:\n    row.append(0)\nprint(grid)           # [[1, 0], [2, 0]]"
+    },
+    {
+     "kind": "p",
+     "text": "Here the body *changes* the object `row` points at, and that object is the same one sitting in the list's slot. Stage 2's distinction, now with a loop wrapped around it."
+    },
+    {
+     "kind": "p",
+     "text": "To actually replace items, write the slots by position:"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "xs = [1, 2, 3]\nfor i in range(len(xs)):\n    xs[i] = xs[i] * 2\nprint(xs)             # [2, 4, 6]"
+    }
+   ]
+  },
+  {
+   "title": "`break` and `continue`",
+   "blocks": [
+    {
+     "kind": "list",
+     "ordered": false,
+     "items": [
+      "`break` stops the loop immediately. The loop's remaining passes never happen, and Python continues at the first unindented line after the loop.",
+      "`continue` abandons the *rest of the body* for this pass only and goes back to the `for` line for the next value."
+     ]
+    },
+    {
+     "kind": "p",
+     "text": "Both affect **the one loop they are directly inside**. That qualifier does nothing yet, because there is only one loop; it becomes the whole point in Stage 7."
+    }
+   ]
+  },
+  {
+   "title": "Changing a list while looping over it",
+   "blocks": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "xs = [1, 2, 3, 4]\nfor x in xs:\n    if x % 2 == 0:\n        xs.remove(x)\nprint(xs)             # [1, 3]"
+    },
+    {
+     "kind": "p",
+     "text": "The loop walks by position while the list is shrinking underneath it, so positions shift and some items are never examined. The result is not random — it is perfectly predictable if you trace it — but it is almost never what the author meant. The habit: **build a new list instead of editing the one you are looping over.**"
+    }
+   ]
+  }
+ ],
+ "exercises": [
+  {
+   "id": "5.1",
+   "stage": 5,
+   "form": "Mark the block",
+   "kind": "block",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Which lines belong to the loop body? How many times does each line in this snippet run?"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "count = 0\nfor c in \"abc\":\n    count = count + 1\n    print(c)\nprint(count)"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "count = 0\nfor c in \"abc\":\n    count = count + 1\n    print(c)\nprint(count)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Lines 3 and 4 (`count = count + 1` and `print(c)`) are the body. They are indented under the colon."
+       },
+       {
+        "kind": "table",
+        "head": [
+         "Line",
+         "Times it runs"
+        ],
+        "rows": [
+         [
+          "`count = 0`",
+          "1"
+         ],
+         [
+          "`for c in \"abc\":`",
+          "4 (three passes plus the final \"nothing left\" check)"
+         ],
+         [
+          "`count = count + 1`",
+          "3"
+         ],
+         [
+          "`print(c)`",
+          "3"
+         ],
+         [
+          "`print(count)`",
+          "1"
+         ]
+        ]
+       },
+       {
+        "kind": "p",
+        "text": "Output: `a`, `b`, `c`, `3`."
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Membership in the body is determined by indentation alone. Looping over a text object yields one character per pass — a preview of Stage 6."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That the last line is \"part of the loop because it comes after the for\"."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Syntax-reading error. Draw a vertical line down the left edge of the indented lines."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "Lines 3 and 4 (`count = count + 1` and `print(c)`) are the body. They are indented under the colon."
+     },
+     {
+      "kind": "table",
+      "head": [
+       "Line",
+       "Times it runs"
+      ],
+      "rows": [
+       [
+        "`count = 0`",
+        "1"
+       ],
+       [
+        "`for c in \"abc\":`",
+        "4 (three passes plus the final \"nothing left\" check)"
+       ],
+       [
+        "`count = count + 1`",
+        "3"
+       ],
+       [
+        "`print(c)`",
+        "3"
+       ],
+       [
+        "`print(count)`",
+        "1"
+       ]
+      ]
+     },
+     {
+      "kind": "p",
+      "text": "Output: `a`, `b`, `c`, `3`."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "Membership in the body is determined by indentation alone. Looping over a text object yields one character per pass — a preview of Stage 6."
+     }
+    ],
+    "misconception": "That the last line is \"part of the loop because it comes after the for\".",
+    "missed": "If you missed it. Syntax-reading error. Draw a vertical line down the left edge of the indented lines.",
+    "errorTypes": [
+     "syntax"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: identify block membership and run counts. Prereq: 2.1. Syntax lens: colon and indentation. Flow lens: 3 passes, 1 post-loop line. Object lens: `count` rebound three times.",
+     "target": "identify block membership and run counts",
+     "prereq": [
+      "2.1"
+     ],
+     "syntax": "colon and indentation",
+     "flow": "3 passes, 1 post-loop line",
+     "object": "`count` rebound three times"
+    }
+   }
+  },
+  {
+   "id": "5.2",
+   "stage": 5,
+   "form": "What runs next?",
+   "kind": "order",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Number every line in execution order, repeating numbers for repeated lines, and give the output."
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "total = 0\nfor n in [4, 6]:\n    total = total + n\nprint(total)"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "total = 0\nfor n in [4, 6]:\n    total = total + n\nprint(total)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "1  total = 0\n2  for n in [4, 6]:        (fetches 4)\n3      total = total + n    →  total is 4\n4  for n in [4, 6]:        (fetches 6)\n5      total = total + n    →  total is 10\n6  for n in [4, 6]:        (nothing left; loop ends)\n7  print(total)             →  10"
+       },
+       {
+        "kind": "p",
+        "text": "Output: `10`."
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "The `for` line appears three times in the numbering for two passes. Writing that third visit explicitly is what makes \"when does the loop stop\" concrete rather than magical."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That the `for` line runs once and somehow \"sets up\" the repetition of the body."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Flow error."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "1  total = 0\n2  for n in [4, 6]:        (fetches 4)\n3      total = total + n    →  total is 4\n4  for n in [4, 6]:        (fetches 6)\n5      total = total + n    →  total is 10\n6  for n in [4, 6]:        (nothing left; loop ends)\n7  print(total)             →  10"
+     },
+     {
+      "kind": "p",
+      "text": "Output: `10`."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "The `for` line appears three times in the numbering for two passes. Writing that third visit explicitly is what makes \"when does the loop stop\" concrete rather than magical."
+     }
+    ],
+    "misconception": "That the `for` line runs once and somehow \"sets up\" the repetition of the body.",
+    "missed": "If you missed it. Flow error.",
+    "errorTypes": [
+     "flow"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: execution-order notation with a loop. Prereq: 5.1. Syntax lens: two-line loop. Flow lens: n+1 visits to the `for` line. Object lens: accumulator rebound per pass.",
+     "target": "execution-order notation with a loop",
+     "prereq": [
+      "5.1"
+     ],
+     "syntax": "two-line loop",
+     "flow": "n+1 visits to the `for` line",
+     "object": "accumulator rebound per pass"
+    }
+   }
+  },
+  {
+   "id": "5.3",
+   "stage": 5,
+   "form": "Predict the result",
+   "kind": "predict",
+   "prompt": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "for i in range(3):\n    print(i)\nprint(\"done\", i)"
+    },
+    {
+     "kind": "p",
+     "text": "Why does the last line work at all?"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "for i in range(3):\n    print(i)\nprint(\"done\", i)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "0\n1\n2\ndone 2"
+       }
+      ]
+     },
+     {
+      "label": "Why the last line works",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`i` is an ordinary name bound by the `for` line. When the loop ends, nothing unbinds it, so it still points at the last value it was given, `2`."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That the loop name is private to the loop and disappears afterward (true in some other languages, not in Python)."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Flow error, or object-model if you expected `3` — the loop never binds `i` to 3; `range(3)` never produces it."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "0\n1\n2\ndone 2"
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "`i` is an ordinary name bound by the `for` line. When the loop ends, nothing unbinds it, so it still points at the last value it was given, `2`."
+     }
+    ],
+    "misconception": "That the loop name is private to the loop and disappears afterward (true in some other languages, not in Python).",
+    "missed": "If you missed it. Flow error, or object-model if you expected `3` — the loop never binds `i` to 3; `range(3)` never produces it.",
+    "errorTypes": [
+     "flow",
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: loop name persists; range upper bound excluded. Prereq: 5.1. Syntax lens: `range(3)`. Flow lens: three passes. Object lens: `i` still bound after the loop.",
+     "target": "loop name persists; range upper bound excluded",
+     "prereq": [
+      "5.1"
+     ],
+     "syntax": "`range(3)`",
+     "flow": "three passes",
+     "object": "`i` still bound after the loop"
+    }
+   }
+  },
+  {
+   "id": "5.4",
+   "stage": 5,
+   "form": "Compare near-matches",
+   "kind": "compare",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Snippet **A**:"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "for n in [1, 2]:\n    print(n)\n    print(\"end\")"
+    },
+    {
+     "kind": "p",
+     "text": "Snippet **B**:"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "for n in [1, 2]:\n    print(n)\nprint(\"end\")"
+    },
+    {
+     "kind": "p",
+     "text": "Predict both outputs. The only difference is indentation — say what it changes."
+    }
+   ],
+   "snippets": [
+    {
+     "label": "A",
+     "code": "for n in [1, 2]:\n    print(n)\n    print(\"end\")\n"
+    },
+    {
+     "label": "B",
+     "code": "for n in [1, 2]:\n    print(n)\nprint(\"end\")\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "**A**:"
+       },
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "1\nend\n2\nend"
+       },
+       {
+        "kind": "p",
+        "text": "**B**:"
+       },
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "1\n2\nend"
+       }
+      ]
+     },
+     {
+      "label": "What indentation changes",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "In **A**, `print(\"end\")` is in the body and runs once per pass. In **B** it is outside the loop and runs once, after every pass has finished."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That indentation is a readability convention."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Syntax-reading error with a flow consequence — the most common pairing in this stage."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "**A**:"
+     },
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "1\nend\n2\nend"
+     },
+     {
+      "kind": "p",
+      "text": "**B**:"
+     },
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "1\n2\nend"
+     }
+    ],
+    "reasoning": [],
+    "misconception": "That indentation is a readability convention.",
+    "missed": "If you missed it. Syntax-reading error with a flow consequence — the most common pairing in this stage.",
+    "errorTypes": [
+     "syntax",
+     "flow"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: indentation determines run count. Prereq: 5.1. Syntax lens: indentation level of the final line. Flow lens: 2 versus 1 executions. Object lens: none.",
+     "target": "indentation determines run count",
+     "prereq": [
+      "5.1"
+     ],
+     "syntax": "indentation level of the final line",
+     "flow": "2 versus 1 executions",
+     "object": "none"
+    }
+   }
+  },
+  {
+   "id": "5.5",
+   "stage": 5,
+   "form": "Predict the result",
+   "kind": "predict",
+   "prompt": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "print(range(3))\nprint(list(range(3)))\nprint(list(range(2, 5)))\nprint(list(range(0, 10, 3)))\nprint(len(range(3)))"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "print(range(3))\nprint(list(range(3)))\nprint(list(range(2, 5)))\nprint(list(range(0, 10, 3)))\nprint(len(range(3)))\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "range(0, 3)\n[0, 1, 2]\n[2, 3, 4]\n[0, 3, 6, 9]\n3"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "A range does not build its numbers up front, so printing it shows a description of the recipe rather than the numbers. It still knows its own length, and `list(...)` forces it to produce everything."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That `range` is a list, or that `range(2, 5)` includes 5."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Syntax-reading error on the bounds; object-model error on the first line."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "range(0, 3)\n[0, 1, 2]\n[2, 3, 4]\n[0, 3, 6, 9]\n3"
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "A range does not build its numbers up front, so printing it shows a description of the recipe rather than the numbers. It still knows its own length, and `list(...)` forces it to produce everything."
+     }
+    ],
+    "misconception": "That `range` is a list, or that `range(2, 5)` includes 5.",
+    "missed": "If you missed it. Syntax-reading error on the bounds; object-model error on the first line.",
+    "errorTypes": [
+     "syntax",
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: range bounds, step, and lazy nature. Prereq: 5.3. Syntax lens: `range` with one, two, and three arguments. Flow lens: numbers produced on demand. Object lens: a range object is not a list.",
+     "target": "range bounds, step, and lazy nature",
+     "prereq": [
+      "5.3"
+     ],
+     "syntax": "`range` with one, two, and three arguments",
+     "flow": "numbers produced on demand",
+     "object": "a range object is not a list"
+    }
+   }
+  },
+  {
+   "id": "5.6",
+   "stage": 5,
+   "form": "Build a trace table",
+   "kind": "table",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Fill in a table with one row per pass, showing `n` and `total`, then give the output."
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "total = 1\nfor n in [2, 3, 4]:\n    total = total * n\nprint(total)"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "total = 1\nfor n in [2, 3, 4]:\n    total = total * n\nprint(total)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "table",
+        "head": [
+         "pass",
+         "`n`",
+         "`total` before",
+         "`total` after"
+        ],
+        "rows": [
+         [
+          "1",
+          "2",
+          "1",
+          "2"
+         ],
+         [
+          "2",
+          "3",
+          "2",
+          "6"
+         ],
+         [
+          "3",
+          "4",
+          "6",
+          "24"
+         ],
+         [
+          "—",
+          "4",
+          "24",
+          "24 (loop ends)"
+         ]
+        ]
+       },
+       {
+        "kind": "p",
+        "text": "Output: `24`."
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`total = 1` is essential: starting from 0 would make every product 0. The accumulator's starting value is part of the algorithm, not boilerplate."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That the accumulator can be initialized anywhere, including inside the loop."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Flow error if you lost track of passes; object-model if you used the original `total` on every pass."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "table",
+      "head": [
+       "pass",
+       "`n`",
+       "`total` before",
+       "`total` after"
+      ],
+      "rows": [
+       [
+        "1",
+        "2",
+        "1",
+        "2"
+       ],
+       [
+        "2",
+        "3",
+        "2",
+        "6"
+       ],
+       [
+        "3",
+        "4",
+        "6",
+        "24"
+       ],
+       [
+        "—",
+        "4",
+        "24",
+        "24 (loop ends)"
+       ]
+      ]
+     },
+     {
+      "kind": "p",
+      "text": "Output: `24`."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "`total = 1` is essential: starting from 0 would make every product 0. The accumulator's starting value is part of the algorithm, not boilerplate."
+     }
+    ],
+    "misconception": "That the accumulator can be initialized anywhere, including inside the loop.",
+    "missed": "If you missed it. Flow error if you lost track of passes; object-model if you used the original `total` on every pass.",
+    "errorTypes": [
+     "flow",
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: multiplicative accumulator, trace table form. Prereq: 5.2. Syntax lens: body of one line. Flow lens: three passes. Object lens: `total` rebound three times.",
+     "target": "multiplicative accumulator, trace table form",
+     "prereq": [
+      "5.2"
+     ],
+     "syntax": "body of one line",
+     "flow": "three passes",
+     "object": "`total` rebound three times"
+    }
+   }
+  },
+  {
+   "id": "5.7",
+   "stage": 5,
+   "form": "Predict the result",
+   "kind": "predict",
+   "prompt": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "xs = [1, 2, 3]\nfor x in xs:\n    x = x * 10\nprint(xs)\nprint(x)"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "xs = [1, 2, 3]\nfor x in xs:\n    x = x * 10\nprint(xs)\nprint(x)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "[1, 2, 3]\n30"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Each pass binds `x` to an item, and the body immediately rebinds `x` to a different number. The list's slots were never on the left of any `=`, so the list is untouched. After the loop, `x` holds the last computed value, `30`."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That the loop name is a live window into the slot it came from — a kind of two-way connection. It is an ordinary name pointing at whatever was handed to it."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error. Go back to 2.16's left-of-`=` test."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "[1, 2, 3]\n30"
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "Each pass binds `x` to an item, and the body immediately rebinds `x` to a different number. The list's slots were never on the left of any `=`, so the list is untouched. After the loop, `x` holds the last computed value, `30`."
+     }
+    ],
+    "misconception": "That the loop name is a live window into the slot it came from — a kind of two-way connection. It is an ordinary name pointing at whatever was handed to it.",
+    "missed": "If you missed it. Object-model error. Go back to 2.16's left-of-`=` test.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [
+     "2.16"
+    ],
+    "authoring": {
+     "text": "Target: rebinding the loop name is inert. Prereq: 2.1, 5.1. Syntax lens: bare name left of `=` in a body. Flow lens: three passes. Object lens: no slot written.",
+     "target": "rebinding the loop name is inert",
+     "prereq": [
+      "2.1",
+      "5.1"
+     ],
+     "syntax": "bare name left of `=` in a body",
+     "flow": "three passes",
+     "object": "no slot written"
+    }
+   }
+  },
+  {
+   "id": "5.8",
+   "stage": 5,
+   "form": "Compare near-matches",
+   "kind": "compare",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Snippet **A**:"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "grid = [[1], [2]]\nfor row in grid:\n    row = row + [0]\nprint(grid)"
+    },
+    {
+     "kind": "p",
+     "text": "Snippet **B**:"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "grid = [[1], [2]]\nfor row in grid:\n    row.append(0)\nprint(grid)"
+    },
+    {
+     "kind": "p",
+     "text": "Predict both and say which Stage 2 distinction is doing the work."
+    }
+   ],
+   "snippets": [
+    {
+     "label": "A",
+     "code": "grid = [[1], [2]]\nfor row in grid:\n    row = row + [0]\nprint(grid)\n"
+    },
+    {
+     "label": "B",
+     "code": "grid = [[1], [2]]\nfor row in grid:\n    row.append(0)\nprint(grid)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "**A** prints `[[1], [2]]`. **B** prints `[[1, 0], [2, 0]]`."
+       },
+       {
+        "kind": "p",
+        "text": "**The distinction at work:** replacing versus changing. In **A**, `row + [0]` builds a new list and rebinds the loop name — inert, exactly as in 5.7. In **B**, `.append` changes the object `row` points at, and that object is the one sitting in the grid's slot."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That a loop can only read, so neither should affect the grid; or that both should, since both mention `row`."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error. This is Stage 2 with a loop around it — no new rule was introduced."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "**A** prints `[[1], [2]]`. **B** prints `[[1, 0], [2, 0]]`."
+     },
+     {
+      "kind": "p",
+      "text": "**The distinction at work:** replacing versus changing. In **A**, `row + [0]` builds a new list and rebinds the loop name — inert, exactly as in 5.7. In **B**, `.append` changes the object `row` points at, and that object is the one sitting in the grid's slot."
+     }
+    ],
+    "reasoning": [],
+    "misconception": "That a loop can only read, so neither should affect the grid; or that both should, since both mention `row`.",
+    "missed": "If you missed it. Object-model error. This is Stage 2 with a loop around it — no new rule was introduced.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: change versus rebind inside a body. Prereq: 2.3, 5.7. Syntax lens: `row = row + [0]` versus `row.append(0)`. Flow lens: two passes each. Object lens: shared inner lists changed in **B** only.",
+     "target": "change versus rebind inside a body",
+     "prereq": [
+      "2.3",
+      "5.7"
+     ],
+     "syntax": "`row = row + [0]` versus `row.append(0)`",
+     "flow": "two passes each",
+     "object": "shared inner lists changed in **B** only"
+    }
+   }
+  },
+  {
+   "id": "5.9",
+   "stage": 5,
+   "form": "Find and fix",
+   "kind": "fix",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "The intent is to double every item in the list itself. Say what happens and fix it."
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "nums = [1, 2, 3]\nfor n in nums:\n    n = n * 2\nprint(nums)"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "nums = [1, 2, 3]\nfor n in nums:\n    n = n * 2\nprint(nums)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "It prints `[1, 2, 3]` — unchanged, for the reason in 5.7."
+       }
+      ]
+     },
+     {
+      "label": "Fix",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Write the slots by position:"
+       },
+       {
+        "kind": "code",
+        "lang": "python",
+        "text": "nums = [1, 2, 3]\nfor i in range(len(nums)):\n    nums[i] = nums[i] * 2\nprint(nums)               # [2, 4, 6]"
+       },
+       {
+        "kind": "p",
+        "text": "Or, if a new list is acceptable, build one:"
+       },
+       {
+        "kind": "code",
+        "lang": "python",
+        "text": "nums = [n * 2 for n in nums]"
+       },
+       {
+        "kind": "p",
+        "text": "(That second form is Stage 6's comprehension; note that it *rebinds* `nums` rather than changing the original list, which matters if another name points at it.)"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "To change a list you must put something with brackets on the left of the `=`. Nothing else will do it."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That assigning to the loop name edits the collection."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "It prints `[1, 2, 3]` — unchanged, for the reason in 5.7."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "To change a list you must put something with brackets on the left of the `=`. Nothing else will do it."
+     }
+    ],
+    "misconception": "That assigning to the loop name edits the collection.",
+    "missed": "If you missed it. Object-model error.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: index-based in-place update. Prereq: 5.7, 3.1. Syntax lens: `nums[i] = ...`. Flow lens: `range(len(...))` gives valid positions. Object lens: slots written.",
+     "target": "index-based in-place update",
+     "prereq": [
+      "5.7",
+      "3.1"
+     ],
+     "syntax": "`nums[i] = ...`",
+     "flow": "`range(len(...))` gives valid positions",
+     "object": "slots written"
+    }
+   }
+  },
+  {
+   "id": "5.10",
+   "stage": 5,
+   "form": "Predict the result",
+   "kind": "predict",
+   "prompt": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "for n in [1, 2, 3, 4, 5]:\n    if n == 3:\n        break\n    print(n)\nprint(\"stopped at\", n)"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "for n in [1, 2, 3, 4, 5]:\n    if n == 3:\n        break\n    print(n)\nprint(\"stopped at\", n)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "1\n2\nstopped at 3"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "On the third pass `n` is bound to 3, the `if` is true, and `break` leaves the loop before `print(n)` runs. Control jumps to the first unindented line after the loop. `n` is still bound to 3 there."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That `break` also skips the code after the loop, or that it unbinds the loop name."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Flow error."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "1\n2\nstopped at 3"
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "On the third pass `n` is bound to 3, the `if` is true, and `break` leaves the loop before `print(n)` runs. Control jumps to the first unindented line after the loop. `n` is still bound to 3 there."
+     }
+    ],
+    "misconception": "That `break` also skips the code after the loop, or that it unbinds the loop name.",
+    "missed": "If you missed it. Flow error.",
+    "errorTypes": [
+     "flow"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: `break` exits to the post-loop line. Prereq: 5.3, 5.4. Syntax lens: nested `if` inside a body. Flow lens: partial third pass. Object lens: `n` bound to 3 at exit.",
+     "target": "`break` exits to the post-loop line",
+     "prereq": [
+      "5.3",
+      "5.4"
+     ],
+     "syntax": "nested `if` inside a body",
+     "flow": "partial third pass",
+     "object": "`n` bound to 3 at exit"
+    }
+   }
+  },
+  {
+   "id": "5.11",
+   "stage": 5,
+   "form": "Compare near-matches",
+   "kind": "compare",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Snippet **A**:"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "for n in [1, 2, 3, 4]:\n    if n == 2:\n        continue\n    print(n)"
+    },
+    {
+     "kind": "p",
+     "text": "Snippet **B**:"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "for n in [1, 2, 3, 4]:\n    if n == 2:\n        break\n    print(n)"
+    },
+    {
+     "kind": "p",
+     "text": "Predict both and state the difference in one sentence each."
+    }
+   ],
+   "snippets": [
+    {
+     "label": "A",
+     "code": "for n in [1, 2, 3, 4]:\n    if n == 2:\n        continue\n    print(n)\n"
+    },
+    {
+     "label": "B",
+     "code": "for n in [1, 2, 3, 4]:\n    if n == 2:\n        break\n    print(n)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "**A** prints `1`, `3`, `4`. **B** prints `1`."
+       },
+       {
+        "kind": "p",
+        "text": "**A:** `continue` abandons the rest of the body for that one pass and goes back for the next value, so 2 is skipped and the loop still finishes. **B:** `break` ends the loop entirely at 2, so nothing after 1 is printed."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That `continue` skips the next item, or that `break` skips one iteration."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Flow error."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "**A** prints `1`, `3`, `4`. **B** prints `1`."
+     },
+     {
+      "kind": "p",
+      "text": "**A:** `continue` abandons the rest of the body for that one pass and goes back for the next value, so 2 is skipped and the loop still finishes. **B:** `break` ends the loop entirely at 2, so nothing after 1 is printed."
+     }
+    ],
+    "reasoning": [],
+    "misconception": "That `continue` skips the next item, or that `break` skips one iteration.",
+    "missed": "If you missed it. Flow error.",
+    "errorTypes": [
+     "flow"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: `continue` versus `break`. Prereq: 5.10. Syntax lens: identical except one word. Flow lens: 4 passes versus 2. Object lens: none.",
+     "target": "`continue` versus `break`",
+     "prereq": [
+      "5.10"
+     ],
+     "syntax": "identical except one word",
+     "flow": "4 passes versus 2",
+     "object": "none"
+    }
+   }
+  },
+  {
+   "id": "5.12",
+   "stage": 5,
+   "form": "Find and fix",
+   "kind": "fix",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "The intent is to collect the even numbers into a new list. Say what actually prints and fix it with the smallest change."
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "nums = [1, 2, 3, 4]\nevens = []\nfor n in nums:\n    if n % 2 == 0:\n        evens = [n]\nprint(evens)"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "nums = [1, 2, 3, 4]\nevens = []\nfor n in nums:\n    if n % 2 == 0:\n        evens = [n]\nprint(evens)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "It prints `[4]`. Line 5 **rebinds** `evens` to a brand-new one-item list on every matching pass, so only the last match survives."
+       }
+      ]
+     },
+     {
+      "label": "Smallest fix",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "python",
+        "text": "evens.append(n)"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "The accumulator pattern requires *adding to* the existing list, not pointing the name at a new one. The bug is the exact Stage 2 confusion, now costing data rather than clarity."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That `evens = [n]` \"adds `n` to `evens`\"."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "It prints `[4]`. Line 5 **rebinds** `evens` to a brand-new one-item list on every matching pass, so only the last match survives."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "The accumulator pattern requires *adding to* the existing list, not pointing the name at a new one. The bug is the exact Stage 2 confusion, now costing data rather than clarity."
+     }
+    ],
+    "misconception": "That `evens = [n]` \"adds `n` to `evens`\".",
+    "missed": "If you missed it. Object-model error.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: accumulate by changing, not rebinding. Prereq: 2.1, 5.6. Syntax lens: bare name left of `=` inside a body. Flow lens: two matching passes. Object lens: two one-item lists created, one abandoned.",
+     "target": "accumulate by changing, not rebinding",
+     "prereq": [
+      "2.1",
+      "5.6"
+     ],
+     "syntax": "bare name left of `=` inside a body",
+     "flow": "two matching passes",
+     "object": "two one-item lists created, one abandoned"
+    }
+   }
+  },
+  {
+   "id": "5.13",
+   "stage": 5,
+   "form": "Predict the result",
+   "kind": "predict",
+   "prompt": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "xs = [1, 2, 3, 4]\nfor x in xs:\n    if x % 2 == 0:\n        xs.remove(x)\nprint(xs)"
+    },
+    {
+     "kind": "p",
+     "text": "Trace it pass by pass, showing the position the loop is at and the current contents of `xs`."
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "xs = [1, 2, 3, 4]\nfor x in xs:\n    if x % 2 == 0:\n        xs.remove(x)\nprint(xs)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`[1, 3]`."
+       }
+      ]
+     },
+     {
+      "label": "Trace",
+      "blocks": [
+       {
+        "kind": "table",
+        "head": [
+         "loop is at position",
+         "`xs` at that moment",
+         "`x`",
+         "action"
+        ],
+        "rows": [
+         [
+          "0",
+          "`[1, 2, 3, 4]`",
+          "1",
+          "odd, nothing"
+         ],
+         [
+          "1",
+          "`[1, 2, 3, 4]`",
+          "2",
+          "remove 2 → `[1, 3, 4]`"
+         ],
+         [
+          "2",
+          "`[1, 3, 4]`",
+          "4",
+          "remove 4 → `[1, 3]`"
+         ],
+         [
+          "3",
+          "`[1, 3]`",
+          "—",
+          "position 3 is past the end; loop ends"
+         ]
+        ]
+       },
+       {
+        "kind": "p",
+        "text": "Note what happened at position 2: because the list shrank, position 2 now holds `4`, and `3` — which had moved from position 2 to position 1 — was **never examined**. It survives by accident, not by the rule the author intended."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That the loop holds a snapshot of the list, or that removal is \"safe if you only remove the current item\"."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Flow error, with an object-model component: the loop walks by position over a list that is changing beneath it."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "`[1, 3]`."
+     }
+    ],
+    "reasoning": [],
+    "misconception": "That the loop holds a snapshot of the list, or that removal is \"safe if you only remove the current item\".",
+    "missed": "If you missed it. Flow error, with an object-model component: the loop walks by position over a list that is changing beneath it.",
+    "errorTypes": [
+     "flow",
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: mutation during iteration. Prereq: 5.1, 3.1. Syntax lens: `.remove` in a body. Flow lens: position-based iteration over a shrinking list. Object lens: one list, changed twice.",
+     "target": "mutation during iteration",
+     "prereq": [
+      "5.1",
+      "3.1"
+     ],
+     "syntax": "`.remove` in a body",
+     "flow": "position-based iteration over a shrinking list",
+     "object": "one list, changed twice"
+    }
+   }
+  },
+  {
+   "id": "5.14",
+   "stage": 5,
+   "form": "Find and fix",
+   "kind": "fix",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Rewrite 5.13 so that it reliably ends with only the odd numbers, without editing a list while looping over it."
+    }
+   ],
+   "snippets": [],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Build a new list and leave the original alone during the walk:"
+       },
+       {
+        "kind": "code",
+        "lang": "python",
+        "text": "nums = [1, 2, 3, 4]\nodds = []\nfor n in nums:\n    if n % 2 == 1:\n        odds.append(n)\nprint(odds)               # [1, 3]"
+       },
+       {
+        "kind": "p",
+        "text": "If the original name must end up holding only the odds, rebind it *after* the loop: `nums = odds`. If some other name must also see the change, replace the contents in one step after the loop: `nums[:] = odds`, which writes every slot of the existing list rather than rebinding the name."
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "The general repair for \"changing what I am looping over\" is always the same: separate the reading pass from the writing."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That there is a clever ordering (iterating backwards, say) that makes in-place removal safe. Backwards iteration does happen to work here, but it is a trick that depends on the removal being of the current item — building a new list needs no such reasoning."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Flow error."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "Build a new list and leave the original alone during the walk:"
+     },
+     {
+      "kind": "code",
+      "lang": "python",
+      "text": "nums = [1, 2, 3, 4]\nodds = []\nfor n in nums:\n    if n % 2 == 1:\n        odds.append(n)\nprint(odds)               # [1, 3]"
+     },
+     {
+      "kind": "p",
+      "text": "If the original name must end up holding only the odds, rebind it *after* the loop: `nums = odds`. If some other name must also see the change, replace the contents in one step after the loop: `nums[:] = odds`, which writes every slot of the existing list rather than rebinding the name."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "The general repair for \"changing what I am looping over\" is always the same: separate the reading pass from the writing."
+     }
+    ],
+    "misconception": "That there is a clever ordering (iterating backwards, say) that makes in-place removal safe. Backwards iteration does happen to work here, but it is a trick that depends on the removal being of the current item — building a new list needs no such reasoning.",
+    "missed": "If you missed it. Flow error.",
+    "errorTypes": [
+     "flow"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: the standard repair. Prereq: 5.12, 5.13. Syntax lens: accumulator plus condition. Flow lens: one clean pass. Object lens: two lists; `nums[:] = odds` writes slots rather than rebinding.",
+     "target": "the standard repair",
+     "prereq": [
+      "5.12",
+      "5.13"
+     ],
+     "syntax": "accumulator plus condition",
+     "flow": "one clean pass",
+     "object": "two lists; `nums[:] = odds` writes slots rather than rebinding"
+    }
+   }
+  },
+  {
+   "id": "5.15",
+   "stage": 5,
+   "form": "What runs next?",
+   "kind": "order",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Number the execution order and give the output. Pay attention to which lines are inside the loop."
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "results = []\nfor n in range(3):\n    doubled = n * 2\n    results.append(doubled)\n    print(\"pass\", n, results)\nprint(\"final\", results)\nprint(\"last doubled\", doubled)"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "results = []\nfor n in range(3):\n    doubled = n * 2\n    results.append(doubled)\n    print(\"pass\", n, results)\nprint(\"final\", results)\nprint(\"last doubled\", doubled)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "1   results = []\n2   for n in range(3):        (n = 0)\n3       doubled = n * 2\n4       results.append(doubled)\n5       print(\"pass\", n, results)   → pass 0 [0]\n6   for n in range(3):        (n = 1)\n7       doubled = n * 2\n8       results.append(doubled)\n9       print(\"pass\", n, results)   → pass 1 [0, 2]\n10  for n in range(3):        (n = 2)\n11      doubled = n * 2\n12      results.append(doubled)\n13      print(\"pass\", n, results)   → pass 2 [0, 2, 4]\n14  for n in range(3):        (nothing left)\n15  print(\"final\", results)         → final [0, 2, 4]\n16  print(\"last doubled\", doubled)  → last doubled 4"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`results` is bound once and *changed* three times — the same list object throughout, which is why each printed line shows it growing. `doubled` is rebound each pass and, like the loop name, survives afterward."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That names created inside a body are local to it. Nothing about a loop body makes a name private — only a function does that, which is Stage 8."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Flow error on the numbering; object-model if you expected `results` to be replaced each pass."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "1   results = []\n2   for n in range(3):        (n = 0)\n3       doubled = n * 2\n4       results.append(doubled)\n5       print(\"pass\", n, results)   → pass 0 [0]\n6   for n in range(3):        (n = 1)\n7       doubled = n * 2\n8       results.append(doubled)\n9       print(\"pass\", n, results)   → pass 1 [0, 2]\n10  for n in range(3):        (n = 2)\n11      doubled = n * 2\n12      results.append(doubled)\n13      print(\"pass\", n, results)   → pass 2 [0, 2, 4]\n14  for n in range(3):        (nothing left)\n15  print(\"final\", results)         → final [0, 2, 4]\n16  print(\"last doubled\", doubled)  → last doubled 4"
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "`results` is bound once and *changed* three times — the same list object throughout, which is why each printed line shows it growing. `doubled` is rebound each pass and, like the loop name, survives afterward."
+     }
+    ],
+    "misconception": "That names created inside a body are local to it. Nothing about a loop body makes a name private — only a function does that, which is Stage 8.",
+    "missed": "If you missed it. Flow error on the numbering; object-model if you expected `results` to be replaced each pass.",
+    "errorTypes": [
+     "flow",
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: full trace with accumulator and body-local names. Prereq: 5.2, 5.6. Syntax lens: three-line body. Flow lens: 3 passes, 2 post-loop lines. Object lens: one list changed three times; two names rebound.",
+     "target": "full trace with accumulator and body-local names",
+     "prereq": [
+      "5.2",
+      "5.6"
+     ],
+     "syntax": "three-line body",
+     "flow": "3 passes, 2 post-loop lines",
+     "object": "one list changed three times; two names rebound"
+    }
+   }
+  },
+  {
+   "id": "5.16",
+   "stage": 5,
+   "form": "Find and fix",
+   "kind": "fix",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "The intent is to sum the list. It raises an error. Name the error, explain it, and fix it."
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "for n in [1, 2, 3]:\n    total = total + n\nprint(total)"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "for n in [1, 2, 3]:\n    total = total + n\nprint(total)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`NameError: name 'total' is not defined`."
+       }
+      ]
+     },
+     {
+      "label": "Why",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "On the first pass, Python must work out `total + n` before it can bind `total`. There is nothing for `total` to point at yet. The loop does not \"start it at zero\" — nothing does."
+       }
+      ]
+     },
+     {
+      "label": "Fix",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Bind it before the loop:"
+       },
+       {
+        "kind": "code",
+        "lang": "python",
+        "text": "total = 0\nfor n in [1, 2, 3]:\n    total = total + n\nprint(total)          # 6"
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That a name used as an accumulator is implicitly initialized, or that `total = total + n` binds it on the way past."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error, of the Stage 1 kind: the right side is worked out first (1.7)."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "`NameError: name 'total' is not defined`."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "On the first pass, Python must work out `total + n` before it can bind `total`. There is nothing for `total` to point at yet. The loop does not \"start it at zero\" — nothing does."
+     }
+    ],
+    "misconception": "That a name used as an accumulator is implicitly initialized, or that `total = total + n` binds it on the way past.",
+    "missed": "If you missed it. Object-model error, of the Stage 1 kind: the right side is worked out first (1.7).",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [
+     "1.7"
+    ],
+    "authoring": {
+     "text": "Target: accumulator must be pre-bound. Prereq: 1.7, 5.6. Syntax lens: name used on the right before ever being bound. Flow lens: fails on the first pass. Object lens: no binding exists.",
+     "target": "accumulator must be pre-bound",
+     "prereq": [
+      "1.7",
+      "5.6"
+     ],
+     "syntax": "name used on the right before ever being bound",
+     "flow": "fails on the first pass",
+     "object": "no binding exists"
+    }
+   }
+  },
+  {
+   "id": "5.17",
+   "stage": 5,
+   "form": "Write a small program",
+   "kind": "write",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Write a loop that builds a list `squares` holding the squares of 1 through 5, then prints the list and its length. Requirements: bind the accumulator before the loop, use `range`, and put exactly one line inside the loop body."
+    }
+   ],
+   "snippets": [],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "python",
+        "text": "squares = []\nfor n in range(1, 6):\n    squares.append(n * n)\nprint(squares)        # [1, 4, 9, 16, 25]\nprint(len(squares))   # 5"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`range(1, 6)` is the honest way to say \"1 through 5\". Writing `range(5)` and then using `n + 1` inside works but forces the reader to do arithmetic that the range line could have expressed. The single body line must be `.append(...)` — an `=` with a bare name on the left would rebind and lose the accumulation, per 5.12."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That `range(5)` means \"1 to 5\"."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Syntax-reading error on the range bounds; object-model if you rebound `squares`."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "python",
+      "text": "squares = []\nfor n in range(1, 6):\n    squares.append(n * n)\nprint(squares)        # [1, 4, 9, 16, 25]\nprint(len(squares))   # 5"
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "`range(1, 6)` is the honest way to say \"1 through 5\". Writing `range(5)` and then using `n + 1` inside works but forces the reader to do arithmetic that the range line could have expressed. The single body line must be `.append(...)` — an `=` with a bare name on the left would rebind and lose the accumulation, per 5.12."
+     }
+    ],
+    "misconception": "That `range(5)` means \"1 to 5\".",
+    "missed": "If you missed it. Syntax-reading error on the range bounds; object-model if you rebound `squares`.",
+    "errorTypes": [
+     "syntax",
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: construct the accumulator pattern. Prereq: 5.5, 5.12. Syntax lens: two-argument `range`. Flow lens: five passes. Object lens: one list changed five times.",
+     "target": "construct the accumulator pattern",
+     "prereq": [
+      "5.5",
+      "5.12"
+     ],
+     "syntax": "two-argument `range`",
+     "flow": "five passes",
+     "object": "one list changed five times"
+    }
+   }
+  },
+  {
+   "id": "5.18",
+   "stage": 5,
+   "form": "Predict the result",
+   "kind": "predict",
+   "prompt": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "xs = [[0], [0]]\nfor row in xs:\n    row[0] = row[0] + 1\nprint(xs)"
+    },
+    {
+     "kind": "p",
+     "text": "Now say what would print if line 1 were `xs = [[0]] * 2`."
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "xs = [[0], [0]]\nfor row in xs:\n    row[0] = row[0] + 1\nprint(xs)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`[[1], [1]]`."
+       },
+       {
+        "kind": "p",
+        "text": "**With `xs = [[0]] * 2`:** `[[2]]` repeated — the printed result is `[[2], [2]]`."
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "With two distinct inner lists, each pass writes slot 0 of a different list, and each goes from 0 to 1. With one shared inner list, the body runs twice on *the same object*: first pass makes it `[1]`, second pass reads that `1` and makes it `[2]`. Both slots then show `[2]`."
+       },
+       {
+        "kind": "p",
+        "text": "This is the Stage 4 pitfall with a loop over it, and it is the version that actually appears in real code — the doubling is what makes it obvious that the body ran twice on one object."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That sharing merely duplicates a display, rather than compounding repeated changes."
+       }
+      ]
+     },
+     {
+      "label": "If you missed the second part",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error. Go back to 4.6."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "`[[1], [1]]`."
+     },
+     {
+      "kind": "p",
+      "text": "**With `xs = [[0]] * 2`:** `[[2]]` repeated — the printed result is `[[2], [2]]`."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "With two distinct inner lists, each pass writes slot 0 of a different list, and each goes from 0 to 1. With one shared inner list, the body runs twice on *the same object*: first pass makes it `[1]`, second pass reads that `1` and makes it `[2]`. Both slots then show `[2]`."
+     },
+     {
+      "kind": "p",
+      "text": "This is the Stage 4 pitfall with a loop over it, and it is the version that actually appears in real code — the doubling is what makes it obvious that the body ran twice on one object."
+     }
+    ],
+    "misconception": "That sharing merely duplicates a display, rather than compounding repeated changes.",
+    "missed": "If you missed the second part. Object-model error. Go back to 4.6.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [
+     "4.6"
+    ],
+    "authoring": {
+     "text": "Target: repeated change through a shared object. Prereq: 4.6, 5.8. Syntax lens: `row[0] = row[0] + 1`. Flow lens: two passes. Object lens: one versus two inner lists.",
+     "target": "repeated change through a shared object",
+     "prereq": [
+      "4.6",
+      "5.8"
+     ],
+     "syntax": "`row[0] = row[0] + 1`",
+     "flow": "two passes",
+     "object": "one versus two inner lists"
+    }
+   }
+  },
+  {
+   "id": "5.19",
+   "stage": 5,
+   "form": "State the rule",
+   "kind": "rule",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Answer each in one plain sentence:"
+    },
+    {
+     "kind": "list",
+     "ordered": true,
+     "items": [
+      "How do you tell which lines belong to a loop body?",
+      "How many times does the `for` line itself run, compared with the body?",
+      "What happens to the loop name after the loop finishes?",
+      "When does changing the loop name change the collection?"
+     ]
+    }
+   ],
+   "snippets": [],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "list",
+        "ordered": true,
+        "items": [
+         "By indentation: the body is exactly the lines indented under the `for` line's colon, up to the first line that returns to the previous level.",
+         "The `for` line runs one more time than the body — the extra visit is the one that finds nothing left and ends the loop.",
+         "Nothing happens to it: it stays bound to the last value it was given, and can be read after the loop.",
+         "Never by assigning to the loop name — only by changing the object the loop name points at, or by writing into the collection's slots by position."
+        ]
+       }
+      ]
+     },
+     {
+      "label": "If you missed any",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "(1) syntax-reading; (2) and (3) flow; (4) object-model."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "list",
+      "ordered": true,
+      "items": [
+       "By indentation: the body is exactly the lines indented under the `for` line's colon, up to the first line that returns to the previous level.",
+       "The `for` line runs one more time than the body — the extra visit is the one that finds nothing left and ends the loop.",
+       "Nothing happens to it: it stays bound to the last value it was given, and can be read after the loop.",
+       "Never by assigning to the loop name — only by changing the object the loop name points at, or by writing into the collection's slots by position."
+      ]
+     }
+    ],
+    "reasoning": [],
+    "misconception": "",
+    "missed": "If you missed any. (1) syntax-reading; (2) and (3) flow; (4) object-model.",
+    "errorTypes": [
+     "syntax",
+     "flow",
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: generalize the stage. Prereq: 5.1–5.18. Syntax lens: block structure. Flow lens: run counts and name lifetime. Object lens: change versus rebind.",
+     "target": "generalize the stage",
+     "prereq": [
+      "5.1",
+      "5.2",
+      "5.3",
+      "5.4",
+      "5.5",
+      "5.6",
+      "5.7",
+      "5.8",
+      "5.9",
+      "5.10",
+      "5.11",
+      "5.12",
+      "5.13",
+      "5.14",
+      "5.15",
+      "5.16",
+      "5.17",
+      "5.18"
+     ],
+     "syntax": "block structure",
+     "flow": "run counts and name lifetime",
+     "object": "change versus rebind"
+    }
+   }
+  }
+ ],
+ "checkpoint": {
+  "intro": [],
+  "items": [
+   {
+    "id": "C5.1",
+    "stage": 5,
+    "prompt": [
+     {
+      "kind": "p",
+      "text": "How many lines of output does this produce, and what are they?"
+     },
+     {
+      "kind": "code",
+      "lang": "python",
+      "text": "for n in range(2):\n    print(\"a\")\nprint(\"b\")"
+     }
+    ],
+    "snippets": [
+     {
+      "label": null,
+      "code": "for n in range(2):\n    print(\"a\")\nprint(\"b\")\n"
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "Three lines: `a`, `a`, `b`. **Error type if missed:** syntax-reading (block membership) or flow (run counts). Go back to 5.4."
+     }
+    ],
+    "errorTypes": [
+     "syntax",
+     "flow"
+    ],
+    "goBack": [
+     "5.4"
+    ]
+   },
+   {
+    "id": "C5.2",
+    "stage": 5,
+    "prompt": [
+     {
+      "kind": "p",
+      "text": "Predict:"
+     },
+     {
+      "kind": "code",
+      "lang": "python",
+      "text": "total = 0\nfor n in range(4):\n    total += n\nprint(total, n)"
+     }
+    ],
+    "snippets": [
+     {
+      "label": null,
+      "code": "total = 0\nfor n in range(4):\n    total += n\nprint(total, n)\n"
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "`6 3`. The sum of 0+1+2+3, and `n` still bound to its last value. **Error type if missed:** flow, if you expected `n` to be gone or to be 4. Go back to 5.3."
+     }
+    ],
+    "errorTypes": [
+     "flow"
+    ],
+    "goBack": [
+     "5.3"
+    ]
+   },
+   {
+    "id": "C5.3",
+    "stage": 5,
+    "prompt": [
+     {
+      "kind": "p",
+      "text": "A learner says `for x in xs: x = 0` should zero out the list. Explain in two sentences why it does not, and give the smallest working alternative."
+     }
+    ],
+    "snippets": [],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "`x = 0` rebinds the loop name to the number 0 and never touches the list's slots, so the list is unchanged; the smallest working alternative is `for i in range(len(xs)): xs[i] = 0`. **Error type if missed:** object-model. Go back to 5.7 and 5.9."
+     }
+    ],
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [
+     "5.7",
+     "5.9"
+    ]
+   },
+   {
+    "id": "C5.4",
+    "stage": 5,
+    "prompt": [
+     {
+      "kind": "p",
+      "text": "In this snippet, which lines run three times, which run once, and which run zero times?"
+     },
+     {
+      "kind": "code",
+      "lang": "python",
+      "text": "found = False\nfor c in \"xyz\":\n    if c == \"q\":\n        found = True\n        break\nprint(found)"
+     }
+    ],
+    "snippets": [
+     {
+      "label": null,
+      "code": "found = False\nfor c in \"xyz\":\n    if c == \"q\":\n        found = True\n        break\nprint(found)\n"
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "`found = False` and `print(found)` run once. The `for` line runs four times (three passes plus the ending check) and `if c == \"q\":` runs three times. `found = True` and `break` run **zero** times, because no character equals `\"q\"`. **Error type if missed:** flow. Go back to 5.10."
+     }
+    ],
+    "errorTypes": [
+     "flow"
+    ],
+    "goBack": [
+     "5.10"
+    ]
+   },
+   {
+    "id": "C5.5",
+    "stage": 5,
+    "prompt": [
+     {
+      "kind": "p",
+      "text": "Predict:"
+     },
+     {
+      "kind": "code",
+      "lang": "python",
+      "text": "words = []\nfor w in [\"a\", \"b\"]:\n    words.append(w)\n    words.append(w)\nprint(words, len(words))"
+     }
+    ],
+    "snippets": [
+     {
+      "label": null,
+      "code": "words = []\nfor w in [\"a\", \"b\"]:\n    words.append(w)\n    words.append(w)\nprint(words, len(words))\n"
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "`['a', 'a', 'b', 'b'] 4`. Two passes, two appends each, all to the one list. **Error type if missed:** flow. Go back to 5.15."
+     }
+    ],
+    "errorTypes": [
+     "flow"
+    ],
+    "goBack": [
+     "5.15"
+    ]
+   },
+   {
+    "id": "C5.6",
+    "stage": 5,
+    "prompt": [
+     {
+      "kind": "p",
+      "text": "Why does `print(range(5))` not show a list, and what would you write to see one?"
+     }
+    ],
+    "snippets": [],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "Because a range produces its numbers only as they are asked for, so it has no list to show; `print(list(range(5)))` builds and shows one. **Error type if missed:** object-model. Go back to 5.5."
+     }
+    ],
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [
+     "5.5"
+    ]
+   }
+  ]
+ },
+ "capstone": null,
+ "after": [
+  {
+   "kind": "p",
+   "text": "You can now read a single loop precisely: which lines repeat, how many times, what each name points at on each pass, and what survives afterward. Stage 6 keeps the loop and varies the thing being looped over."
+  }
+ ],
+ "summary": "Tell repeated lines from after-the-loop lines"
+}

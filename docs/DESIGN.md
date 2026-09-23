@@ -208,7 +208,7 @@ just finished pops with a burst of stars, the one it unlocked turns from
 grey to its colour and its "Start" arrives, and a trophy just earned
 lifts — in that order, so the eye follows the path down.
 
-### Practice and mastery — `src/practice/`, `src/mastery/`, `content/skills.ts`
+### Practice and mastery — `src/practice/`, `src/mastery/`, `content/concepts.ts`
 
 **Introduce, then practise.** Lessons introduce **skills** — thirteen
 small ones, like "division gives a float" or "a copied name does not
@@ -234,8 +234,131 @@ know least and the ones that have faded.
   as well as the score). It fades with time since last practised — never
   below half — and the time it holds doubles with the streak, which is
   spaced repetition at its simplest.
-- **Skills screen** (`#/skills`): every skill's level, first-try tally,
-  when it was last practised, and which need review.
+- **Skills screen** (`#/skills`): every concept's level, first-try tally,
+  when it was last practised, and which need review — plus, for the
+  reading collection, the misses by *kind* and the misconceptions fallen
+  for (see §3.1).
+
+## 3.1 Reading Python — `content/collection/`, `src/collection/`
+
+The collection in `content/collection/` — nine stages of reading
+exercises, a glossary and answer-key conventions — trains one skill: look
+at a short program and say exactly what it does. It is BotGineer's thesis
+stated as a curriculum, so it became the game's spine: after the warm-up,
+the map is its nine stages.
+
+### Content is markdown; grading is code
+
+```
+content/collection/*.md ──scripts/collection.mjs──► generated/stage-0N.json   (committed)
+content/collection/specs/stage-0N.ts  (hand-written, keyed by the same ids)
+                  └───────────── src/collection/index.ts joins them ─────────────┘
+```
+
+- **The markdown is the source of truth** and is edited as markdown. The
+  parser keeps prose as blocks and pulls out what the app needs: each
+  exercise's form, prompt and snippets (A/B labels, `# ←` markers); each
+  key's labelled sections, error types and "go back to" ids; the
+  authoring record's target, prerequisites and three lenses; checkpoint
+  items; the capstone listing; the glossary; the misconception table. The
+  JSON is committed so a content edit shows up in a diff as data, and a
+  unit test fails if it is stale.
+- **How to grade is never guessed from prose.** Each item has a spec: the
+  interactions it asks for (`Part`s), the concepts it exercises, and the
+  key's own answers as a learner would give them (`model`). ~214 specs;
+  a coverage test insists on exactly one per item.
+- **Errata** found by the audit are fixed in the markdown and listed in
+  `content/collection/ERRATA.md`.
+
+### The interpreter is the answer key
+
+A spec says *what* to compare; the truth comes from running the snippet in
+the real engine. `Part` kinds and their truth:
+
+| Part | Learner does | Truth |
+|---|---|---|
+| `output` | types what it prints, ticks the error it stops with | the run's stdout and exception type; set order graded unordered |
+| `choice` / `number` | picks, counts | fixed, or derived from the run (`collection/facts`: "how many lists exist?") |
+| `line` | clicks a line | fixed, or `divergence`: the first line whose effect differs between A and B |
+| `order` | clicks lines in the order Python reaches them | `lineVisits`, mapped by `traceOrder` (below) |
+| `table` | fills a trace table | a function of the run's snapshots per pass |
+| `block` | marks the body, counts runs | Python's own `ast`, run in the engine; visit counts |
+| `diagram` | picks the picture of memory at a moment | `extractMemory` at that moment; distractors are the truth with one named wrong model applied |
+| `labels` | puts a role on each piece of a line | the spec |
+| `rule` | writes it, then self-marks against the key | the learner's honest mark; "right idea, wrong word" is a vocabulary-only miss |
+| `fix` / `write` | edits or writes code | the program run with a hidden checker that evaluates the spec's checks in its namespace |
+
+**The sweep** (`tests/semantics/collection.sweep.test.ts`) runs every item
+in the same Pyodide and wheel the site ships, in Node, and feeds every
+`model` answer to its own grader. A key that disagrees with CPython 3.14,
+or a spec that disagrees with its key, fails and names the item. It found
+two errata; everything else in the collection's 3.11-era keys holds on
+3.14. **The browser audit** (`tests/browser/collection-audit.spec.ts`)
+plays every item in the production page with the key's answers.
+
+**Execution order.** The trace reports one `line` event per visit, and a
+`for` header once per pass plus once for "nothing left" — the collection's
+convention exactly. The one difference: 9.4 numbers the calling line again
+after a call returns, 8.1 and 9.C2 do not, and the trace never does. A
+return to the calling line is therefore *optional* on both sides of the
+comparison (`traceOrder.withoutReturns`). The content is never changed to
+fit the trace.
+
+**Function defaults.** The vendored engine did not encode `__defaults__`;
+the capstone's shared `log=[]` needs them drawn. It was patched to emit
+`defaults` on a function node (`public/runtime/pytrace/PATCHES.md`), and
+`extract` shows them as the function object's elements.
+
+### Commit, then run
+
+An item is prepared — its snippets run *quietly* — as soon as it opens,
+because a picture choice needs the truth to draw its options. Nothing of
+that run is shown. Memory is empty, the scrubber absent, the output
+unprinted, the key shut. **Commit** locks every prediction and grades it;
+then the run is shown and the key opens: answer, reasoning, targeted
+misconception, the kind of mistake, and "go back to X" as a link that
+opens X on its own (`#/x-X`). Repairs and programs come after the commit,
+in the real editor; while one is owed, the key's own code stays folded.
+Only first tries count.
+
+The runs go through one queue in the workbench, so a quiet run and a
+shown one are never in flight together (invariant 5).
+
+### The map, the gate and the review
+
+Each stage is **Ideas** (the stage's prose, every example runnable in
+place), three or four **sets** of about five exercises in file order, a
+**practice** of missed items and fresh **variants**, and a **checkpoint**.
+Stage 9 ends on the **capstone**: one program, eight items.
+
+**The checkpoint is a gate**: all but one right first time, a
+vocabulary-only miss counting as right. A failed checkpoint is simply not
+finished. Its missed questions' "go back to" exercises become a **review**
+— an amber stop before the checkpoint, which waits for it — and once each
+has been done since the failure, the review is gone and the checkpoint is
+open again. None of that is stored: it is read off mastery's `ex:` records
+and their timestamps (`collection/levels`).
+
+**Variants** (`collection/variants`) are seeded templates of the
+templatable families — alias versus rebind, `*` on lists, loop counts,
+nested counts, parameters. Their answers come from running them, never
+from the warm-up's small evaluator.
+
+### Mastery, keyed
+
+One store, several kinds of key: a concept by its bare id; `ex:<id>` per
+item; `mis:<id>` per misconception (right = caught, wrong = fell for);
+`lens:<syntax|flow|object>`; and `err:<type>`, written only on a miss, so
+its `tries` counts misses of that kind. The skills screen reads the
+breakdown and says where the collection sends that kind of mistake.
+
+### Language
+
+Stages 1–5 speak plainly (*a name pointing at an object*); from Stage 6
+the crow and the memory panel use the formal words (*binding*,
+*iterable*), per the collection's language policy (`collection/voice`).
+A bold term in the collection's text links to its glossary entry
+(`#/glossary/<term>`).
 
 ## 4. Execution
 
@@ -289,6 +412,14 @@ the old semantic tests used.
 - `tests/browser/workbench.spec.ts` — the three panels against **real
   Python** in the production build, served at the sub-path with no
   isolation headers, exactly as Pages serves it.
+- `tests/semantics/` — the real engine in Node (the shipped wheel in the
+  shipped Pyodide): the collection's audit and self-consistency sweep, the
+  graders on crafted misses, and every variant family across many seeds.
+- `tests/unit/collection.test.ts` — the parser, spec coverage, the
+  authoring audit (prerequisites point earlier; checkpoint concepts met in
+  two forms first).
+- `tests/browser/reading.spec.ts`, `collection-audit.spec.ts` — reading
+  journeys, and every item played in the page with the key's answers.
 
 The browser suite is where "the interpreter is the answer key" now lives:
 it asserts that `a = 10; b = a` really share a target and that `[1]` and
@@ -296,9 +427,15 @@ it asserts that `a = 10; b = a` really share a target and that `[1]` and
 
 ## 8. Known gaps
 
-- **Three activities, no grading.** Nothing checks whether the player did
-  the thing; the scene simply reflects memory. That is honest for a
-  prototype and is the next decision.
+- **Drawing is a choice, not a drawing.** "Draw names and objects" offers
+  the truth among pictures made by named misconceptions. A free diagram
+  builder is future work.
+- **"State the rule" is self-marked**, so it can be gamed. It records a
+  vocabulary-only miss honestly, as the collection intends.
+- **A set is played in one sitting.** A set resumes at its first
+  unanswered item, but an item half-answered when you leave starts over.
+- **One known curriculum gap**, kept visible in the audit: before C8.5,
+  `return` leaving a loop part-way is met in one form only (8.15).
 - **A runaway loop takes ~a minute to stop.** Bounded, not instant. The
   real fix is a worker-side budget.
 - **No accounts, no saving, no i18n.** Work lives in the tab.

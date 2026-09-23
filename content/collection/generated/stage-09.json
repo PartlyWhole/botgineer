@@ -1,0 +1,1927 @@
+{
+ "stage": 9,
+ "file": "stage-09-integration-capstone.md",
+ "title": "Integration and Capstone",
+ "move": "none. Every construct is now on the table. This stage asks you to use them together on programs long enough that you cannot hold them in your head — which is the situation reading real code always is.",
+ "adds": [
+  {
+   "kind": "p",
+   "text": "For each program, in this order:"
+  },
+  {
+   "kind": "list",
+   "ordered": true,
+   "items": [
+    "**Mark the blocks.** Draw the vertical lines. Note every level change.",
+    "**Trace the flow.** Which lines run, how often, in what order — including into and out of calls.",
+    "**Draw the objects.** Names, arrows, and which containers share which inner objects.",
+    "**Predict.** Write the output down before running anything.",
+    "**Diagnose.** For each wrong result, name the *event* that caused it and the *line* it happened on. These are often different lines.",
+    "**Repair, minimally.** Then justify the repair in terms of names and objects."
+   ]
+  },
+  {
+   "kind": "p",
+   "text": "Do not skip step 3 on any program in this stage. Every one of them turns on something the diagram shows and the code does not."
+  }
+ ],
+ "ideas": [],
+ "exercises": [
+  {
+   "id": "9.1",
+   "stage": 9,
+   "form": "Predict, then diagnose",
+   "kind": "predict",
+   "prompt": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "def register(name, roster):\n    roster.append(name)\n    return roster\n\nteam_a = []\nteam_b = register(\"ann\", team_a)\nregister(\"bo\", team_b)\nprint(team_a, team_b, team_a is team_b)"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "def register(name, roster):\n    roster.append(name)\n    return roster\n\nteam_a = []\nteam_b = register(\"ann\", team_a)\nregister(\"bo\", team_b)\nprint(team_a, team_b, team_a is team_b)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`['ann', 'bo'] ['ann', 'bo'] True`"
+       }
+      ]
+     },
+     {
+      "label": "Diagnosis",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`register` changes the list it is given and then returns that same object. So `team_b` is not a second team — it is a second name for `team_a`. The second call appends to the one list through the other name. The `True` is the proof."
+       },
+       {
+        "kind": "p",
+        "text": "The defect is a design one, on the `return roster` line combined with the `.append`: the function both changes its input and returns it (Exercise 8.20). A caller reasonably reads `team_b = register(...)` as producing something new."
+       }
+      ]
+     },
+     {
+      "label": "Error type",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "`['ann', 'bo'] ['ann', 'bo'] True`"
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "`register` changes the list it is given and then returns that same object. So `team_b` is not a second team — it is a second name for `team_a`. The second call appends to the one list through the other name. The `True` is the proof."
+     },
+     {
+      "kind": "p",
+      "text": "The defect is a design one, on the `return roster` line combined with the `.append`: the function both changes its input and returns it (Exercise 8.20). A caller reasonably reads `team_b = register(...)` as producing something new."
+     }
+    ],
+    "misconception": "",
+    "missed": "Error type. Object-model.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: change-and-return conflation across a boundary. Prereq: 8.5, 8.20. Syntax lens: `.append` then `return` of the same name. Flow lens: two calls. Object lens: one list, three names.",
+     "target": "change-and-return conflation across a boundary",
+     "prereq": [
+      "8.5",
+      "8.20"
+     ],
+     "syntax": "`.append` then `return` of the same name",
+     "flow": "two calls",
+     "object": "one list, three names"
+    }
+   }
+  },
+  {
+   "id": "9.2",
+   "stage": 9,
+   "form": "Predict the result",
+   "kind": "predict",
+   "prompt": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "data = {\"a\": [1, 2], \"b\": [3]}\nbackup = dict(data)\nfor key in data:\n    data[key].append(0)\nprint(data)\nprint(backup)"
+    },
+    {
+     "kind": "p",
+     "text": "Which level was copied, and which change crossed?"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "data = {\"a\": [1, 2], \"b\": [3]}\nbackup = dict(data)\nfor key in data:\n    data[key].append(0)\nprint(data)\nprint(backup)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "{'a': [1, 2, 0], 'b': [3, 0]}\n{'a': [1, 2, 0], 'b': [3, 0]}"
+       }
+      ]
+     },
+     {
+      "label": "Which level",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`dict(data)` copied the outer level — the set of pairs. Both dictionaries have their own pairs, so adding or deleting a *key* would affect only one. But both sets of pairs point at the same two lists, so the append crossed."
+       }
+      ]
+     },
+     {
+      "label": "Error type if missed",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model. Go back to 4.11."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "{'a': [1, 2, 0], 'b': [3, 0]}\n{'a': [1, 2, 0], 'b': [3, 0]}"
+     }
+    ],
+    "reasoning": [],
+    "misconception": "",
+    "missed": "Error type if missed. Object-model. Go back to 4.11.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [
+     "4.11"
+    ],
+    "authoring": {
+     "text": "Target: shallow dictionary copy under iteration. Prereq: 4.11, 6.2. Syntax lens: `dict(d)`, `d[key].append`. Flow lens: two passes. Object lens: two dictionaries, two shared lists.",
+     "target": "shallow dictionary copy under iteration",
+     "prereq": [
+      "4.11",
+      "6.2"
+     ],
+     "syntax": "`dict(d)`, `d[key].append`",
+     "flow": "two passes",
+     "object": "two dictionaries, two shared lists"
+    }
+   }
+  },
+  {
+   "id": "9.3",
+   "stage": 9,
+   "form": "Find and fix",
+   "kind": "fix",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "The intent is to give each student an independent list and record one grade each."
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "def make_records(names, blank=[]):\n    records = {}\n    for n in names:\n        records[n] = blank\n    return records\n\nr = make_records([\"ann\", \"bo\"])\nr[\"ann\"].append(90)\nprint(r)"
+    },
+    {
+     "kind": "p",
+     "text": "Name **both** faults, and say which one alone would have been enough to cause the output you see."
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "def make_records(names, blank=[]):\n    records = {}\n    for n in names:\n        records[n] = blank\n    return records\n\nr = make_records([\"ann\", \"bo\"])\nr[\"ann\"].append(90)\nprint(r)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "It prints `{'ann': [90], 'bo': [90]}`."
+       }
+      ]
+     },
+     {
+      "label": "Two faults",
+      "blocks": [
+       {
+        "kind": "list",
+        "ordered": true,
+        "items": [
+         "**The default argument** (`blank=[]`, line 1): one list is built when the `def` line runs and reused by every call that omits the argument. A second call to `make_records` would find the grade already there.",
+         "**The shared name in the loop** (`records[n] = blank`, line 4): every key is pointed at that one list. Even with a fresh default per call, all students in a single call would share one list."
+        ]
+       }
+      ]
+     },
+     {
+      "label": "Which alone suffices",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Fault 2 alone fully explains the printed output — within a single call, both keys point at one list regardless of where that list came from. Fault 1 produces no visible symptom here at all; it needs a second call."
+       }
+      ]
+     },
+     {
+      "label": "Fix",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "python",
+        "text": "def make_records(names):\n    records = {}\n    for n in names:\n        records[n] = []\n    return records"
+       },
+       {
+        "kind": "p",
+        "text": "The parameter disappears entirely, and `[]` inside the loop body runs once per pass, producing one list per student."
+       }
+      ]
+     },
+     {
+      "label": "Error type",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model, twice."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "It prints `{'ann': [90], 'bo': [90]}`."
+     }
+    ],
+    "reasoning": [],
+    "misconception": "",
+    "missed": "Error type. Object-model, twice.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: two stacked sharing faults; attribute the symptom correctly. Prereq: 4.18, 8.16. Syntax lens: default value; a name used as a value. Flow lens: default evaluated once at definition; body per pass. Object lens: one list, two keys.",
+     "target": "two stacked sharing faults; attribute the symptom correctly",
+     "prereq": [
+      "4.18",
+      "8.16"
+     ],
+     "syntax": "default value; a name used as a value",
+     "flow": "default evaluated once at definition; body per pass",
+     "object": "one list, two keys"
+    }
+   }
+  },
+  {
+   "id": "9.4",
+   "stage": 9,
+   "form": "What runs next?",
+   "kind": "order",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Number the execution order completely, including descents into calls, and give the output."
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "def half(n):\n    return n // 2\n\nvalues = [8, 5]\nout = []\nfor v in values:\n    if v % 2 == 1:\n        continue\n    out.append(half(v))\nprint(out)"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "def half(n):\n    return n // 2\n\nvalues = [8, 5]\nout = []\nfor v in values:\n    if v % 2 == 1:\n        continue\n    out.append(half(v))\nprint(out)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "1   def half(n):            (defines; body not run)\n2   values = [8, 5]\n3   out = []\n4   for v in values:        (v = 8)\n5       if v % 2 == 1:       → False\n6       out.append(half(v))\n7           return n // 2    (inside the call; produces 4)\n8       out.append(4)        (the call has returned; the append happens)\n9   for v in values:        (v = 5)\n10      if v % 2 == 1:       → True\n11          continue         → back to the for line\n12  for v in values:        (nothing left)\n13  print(out)               → [4]"
+       },
+       {
+        "kind": "p",
+        "text": "Output: `[4]`."
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Two things are worth noticing. The argument `v` is worked out and the call runs *before* `.append` receives anything — the inner call completes first. And `continue` returns control to the `for` line, not to the line after the `if`."
+       }
+      ]
+     },
+     {
+      "label": "Error type if missed",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Flow."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "1   def half(n):            (defines; body not run)\n2   values = [8, 5]\n3   out = []\n4   for v in values:        (v = 8)\n5       if v % 2 == 1:       → False\n6       out.append(half(v))\n7           return n // 2    (inside the call; produces 4)\n8       out.append(4)        (the call has returned; the append happens)\n9   for v in values:        (v = 5)\n10      if v % 2 == 1:       → True\n11          continue         → back to the for line\n12  for v in values:        (nothing left)\n13  print(out)               → [4]"
+     },
+     {
+      "kind": "p",
+      "text": "Output: `[4]`."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "Two things are worth noticing. The argument `v` is worked out and the call runs *before* `.append` receives anything — the inner call completes first. And `continue` returns control to the `for` line, not to the line after the `if`."
+     }
+    ],
+    "misconception": "",
+    "missed": "Error type if missed. Flow.",
+    "errorTypes": [
+     "flow"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: trace a call nested inside a loop with a guard. Prereq: 5.11, 8.1. Syntax lens: call as an argument. Flow lens: descent and return; `continue`. Object lens: one list changed once.",
+     "target": "trace a call nested inside a loop with a guard",
+     "prereq": [
+      "5.11",
+      "8.1"
+     ],
+     "syntax": "call as an argument",
+     "flow": "descent and return; `continue`",
+     "object": "one list changed once"
+    }
+   }
+  },
+  {
+   "id": "9.5",
+   "stage": 9,
+   "form": "Predict the result",
+   "kind": "predict",
+   "prompt": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "def grow(xs):\n    xs = xs + [0]\n    xs.append(1)\n    return xs\n\noriginal = [7]\nreturned = grow(original)\nprint(original, returned)"
+    },
+    {
+     "kind": "p",
+     "text": "Say what happened to each of the three lists involved."
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "def grow(xs):\n    xs = xs + [0]\n    xs.append(1)\n    return xs\n\noriginal = [7]\nreturned = grow(original)\nprint(original, returned)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`[7] [7, 0, 1]`"
+       }
+      ]
+     },
+     {
+      "label": "The three lists",
+      "blocks": [
+       {
+        "kind": "list",
+        "ordered": false,
+        "items": [
+         "`#1 [7]` — built by the caller, bound to `original`, and briefly to the parameter `xs`. Never changed. It ends the program still bound to `original`.",
+         "`#2 [7, 0]` — built by `xs + [0]` on line 2. The local name `xs` is rebound to it. The caller cannot see this.",
+         "`#2 again` — line 3's `.append` changes that same new list to `[7, 0, 1]`. It is not a third list: `+` created one object and `.append` changed it."
+        ]
+       },
+       {
+        "kind": "p",
+        "text": "So there are only **two** list objects, and the returned one is the new one. `original` is untouched because the rebinding on line 2 happened *before* any change."
+       }
+      ]
+     },
+     {
+      "label": "Error type if missed",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model. Compare 8.7, where the change came first and did cross the boundary."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "`[7] [7, 0, 1]`"
+     }
+    ],
+    "reasoning": [],
+    "misconception": "",
+    "missed": "Error type if missed. Object-model. Compare 8.7, where the change came first and did cross the boundary.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [
+     "8.7"
+    ],
+    "authoring": {
+     "text": "Target: rebind-then-change inside a call. Prereq: 8.6, 8.7. Syntax lens: `= ... +` then `.append`. Flow lens: one call. Object lens: two lists; order of the two events decides visibility.",
+     "target": "rebind-then-change inside a call",
+     "prereq": [
+      "8.6",
+      "8.7"
+     ],
+     "syntax": "`= ... +` then `.append`",
+     "flow": "one call",
+     "object": "two lists; order of the two events decides visibility"
+    }
+   }
+  },
+  {
+   "id": "9.6",
+   "stage": 9,
+   "form": "Find and fix",
+   "kind": "fix",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "The intent is to remove all empty rows from the grid."
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "grid = [[1], [], [], [2]]\nfor row in grid:\n    if len(row) == 0:\n        grid.remove(row)\nprint(grid)"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "grid = [[1], [], [], [2]]\nfor row in grid:\n    if len(row) == 0:\n        grid.remove(row)\nprint(grid)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "It prints `[[1], [], [2]]` — one empty row survives."
+       }
+      ]
+     },
+     {
+      "label": "Trace",
+      "blocks": [
+       {
+        "kind": "table",
+        "head": [
+         "loop is at position",
+         "`grid` at that moment",
+         "`row`",
+         "action"
+        ],
+        "rows": [
+         [
+          "0",
+          "`[[1], [], [], [2]]`",
+          "`[1]`",
+          "not empty, nothing"
+         ],
+         [
+          "1",
+          "`[[1], [], [], [2]]`",
+          "`[]`",
+          "remove → `[[1], [], [2]]`"
+         ],
+         [
+          "2",
+          "`[[1], [], [2]]`",
+          "`[2]`",
+          "not empty, nothing"
+         ],
+         [
+          "3",
+          "`[[1], [], [2]]`",
+          "—",
+          "past the end; loop ends"
+         ]
+        ]
+       },
+       {
+        "kind": "p",
+        "text": "The removal shifted everything left, so the second empty row slid into position 1 — a position the walk had already passed. It is never examined."
+       },
+       {
+        "kind": "p",
+        "text": "**Two things are wrong at once**, and both are worth naming. The loop is changing the list it is walking (Stage 5.13). And `.remove(row)` removes the **first item equal to** its argument, not the item the loop is currently at — with duplicate rows, \"remove this one\" is not what that line says. Since all empty lists are equal, the two faults happen to cancel out on some inputs and not on others, which is why a version of this bug can pass a test and fail in production."
+       }
+      ]
+     },
+     {
+      "label": "Fix",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Build a new list instead:"
+       },
+       {
+        "kind": "code",
+        "lang": "python",
+        "text": "grid = [row for row in grid if len(row) > 0]"
+       },
+       {
+        "kind": "p",
+        "text": "or, if other names must see the change to the existing list:"
+       },
+       {
+        "kind": "code",
+        "lang": "python",
+        "text": "grid[:] = [row for row in grid if len(row) > 0]"
+       },
+       {
+        "kind": "p",
+        "text": "Both give `[[1], [2]]`. Note the difference between them is exactly Stage 2's: the first rebinds the name, the second writes every slot of the original object."
+       }
+      ]
+     },
+     {
+      "label": "Error type",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Flow, with an object-model component (equality-based removal)."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "It prints `[[1], [], [2]]` — one empty row survives."
+     }
+    ],
+    "reasoning": [],
+    "misconception": "",
+    "missed": "Error type. Flow, with an object-model component (equality-based removal).",
+    "errorTypes": [
+     "flow",
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: removal during iteration compounded by equality matching. Prereq: 5.13, 5.14. Syntax lens: `.remove` in a body. Flow lens: shifting positions skip an item. Object lens: `.remove` matches by equality, not identity.",
+     "target": "removal during iteration compounded by equality matching",
+     "prereq": [
+      "5.13",
+      "5.14"
+     ],
+     "syntax": "`.remove` in a body",
+     "flow": "shifting positions skip an item",
+     "object": "`.remove` matches by equality, not identity"
+    }
+   }
+  },
+  {
+   "id": "9.7",
+   "stage": 9,
+   "form": "Predict the result",
+   "kind": "predict",
+   "prompt": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "def counts(text):\n    result = {}\n    for c in text:\n        result[c] = result.get(c, 0) + 1\n    return result\n\na = counts(\"aab\")\nb = counts(\"aab\")\na[\"z\"] = 1\nprint(a, b, a == b, a is b)"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "def counts(text):\n    result = {}\n    for c in text:\n        result[c] = result.get(c, 0) + 1\n    return result\n\na = counts(\"aab\")\nb = counts(\"aab\")\na[\"z\"] = 1\nprint(a, b, a == b, a is b)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`{'a': 2, 'b': 1, 'z': 1} {'a': 2, 'b': 1} False False`"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`result = {}` is inside the body, so each call builds its own dictionary — the two results are separate objects and start out equal. Adding `\"z\"` to one makes them unequal, so both `==` and `is` are `False`. Had `result` been a default argument, all four answers would have been different."
+       }
+      ]
+     },
+     {
+      "label": "Error type if missed",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model. Go back to 8.11 and 8.19."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "`{'a': 2, 'b': 1, 'z': 1} {'a': 2, 'b': 1} False False`"
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "`result = {}` is inside the body, so each call builds its own dictionary — the two results are separate objects and start out equal. Adding `\"z\"` to one makes them unequal, so both `==` and `is` are `False`. Had `result` been a default argument, all four answers would have been different."
+     }
+    ],
+    "misconception": "",
+    "missed": "Error type if missed. Object-model. Go back to 8.11 and 8.19.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [
+     "8.11",
+     "8.19"
+    ],
+    "authoring": {
+     "text": "Target: fresh result per call; `==` versus `is`. Prereq: 8.19, 1.11. Syntax lens: local accumulator. Flow lens: two independent calls. Object lens: two dictionaries.",
+     "target": "fresh result per call; `==` versus `is`",
+     "prereq": [
+      "8.19",
+      "1.11"
+     ],
+     "syntax": "local accumulator",
+     "flow": "two independent calls",
+     "object": "two dictionaries"
+    }
+   }
+  },
+  {
+   "id": "9.8",
+   "stage": 9,
+   "form": "Compare near-matches",
+   "kind": "compare",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Snippet **A**:"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "def widen(grid):\n    for row in grid:\n        row.append(0)\n    return grid\n\ng = [[1], [2]]\nh = widen(g)\nprint(g, h, g is h)"
+    },
+    {
+     "kind": "p",
+     "text": "Snippet **B**:"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "def widen(grid):\n    return [row + [0] for row in grid]\n\ng = [[1], [2]]\nh = widen(g)\nprint(g, h, g is h)"
+    },
+    {
+     "kind": "p",
+     "text": "Predict both. For each, say which objects the caller ends up sharing with the result."
+    }
+   ],
+   "snippets": [
+    {
+     "label": "A",
+     "code": "def widen(grid):\n    for row in grid:\n        row.append(0)\n    return grid\n\ng = [[1], [2]]\nh = widen(g)\nprint(g, h, g is h)\n"
+    },
+    {
+     "label": "B",
+     "code": "def widen(grid):\n    return [row + [0] for row in grid]\n\ng = [[1], [2]]\nh = widen(g)\nprint(g, h, g is h)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "**A** prints `[[1, 0], [2, 0]] [[1, 0], [2, 0]] True`. **B** prints `[[1], [2]] [[1, 0], [2, 0]] False`."
+       }
+      ]
+     },
+     {
+      "label": "What the caller shares",
+      "blocks": [
+       {
+        "kind": "list",
+        "ordered": false,
+        "items": [
+         "**A:** everything. `h` *is* `g` — one outer list — and the inner lists were changed in place. The function's \"result\" adds nothing the caller did not already have.",
+         "**B:** nothing. The comprehension built a new outer list, and `row + [0]` built a new inner list per row. `g` is untouched at both levels. (Note that if the inner lists themselves contained lists, `row + [0]` would still share *those* — **B** is independent to two levels, not to all levels.)"
+        ]
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "**B** is the safer interface for the same reason **A** in Exercise 8.20 was: it does one thing, and the caller decides what to keep."
+       }
+      ]
+     },
+     {
+      "label": "Error type if missed",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "**A** prints `[[1, 0], [2, 0]] [[1, 0], [2, 0]] True`. **B** prints `[[1], [2]] [[1, 0], [2, 0]] False`."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "**B** is the safer interface for the same reason **A** in Exercise 8.20 was: it does one thing, and the caller decides what to keep."
+     }
+    ],
+    "misconception": "",
+    "missed": "Error type if missed. Object-model.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: in-place versus constructing function, at two levels. Prereq: 8.20, 7.8. Syntax lens: `.append` loop versus comprehension. Flow lens: two passes each. Object lens: full sharing versus none.",
+     "target": "in-place versus constructing function, at two levels",
+     "prereq": [
+      "8.20",
+      "7.8"
+     ],
+     "syntax": "`.append` loop versus comprehension",
+     "flow": "two passes each",
+     "object": "full sharing versus none"
+    }
+   }
+  },
+  {
+   "id": "9.9",
+   "stage": 9,
+   "form": "Find and fix",
+   "kind": "fix",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "The intent is a leaderboard that records each round's standings."
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "standings = [\"ann\", \"bo\"]\nrounds = []\nrounds.append(standings)\nstandings.reverse()\nrounds.append(standings)\nprint(rounds)"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "standings = [\"ann\", \"bo\"]\nrounds = []\nrounds.append(standings)\nstandings.reverse()\nrounds.append(standings)\nprint(rounds)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "It prints `[['bo', 'ann'], ['bo', 'ann']]`."
+       }
+      ]
+     },
+     {
+      "label": "Diagnosis",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Both entries in `rounds` are the same list — the one `standings` points at. `.reverse()` changed that list in place, so the \"round 1 record\" was rewritten retroactively, and the second append merely added a second arrow to it."
+       }
+      ]
+     },
+     {
+      "label": "Fix",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Record a copy at each round:"
+       },
+       {
+        "kind": "code",
+        "lang": "python",
+        "text": "rounds.append(standings[:])\nstandings.reverse()\nrounds.append(standings[:])\nprint(rounds)             # [['ann', 'bo'], ['bo', 'ann']]"
+       }
+      ]
+     },
+     {
+      "label": "Justification",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "A log entry must be a *snapshot*, and a changeable object stored by name is a *live view*. `[:]` is enough here because the items are strings; if each standing were itself a list, `copy.deepcopy` would be required."
+       }
+      ]
+     },
+     {
+      "label": "Error type",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model. This is 4.15 in a different costume — and it will be in the capstone too."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "It prints `[['bo', 'ann'], ['bo', 'ann']]`."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "Both entries in `rounds` are the same list — the one `standings` points at. `.reverse()` changed that list in place, so the \"round 1 record\" was rewritten retroactively, and the second append merely added a second arrow to it."
+     }
+    ],
+    "misconception": "",
+    "missed": "Error type. Object-model. This is 4.15 in a different costume — and it will be in the capstone too.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [
+     "4.15"
+    ],
+    "authoring": {
+     "text": "Target: snapshot versus live view in a log. Prereq: 4.15. Syntax lens: `.append(name)` versus `.append(name[:])`. Flow lens: change between two appends. Object lens: one list, two arrows.",
+     "target": "snapshot versus live view in a log",
+     "prereq": [
+      "4.15"
+     ],
+     "syntax": "`.append(name)` versus `.append(name[:])`",
+     "flow": "change between two appends",
+     "object": "one list, two arrows"
+    }
+   }
+  },
+  {
+   "id": "9.10",
+   "stage": 9,
+   "form": "Write a small program",
+   "kind": "write",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Write a function `transpose(grid)` that takes a rectangular grid (a list of equal-length lists) and returns a new grid with rows and columns swapped. It must not change the input, and the returned grid's rows must be independent objects. Demonstrate all three properties with printed evidence."
+    }
+   ],
+   "snippets": [],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "python",
+        "text": "def transpose(grid):\n    result = []\n    for c in range(len(grid[0])):\n        new_row = []\n        for r in range(len(grid)):\n            new_row.append(grid[r][c])\n        result.append(new_row)\n    return result\n\ng = [[1, 2, 3], [4, 5, 6]]\nt = transpose(g)\nprint(t)                              # [[1, 4], [2, 5], [3, 6]]\nprint(g)                              # [[1, 2, 3], [4, 5, 6]] — unchanged\nprint(t[0] is t[1])                   # False — rows are distinct objects\nt[0].append(99)\nprint(t, g)                           # only t changed"
+       },
+       {
+        "kind": "p",
+        "text": "Or as a comprehension:"
+       },
+       {
+        "kind": "code",
+        "lang": "python",
+        "text": "def transpose(grid):\n    return [[grid[r][c] for r in range(len(grid))] for c in range(len(grid[0]))]"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Three properties, three causes. The input is unchanged because the body only *reads* `grid[r][c]`. The rows are independent because `new_row = []` sits in the outer body and runs once per column (7.13). The cells are numbers, so nothing below the row level can be shared in a way that matters — with changeable cells, this transpose would share them, and whether that is acceptable would need stating."
+       }
+      ]
+     },
+     {
+      "label": "Error type if missed",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model if your rows came out shared; syntax-reading if the index order was swapped."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "python",
+      "text": "def transpose(grid):\n    result = []\n    for c in range(len(grid[0])):\n        new_row = []\n        for r in range(len(grid)):\n            new_row.append(grid[r][c])\n        result.append(new_row)\n    return result\n\ng = [[1, 2, 3], [4, 5, 6]]\nt = transpose(g)\nprint(t)                              # [[1, 4], [2, 5], [3, 6]]\nprint(g)                              # [[1, 2, 3], [4, 5, 6]] — unchanged\nprint(t[0] is t[1])                   # False — rows are distinct objects\nt[0].append(99)\nprint(t, g)                           # only t changed"
+     },
+     {
+      "kind": "p",
+      "text": "Or as a comprehension:"
+     },
+     {
+      "kind": "code",
+      "lang": "python",
+      "text": "def transpose(grid):\n    return [[grid[r][c] for r in range(len(grid))] for c in range(len(grid[0]))]"
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "Three properties, three causes. The input is unchanged because the body only *reads* `grid[r][c]`. The rows are independent because `new_row = []` sits in the outer body and runs once per column (7.13). The cells are numbers, so nothing below the row level can be shared in a way that matters — with changeable cells, this transpose would share them, and whether that is acceptable would need stating."
+     }
+    ],
+    "misconception": "",
+    "missed": "Error type if missed. Object-model if your rows came out shared; syntax-reading if the index order was swapped.",
+    "errorTypes": [
+     "object",
+     "syntax"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: construct an independent derived structure. Prereq: 7.12, 8.19. Syntax lens: nested position loops with swapped indices. Flow lens: `len(grid[0])` outer, `len(grid)` inner. Object lens: fresh rows; input read-only.",
+     "target": "construct an independent derived structure",
+     "prereq": [
+      "7.12",
+      "8.19"
+     ],
+     "syntax": "nested position loops with swapped indices",
+     "flow": "`len(grid[0])` outer, `len(grid)` inner",
+     "object": "fresh rows; input read-only"
+    }
+   }
+  },
+  {
+   "id": "9.C1",
+   "stage": 9,
+   "form": "Mark the blocks",
+   "kind": "block",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "For each of lines 10–16, state which block it belongs to and how many times it runs during **one** call of `row_totals` on a 3×3 board."
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "def new_board(rows, cols):\n    return [[0] * cols] * rows\n\ndef record(board, row, col, points, log=[]):\n    board[row][col] = board[row][col] + points\n    log.append((row, col, points))\n    return log\n\ndef row_totals(board):\n    totals = []\n    for row in board:\n        total = 0\n        for cell in row:\n            total = total + cell\n        totals.append(total)\n    return totals\n\ndef best_row(totals):\n    best = 0\n    for i, t in enumerate(totals):\n        if t > totals[best]:\n            best = i\n            break\n    return best\n\nboard = new_board(3, 3)\nrecord(board, 0, 0, 5)\nrecord(board, 1, 1, 7)\nhistory = record(board, 2, 2, 12)\nprint(board)\nprint(row_totals(board))\nprint(best_row(row_totals(board)))\nprint(history)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "For one call on a 3×3 board:"
+       },
+       {
+        "kind": "table",
+        "head": [
+         "Line",
+         "Block",
+         "Runs"
+        ],
+        "rows": [
+         [
+          "10 `totals = []`",
+          "function body, top level",
+          "1"
+         ],
+         [
+          "11 `for row in board:`",
+          "function body",
+          "4 visits (3 passes + the ending check)"
+         ],
+         [
+          "12 `total = 0`",
+          "outer loop body",
+          "3"
+         ],
+         [
+          "13 `for cell in row:`",
+          "outer loop body",
+          "3 times, 4 visits each"
+         ],
+         [
+          "14 `total = total + cell`",
+          "inner loop body",
+          "**9**"
+         ],
+         [
+          "15 `totals.append(total)`",
+          "outer loop body",
+          "3"
+         ],
+         [
+          "16 `return totals`",
+          "function body",
+          "1"
+         ]
+        ]
+       }
+      ]
+     },
+     {
+      "label": "The line to check yourself on is 15",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "It is indented to the outer body, so it runs once per row — after that row's inner loop has finished. Indented one step further, it would run nine times and produce nine totals."
+       }
+      ]
+     },
+     {
+      "label": "Error type if missed",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Syntax-reading."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "For one call on a 3×3 board:"
+     },
+     {
+      "kind": "table",
+      "head": [
+       "Line",
+       "Block",
+       "Runs"
+      ],
+      "rows": [
+       [
+        "10 `totals = []`",
+        "function body, top level",
+        "1"
+       ],
+       [
+        "11 `for row in board:`",
+        "function body",
+        "4 visits (3 passes + the ending check)"
+       ],
+       [
+        "12 `total = 0`",
+        "outer loop body",
+        "3"
+       ],
+       [
+        "13 `for cell in row:`",
+        "outer loop body",
+        "3 times, 4 visits each"
+       ],
+       [
+        "14 `total = total + cell`",
+        "inner loop body",
+        "**9**"
+       ],
+       [
+        "15 `totals.append(total)`",
+        "outer loop body",
+        "3"
+       ],
+       [
+        "16 `return totals`",
+        "function body",
+        "1"
+       ]
+      ]
+     }
+    ],
+    "reasoning": [],
+    "misconception": "",
+    "missed": "Error type if missed. Syntax-reading.",
+    "errorTypes": [
+     "syntax"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: three-level block identification inside a function. Prereq: 7.1, 8.3. Syntax lens: three indentation levels. Flow lens: 3 × 3 passes. Object lens: one accumulator list changed three times.",
+     "target": "three-level block identification inside a function",
+     "prereq": [
+      "7.1",
+      "8.3"
+     ],
+     "syntax": "three indentation levels",
+     "flow": "3 × 3 passes",
+     "object": "one accumulator list changed three times"
+    }
+   }
+  },
+  {
+   "id": "9.C2",
+   "stage": 9,
+   "form": "Trace the flow",
+   "kind": "order",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Number the execution order for lines 26–30 only, descending into each call. You do not need to number inside `row_totals`."
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "def new_board(rows, cols):\n    return [[0] * cols] * rows\n\ndef record(board, row, col, points, log=[]):\n    board[row][col] = board[row][col] + points\n    log.append((row, col, points))\n    return log\n\ndef row_totals(board):\n    totals = []\n    for row in board:\n        total = 0\n        for cell in row:\n            total = total + cell\n        totals.append(total)\n    return totals\n\ndef best_row(totals):\n    best = 0\n    for i, t in enumerate(totals):\n        if t > totals[best]:\n            best = i\n            break\n    return best\n\nboard = new_board(3, 3)\nrecord(board, 0, 0, 5)\nrecord(board, 1, 1, 7)\nhistory = record(board, 2, 2, 12)\nprint(board)\nprint(row_totals(board))\nprint(best_row(row_totals(board)))\nprint(history)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "1   board = new_board(3, 3)\n2       return [[0] * cols] * rows        (builds and returns; call ends)\n3   record(board, 0, 0, 5)\n4       board[row][col] = board[row][col] + points\n5       log.append((row, col, points))\n6       return log                        (returned value discarded)\n7   record(board, 1, 1, 7)\n8       board[row][col] = ...\n9       log.append(...)\n10      return log                        (discarded)\n11  history = record(board, 2, 2, 12)\n12      board[row][col] = ...\n13      log.append(...)\n14      return log                        (bound to history)\n15  print(board)"
+       }
+      ]
+     },
+     {
+      "label": "Worth noticing",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Lines 27 and 28 call a function that returns something and throw it away. That is legal, and here it hides the fact that the log is shared — the caller never sees a log until line 29, by which point all three entries are in it."
+       }
+      ]
+     },
+     {
+      "label": "Error type if missed",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Flow."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "1   board = new_board(3, 3)\n2       return [[0] * cols] * rows        (builds and returns; call ends)\n3   record(board, 0, 0, 5)\n4       board[row][col] = board[row][col] + points\n5       log.append((row, col, points))\n6       return log                        (returned value discarded)\n7   record(board, 1, 1, 7)\n8       board[row][col] = ...\n9       log.append(...)\n10      return log                        (discarded)\n11  history = record(board, 2, 2, 12)\n12      board[row][col] = ...\n13      log.append(...)\n14      return log                        (bound to history)\n15  print(board)"
+     }
+    ],
+    "reasoning": [],
+    "misconception": "",
+    "missed": "Error type if missed. Flow.",
+    "errorTypes": [
+     "flow"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: execution order across repeated calls. Prereq: 8.1. Syntax lens: call statements with discarded results. Flow lens: three calls into one body. Object lens: one log object across all three.",
+     "target": "execution order across repeated calls",
+     "prereq": [
+      "8.1"
+     ],
+     "syntax": "call statements with discarded results",
+     "flow": "three calls into one body",
+     "object": "one log object across all three"
+    }
+   }
+  },
+  {
+   "id": "9.C3",
+   "stage": 9,
+   "form": "Draw the names and objects",
+   "kind": "draw",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Draw the picture immediately after line 26 runs, and again immediately after line 27 runs. Use one box per list object."
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "def new_board(rows, cols):\n    return [[0] * cols] * rows\n\ndef record(board, row, col, points, log=[]):\n    board[row][col] = board[row][col] + points\n    log.append((row, col, points))\n    return log\n\ndef row_totals(board):\n    totals = []\n    for row in board:\n        total = 0\n        for cell in row:\n            total = total + cell\n        totals.append(total)\n    return totals\n\ndef best_row(totals):\n    best = 0\n    for i, t in enumerate(totals):\n        if t > totals[best]:\n            best = i\n            break\n    return best\n\nboard = new_board(3, 3)\nrecord(board, 0, 0, 5)\nrecord(board, 1, 1, 7)\nhistory = record(board, 2, 2, 12)\nprint(board)\nprint(row_totals(board))\nprint(best_row(row_totals(board)))\nprint(history)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "After line 26:"
+       },
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "board ─▶ #1 [ ●, ●, ● ]\n              │  │  │\n              └──┴──┴──▶ #2 [0, 0, 0]"
+       },
+       {
+        "kind": "p",
+        "text": "**One** inner list, pointed at from all three slots of the outer list."
+       },
+       {
+        "kind": "p",
+        "text": "After line 27 (`record(board, 0, 0, 5)` — which does `board[0][0] = board[0][0] + 5`):"
+       },
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "board ─▶ #1 [ ●, ●, ● ]\n              │  │  │\n              └──┴──┴──▶ #2 [5, 0, 0]"
+       },
+       {
+        "kind": "p",
+        "text": "The write went into `#2`, which every slot points at. There is also, off to the side, the default log:"
+       },
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "record's default log ─▶ #3 [(0, 0, 5)]"
+       },
+       {
+        "kind": "p",
+        "text": "which belongs to the function object, not to this call."
+       }
+      ]
+     },
+     {
+      "label": "Error type if missed",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model. Go back to 4.6."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "After line 26:"
+     },
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "board ─▶ #1 [ ●, ●, ● ]\n              │  │  │\n              └──┴──┴──▶ #2 [0, 0, 0]"
+     },
+     {
+      "kind": "p",
+      "text": "**One** inner list, pointed at from all three slots of the outer list."
+     },
+     {
+      "kind": "p",
+      "text": "After line 27 (`record(board, 0, 0, 5)` — which does `board[0][0] = board[0][0] + 5`):"
+     },
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "board ─▶ #1 [ ●, ●, ● ]\n              │  │  │\n              └──┴──┴──▶ #2 [5, 0, 0]"
+     },
+     {
+      "kind": "p",
+      "text": "The write went into `#2`, which every slot points at. There is also, off to the side, the default log:"
+     },
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "record's default log ─▶ #3 [(0, 0, 5)]"
+     },
+     {
+      "kind": "p",
+      "text": "which belongs to the function object, not to this call."
+     }
+    ],
+    "reasoning": [],
+    "misconception": "",
+    "missed": "Error type if missed. Object-model. Go back to 4.6.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [
+     "4.6"
+    ],
+    "authoring": {
+     "text": "Target: diagram the repetition pitfall in situ. Prereq: 4.6, 8.16. Syntax lens: `[[0] * cols] * rows`. Flow lens: one write. Object lens: two lists plus the definition-time default.",
+     "target": "diagram the repetition pitfall in situ",
+     "prereq": [
+      "4.6",
+      "8.16"
+     ],
+     "syntax": "`[[0] * cols] * rows`",
+     "flow": "one write",
+     "object": "two lists plus the definition-time default"
+    }
+   }
+  },
+  {
+   "id": "9.C4",
+   "stage": 9,
+   "form": "Predict",
+   "kind": "predict",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Write down, before running anything, the four lines this program prints."
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "def new_board(rows, cols):\n    return [[0] * cols] * rows\n\ndef record(board, row, col, points, log=[]):\n    board[row][col] = board[row][col] + points\n    log.append((row, col, points))\n    return log\n\ndef row_totals(board):\n    totals = []\n    for row in board:\n        total = 0\n        for cell in row:\n            total = total + cell\n        totals.append(total)\n    return totals\n\ndef best_row(totals):\n    best = 0\n    for i, t in enumerate(totals):\n        if t > totals[best]:\n            best = i\n            break\n    return best\n\nboard = new_board(3, 3)\nrecord(board, 0, 0, 5)\nrecord(board, 1, 1, 7)\nhistory = record(board, 2, 2, 12)\nprint(board)\nprint(row_totals(board))\nprint(best_row(row_totals(board)))\nprint(history)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "[[5, 7, 12], [5, 7, 12], [5, 7, 12]]\n[24, 24, 24]\n0\n[(0, 0, 5), (1, 1, 7), (2, 2, 12)]"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "All three writes landed in the one shared row, giving `[5, 7, 12]` displayed three times. Every row total is therefore 5+7+12 = 24. `best_row` finds no total strictly greater than `totals[0]`, so it never rebinds `best` and returns 0. The log looks entirely correct — which is the point of 9.C6."
+       }
+      ]
+     },
+     {
+      "label": "Error type if missed",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model on lines 1–2; flow on line 3."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "[[5, 7, 12], [5, 7, 12], [5, 7, 12]]\n[24, 24, 24]\n0\n[(0, 0, 5), (1, 1, 7), (2, 2, 12)]"
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "All three writes landed in the one shared row, giving `[5, 7, 12]` displayed three times. Every row total is therefore 5+7+12 = 24. `best_row` finds no total strictly greater than `totals[0]`, so it never rebinds `best` and returns 0. The log looks entirely correct — which is the point of 9.C6."
+     }
+    ],
+    "misconception": "",
+    "missed": "Error type if missed. Object-model on lines 1–2; flow on line 3.",
+    "errorTypes": [
+     "object",
+     "flow"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: full-program prediction. Prereq: 9.C1–9.C3. Syntax lens: whole program. Flow lens: three calls, two loops. Object lens: shared row.",
+     "target": "full-program prediction",
+     "prereq": [
+      "9.C1",
+      "9.C2",
+      "9.C3"
+     ],
+     "syntax": "whole program",
+     "flow": "three calls, two loops",
+     "object": "shared row"
+    }
+   }
+  },
+  {
+   "id": "9.C5",
+   "stage": 9,
+   "form": "Diagnose",
+   "kind": "fix",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "The program has **three** distinct defects. For each, give:"
+    },
+    {
+     "kind": "list",
+     "ordered": false,
+     "items": [
+      "the line where the wrong *event* happens (not where the symptom appears);",
+      "what the event is, in terms of names and objects or of flow;",
+      "the misconception it comes from;",
+      "and whether it is a syntax-reading, flow, or object-model defect."
+     ]
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "def new_board(rows, cols):\n    return [[0] * cols] * rows\n\ndef record(board, row, col, points, log=[]):\n    board[row][col] = board[row][col] + points\n    log.append((row, col, points))\n    return log\n\ndef row_totals(board):\n    totals = []\n    for row in board:\n        total = 0\n        for cell in row:\n            total = total + cell\n        totals.append(total)\n    return totals\n\ndef best_row(totals):\n    best = 0\n    for i, t in enumerate(totals):\n        if t > totals[best]:\n            best = i\n            break\n    return best\n\nboard = new_board(3, 3)\nrecord(board, 0, 0, 5)\nrecord(board, 1, 1, 7)\nhistory = record(board, 2, 2, 12)\nprint(board)\nprint(row_totals(board))\nprint(best_row(row_totals(board)))\nprint(history)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "**Defect 1 — line 2, `[[0] * cols] * rows`.** *Event:* `[0] * cols` is evaluated **once**, producing one list; the outer `* rows` then builds an outer list whose slots all point at that one object. Writing any cell writes every row's cell. *Misconception:* that `*` on a list of lists produces independent inner lists. *Type:* object-model."
+       }
+      ]
+     },
+     {
+      "label": "Defect 2 — line 4, `log=[]`",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "*Event:* the default list is built once, when the `def` line runs, and is shared by every call that omits the argument. The log accumulates across every board, for the life of the program. *Misconception:* that a default value is created fresh on each call. *Type:* object-model. (Invisible here — see 9.C6.)"
+       }
+      ]
+     },
+     {
+      "label": "Defect 3 — line 23, `break`",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "*Event:* the loop stops at the **first** total greater than `totals[best]`, rather than continuing to look for a larger one. It reports the first improvement, not the maximum. *Misconception:* that a loop which has found a better candidate is finished — a confusion of \"found something\" with \"found the best\". *Type:* flow."
+       }
+      ]
+     },
+     {
+      "label": "Note on where symptoms appear",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Defect 1's symptom shows on line 30 and again on 31; its cause is line 2. Defect 3's symptom would show on line 32; its cause is line 23. Reporting the print line as the bug is the mistake this exercise exists to prevent."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "**Defect 1 — line 2, `[[0] * cols] * rows`.** *Event:* `[0] * cols` is evaluated **once**, producing one list; the outer `* rows` then builds an outer list whose slots all point at that one object. Writing any cell writes every row's cell. *Misconception:* that `*` on a list of lists produces independent inner lists. *Type:* object-model."
+     }
+    ],
+    "reasoning": [],
+    "misconception": "",
+    "missed": "",
+    "errorTypes": [],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: attribute three defects to their causing lines. Prereq: 4.6, 8.16, 7.6. Syntax lens: all three. Flow lens: premature exit. Object lens: two sharing faults.",
+     "target": "attribute three defects to their causing lines",
+     "prereq": [
+      "4.6",
+      "8.16",
+      "7.6"
+     ],
+     "syntax": "all three",
+     "flow": "premature exit",
+     "object": "two sharing faults"
+    }
+   }
+  },
+  {
+   "id": "9.C6",
+   "stage": 9,
+   "form": "The hidden one",
+   "kind": "fix",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "One defect is completely invisible in this program's output and only appears when the program does something it does not currently do. Identify it, and write the two extra lines that would expose it."
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "def new_board(rows, cols):\n    return [[0] * cols] * rows\n\ndef record(board, row, col, points, log=[]):\n    board[row][col] = board[row][col] + points\n    log.append((row, col, points))\n    return log\n\ndef row_totals(board):\n    totals = []\n    for row in board:\n        total = 0\n        for cell in row:\n            total = total + cell\n        totals.append(total)\n    return totals\n\ndef best_row(totals):\n    best = 0\n    for i, t in enumerate(totals):\n        if t > totals[best]:\n            best = i\n            break\n    return best\n\nboard = new_board(3, 3)\nrecord(board, 0, 0, 5)\nrecord(board, 1, 1, 7)\nhistory = record(board, 2, 2, 12)\nprint(board)\nprint(row_totals(board))\nprint(best_row(row_totals(board)))\nprint(history)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Defect 2, the mutable default `log=[]`."
+       },
+       {
+        "kind": "p",
+        "text": "It is invisible because the program creates only one board and reads the log only once. Every entry that lands in the shared list belongs there, so the output looks right."
+       },
+       {
+        "kind": "p",
+        "text": "**Two lines that expose it:**"
+       },
+       {
+        "kind": "code",
+        "lang": "python",
+        "text": "board2 = new_board(3, 3)\nprint(record(board2, 0, 0, 1))"
+       },
+       {
+        "kind": "p",
+        "text": "This prints:"
+       },
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "[(0, 0, 5), (1, 1, 7), (2, 2, 12), (0, 0, 1)]"
+       },
+       {
+        "kind": "p",
+        "text": "A brand-new board's very first score arrives with three entries of another board's history attached."
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "A defect that produces correct output on the current inputs is not a smaller defect — it is a larger one, because nothing will alert you to it. The general shape: *sharing that has not yet been observed*."
+       }
+      ]
+     },
+     {
+      "label": "Error type if missed",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "Defect 2, the mutable default `log=[]`."
+     },
+     {
+      "kind": "p",
+      "text": "It is invisible because the program creates only one board and reads the log only once. Every entry that lands in the shared list belongs there, so the output looks right."
+     },
+     {
+      "kind": "p",
+      "text": "**Two lines that expose it:**"
+     },
+     {
+      "kind": "code",
+      "lang": "python",
+      "text": "board2 = new_board(3, 3)\nprint(record(board2, 0, 0, 1))"
+     },
+     {
+      "kind": "p",
+      "text": "This prints:"
+     },
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "[(0, 0, 5), (1, 1, 7), (2, 2, 12), (0, 0, 1)]"
+     },
+     {
+      "kind": "p",
+      "text": "A brand-new board's very first score arrives with three entries of another board's history attached."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "A defect that produces correct output on the current inputs is not a smaller defect — it is a larger one, because nothing will alert you to it. The general shape: *sharing that has not yet been observed*."
+     }
+    ],
+    "misconception": "",
+    "missed": "Error type if missed. Object-model.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: recognize a latent defect and construct its witness. Prereq: 8.16, 9.C5. Syntax lens: default argument. Flow lens: second call omitting the argument. Object lens: one list across the program's lifetime.",
+     "target": "recognize a latent defect and construct its witness",
+     "prereq": [
+      "8.16",
+      "9.C5"
+     ],
+     "syntax": "default argument",
+     "flow": "second call omitting the argument",
+     "object": "one list across the program's lifetime"
+    }
+   }
+  },
+  {
+   "id": "9.C7",
+   "stage": 9,
+   "form": "Repair",
+   "kind": "fix",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Fix all three defects with the smallest changes you can. Then predict the four printed lines again."
+    },
+    {
+     "kind": "p",
+     "text": "Note carefully: one of your three fixes will make a *previously invisible* defect start producing wrong output. Say which fix reveals which defect, and why it was masked before."
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "def new_board(rows, cols):\n    return [[0] * cols] * rows\n\ndef record(board, row, col, points, log=[]):\n    board[row][col] = board[row][col] + points\n    log.append((row, col, points))\n    return log\n\ndef row_totals(board):\n    totals = []\n    for row in board:\n        total = 0\n        for cell in row:\n            total = total + cell\n        totals.append(total)\n    return totals\n\ndef best_row(totals):\n    best = 0\n    for i, t in enumerate(totals):\n        if t > totals[best]:\n            best = i\n            break\n    return best\n\nboard = new_board(3, 3)\nrecord(board, 0, 0, 5)\nrecord(board, 1, 1, 7)\nhistory = record(board, 2, 2, 12)\nprint(board)\nprint(row_totals(board))\nprint(best_row(row_totals(board)))\nprint(history)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "python",
+        "text": "def new_board(rows, cols):\n    return [[0] * cols for _ in range(rows)]          # fix 1\n\ndef record(board, row, col, points, log=None):        # fix 2\n    if log is None:\n        log = []\n    board[row][col] = board[row][col] + points\n    log.append((row, col, points))\n    return log\n\ndef best_row(totals):\n    best = 0\n    for i, t in enumerate(totals):\n        if t > totals[best]:\n            best = i                                   # fix 3: break removed\n    return best"
+       },
+       {
+        "kind": "p",
+        "text": "Fix 2 changes the calling code too, since the log must now be threaded through:"
+       },
+       {
+        "kind": "code",
+        "lang": "python",
+        "text": "board = new_board(3, 3)\nhistory = record(board, 0, 0, 5)\nrecord(board, 1, 1, 7, history)\nrecord(board, 2, 2, 12, history)"
+       },
+       {
+        "kind": "p",
+        "text": "**New output:**"
+       },
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "[[5, 0, 0], [0, 7, 0], [0, 0, 12]]\n[5, 7, 12]\n2\n[(0, 0, 5), (1, 1, 7), (2, 2, 12)]"
+       }
+      ]
+     },
+     {
+      "label": "Which fix reveals which defect",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "**Fix 1 reveals defect 3.** Before the fix, every row totalled 24; `best_row`'s `break` could never fire, because no total was strictly greater than `totals[0]`, so the function returned 0 — which happened to be as good an answer as any among three equal rows. Once the rows are independent, the totals become `[5, 7, 12]`, and the unfixed `best_row` would stop at `i = 1` (7 > 5) and report row 1 — confidently wrong, with row 2 clearly ahead."
+       }
+      ]
+     },
+     {
+      "label": "The lesson",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "The sharing bug was *masking* the flow bug by flattening the data into a case the flow bug handles correctly. Fixing one defect can make another start producing wrong answers, and that is not a regression — it is the second defect becoming visible. Re-predict the output after every fix."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "python",
+      "text": "def new_board(rows, cols):\n    return [[0] * cols for _ in range(rows)]          # fix 1\n\ndef record(board, row, col, points, log=None):        # fix 2\n    if log is None:\n        log = []\n    board[row][col] = board[row][col] + points\n    log.append((row, col, points))\n    return log\n\ndef best_row(totals):\n    best = 0\n    for i, t in enumerate(totals):\n        if t > totals[best]:\n            best = i                                   # fix 3: break removed\n    return best"
+     },
+     {
+      "kind": "p",
+      "text": "Fix 2 changes the calling code too, since the log must now be threaded through:"
+     },
+     {
+      "kind": "code",
+      "lang": "python",
+      "text": "board = new_board(3, 3)\nhistory = record(board, 0, 0, 5)\nrecord(board, 1, 1, 7, history)\nrecord(board, 2, 2, 12, history)"
+     },
+     {
+      "kind": "p",
+      "text": "**New output:**"
+     },
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "[[5, 0, 0], [0, 7, 0], [0, 0, 12]]\n[5, 7, 12]\n2\n[(0, 0, 5), (1, 1, 7), (2, 2, 12)]"
+     }
+    ],
+    "reasoning": [],
+    "misconception": "",
+    "missed": "",
+    "errorTypes": [],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: minimal repair plus interaction between defects. Prereq: 9.C5, 9.C6. Syntax lens: comprehension, sentinel, removed `break`. Flow lens: full scan. Object lens: three rows, per-call log.",
+     "target": "minimal repair plus interaction between defects",
+     "prereq": [
+      "9.C5",
+      "9.C6"
+     ],
+     "syntax": "comprehension, sentinel, removed `break`",
+     "flow": "full scan",
+     "object": "three rows, per-call log"
+    }
+   }
+  },
+  {
+   "id": "9.C8",
+   "stage": 9,
+   "form": "Extend, and justify",
+   "kind": "write",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Add a function `snapshot(board)` that returns a record of the board that will not change when the board is later scored. Show it working. Then justify, in two sentences, why you chose the copying method you did — including why the cheaper alternative would not have been enough."
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "def new_board(rows, cols):\n    return [[0] * cols] * rows\n\ndef record(board, row, col, points, log=[]):\n    board[row][col] = board[row][col] + points\n    log.append((row, col, points))\n    return log\n\ndef row_totals(board):\n    totals = []\n    for row in board:\n        total = 0\n        for cell in row:\n            total = total + cell\n        totals.append(total)\n    return totals\n\ndef best_row(totals):\n    best = 0\n    for i, t in enumerate(totals):\n        if t > totals[best]:\n            best = i\n            break\n    return best\n\nboard = new_board(3, 3)\nrecord(board, 0, 0, 5)\nrecord(board, 1, 1, 7)\nhistory = record(board, 2, 2, 12)\nprint(board)\nprint(row_totals(board))\nprint(best_row(row_totals(board)))\nprint(history)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "python",
+        "text": "import copy\n\ndef snapshot(board):\n    return copy.deepcopy(board)\n\nboard = new_board(3, 3)\nhistory = record(board, 0, 0, 5)\nbefore = snapshot(board)\nrecord(board, 1, 1, 7, history)\nprint(before)        # [[5, 0, 0], [0, 0, 0], [0, 0, 0]]\nprint(board)         # [[5, 0, 0], [0, 7, 0], [0, 0, 0]]"
+       }
+      ]
+     },
+     {
+      "label": "Justification",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "A board is a list of lists, and scoring writes into the *inner* lists — `board[row][col] = ...` — so the snapshot must duplicate that level to be independent. `board[:]`, `list(board)`, or `copy.copy(board)` would each produce a new outer list whose three slots still point at the live rows, and every later score would appear in the \"snapshot\" exactly as it does in Exercise 4.12."
+       }
+      ]
+     },
+     {
+      "label": "A further note worth making",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`deepcopy` is right here specifically because the structure is nested and changeable. If the board were rebuilt rather than written into — if scoring returned a new board each time — no copying would be needed at all, because nothing would ever change under the snapshot. The copy is the price of the in-place design, not a universal safety measure."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "python",
+      "text": "import copy\n\ndef snapshot(board):\n    return copy.deepcopy(board)\n\nboard = new_board(3, 3)\nhistory = record(board, 0, 0, 5)\nbefore = snapshot(board)\nrecord(board, 1, 1, 7, history)\nprint(before)        # [[5, 0, 0], [0, 0, 0], [0, 0, 0]]\nprint(board)         # [[5, 0, 0], [0, 7, 0], [0, 0, 0]]"
+     }
+    ],
+    "reasoning": [],
+    "misconception": "",
+    "missed": "",
+    "errorTypes": [],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: choose and justify copy depth from the write pattern. Prereq: 4.12, 4.17, 9.C7. Syntax lens: `copy.deepcopy`. Flow lens: snapshot taken between two writes. Object lens: independence at every level below the name.",
+     "target": "choose and justify copy depth from the write pattern",
+     "prereq": [
+      "4.12",
+      "4.17",
+      "9.C7"
+     ],
+     "syntax": "`copy.deepcopy`",
+     "flow": "snapshot taken between two writes",
+     "object": "independence at every level below the name"
+    }
+   }
+  }
+ ],
+ "checkpoint": null,
+ "capstone": {
+  "intro": [
+   {
+    "kind": "p",
+    "text": "Read the whole program before touching anything."
+   }
+  ],
+  "listing": " 1  def new_board(rows, cols):\n 2      return [[0] * cols] * rows\n 3\n 4  def record(board, row, col, points, log=[]):\n 5      board[row][col] = board[row][col] + points\n 6      log.append((row, col, points))\n 7      return log\n 8\n 9  def row_totals(board):\n10      totals = []\n11      for row in board:\n12          total = 0\n13          for cell in row:\n14              total = total + cell\n15          totals.append(total)\n16      return totals\n17\n18  def best_row(totals):\n19      best = 0\n20      for i, t in enumerate(totals):\n21          if t > totals[best]:\n22              best = i\n23              break\n24      return best\n25\n26  board = new_board(3, 3)\n27  record(board, 0, 0, 5)\n28  record(board, 1, 1, 7)\n29  history = record(board, 2, 2, 12)\n30  print(board)\n31  print(row_totals(board))\n32  print(best_row(row_totals(board)))\n33  print(history)",
+  "program": "def new_board(rows, cols):\n    return [[0] * cols] * rows\n\ndef record(board, row, col, points, log=[]):\n    board[row][col] = board[row][col] + points\n    log.append((row, col, points))\n    return log\n\ndef row_totals(board):\n    totals = []\n    for row in board:\n        total = 0\n        for cell in row:\n            total = total + cell\n        totals.append(total)\n    return totals\n\ndef best_row(totals):\n    best = 0\n    for i, t in enumerate(totals):\n        if t > totals[best]:\n            best = i\n            break\n    return best\n\nboard = new_board(3, 3)\nrecord(board, 0, 0, 5)\nrecord(board, 1, 1, 7)\nhistory = record(board, 2, 2, 12)\nprint(board)\nprint(row_totals(board))\nprint(best_row(row_totals(board)))\nprint(history)\n",
+  "brief": [
+   {
+    "kind": "p",
+    "text": "The program is meant to keep a 3×3 scoreboard, add points to individual cells, report each row's total, report which row is leading, and return a log of every recorded score."
+   }
+  ]
+ },
+ "after": [
+  {
+   "kind": "p",
+   "text": "Look at a short program you have never seen and answer, without running it:"
+  },
+  {
+   "kind": "list",
+   "ordered": false,
+   "items": [
+    "which lines belong to which block, and how many times each runs;",
+    "what every name points at, at any moment, on both sides of a call boundary;",
+    "whether a given line binds, rebinds, changes, looks up, copies, or returns;",
+    "which changes will be visible through which other names;",
+    "what each collection will hand you when iterated, in what order, and how often it can be walked;",
+    "and, when the output is wrong, which *event* on which *line* caused it — which is rarely the line the symptom appeared on."
+   ]
+  },
+  {
+   "kind": "p",
+   "text": "If a defect ever surprises you again, the recovery procedure is the one from Stage 4, generalized: draw the names and objects, mark the blocks, and count how many times each line ran. Every answer in this collection came from those three questions."
+  }
+ ],
+ "summary": "Explain and repair a realistic program"
+}

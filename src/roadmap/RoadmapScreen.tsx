@@ -19,12 +19,44 @@ import { Robot, Courier } from '../ui/Characters'
 import { Crow } from '../ui/Crow'
 import { idleTiming } from '../panels/ScenePanel'
 import { mascotAt, stops, stretchHeight, trail } from './layout'
-import { LEVEL_NAMES, level, levelIndex, useMastery } from '../mastery/mastery'
-import { skillsOfUnit } from '../../content/skills'
+import { LEVEL_NAMES, level, levelIndex, useMastery, type Mastery } from '../mastery/mastery'
+import { conceptsOfUnit, skillsOfUnit } from '../../content/concepts'
+import { reviewOwed } from '../collection/levels'
+
+/**
+ * A unit's stops as the map draws them: its levels, and — while a failed
+ * checkpoint is sending you back — the review, just before the checkpoint.
+ * The review is not a level of the path; it is owed, and derived from
+ * mastery, so it appears and goes away on its own (see `collection/levels`).
+ */
+export function stopsOf(unit: Unit, states: Map<string, LevelState>, done: ReadonlySet<string>, m: Mastery) {
+  const checkpoint = unit.stage ? `s${unit.stage}-checkpoint` : null
+  const owed = checkpoint !== null && unit.levels.includes(checkpoint) && reviewOwed(unit.stage!, m, done.has(checkpoint))
+  if (!owed) return { levels: unit.levels, states }
+  const at = unit.levels.indexOf(checkpoint!)
+  const review = `s${unit.stage}-review`
+  const levels = [...unit.levels.slice(0, at), review, ...unit.levels.slice(at)]
+  const next = new Map(states)
+  next.set(review, 'current')
+  // The checkpoint waits for its review: the ladder assumes every rung holds.
+  if (next.get(checkpoint!) === 'current') next.set(checkpoint!, 'locked')
+  return { levels, states: next }
+}
 
 export function RoadmapScreen() {
   const done = useProgress()
-  const states = levelStates(LEVEL_ORDER, done)
+  const mastery = useMastery()
+  const linear = levelStates(LEVEL_ORDER, done)
+  // Reviews owed, folded in: each one becomes current, and its checkpoint
+  // waits for it.
+  const states = new Map(linear)
+  const stretches = ROADMAP.map((u) => {
+    const s = stopsOf(u, linear, done, mastery)
+    // Only this unit's own stops: another unit's view of the whole map
+    // would put back what this one changed.
+    for (const id of s.levels) states.set(id, s.states.get(id) ?? 'locked')
+    return s.levels
+  })
   const [open, setOpen] = useState<string | null>(null)
   const currentRef = useRef<HTMLButtonElement | null>(null)
   const finished = LEVEL_ORDER.filter((id) => done.has(id)).length
@@ -35,7 +67,8 @@ export function RoadmapScreen() {
   const arrived = from !== null && done.has(from) ? from : null
   // Where to open the map: the level to play next, or, with nothing left,
   // the one just finished.
-  const focus = LEVEL_ORDER.find((id) => states.get(id) === 'current') ?? arrived
+  const order = stretches.flat()
+  const focus = order.find((id) => states.get(id) === 'current') ?? arrived
 
   // Arrive looking at the level to play next, the way the path is always
   // opened at where you are rather than at the top. The map scrolls
@@ -72,7 +105,7 @@ export function RoadmapScreen() {
     }
   }, [open])
 
-  const nextId = LEVEL_ORDER.find((id) => states.get(id) === 'current') ?? null
+  const nextId = order.find((id) => states.get(id) === 'current') ?? null
   const nextUnit = nextId ? ROADMAP.find((u) => u.levels.includes(nextId)) : undefined
 
   return (
@@ -87,6 +120,7 @@ export function RoadmapScreen() {
             <UnitStretch
               key={unit.id}
               unit={unit}
+              levels={stretches[u]!}
               index={u}
               states={states}
               complete={unitDone(unit.levels, done)}
@@ -109,7 +143,9 @@ export function RoadmapScreen() {
           <div className="map-next" data-theme={nextUnit?.theme ?? 'sun'}>
             {nextId ? (
               <>
-                <p className="map-next-kicker">Up next · Level {LEVEL_ORDER.indexOf(nextId) + 1}</p>
+                <p className="map-next-kicker">
+                  {LEVEL_ORDER.includes(nextId) ? `Up next · Level ${LEVEL_ORDER.indexOf(nextId) + 1}` : 'Up next · Review'}
+                </p>
                 <h3>{levelActivity(nextId).title}</h3>
                 <p className="map-next-brief">{levelActivity(nextId).brief}</p>
                 <button
@@ -158,6 +194,7 @@ export function RoadmapScreen() {
 
 function UnitStretch({
   unit,
+  levels,
   index,
   states,
   complete,
@@ -168,6 +205,7 @@ function UnitStretch({
   arrived,
 }: {
   unit: Unit
+  levels: string[]
   index: number
   states: Map<string, LevelState>
   complete: boolean
@@ -178,7 +216,7 @@ function UnitStretch({
   arrived: string | null
 }) {
   // The levels, then the trophy.
-  const count = unit.levels.length + 1
+  const count = levels.length + 1
   const at = stops(count, index)
   const mascot = mascotAt(count, index)
   const height = stretchHeight(count)
@@ -224,7 +262,7 @@ function UnitStretch({
           {unit.mascot === 'courier' && <Courier mood={complete ? 'pleased' : here ? 'attentive' : 'idle'} />}
         </div>
 
-        {unit.levels.map((id, i) => {
+        {levels.map((id, i) => {
           const state = states.get(id) ?? 'locked'
           const stop = at[i]!
           return (
@@ -232,6 +270,7 @@ function UnitStretch({
               key={id}
               id={id}
               number={LEVEL_ORDER.indexOf(id) + 1}
+              waiting={id === `s${unit.stage}-checkpoint` && levels.includes(`s${unit.stage}-review`)}
               state={state}
               x={stop.x}
               y={stop.y}
@@ -265,6 +304,7 @@ function UnitStretch({
 function LevelNode({
   id,
   number,
+  waiting,
   state,
   x,
   y,
@@ -275,7 +315,10 @@ function LevelNode({
   cheer,
 }: {
   id: string
+  /** 0 for a stop that is not a level of the path: a review. */
   number: number
+  /** A checkpoint whose review comes first. */
+  waiting?: boolean
   state: LevelState
   x: number
   y: number
@@ -288,15 +331,59 @@ function LevelNode({
   cheer: 'done' | 'unlocked' | null
 }) {
   const activity = levelActivity(id)
+  const read = activity.read?.kind
   const build = activity.mode === 'editor'
-  const drill = activity.practice !== undefined
-  const kind = drill ? 'Practice' : build ? 'Build' : 'Lesson'
+  const drill = activity.practice !== undefined || read === 'practice'
+  const review = read === 'review'
+  const kind = review
+    ? 'Review'
+    : read === 'ideas'
+      ? 'Ideas'
+      : read === 'set'
+        ? 'Exercises'
+        : read === 'checkpoint'
+          ? 'Checkpoint'
+          : read === 'capstone'
+            ? 'Capstone'
+            : drill
+              ? 'Practice'
+              : build
+                ? 'Build'
+                : 'Lesson'
   const label =
-    state === 'done' ? 'done' : state === 'current' ? 'up next' : 'locked — finish the levels before it first'
+    state === 'done'
+      ? 'done'
+      : state === 'current'
+        ? 'up next'
+        : waiting
+          ? 'waiting — do the review first'
+          : 'locked — finish the levels before it first'
+  const face =
+    state === 'locked' ? (
+      <LockIcon />
+    ) : state === 'done' ? (
+      <CheckIcon />
+    ) : review ? (
+      <ReviewIcon />
+    ) : read === 'ideas' ? (
+      <BookIcon />
+    ) : read === 'set' ? (
+      <PencilIcon />
+    ) : read === 'checkpoint' ? (
+      <FlagIcon />
+    ) : read === 'capstone' ? (
+      <StarIcon />
+    ) : drill ? (
+      <DumbbellIcon />
+    ) : build ? (
+      <CodeIcon />
+    ) : (
+      <StarIcon />
+    )
 
   return (
     <div
-      className={`map-stop ${state} ${open ? 'open' : ''} ${cheer ? `just-${cheer}` : ''}`}
+      className={`map-stop ${state} ${review ? 'review' : ''} ${open ? 'open' : ''} ${cheer ? `just-${cheer}` : ''}`}
       data-cheer={cheer ?? undefined}
       style={{
         ['--x' as string]: `${x}px`,
@@ -316,7 +403,7 @@ function LevelNode({
         data-testid={`level-${id}`}
         data-state={state}
         aria-expanded={open}
-        aria-label={`Level ${number}: ${activity.title}, ${label}`}
+        aria-label={`${number > 0 ? `Level ${number}` : kind}: ${activity.title}, ${label}`}
         onClick={onToggle}
       >
         {state === 'current' && <span className="map-ring" aria-hidden="true" />}
@@ -327,31 +414,22 @@ function LevelNode({
             ))}
           </span>
         )}
-        <span className="map-node-face">
-          {state === 'locked' ? (
-            <LockIcon />
-          ) : state === 'done' ? (
-            <CheckIcon />
-          ) : drill ? (
-            <DumbbellIcon />
-          ) : build ? (
-            <CodeIcon />
-          ) : (
-            <StarIcon />
-          )}
-        </span>
+        <span className="map-node-face">{face}</span>
       </button>
 
       {open && (
         <div className="map-card" role="dialog" aria-label={activity.title} data-testid="map-card">
           <p className="map-card-kicker">
-            Level {number} · {kind}
+            {number > 0 ? `Level ${number} · ` : ''}
+            {kind}
           </p>
           <h3>{activity.title}</h3>
           <p className="map-card-brief">{activity.brief}</p>
-          {drill && <SkillChips unit={activity.practice!.unit} />}
+          {drill && <SkillChips unit={activity.practice?.unit ?? `stage-${activity.read!.stage}`} />}
           {state === 'locked' ? (
-            <p className="map-card-locked">Finish the levels before this one to unlock it.</p>
+            <p className="map-card-locked">
+              {waiting ? 'The review comes first: the checkpoint opens again once it is done.' : 'Finish the levels before this one to unlock it.'}
+            </p>
           ) : (
             <button type="button" className="map-card-go" data-testid="map-go" onClick={() => goTo(id)}>
               {state === 'done' ? 'Play again' : 'Start'}
@@ -370,7 +448,7 @@ function SkillChips({ unit }: { unit: string }) {
   const now = Date.now()
   return (
     <ul className="map-card-skills" data-testid="map-card-skills">
-      {skillsOfUnit(unit).map((s) => {
+      {(skillsOfUnit(unit).length ? skillsOfUnit(unit) : conceptsOfUnit(unit)).map((s) => {
         const l = level(mastery[s.id], now)
         return (
           <li key={s.id} data-level={l} title={`${s.title}: ${LEVEL_NAMES[l]}`}>
@@ -389,6 +467,30 @@ function SkillChips({ unit }: { unit: string }) {
 }
 
 /* -------------------------------- icons -------------------------------- */
+
+const BookIcon = () => (
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M4 4.5h6a2 2 0 0 1 2 2V20a1.5 1.5 0 0 0-1.5-1.5H4zM20 4.5h-6a2 2 0 0 0-2 2V20a1.5 1.5 0 0 1 1.5-1.5H20z" />
+  </svg>
+)
+
+const PencilIcon = () => (
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M15.2 4.3l4.5 4.5L9 19.5l-5.3.8.8-5.3z" />
+  </svg>
+)
+
+const FlagIcon = () => (
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M6 21V4M6 4.5h11l-2.5 4 2.5 4H6" fill="none" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+)
+
+const ReviewIcon = () => (
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M5 12a7 7 0 1 0 2.1-5M5 4v4.5h4.5" fill="none" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+)
 
 const DumbbellIcon = () => (
   <svg viewBox="0 0 24 24" aria-hidden="true">

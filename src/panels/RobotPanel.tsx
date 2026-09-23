@@ -27,7 +27,7 @@ export type Transcript =
 
 /** Which instrument the player has. The console is the beginner's; the
  *  editor is unlocked later, once a whole program is worth writing. */
-export type RobotMode = 'console' | 'editor'
+export type RobotMode = 'console' | 'editor' | 'read'
 
 type Props = {
   mode: RobotMode
@@ -50,6 +50,8 @@ type Props = {
   /** Line the trace is on, highlighted in the editor. */
   traceLine: number | null
   memory: ReactNode
+  /** Read mode: the reading instrument, in place of the console or editor. */
+  instrument?: ReactNode
 }
 
 export function RobotPanel({
@@ -70,11 +72,15 @@ export function RobotPanel({
   onIndex,
   traceLine,
   memory,
+  instrument,
 }: Props) {
   const talking = mode === 'console'
+  const reading = mode === 'read'
   // Remembered, because how much room memory deserves depends on what the
   // player is doing with it.
-  const [memoryH, setMemoryH] = useRemembered('botgineer.rp.memory', 280)
+  // Reading keeps its own: the questions need the room above memory, and
+  // memory stays empty until the commit.
+  const [memoryH, setMemoryH] = useRemembered(reading ? 'botgineer.rp.memory.read' : 'botgineer.rp.memory', reading ? 220 : 280)
 
   return (
     <div
@@ -93,7 +99,9 @@ export function RobotPanel({
           of it, and it is the same snapshot either way. */}
       <div className="views">
         <div className="view instrument">
-          {talking ? (
+          {reading ? (
+            instrument
+          ) : talking ? (
             <RobotConsole
               exchanges={exchanges}
               onSubmit={onSay}
@@ -128,7 +136,33 @@ export function RobotPanel({
       {/* The console answers inline, so it needs no Run button and no step
           slider — pressing Enter is the transport. All it can still want is
           a way out of a line that will not finish. */}
-      {talking ? (
+      {reading ? (
+        // Reading has no Run: the robot runs the snippet when the answers
+        // are committed, and the scrubber appears once there is a run.
+        (total > 0 || busy) && (
+          <div className="transport">
+            <button type="button" onClick={onStop} disabled={!busy} data-testid="stop">
+              Stop
+            </button>
+            <label className="scrub">
+              <span className="sr-only">Step through the run</span>
+              <input
+                type="range"
+                min={0}
+                max={Math.max(0, total - 1)}
+                value={Math.min(index, Math.max(0, total - 1))}
+                disabled={total === 0}
+                onChange={(e) => onIndex(Number(e.target.value))}
+                data-testid="scrubber"
+                aria-label="Step through the run"
+              />
+            </label>
+            <span className="step-label quiet" data-testid="step-label">
+              {total === 0 ? '—' : `${Math.min(index + 1, total)} / ${total}`}
+            </span>
+          </div>
+        )
+      ) : talking ? (
         // Only while there is something to stop. `hidden` is not enough:
         // `.transport` sets `display: flex`, which wins against it.
         busy && (
@@ -172,7 +206,7 @@ export function RobotPanel({
       </div>
       )}
 
-      {!talking && (
+      {!talking && (!reading || total > 0) && (
         <div className="transcript" data-testid="transcript" aria-live="polite">
           {transcript.map((t, i) => (
             <p key={i} className={`t-line ${t.kind}`}>

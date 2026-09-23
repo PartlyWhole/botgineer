@@ -1,0 +1,2558 @@
+{
+ "stage": 8,
+ "file": "stage-08-function-boundary.md",
+ "title": "Crossing a Function Boundary",
+ "move": "follow execution into a call and back out, tracking which names are local, which objects are shared with the caller, and what the return hands back.",
+ "adds": [
+  {
+   "kind": "p",
+   "text": "A function introduces two genuinely new things. First, a block of code that is written now and run later, possibly many times, possibly never. Second — and this is the only place in the collection where it happens — **a separate set of names**. The object model is unchanged; the name-space is not."
+  }
+ ],
+ "ideas": [
+  {
+   "title": "`def` creates a function object; it does not run the body",
+   "blocks": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "def greet(name):\n    print(\"hello\", name)\n\nprint(\"this prints first\")\ngreet(\"ann\")"
+    },
+    {
+     "kind": "p",
+     "text": "The `def` line runs when Python reaches it, and what it does is: build a function object holding the body, and bind the name `greet` to it. The body does not run. `print(\"this prints first\")` runs next. Only `greet(\"ann\")` runs the body."
+    },
+    {
+     "kind": "p",
+     "text": "A syntax error inside the body is caught when the `def` line runs, because Python must read the whole block to build the object. A *name* error inside the body is not — the body's names are looked up when it runs, so a function that mentions an undefined name is perfectly happy until you call it."
+    }
+   ]
+  },
+  {
+   "title": "`greet` and `greet()` are different things",
+   "blocks": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "greet          # the function object itself\ngreet()        # run it, and produce whatever it returns"
+    },
+    {
+     "kind": "p",
+     "text": "Forgetting the parentheses does not error; it just hands you the function object, which will then be printed, stored, or compared, usually with baffling results."
+    }
+   ]
+  },
+  {
+   "title": "Calling: arguments are objects, parameters are local names",
+   "blocks": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "def double(n):\n    return n * 2\n\nx = 5\nprint(double(x))"
+    },
+    {
+     "kind": "p",
+     "text": "What happens on the call, in order:"
+    },
+    {
+     "kind": "list",
+     "ordered": true,
+     "items": [
+      "The argument expression `x` is worked out, producing an object — the number 5.",
+      "A **fresh set of names** is created for this call.",
+      "The parameter name `n` is bound, *in that fresh set*, to that same object.",
+      "The body runs.",
+      "`return` produces an object and the call ends; the fresh names disappear."
+     ]
+    },
+    {
+     "kind": "p",
+     "text": "So `n` is a new name pointing at the caller's object. Not a copy of the object, and not another name for `x`. **The object is shared; the name is not.** That single sentence answers every question in this stage."
+    }
+   ]
+  },
+  {
+   "title": "Rebinding a parameter is invisible to the caller",
+   "blocks": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "def bump(n):\n    n = n + 1        # rebinds the LOCAL name\n    return n\n\nvalue = 5\nbump(value)\nprint(value)         # 5 — unchanged"
+    },
+    {
+     "kind": "p",
+     "text": "`n = n + 1` moves the local name. Nothing the caller can see changed."
+    }
+   ]
+  },
+  {
+   "title": "Changing the argument's object is fully visible",
+   "blocks": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "def add_item(items):\n    items.append(\"new\")   # changes the OBJECT\n\nthings = [\"a\"]\nadd_item(things)\nprint(things)             # ['a', 'new']"
+    },
+    {
+     "kind": "p",
+     "text": "Same call mechanism, opposite outcome — because the body changed the object rather than moving a name. This is the Stage 2 distinction again, and it is the whole content of the phrase people reach for and should not: *\"pass by reference\"*. Python does not need that vocabulary. Arguments are bound to parameter names; whether the caller sees a change depends only on whether the body changed an object or moved a name."
+    },
+    {
+     "kind": "p",
+     "text": "Compare directly:"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "def replace(items):\n    items = items + [\"new\"]   # new list; local name moves; caller sees nothing\n\ndef change(items):\n    items.append(\"new\")       # same list; caller sees it"
+    }
+   ]
+  },
+  {
+   "title": "Local names do not leak, and do not clash",
+   "blocks": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "def f():\n    hidden = 1\n    return hidden\n\nf()\nprint(hidden)        # NameError"
+    },
+    {
+     "kind": "p",
+     "text": "Names bound inside a call live only for that call. A name in the body that happens to match one outside is a *different name* — assigning to it inside does not touch the outer one:"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "count = 0\ndef f():\n    count = 99       # a local name, unrelated to the outer count\nf()\nprint(count)         # 0"
+    },
+    {
+     "kind": "p",
+     "text": "Reading an outer name from inside works fine; assigning to one anywhere in the body makes that name local **for the whole body**, which produces the surprising error in Exercise 8.13."
+    }
+   ]
+  },
+  {
+   "title": "`return` hands back an object — it does not copy it",
+   "blocks": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "def build():\n    inner = [1, 2]\n    return inner\n\nresult = build()\nresult.append(3)      # the very list the function built"
+    },
+    {
+     "kind": "p",
+     "text": "The returned object is the same object. If it is a list the function is also holding onto — say, an item of a structure passed in — the caller can change it from outside. If you want the caller to get an independent thing, return a copy explicitly."
+    },
+    {
+     "kind": "p",
+     "text": "A function with no `return`, or a bare `return`, hands back `None`. Calling `print(f())` on a function that only prints will show the printed line, then `None` (Exercise 1.9's rule, now for your own functions)."
+    }
+   ]
+  },
+  {
+   "title": "Returning several things is returning one tuple",
+   "blocks": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "def divide(a, b):\n    return a // b, a % b\n\nq, r = divide(7, 2)      # 3, 1"
+    },
+    {
+     "kind": "p",
+     "text": "`return a // b, a % b` builds a two-item tuple and returns that one object. The caller's `q, r = ...` unpacks it — the same unpacking as Stage 6. `divide(7, 2)` on its own is a tuple."
+    }
+   ]
+  },
+  {
+   "title": "`return` leaves everything",
+   "blocks": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "def find(grid, target):\n    for row in grid:\n        for cell in row:\n            if cell == target:\n                return cell\n    return None"
+    },
+    {
+     "kind": "p",
+     "text": "`return` exits the function immediately, from any depth — no flags, no second `break`. This is the clean answer to Stage 7's nested-search problem."
+    }
+   ]
+  },
+  {
+   "title": "Default arguments are built once, at `def` time",
+   "blocks": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "def collect(item, acc=[]):\n    acc.append(item)\n    return acc\n\nprint(collect(\"a\"))    # ['a']\nprint(collect(\"b\"))    # ['a', 'b']   ← the same list, still there"
+    },
+    {
+     "kind": "p",
+     "text": "The default's expression runs **once**, when the `def` line runs — not on each call. So all calls that omit the argument share one list. This is the Stage 4 repetition pitfall wearing its most famous costume. The fix:"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "def collect(item, acc=None):\n    if acc is None:\n        acc = []\n    acc.append(item)\n    return acc"
+    },
+    {
+     "kind": "p",
+     "text": "Now a fresh list is built per call, because `acc = []` is inside the body."
+    }
+   ]
+  }
+ ],
+ "exercises": [
+  {
+   "id": "8.1",
+   "stage": 8,
+   "form": "What runs next?",
+   "kind": "order",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Number the execution order and give the output."
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "def show(x):\n    print(\"in\", x)\n\nprint(\"before\")\nshow(1)\nprint(\"after\")\nshow(2)"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "def show(x):\n    print(\"in\", x)\n\nprint(\"before\")\nshow(1)\nprint(\"after\")\nshow(2)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "1  def show(x):            (builds the function object, binds the name)\n2  print(\"before\")          → before\n3  show(1)                 (call begins; x bound to 1)\n4      print(\"in\", x)       → in 1\n5  print(\"after\")           → after\n6  show(2)                 (call begins; x bound to 2)\n7      print(\"in\", x)       → in 2"
+       },
+       {
+        "kind": "p",
+        "text": "Output:"
+       },
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "before\nin 1\nafter\nin 2"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "The `def` line runs once and does not execute the body. The body's line runs once per call. Note that line 4's number comes between 3 and 5 — execution *descends into* the call and comes back."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That `def` runs the body, so `in 1` would appear first."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Flow error."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "1  def show(x):            (builds the function object, binds the name)\n2  print(\"before\")          → before\n3  show(1)                 (call begins; x bound to 1)\n4      print(\"in\", x)       → in 1\n5  print(\"after\")           → after\n6  show(2)                 (call begins; x bound to 2)\n7      print(\"in\", x)       → in 2"
+     },
+     {
+      "kind": "p",
+      "text": "Output:"
+     },
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "before\nin 1\nafter\nin 2"
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "The `def` line runs once and does not execute the body. The body's line runs once per call. Note that line 4's number comes between 3 and 5 — execution *descends into* the call and comes back."
+     }
+    ],
+    "misconception": "That `def` runs the body, so `in 1` would appear first.",
+    "missed": "If you missed it. Flow error.",
+    "errorTypes": [
+     "flow"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: definition versus call in an execution trace. Prereq: 5.2. Syntax lens: `def` header and call sites. Flow lens: body runs twice, header once. Object lens: function object bound to `show`.",
+     "target": "definition versus call in an execution trace",
+     "prereq": [
+      "5.2"
+     ],
+     "syntax": "`def` header and call sites",
+     "flow": "body runs twice, header once",
+     "object": "function object bound to `show`"
+    }
+   }
+  },
+  {
+   "id": "8.2",
+   "stage": 8,
+   "form": "Predict the result",
+   "kind": "predict",
+   "prompt": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "def f():\n    print(\"running\")\n\nprint(\"A\")\nf\nprint(\"B\")\nf()"
+    },
+    {
+     "kind": "p",
+     "text": "Explain what line 5 does."
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "def f():\n    print(\"running\")\n\nprint(\"A\")\nf\nprint(\"B\")\nf()\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "A\nB\nrunning"
+       }
+      ]
+     },
+     {
+      "label": "What line 5 does",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`f` on its own is an expression that produces the function object. Nothing is done with it — no call, no printing, no error. It is a complete, legal, useless line."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That mentioning a function's name runs it. The parentheses are the call, and nothing else is."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Syntax-reading error. This is the source of the classic bug `if user.is_valid:` — always true, because a function object is truthy."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "A\nB\nrunning"
+     }
+    ],
+    "reasoning": [],
+    "misconception": "That mentioning a function's name runs it. The parentheses are the call, and nothing else is.",
+    "missed": "If you missed it. Syntax-reading error. This is the source of the classic bug `if user.is_valid:` — always true, because a function object is truthy.",
+    "errorTypes": [
+     "syntax"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: name versus call. Prereq: 8.1. Syntax lens: presence of `()`. Flow lens: body runs once, at line 7. Object lens: function object produced and discarded.",
+     "target": "name versus call",
+     "prereq": [
+      "8.1"
+     ],
+     "syntax": "presence of `()`",
+     "flow": "body runs once, at line 7",
+     "object": "function object produced and discarded"
+    }
+   }
+  },
+  {
+   "id": "8.3",
+   "stage": 8,
+   "form": "Mark the block",
+   "kind": "block",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Which lines are the function body? How many times does each line run?"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "def total(xs):\n    t = 0\n    for x in xs:\n        t = t + x\n    return t\n\nprint(total([1, 2, 3]))\nprint(total([]))"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "def total(xs):\n    t = 0\n    for x in xs:\n        t = t + x\n    return t\n\nprint(total([1, 2, 3]))\nprint(total([]))\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "The body is lines 2–5 (`t = 0` through `return t`)."
+       },
+       {
+        "kind": "table",
+        "head": [
+         "Line",
+         "Runs"
+        ],
+        "rows": [
+         [
+          "`def total(xs):`",
+          "1"
+         ],
+         [
+          "`t = 0`",
+          "2 (once per call)"
+         ],
+         [
+          "`for x in xs:`",
+          "4 visits on the first call, 1 on the second"
+         ],
+         [
+          "`t = t + x`",
+          "3 on the first call, **0** on the second"
+         ],
+         [
+          "`return t`",
+          "2"
+         ],
+         [
+          "the two `print` lines",
+          "1 each"
+         ]
+        ]
+       },
+       {
+        "kind": "p",
+        "text": "Output: `6` then `0`."
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Each call runs the body afresh, including `t = 0`. The empty list means the loop body never runs — the `for` line still runs once, discovers nothing, and moves on."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That `t` persists between calls, so the second call would report 6."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Flow error, or object-model if you expected `t` to survive."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "The body is lines 2–5 (`t = 0` through `return t`)."
+     },
+     {
+      "kind": "table",
+      "head": [
+       "Line",
+       "Runs"
+      ],
+      "rows": [
+       [
+        "`def total(xs):`",
+        "1"
+       ],
+       [
+        "`t = 0`",
+        "2 (once per call)"
+       ],
+       [
+        "`for x in xs:`",
+        "4 visits on the first call, 1 on the second"
+       ],
+       [
+        "`t = t + x`",
+        "3 on the first call, **0** on the second"
+       ],
+       [
+        "`return t`",
+        "2"
+       ],
+       [
+        "the two `print` lines",
+        "1 each"
+       ]
+      ]
+     },
+     {
+      "kind": "p",
+      "text": "Output: `6` then `0`."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "Each call runs the body afresh, including `t = 0`. The empty list means the loop body never runs — the `for` line still runs once, discovers nothing, and moves on."
+     }
+    ],
+    "misconception": "That `t` persists between calls, so the second call would report 6.",
+    "missed": "If you missed it. Flow error, or object-model if you expected `t` to survive.",
+    "errorTypes": [
+     "flow",
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: body re-runs per call; zero-pass loop. Prereq: 5.1, 8.1. Syntax lens: nested block inside a body. Flow lens: per-call reset. Object lens: fresh local names per call.",
+     "target": "body re-runs per call; zero-pass loop",
+     "prereq": [
+      "5.1",
+      "8.1"
+     ],
+     "syntax": "nested block inside a body",
+     "flow": "per-call reset",
+     "object": "fresh local names per call"
+    }
+   }
+  },
+  {
+   "id": "8.4",
+   "stage": 8,
+   "form": "Predict the result",
+   "kind": "predict",
+   "prompt": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "def bump(n):\n    n = n + 1\n    return n\n\nvalue = 5\nresult = bump(value)\nprint(value, result)"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "def bump(n):\n    n = n + 1\n    return n\n\nvalue = 5\nresult = bump(value)\nprint(value, result)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`5 6`"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`n` is bound, in this call's own set of names, to the object `5`. `n = n + 1` moves that local name to `6`. `value` was never touched — it is not the same name, and moving one name never moves another."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That a parameter is a two-way link to the caller's name."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error. Go back to 1.2 — this is the same picture with a call boundary drawn across it."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "`5 6`"
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "`n` is bound, in this call's own set of names, to the object `5`. `n = n + 1` moves that local name to `6`. `value` was never touched — it is not the same name, and moving one name never moves another."
+     }
+    ],
+    "misconception": "That a parameter is a two-way link to the caller's name.",
+    "missed": "If you missed it. Object-model error. Go back to 1.2 — this is the same picture with a call boundary drawn across it.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [
+     "1.2"
+    ],
+    "authoring": {
+     "text": "Target: rebinding a parameter is local. Prereq: 1.2. Syntax lens: bare name left of `=` in a body. Flow lens: one call. Object lens: local binding moved; caller's binding untouched.",
+     "target": "rebinding a parameter is local",
+     "prereq": [
+      "1.2"
+     ],
+     "syntax": "bare name left of `=` in a body",
+     "flow": "one call",
+     "object": "local binding moved; caller's binding untouched"
+    }
+   }
+  },
+  {
+   "id": "8.5",
+   "stage": 8,
+   "form": "Predict the result",
+   "kind": "predict",
+   "prompt": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "def add_item(items):\n    items.append(\"new\")\n\nthings = [\"a\"]\nadd_item(things)\nprint(things)"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "def add_item(items):\n    items.append(\"new\")\n\nthings = [\"a\"]\nadd_item(things)\nprint(things)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`['a', 'new']`"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`items` and `things` are two names pointing at **one list**. The body changed that list. There is nothing to insulate the caller — no copy was made at any point."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That functions receive copies of their arguments."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "`['a', 'new']`"
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "`items` and `things` are two names pointing at **one list**. The body changed that list. There is nothing to insulate the caller — no copy was made at any point."
+     }
+    ],
+    "misconception": "That functions receive copies of their arguments.",
+    "missed": "If you missed it. Object-model error.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: changing an argument's object is visible. Prereq: 2.2, 8.4. Syntax lens: `.append` in a body. Flow lens: one call. Object lens: one list, two names across the boundary.",
+     "target": "changing an argument's object is visible",
+     "prereq": [
+      "2.2",
+      "8.4"
+     ],
+     "syntax": "`.append` in a body",
+     "flow": "one call",
+     "object": "one list, two names across the boundary"
+    }
+   }
+  },
+  {
+   "id": "8.6",
+   "stage": 8,
+   "form": "Compare near-matches",
+   "kind": "compare",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Snippet **A**:"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "def extend(items):\n    items = items + [\"new\"]\n\nxs = [\"a\"]\nextend(xs)\nprint(xs)"
+    },
+    {
+     "kind": "p",
+     "text": "Snippet **B**:"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "def extend(items):\n    items.append(\"new\")\n\nxs = [\"a\"]\nextend(xs)\nprint(xs)"
+    },
+    {
+     "kind": "p",
+     "text": "Predict both. State the rule in one sentence, without using the phrase \"pass by reference\"."
+    }
+   ],
+   "snippets": [
+    {
+     "label": "A",
+     "code": "def extend(items):\n    items = items + [\"new\"]\n\nxs = [\"a\"]\nextend(xs)\nprint(xs)\n"
+    },
+    {
+     "label": "B",
+     "code": "def extend(items):\n    items.append(\"new\")\n\nxs = [\"a\"]\nextend(xs)\nprint(xs)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "**A** prints `['a']`. **B** prints `['a', 'new']`."
+       }
+      ]
+     },
+     {
+      "label": "The rule",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "A caller sees a change only when the function **changed the object** the caller's name points at; a function that **rebinds its parameter** has moved a name the caller cannot see."
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "The two bodies differ exactly as `nums = nums + [3]` differs from `nums.append(3)` in Stage 2. Nothing about functions was added — the call boundary just makes the consequence more dramatic."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That whether a function can affect its caller is a property of the *type* of argument. It is a property of what the body does."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "**A** prints `['a']`. **B** prints `['a', 'new']`."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "The two bodies differ exactly as `nums = nums + [3]` differs from `nums.append(3)` in Stage 2. Nothing about functions was added — the call boundary just makes the consequence more dramatic."
+     }
+    ],
+    "misconception": "That whether a function can affect its caller is a property of the *type* of argument. It is a property of what the body does.",
+    "missed": "If you missed it. Object-model error.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: the central function/object rule. Prereq: 2.3, 8.5. Syntax lens: rebinding versus method call. Flow lens: identical. Object lens: one list versus two.",
+     "target": "the central function/object rule",
+     "prereq": [
+      "2.3",
+      "8.5"
+     ],
+     "syntax": "rebinding versus method call",
+     "flow": "identical",
+     "object": "one list versus two"
+    }
+   }
+  },
+  {
+   "id": "8.7",
+   "stage": 8,
+   "form": "Draw names and objects",
+   "kind": "draw",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Draw the picture at the moment the marked line is about to run — showing both the caller's names and the call's names."
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "def f(items):\n    items.append(3)\n    items = [9]          # ← draw just before this line runs\n    items.append(8)\n\nxs = [1, 2]\nf(xs)\nprint(xs)"
+    },
+    {
+     "kind": "p",
+     "text": "Then predict the output."
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "def f(items):\n    items.append(3)\n    items = [9]          # ← draw just before this line runs\n    items.append(8)\n\nxs = [1, 2]\nf(xs)\nprint(xs)\n",
+     "marker": {
+      "line": 3,
+      "text": "draw just before this line runs"
+     }
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Just before `items = [9]` runs:"
+       },
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "caller:   xs ────┐\n                 ├──▶ #1 [1, 2, 3]\ncall:     items ─┘"
+       },
+       {
+        "kind": "p",
+        "text": "After the whole call, and back in the caller:"
+       },
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "xs ─────▶ #1 [1, 2, 3]        (#2 [9, 8] was built and discarded when the call ended)"
+       },
+       {
+        "kind": "p",
+        "text": "Output: `[1, 2, 3]`."
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Line 2 changed `#1`, which the caller shares — that change is permanent. Line 3 rebound the local name to a new list `#2`. Line 4 appended to `#2`, which nobody outside can reach; when the call ended, the local names vanished and `#2` was left unnamed."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That the rebinding on line 3 undoes or overrides the change on line 2, or that line 4's append somehow reaches the caller."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error. Note the ordering: everything before the rebinding is visible outside; everything after it is not."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "Just before `items = [9]` runs:"
+     },
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "caller:   xs ────┐\n                 ├──▶ #1 [1, 2, 3]\ncall:     items ─┘"
+     },
+     {
+      "kind": "p",
+      "text": "After the whole call, and back in the caller:"
+     },
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "xs ─────▶ #1 [1, 2, 3]        (#2 [9, 8] was built and discarded when the call ended)"
+     },
+     {
+      "kind": "p",
+      "text": "Output: `[1, 2, 3]`."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "Line 2 changed `#1`, which the caller shares — that change is permanent. Line 3 rebound the local name to a new list `#2`. Line 4 appended to `#2`, which nobody outside can reach; when the call ended, the local names vanished and `#2` was left unnamed."
+     }
+    ],
+    "misconception": "That the rebinding on line 3 undoes or overrides the change on line 2, or that line 4's append somehow reaches the caller.",
+    "missed": "If you missed it. Object-model error. Note the ordering: everything before the rebinding is visible outside; everything after it is not.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: change-then-rebind inside a call. Prereq: 2.8, 8.6. Syntax lens: three body lines of different kinds. Flow lens: one call. Object lens: two lists; one shared, one unreachable.",
+     "target": "change-then-rebind inside a call",
+     "prereq": [
+      "2.8",
+      "8.6"
+     ],
+     "syntax": "three body lines of different kinds",
+     "flow": "one call",
+     "object": "two lists; one shared, one unreachable"
+    }
+   }
+  },
+  {
+   "id": "8.8",
+   "stage": 8,
+   "form": "Predict the result",
+   "kind": "predict",
+   "prompt": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "def f():\n    hidden = 1\n    return hidden\n\nprint(f())\nprint(hidden)"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "def f():\n    hidden = 1\n    return hidden\n\nprint(f())\nprint(hidden)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`1`, then `NameError: name 'hidden' is not defined`."
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "The call's names are created when the call starts and gone when it ends. `return hidden` produced the *object* `1` before that happened, which is why the first line works. The name did not come back with it."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That names bound inside a function persist afterward — imported from loops, where they do (5.3). A loop body is not a new set of names; a call is. This is the only construct in the collection that creates one."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "`1`, then `NameError: name 'hidden' is not defined`."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "The call's names are created when the call starts and gone when it ends. `return hidden` produced the *object* `1` before that happened, which is why the first line works. The name did not come back with it."
+     }
+    ],
+    "misconception": "That names bound inside a function persist afterward — imported from loops, where they do (5.3). A loop body is not a new set of names; a call is. This is the only construct in the collection that creates one.",
+    "missed": "If you missed it. Object-model error.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: local names do not survive the call. Prereq: 5.3, 8.3. Syntax lens: name used after a call. Flow lens: names created and destroyed per call. Object lens: returned object outlives the name.",
+     "target": "local names do not survive the call",
+     "prereq": [
+      "5.3",
+      "8.3"
+     ],
+     "syntax": "name used after a call",
+     "flow": "names created and destroyed per call",
+     "object": "returned object outlives the name"
+    }
+   }
+  },
+  {
+   "id": "8.9",
+   "stage": 8,
+   "form": "Predict the result",
+   "kind": "predict",
+   "prompt": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "count = 0\n\ndef f():\n    count = 99\n    print(\"inside\", count)\n\nf()\nprint(\"outside\", count)"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "count = 0\n\ndef f():\n    count = 99\n    print(\"inside\", count)\n\nf()\nprint(\"outside\", count)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "inside 99\noutside 0"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`count = 99` binds a **local** name that happens to be spelled the same as an outer one. The outer `count` is a different name and is untouched."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That same spelling means same name."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "inside 99\noutside 0"
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "`count = 99` binds a **local** name that happens to be spelled the same as an outer one. The outer `count` is a different name and is untouched."
+     }
+    ],
+    "misconception": "That same spelling means same name.",
+    "missed": "If you missed it. Object-model error.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: shadowing. Prereq: 8.8. Syntax lens: assignment inside a body. Flow lens: one call. Object lens: two distinct bindings.",
+     "target": "shadowing",
+     "prereq": [
+      "8.8"
+     ],
+     "syntax": "assignment inside a body",
+     "flow": "one call",
+     "object": "two distinct bindings"
+    }
+   }
+  },
+  {
+   "id": "8.10",
+   "stage": 8,
+   "form": "Predict the result",
+   "kind": "predict",
+   "prompt": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "def announce(msg):\n    print(msg)\n\nresult = announce(\"hi\")\nprint(result)"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "def announce(msg):\n    print(msg)\n\nresult = announce(\"hi\")\nprint(result)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "hi\nNone"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`announce` prints and has no `return`, so the call produces `None`. Exactly Exercise 1.9's lesson, now for a function you wrote: what a function *does* and what it *hands back* are separate questions."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That printing and returning are the same act."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error. In practice this shows up as a function that \"works\" when called directly and produces `None` when its result is used."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "hi\nNone"
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "`announce` prints and has no `return`, so the call produces `None`. Exactly Exercise 1.9's lesson, now for a function you wrote: what a function *does* and what it *hands back* are separate questions."
+     }
+    ],
+    "misconception": "That printing and returning are the same act.",
+    "missed": "If you missed it. Object-model error. In practice this shows up as a function that \"works\" when called directly and produces `None` when its result is used.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: implicit `None` return. Prereq: 1.9. Syntax lens: no `return` statement. Flow lens: one call. Object lens: `None` bound to `result`.",
+     "target": "implicit `None` return",
+     "prereq": [
+      "1.9"
+     ],
+     "syntax": "no `return` statement",
+     "flow": "one call",
+     "object": "`None` bound to `result`"
+    }
+   }
+  },
+  {
+   "id": "8.11",
+   "stage": 8,
+   "form": "Predict the result",
+   "kind": "predict",
+   "prompt": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "def build():\n    inner = [1, 2]\n    return inner\n\na = build()\nb = build()\na.append(3)\nprint(a, b, a is b)"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "def build():\n    inner = [1, 2]\n    return inner\n\na = build()\nb = build()\na.append(3)\nprint(a, b, a is b)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`[1, 2, 3] [1, 2] False`"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Each call runs `inner = [1, 2]` afresh, producing a new list, so the two calls return two different objects. Appending through `a` cannot affect `b`."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That a function returning \"the same\" literal returns the same object each time — the mirror image of the default-argument trap in 8.16. The distinction: an expression **inside the body** runs on every call; an expression **in the `def` line's defaults** runs once."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "`[1, 2, 3] [1, 2] False`"
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "Each call runs `inner = [1, 2]` afresh, producing a new list, so the two calls return two different objects. Appending through `a` cannot affect `b`."
+     }
+    ],
+    "misconception": "That a function returning \"the same\" literal returns the same object each time — the mirror image of the default-argument trap in 8.16. The distinction: an expression **inside the body** runs on every call; an expression **in the `def` line's defaults** runs once.",
+    "missed": "If you missed it. Object-model error.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: body literals re-run per call. Prereq: 4.14, 8.3. Syntax lens: literal inside a body. Flow lens: two calls. Object lens: two distinct lists.",
+     "target": "body literals re-run per call",
+     "prereq": [
+      "4.14",
+      "8.3"
+     ],
+     "syntax": "literal inside a body",
+     "flow": "two calls",
+     "object": "two distinct lists"
+    }
+   }
+  },
+  {
+   "id": "8.12",
+   "stage": 8,
+   "form": "Find and fix",
+   "kind": "fix",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "The intent is that `snapshot` be unaffected by later changes to the box's contents. Say what happens and fix it inside the function."
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "def contents(box):\n    return box[\"items\"]\n\nbox = {\"items\": [1, 2]}\nsnapshot = contents(box)\nbox[\"items\"].append(3)\nprint(snapshot)"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "def contents(box):\n    return box[\"items\"]\n\nbox = {\"items\": [1, 2]}\nsnapshot = contents(box)\nbox[\"items\"].append(3)\nprint(snapshot)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "It prints `[1, 2, 3]`. `return box[\"items\"]` handed back the very list stored in the dictionary, so `snapshot` is an alias for it and sees the append."
+       }
+      ]
+     },
+     {
+      "label": "Fix, inside the function",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "python",
+        "text": "def contents(box):\n    return box[\"items\"][:]"
+       },
+       {
+        "kind": "p",
+        "text": "(Use `copy.deepcopy(box[\"items\"])` if the items are themselves changeable.)"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`return` hands back an object, not a copy — so a function that returns a piece of a structure it was given is handing out live access to that structure's internals. If independence is part of what the function promises, the function must copy."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That returning breaks the connection to the original, the way it feels like it should."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error. This is Exercise 4.15's logging bug seen from the other side of a function boundary."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "It prints `[1, 2, 3]`. `return box[\"items\"]` handed back the very list stored in the dictionary, so `snapshot` is an alias for it and sees the append."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "`return` hands back an object, not a copy — so a function that returns a piece of a structure it was given is handing out live access to that structure's internals. If independence is part of what the function promises, the function must copy."
+     }
+    ],
+    "misconception": "That returning breaks the connection to the original, the way it feels like it should.",
+    "missed": "If you missed it. Object-model error. This is Exercise 4.15's logging bug seen from the other side of a function boundary.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [
+     "4.15"
+    ],
+    "authoring": {
+     "text": "Target: `return` does not copy. Prereq: 3.13, 4.15. Syntax lens: returning a looked-up value. Flow lens: one call, then a later change. Object lens: one inner list, two names.",
+     "target": "`return` does not copy",
+     "prereq": [
+      "3.13",
+      "4.15"
+     ],
+     "syntax": "returning a looked-up value",
+     "flow": "one call, then a later change",
+     "object": "one inner list, two names"
+    }
+   }
+  },
+  {
+   "id": "8.13",
+   "stage": 8,
+   "form": "Find and fix",
+   "kind": "fix",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Name the error, explain precisely why it happens, and give two different fixes."
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "count = 0\n\ndef bump():\n    count = count + 1\n    return count\n\nprint(bump())"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "count = 0\n\ndef bump():\n    count = count + 1\n    return count\n\nprint(bump())\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`UnboundLocalError: cannot access local variable 'count' where it is not associated with a value`."
+       }
+      ]
+     },
+     {
+      "label": "Why",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Python decides, when it builds the function object, which names in the body are local — and the rule is: **a name assigned anywhere in the body is local for the whole body**, including lines before the assignment. `count = count + 1` assigns to `count`, so `count` is local throughout; the right-hand side then tries to read a local name that has not been bound yet. The outer `count` is never consulted."
+       },
+       {
+        "kind": "p",
+        "text": "**Fix one — do not assign; take a parameter and return:**"
+       },
+       {
+        "kind": "code",
+        "lang": "python",
+        "text": "def bump(count):\n    return count + 1\n\ncount = bump(count)"
+       },
+       {
+        "kind": "p",
+        "text": "**Fix two — declare the intent to assign to the outer name:**"
+       },
+       {
+        "kind": "code",
+        "lang": "python",
+        "text": "def bump():\n    global count\n    count = count + 1\n    return count"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "The first fix is almost always the better one: a function whose result depends only on its arguments is easier to trace, test, and reuse. `global` is available and occasionally right, but it makes the function's effect invisible at the call site."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That reading works until the moment of assignment, so the right-hand side would see the outer value. Locality is decided for the whole body at once, before any of it runs."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error. Note the contrast with 8.9, where the same local-assignment rule caused *no* error because nothing read the name first."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "`UnboundLocalError: cannot access local variable 'count' where it is not associated with a value`."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "Python decides, when it builds the function object, which names in the body are local — and the rule is: **a name assigned anywhere in the body is local for the whole body**, including lines before the assignment. `count = count + 1` assigns to `count`, so `count` is local throughout; the right-hand side then tries to read a local name that has not been bound yet. The outer `count` is never consulted."
+     },
+     {
+      "kind": "p",
+      "text": "**Fix one — do not assign; take a parameter and return:**"
+     },
+     {
+      "kind": "code",
+      "lang": "python",
+      "text": "def bump(count):\n    return count + 1\n\ncount = bump(count)"
+     },
+     {
+      "kind": "p",
+      "text": "**Fix two — declare the intent to assign to the outer name:**"
+     },
+     {
+      "kind": "code",
+      "lang": "python",
+      "text": "def bump():\n    global count\n    count = count + 1\n    return count"
+     }
+    ],
+    "misconception": "That reading works until the moment of assignment, so the right-hand side would see the outer value. Locality is decided for the whole body at once, before any of it runs.",
+    "missed": "If you missed it. Object-model error. Note the contrast with 8.9, where the same local-assignment rule caused *no* error because nothing read the name first.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [
+     "8.9"
+    ],
+    "authoring": {
+     "text": "Target: local determination is body-wide. Prereq: 8.9. Syntax lens: name read and assigned in one line. Flow lens: fails on the first body line. Object lens: unbound local name.",
+     "target": "local determination is body-wide",
+     "prereq": [
+      "8.9"
+     ],
+     "syntax": "name read and assigned in one line",
+     "flow": "fails on the first body line",
+     "object": "unbound local name"
+    }
+   }
+  },
+  {
+   "id": "8.14",
+   "stage": 8,
+   "form": "Predict the result",
+   "kind": "predict",
+   "prompt": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "def divide(a, b):\n    return a // b, a % b\n\nprint(divide(7, 2))\nq, r = divide(7, 2)\nprint(q, r)\nprint(type(divide(7, 2)).__name__)"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "def divide(a, b):\n    return a // b, a % b\n\nprint(divide(7, 2))\nq, r = divide(7, 2)\nprint(q, r)\nprint(type(divide(7, 2)).__name__)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "(3, 1)\n3 1\ntuple"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`return a // b, a % b` builds one tuple and returns it. \"Returning two things\" is not a thing Python does — it returns one object that happens to hold two. The caller's `q, r = ...` is ordinary unpacking (6.5)."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That multiple return values are a special mechanism."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Syntax-reading error."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "(3, 1)\n3 1\ntuple"
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "`return a // b, a % b` builds one tuple and returns it. \"Returning two things\" is not a thing Python does — it returns one object that happens to hold two. The caller's `q, r = ...` is ordinary unpacking (6.5)."
+     }
+    ],
+    "misconception": "That multiple return values are a special mechanism.",
+    "missed": "If you missed it. Syntax-reading error.",
+    "errorTypes": [
+     "syntax"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: tuple return and unpacking. Prereq: 6.5. Syntax lens: comma in a `return`. Flow lens: two calls. Object lens: one tuple per call.",
+     "target": "tuple return and unpacking",
+     "prereq": [
+      "6.5"
+     ],
+     "syntax": "comma in a `return`",
+     "flow": "two calls",
+     "object": "one tuple per call"
+    }
+   }
+  },
+  {
+   "id": "8.15",
+   "stage": 8,
+   "form": "Find and fix",
+   "kind": "fix",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Rewrite Stage 7's nested search as a function, so that finding the target leaves both loops at once with no flag."
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "grid = [[1, 2], [3, 4]]\nfound = False\nfor row in grid:\n    for cell in row:\n        if cell > 2:\n            found = cell\n            break\n    if found:\n        break\nprint(found)"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "grid = [[1, 2], [3, 4]]\nfound = False\nfor row in grid:\n    for cell in row:\n        if cell > 2:\n            found = cell\n            break\n    if found:\n        break\nprint(found)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "python",
+        "text": "def find_above(grid, limit):\n    for row in grid:\n        for cell in row:\n            if cell > limit:\n                return cell\n    return None\n\nprint(find_above([[1, 2], [3, 4]], 2))    # 3"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`return` leaves the function from any depth, so both loops end at once — no flag, no second `break`, and no risk of forgetting the outer one. The trailing `return None` handles \"not found\"; without it the function would still return `None`, but writing it makes the contract explicit and stops the reader wondering whether a case was forgotten."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That `return` behaves like `break` and only leaves the innermost loop."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Flow error. Go back to 7.6 and 7.16 and compare the line counts."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "python",
+      "text": "def find_above(grid, limit):\n    for row in grid:\n        for cell in row:\n            if cell > limit:\n                return cell\n    return None\n\nprint(find_above([[1, 2], [3, 4]], 2))    # 3"
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "`return` leaves the function from any depth, so both loops end at once — no flag, no second `break`, and no risk of forgetting the outer one. The trailing `return None` handles \"not found\"; without it the function would still return `None`, but writing it makes the contract explicit and stops the reader wondering whether a case was forgotten."
+     }
+    ],
+    "misconception": "That `return` behaves like `break` and only leaves the innermost loop.",
+    "missed": "If you missed it. Flow error. Go back to 7.6 and 7.16 and compare the line counts.",
+    "errorTypes": [
+     "flow"
+    ],
+    "goBack": [
+     "7.6",
+     "7.16"
+    ],
+    "authoring": {
+     "text": "Target: `return` as the nested-search exit. Prereq: 7.6, 7.16. Syntax lens: `return` inside two blocks. Flow lens: immediate exit from any depth. Object lens: found object handed back.",
+     "target": "`return` as the nested-search exit",
+     "prereq": [
+      "7.6",
+      "7.16"
+     ],
+     "syntax": "`return` inside two blocks",
+     "flow": "immediate exit from any depth",
+     "object": "found object handed back"
+    }
+   }
+  },
+  {
+   "id": "8.16",
+   "stage": 8,
+   "form": "Predict the result",
+   "kind": "predict",
+   "prompt": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "def collect(item, acc=[]):\n    acc.append(item)\n    return acc\n\nprint(collect(\"a\"))\nprint(collect(\"b\"))\nprint(collect(\"c\", []))\nprint(collect(\"d\"))"
+    },
+    {
+     "kind": "p",
+     "text": "Explain the fourth line's output specifically."
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "def collect(item, acc=[]):\n    acc.append(item)\n    return acc\n\nprint(collect(\"a\"))\nprint(collect(\"b\"))\nprint(collect(\"c\", []))\nprint(collect(\"d\"))\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "['a']\n['a', 'b']\n['c']\n['a', 'b', 'd']"
+       }
+      ]
+     },
+     {
+      "label": "The fourth line specifically",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "The third call passed its own list, so it used that one and left the default alone. The fourth call omitted the argument again and therefore got the default list — still holding `'a'` and `'b'` from the first two calls — and appended `'d'` to it. The default list was built once, when the `def` line ran, and has been accumulating ever since."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That `acc=[]` means \"start with an empty list each time\". It means \"if no argument is given, use *this particular list*, made once\"."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error. Compare 8.11: a literal in the body runs per call; a literal in the `def` header runs once."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "['a']\n['a', 'b']\n['c']\n['a', 'b', 'd']"
+     }
+    ],
+    "reasoning": [],
+    "misconception": "That `acc=[]` means \"start with an empty list each time\". It means \"if no argument is given, use *this particular list*, made once\".",
+    "missed": "If you missed it. Object-model error. Compare 8.11: a literal in the body runs per call; a literal in the `def` header runs once.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [
+     "8.11"
+    ],
+    "authoring": {
+     "text": "Target: mutable default argument. Prereq: 4.6, 8.11. Syntax lens: default value in a `def` header. Flow lens: default expression evaluated at definition. Object lens: one list shared across calls.",
+     "target": "mutable default argument",
+     "prereq": [
+      "4.6",
+      "8.11"
+     ],
+     "syntax": "default value in a `def` header",
+     "flow": "default expression evaluated at definition",
+     "object": "one list shared across calls"
+    }
+   }
+  },
+  {
+   "id": "8.17",
+   "stage": 8,
+   "form": "Find and fix",
+   "kind": "fix",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Fix 8.16 so that each call without an explicit list starts empty, and say which line of your fix does the work."
+    }
+   ],
+   "snippets": [],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "python",
+        "text": "def collect(item, acc=None):\n    if acc is None:\n        acc = []\n    acc.append(item)\n    return acc\n\nprint(collect(\"a\"))     # ['a']\nprint(collect(\"b\"))     # ['b']"
+       },
+       {
+        "kind": "p",
+        "text": "**The line that does the work: `acc = []`,** because it is *inside the body* and therefore runs on every call that reaches it, producing a fresh list each time. The `acc=None` in the header is only a signal; `None` is immune to the trap because nothing can change it."
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`if acc is None` is the right test rather than `if not acc`, which would also fire on an empty list the caller deliberately passed in."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That the fix lives in the header. The header only stops the sharing; the body creates the object."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "python",
+      "text": "def collect(item, acc=None):\n    if acc is None:\n        acc = []\n    acc.append(item)\n    return acc\n\nprint(collect(\"a\"))     # ['a']\nprint(collect(\"b\"))     # ['b']"
+     },
+     {
+      "kind": "p",
+      "text": "**The line that does the work: `acc = []`,** because it is *inside the body* and therefore runs on every call that reaches it, producing a fresh list each time. The `acc=None` in the header is only a signal; `None` is immune to the trap because nothing can change it."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "`if acc is None` is the right test rather than `if not acc`, which would also fire on an empty list the caller deliberately passed in."
+     }
+    ],
+    "misconception": "That the fix lives in the header. The header only stops the sharing; the body creates the object.",
+    "missed": "If you missed it. Object-model error.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: the `None` sentinel repair. Prereq: 8.16. Syntax lens: `is None` test. Flow lens: body literal per call. Object lens: fresh list per call.",
+     "target": "the `None` sentinel repair",
+     "prereq": [
+      "8.16"
+     ],
+     "syntax": "`is None` test",
+     "flow": "body literal per call",
+     "object": "fresh list per call"
+    }
+   }
+  },
+  {
+   "id": "8.18",
+   "stage": 8,
+   "form": "Predict the result",
+   "kind": "predict",
+   "prompt": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "def outer():\n    print(\"outer start\")\n    inner_result = inner()\n    print(\"outer got\", inner_result)\n    return \"outer done\"\n\ndef inner():\n    print(\"inner running\")\n    return 42\n\nprint(outer())"
+    },
+    {
+     "kind": "p",
+     "text": "Note that `inner` is defined *after* `outer`. Why is that not a problem?"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "def outer():\n    print(\"outer start\")\n    inner_result = inner()\n    print(\"outer got\", inner_result)\n    return \"outer done\"\n\ndef inner():\n    print(\"inner running\")\n    return 42\n\nprint(outer())\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "outer start\ninner running\nouter got 42\nouter done"
+       }
+      ]
+     },
+     {
+      "label": "Why the definition order is fine",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "The body of `outer` is not run when `def outer` executes — it is only stored. By the time `outer()` is actually called, on the last line, both `def` lines have run and the name `inner` is bound. Names in a body are looked up **when the body runs**, not when it is defined."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That a function must be defined before any function that mentions it, as in some compiled languages."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Flow error. Note the corollary: a body can mention a name that never gets defined, and you will not find out until the line runs."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "outer start\ninner running\nouter got 42\nouter done"
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "The body of `outer` is not run when `def outer` executes — it is only stored. By the time `outer()` is actually called, on the last line, both `def` lines have run and the name `inner` is bound. Names in a body are looked up **when the body runs**, not when it is defined."
+     }
+    ],
+    "misconception": "That a function must be defined before any function that mentions it, as in some compiled languages.",
+    "missed": "If you missed it. Flow error. Note the corollary: a body can mention a name that never gets defined, and you will not find out until the line runs.",
+    "errorTypes": [
+     "flow"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: names resolved at call time. Prereq: 8.1. Syntax lens: call inside a body. Flow lens: nested calls; execution descends and returns. Object lens: both function objects bound before either is called.",
+     "target": "names resolved at call time",
+     "prereq": [
+      "8.1"
+     ],
+     "syntax": "call inside a body",
+     "flow": "nested calls; execution descends and returns",
+     "object": "both function objects bound before either is called"
+    }
+   }
+  },
+  {
+   "id": "8.19",
+   "stage": 8,
+   "form": "Write a small program",
+   "kind": "write",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Write a function `tally(words)` that takes a list of words and returns a dictionary mapping each word to how many times it appears. Requirements: the function must not change the list it is given, must work correctly when called twice in a row, and must return a dictionary that the caller can safely modify without affecting anything inside the function."
+    },
+    {
+     "kind": "p",
+     "text": "Then call it twice on the same list and prove both requirements hold."
+    }
+   ],
+   "snippets": [],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "python",
+        "text": "def tally(words):\n    counts = {}\n    for w in words:\n        counts[w] = counts.get(w, 0) + 1\n    return counts\n\ndata = [\"a\", \"b\", \"a\"]\nfirst = tally(data)\nsecond = tally(data)\nprint(first)                    # {'a': 2, 'b': 1}\nprint(data)                     # ['a', 'b', 'a']  — unchanged\nprint(first is second)          # False — a fresh dictionary per call\nfirst[\"z\"] = 99\nprint(second)                   # {'a': 2, 'b': 1}  — unaffected"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "All three requirements come from one decision: build the result inside the body. `counts = {}` runs per call, so the returned dictionary is fresh each time and belongs entirely to the caller. The function only *reads* `words`, so the caller's list is untouched. Had `counts` been a default argument, all three requirements would have failed at once."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That a function needs to defensively copy its input to avoid changing it. It only needs to not change it."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "python",
+      "text": "def tally(words):\n    counts = {}\n    for w in words:\n        counts[w] = counts.get(w, 0) + 1\n    return counts\n\ndata = [\"a\", \"b\", \"a\"]\nfirst = tally(data)\nsecond = tally(data)\nprint(first)                    # {'a': 2, 'b': 1}\nprint(data)                     # ['a', 'b', 'a']  — unchanged\nprint(first is second)          # False — a fresh dictionary per call\nfirst[\"z\"] = 99\nprint(second)                   # {'a': 2, 'b': 1}  — unaffected"
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "All three requirements come from one decision: build the result inside the body. `counts = {}` runs per call, so the returned dictionary is fresh each time and belongs entirely to the caller. The function only *reads* `words`, so the caller's list is untouched. Had `counts` been a default argument, all three requirements would have failed at once."
+     }
+    ],
+    "misconception": "That a function needs to defensively copy its input to avoid changing it. It only needs to not change it.",
+    "missed": "If you missed it. Object-model error.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: a well-behaved function, positively stated. Prereq: 6.18, 8.16, 8.17. Syntax lens: local accumulator and `return`. Flow lens: two independent calls. Object lens: fresh dictionary per call; input read-only.",
+     "target": "a well-behaved function, positively stated",
+     "prereq": [
+      "6.18",
+      "8.16",
+      "8.17"
+     ],
+     "syntax": "local accumulator and `return`",
+     "flow": "two independent calls",
+     "object": "fresh dictionary per call; input read-only"
+    }
+   }
+  },
+  {
+   "id": "8.20",
+   "stage": 8,
+   "form": "Compare near-matches",
+   "kind": "compare",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Snippet **A**:"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "def f(xs):\n    xs = sorted(xs)\n    return xs\n\ndata = [3, 1, 2]\nout = f(data)\nprint(data, out)"
+    },
+    {
+     "kind": "p",
+     "text": "Snippet **B**:"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "def f(xs):\n    xs.sort()\n    return xs\n\ndata = [3, 1, 2]\nout = f(data)\nprint(data, out, data is out)"
+    },
+    {
+     "kind": "p",
+     "text": "Predict both. Which one would you rather be handed by a colleague, and why?"
+    }
+   ],
+   "snippets": [
+    {
+     "label": "A",
+     "code": "def f(xs):\n    xs = sorted(xs)\n    return xs\n\ndata = [3, 1, 2]\nout = f(data)\nprint(data, out)\n"
+    },
+    {
+     "label": "B",
+     "code": "def f(xs):\n    xs.sort()\n    return xs\n\ndata = [3, 1, 2]\nout = f(data)\nprint(data, out, data is out)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "**A** prints `[3, 1, 2] [1, 2, 3]`. **B** prints `[1, 2, 3] [1, 2, 3] True`."
+       }
+      ]
+     },
+     {
+      "label": "Which to prefer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "**A**. It leaves the caller's data exactly as it found it and hands back a new sorted list, so the caller decides what to keep. **B** does two things at once — it changes the caller's list *and* returns it — and the `True` shows that the \"result\" is not a separate thing at all. A caller who writes `out = f(data)` expecting to compare before and after will find both names showing the sorted version."
+       },
+       {
+        "kind": "p",
+        "text": "The wider principle: a function should either change what it is given **or** return a new thing, and its name should say which. Python's own library is consistent about this — `sorted` returns, `list.sort` changes and returns `None` (2.12). A function that does both is the one that surprises people."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That returning the object it changed makes a function more convenient. It makes the change harder to notice."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "**A** prints `[3, 1, 2] [1, 2, 3]`. **B** prints `[1, 2, 3] [1, 2, 3] True`."
+     }
+    ],
+    "reasoning": [],
+    "misconception": "That returning the object it changed makes a function more convenient. It makes the change harder to notice.",
+    "missed": "If you missed it. Object-model error.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: interface design as an object-model consequence. Prereq: 2.12, 8.6. Syntax lens: `sorted(xs)` versus `xs.sort()` in a body. Flow lens: one call each. Object lens: new list versus shared list.",
+     "target": "interface design as an object-model consequence",
+     "prereq": [
+      "2.12",
+      "8.6"
+     ],
+     "syntax": "`sorted(xs)` versus `xs.sort()` in a body",
+     "flow": "one call each",
+     "object": "new list versus shared list"
+    }
+   }
+  },
+  {
+   "id": "8.21",
+   "stage": 8,
+   "form": "State the rule",
+   "kind": "rule",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Answer each in one sentence, using the formal vocabulary:"
+    },
+    {
+     "kind": "list",
+     "ordered": true,
+     "items": [
+      "What does the `def` line actually do when Python reaches it?",
+      "What is bound to a parameter when a function is called?",
+      "When can a caller see a change made inside a function?",
+      "What does `return` hand back, and what does it *not* do?",
+      "When is a default argument's value created?"
+     ]
+    }
+   ],
+   "snippets": [],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "list",
+        "ordered": true,
+        "items": [
+         "It builds a function object holding the body and binds the function's name to it — it does not run the body.",
+         "The object produced by the argument expression, bound to the parameter name in a fresh set of local names for that call.",
+         "Only when the body **changes an object** the caller can also reach; rebinding a parameter is invisible outside.",
+         "`return` hands back an object and ends the call; it does **not** copy the object, and it does not preserve any local names.",
+         "Once, when the `def` line runs — not on each call."
+        ]
+       }
+      ]
+     },
+     {
+      "label": "If you missed any",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "(1) and (5) flow; (2), (3), (4) object-model; right idea with the wrong term is vocabulary-only."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "list",
+      "ordered": true,
+      "items": [
+       "It builds a function object holding the body and binds the function's name to it — it does not run the body.",
+       "The object produced by the argument expression, bound to the parameter name in a fresh set of local names for that call.",
+       "Only when the body **changes an object** the caller can also reach; rebinding a parameter is invisible outside.",
+       "`return` hands back an object and ends the call; it does **not** copy the object, and it does not preserve any local names.",
+       "Once, when the `def` line runs — not on each call."
+      ]
+     }
+    ],
+    "reasoning": [],
+    "misconception": "",
+    "missed": "If you missed any. (1) and (5) flow; (2), (3), (4) object-model; right idea with the wrong term is vocabulary-only.",
+    "errorTypes": [
+     "flow",
+     "object",
+     "vocabulary"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: generalize the stage. Prereq: 8.1–8.20. Syntax lens: `def`, call, `return`. Flow lens: definition versus call time. Object lens: sharing across the boundary.",
+     "target": "generalize the stage",
+     "prereq": [
+      "8.1",
+      "8.2",
+      "8.3",
+      "8.4",
+      "8.5",
+      "8.6",
+      "8.7",
+      "8.8",
+      "8.9",
+      "8.10",
+      "8.11",
+      "8.12",
+      "8.13",
+      "8.14",
+      "8.15",
+      "8.16",
+      "8.17",
+      "8.18",
+      "8.19",
+      "8.20"
+     ],
+     "syntax": "`def`, call, `return`",
+     "flow": "definition versus call time",
+     "object": "sharing across the boundary"
+    }
+   }
+  }
+ ],
+ "checkpoint": {
+  "intro": [],
+  "items": [
+   {
+    "id": "C8.1",
+    "stage": 8,
+    "prompt": [
+     {
+      "kind": "p",
+      "text": "Predict:"
+     },
+     {
+      "kind": "code",
+      "lang": "python",
+      "text": "def f(a, b):\n    a = a + 1\n    b.append(1)\n\nx = 0\ny = []\nf(x, y)\nprint(x, y)"
+     }
+    ],
+    "snippets": [
+     {
+      "label": null,
+      "code": "def f(a, b):\n    a = a + 1\n    b.append(1)\n\nx = 0\ny = []\nf(x, y)\nprint(x, y)\n"
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "`0 [1]`. `a = a + 1` moved a local name; `b.append(1)` changed the caller's list. Both parameters were bound the same way — the bodies differ. **Error type if missed:** object-model. Go back to 8.6."
+     }
+    ],
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [
+     "8.6"
+    ]
+   },
+   {
+    "id": "C8.2",
+    "stage": 8,
+    "prompt": [
+     {
+      "kind": "p",
+      "text": "What does this print, and why is the second line surprising to some people?"
+     },
+     {
+      "kind": "code",
+      "lang": "python",
+      "text": "def f():\n    return\n\nprint(f())\nprint(f)"
+     }
+    ],
+    "snippets": [
+     {
+      "label": null,
+      "code": "def f():\n    return\n\nprint(f())\nprint(f)\n"
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "It prints `None` and then something like `<function f at 0x7f...>`. The second line is surprising because naming a function does not call it — you get the object itself, address and all. **Error type if missed:** syntax-reading. Go back to 8.2."
+     }
+    ],
+    "errorTypes": [
+     "syntax"
+    ],
+    "goBack": [
+     "8.2"
+    ]
+   },
+   {
+    "id": "C8.3",
+    "stage": 8,
+    "prompt": [
+     {
+      "kind": "p",
+      "text": "A learner says \"Python copies lists into functions, so my function can't break the caller's data.\" Correct them in two sentences and give a one-line counterexample."
+     }
+    ],
+    "snippets": [],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "Python does not copy arguments; the parameter is a new *name* bound to the *same object* the caller passed. A function can therefore change the caller's list freely — `def f(xs): xs.clear()` — while rebinding the parameter cannot affect the caller at all. **Error type if missed:** object-model. Go back to 8.5 and 8.6."
+     }
+    ],
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [
+     "8.5",
+     "8.6"
+    ]
+   },
+   {
+    "id": "C8.4",
+    "stage": 8,
+    "prompt": [
+     {
+      "kind": "p",
+      "text": "Predict:"
+     },
+     {
+      "kind": "code",
+      "lang": "python",
+      "text": "def wrap(x, into=[]):\n    into.append(x)\n    return len(into)\n\nprint(wrap(1), wrap(2), wrap(3))"
+     }
+    ],
+    "snippets": [
+     {
+      "label": null,
+      "code": "def wrap(x, into=[]):\n    into.append(x)\n    return len(into)\n\nprint(wrap(1), wrap(2), wrap(3))\n"
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "`1 2 3`. One default list, appended to by all three calls, so its length grows. (Python works out all three calls before printing.) **Error type if missed:** object-model. Go back to 8.16."
+     }
+    ],
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [
+     "8.16"
+    ]
+   },
+   {
+    "id": "C8.5",
+    "stage": 8,
+    "prompt": [
+     {
+      "kind": "p",
+      "text": "In this snippet, how many times does each line run?"
+     },
+     {
+      "kind": "code",
+      "lang": "python",
+      "text": "def f(n):\n    for i in range(n):\n        return i\n    return \"never\"\n\nprint(f(3))\nprint(f(0))"
+     }
+    ],
+    "snippets": [
+     {
+      "label": null,
+      "code": "def f(n):\n    for i in range(n):\n        return i\n    return \"never\"\n\nprint(f(3))\nprint(f(0))\n"
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "`def` runs once. For `f(3)`: the `for` line runs once, `return i` runs once, and `return \"never\"` runs zero times — the first pass returns immediately, so the loop never reaches a second pass. For `f(0)`: the `for` line runs once and finds nothing, `return i` runs zero times, `return \"never\"` runs once. Output: `0` then `never`. **Error type if missed:** flow. Go back to 8.15 and 8.3."
+     }
+    ],
+    "errorTypes": [
+     "flow"
+    ],
+    "goBack": [
+     "8.15",
+     "8.3"
+    ]
+   },
+   {
+    "id": "C8.6",
+    "stage": 8,
+    "prompt": [
+     {
+      "kind": "p",
+      "text": "Explain, in terms of names and objects, why a function that does `items = []` at its top cannot possibly clear the caller's list."
+     }
+    ],
+    "snippets": [],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "Because `items = []` binds the local parameter name to a brand-new list; it does not touch the object that name previously pointed at, and the caller's name still points at that original object. To clear the caller's list the body would have to change the object itself — `items.clear()` or `items[:] = []`. **Error type if missed:** object-model. Go back to 8.7."
+     }
+    ],
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [
+     "8.7"
+    ]
+   }
+  ]
+ },
+ "capstone": null,
+ "after": [
+  {
+   "kind": "p",
+   "text": "Every construct in the collection is now on the table: names and objects, changing versus replacing, access, sharing and copies, blocks, iteration, nesting, and the call boundary. Stage 9 puts them in one program at once."
+  }
+ ],
+ "summary": "Cross into a call and back out again"
+}

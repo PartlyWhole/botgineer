@@ -6,7 +6,7 @@
  * takes no commands, so it cannot show something the program did not do —
  * and scrubbing the trace rewinds the picture for free.
  */
-import { useLayoutEffect, useRef } from 'react'
+import { useLayoutEffect, useRef, type ReactNode } from 'react'
 import {
   placement,
   readScene,
@@ -34,6 +34,8 @@ export function ScenePanel({
   thought,
   thinking,
   meter,
+  compact,
+  children,
 }: {
   spec: SceneSpec
   snapshot: MemorySnapshot
@@ -70,6 +72,13 @@ export function ScenePanel({
   thinking?: boolean | undefined
   /** A practice session's progress, drawn across the top of the stage. */
   meter?: PracticeMeter | undefined
+  /**
+   * Reading: a short stage — the crow and the robot, and what the crow
+   * says — over a sheet that carries the question and, later, the key.
+   * The sheet is drawn from what it is handed, like everything else here.
+   */
+  compact?: boolean
+  children?: ReactNode
 }) {
   const view = readScene(spec, snapshot)
   // Finished, by whichever measure this activity has — and only one of
@@ -106,7 +115,7 @@ export function ScenePanel({
   usePop(thoughtRef, thoughtShown ? (thinking ? '\u2026' : (thought ?? '')) : null, THOUGHT_POP)
 
   return (
-    <div className="scene-panel" data-testid="scene">
+    <div className={`scene-panel ${compact ? 'compact' : ''}`} data-testid="scene">
       <div className="stage" data-scene={spec.id}>
         {/* Drawn before the cast, so everyone stands in front of it. */}
         {spec.floor && (
@@ -261,6 +270,8 @@ export function ScenePanel({
       {/* Only when the scene is actually waiting for something. With the
           description gone there is otherwise nothing to put here, and an
           empty bar is worse than no bar. */}
+      {children !== undefined && <div className="sheet-scroll">{children}</div>}
+
       {view.waitingFor.length > 0 && (
         <div className="stage-foot">
           <ul className="waiting" data-testid="waiting">

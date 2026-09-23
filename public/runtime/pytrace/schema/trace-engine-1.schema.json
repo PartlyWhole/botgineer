@@ -1136,6 +1136,12 @@
         },
         "closure_environment_id": {
           "$ref": "#/$defs/EnvironmentId"
+        },
+        "defaults": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EncodedValue"
+          }
         }
       },
       "oneOf": [

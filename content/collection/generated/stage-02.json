@@ -1,0 +1,2157 @@
+{
+ "stage": 2,
+ "file": "stage-02-change-vs-replace.md",
+ "title": "Changing a Thing vs. Replacing a Name",
+ "move": "decide, for each line, whether it *changed an object* or *moved a name*. These look alike on the page and are completely different events.",
+ "adds": [
+  {
+   "kind": "p",
+   "text": "Stage 1 used objects that cannot be changed, so the only thing a line could ever do was move a label. Now lists enter, and a second possibility appears: the line may leave every label exactly where it is and alter the object underneath."
+  },
+  {
+   "kind": "p",
+   "text": "Everything in this collection that ever surprises anybody comes from failing to tell these two apart. Slow down here."
+  }
+ ],
+ "ideas": [
+  {
+   "title": "Two kinds of object",
+   "blocks": [
+    {
+     "kind": "table",
+     "head": [
+      "Kind",
+      "Examples",
+      "Can a line change it while the names stay put?"
+     ],
+     "rows": [
+      [
+       "Changeable",
+       "list, dictionary, set",
+       "yes"
+      ],
+      [
+       "Unchangeable",
+       "number, text (string), tuple, `True`/`False`, `None`",
+       "no"
+      ]
+     ]
+    },
+    {
+     "kind": "p",
+     "text": "We will call these **changeable** and **unchangeable** for now. Their formal names, *mutable* and *immutable*, arrive in Stage 6."
+    },
+    {
+     "kind": "p",
+     "text": "Unchangeable does not mean \"cannot be replaced\". A name pointing at `7` can be pointed at `8` any time you like. It means: no operation can turn the object `7` itself into something else while you watch."
+    }
+   ]
+  },
+  {
+   "title": "The two events, side by side",
+   "blocks": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "nums = [1, 2]\nnums.append(3)        # CHANGE: same object, now [1, 2, 3]"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "nums = [1, 2]\nnums = nums + [3]     # REPLACE: a new list object; nums points at it"
+    },
+    {
+     "kind": "p",
+     "text": "The printed result is identical: `[1, 2, 3]`. The event is not. And whenever a second name is involved, the difference becomes visible:"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "nums = [1, 2]\nother = nums\nnums.append(3)\nprint(other)          # [1, 2, 3]  — other sees the change"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "nums = [1, 2]\nother = nums\nnums = nums + [3]\nprint(other)          # [1, 2]     — other still points at the old object"
+    }
+   ]
+  },
+  {
+   "title": "How to tell which one a line is, by looking",
+   "blocks": [
+    {
+     "kind": "p",
+     "text": "Ask: **is there an `=` sign at the top level of the line?**"
+    },
+    {
+     "kind": "list",
+     "ordered": false,
+     "items": [
+      "`nums = ...` — an `=` at the left margin of the statement. A name moves. Whatever the right side is, `nums` ends up pointing at its result.",
+      "`nums.append(3)` — no `=`. No name moves. Something was asked of the object itself.",
+      "`nums[0] = 9` — there *is* an `=`, but the left side is not a bare name; it is a slot *inside* an object. Nothing rebinds `nums`; the list is changed. This third case is Stage 3's territory, and it is the one that catches people."
+     ]
+    },
+    {
+     "kind": "p",
+     "text": "So the real question is: **what is immediately to the left of the `=`?** A bare name means rebinding. Anything with brackets or a dot in it means changing an object."
+    }
+   ]
+  },
+  {
+   "title": "Methods that change return nothing",
+   "blocks": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "nums = [3, 1, 2]\nnums.sort()           # changes nums; hands back None\nprint(nums)           # [1, 2, 3]"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "nums = [3, 1, 2]\nnums = nums.sort()    # changes nums, then points nums at None\nprint(nums)           # None"
+    },
+    {
+     "kind": "p",
+     "text": "`.append()`, `.sort()`, `.reverse()`, `.extend()`, `.insert()`, `.clear()` all change the list and hand back `None`. Writing `x = x.append(...)` is one of the most common ways to destroy your own data. The rule: **a method that changes an object usually gives you nothing back, because it has already done its job.**"
+    },
+    {
+     "kind": "p",
+     "text": "Their non-changing counterparts hand back a new object and leave the original alone: `sorted(nums)`, `reversed(nums)`, `nums + [4]`, `nums[:]`."
+    }
+   ]
+  },
+  {
+   "title": "`+=` is not simply shorthand",
+   "blocks": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "n = 1\nn += 1                # numbers cannot change: n is rebound to a new object 2"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "nums = [1, 2]\nnums += [3]           # lists can change: the SAME list is extended"
+    },
+    {
+     "kind": "p",
+     "text": "For unchangeable objects, `+=` must build a new object and rebind. For lists, `+=` changes the existing list — it behaves like `.extend()`, not like `nums = nums + [3]`. Two lines that look like paraphrases of each other are, for lists, different events. Exercise 2.7 makes this visible."
+    }
+   ]
+  },
+  {
+   "title": "Tuples: unchangeable, but not necessarily \"frozen\"",
+   "blocks": [
+    {
+     "kind": "p",
+     "text": "A tuple cannot gain, lose, or swap items. But if a tuple holds a list, that list is still a changeable object:"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "pair = (1, [2, 3])\npair[1].append(4)     # allowed — the tuple's items are untouched\nprint(pair)           # (1, [2, 3, 4])"
+    },
+    {
+     "kind": "p",
+     "text": "The tuple still points at the same two objects it always did. One of them changed. This is the seed of Stage 4."
+    }
+   ]
+  }
+ ],
+ "exercises": [
+  {
+   "id": "2.1",
+   "stage": 2,
+   "form": "Label the code",
+   "kind": "label",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "For each line, say in five words or fewer whether it moves a name or changes an object, and name the object involved."
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "scores = [10, 20]\nscores.append(30)\nscores = [0]\ntotal = 0"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "scores = [10, 20]\nscores.append(30)\nscores = [0]\ntotal = 0\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "table",
+        "head": [
+         "Line",
+         "Event"
+        ],
+        "rows": [
+         [
+          "`scores = [10, 20]`",
+          "moves a name (a new list)"
+         ],
+         [
+          "`scores.append(30)`",
+          "changes that list object"
+         ],
+         [
+          "`scores = [0]`",
+          "moves the name (a second, new list)"
+         ],
+         [
+          "`total = 0`",
+          "moves a name (a number)"
+         ]
+        ]
+       },
+       {
+        "kind": "p",
+        "text": "Note that after line 3 the list `[10, 20, 30]` has no name left and is gone."
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Look left of the `=`. Bare name → the name moves. No `=` → an object was asked to change itself."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That `.append` and `=` are both \"updating the variable\"."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Syntax-reading error. The test is mechanical: what is immediately left of the `=`?"
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "table",
+      "head": [
+       "Line",
+       "Event"
+      ],
+      "rows": [
+       [
+        "`scores = [10, 20]`",
+        "moves a name (a new list)"
+       ],
+       [
+        "`scores.append(30)`",
+        "changes that list object"
+       ],
+       [
+        "`scores = [0]`",
+        "moves the name (a second, new list)"
+       ],
+       [
+        "`total = 0`",
+        "moves a name (a number)"
+       ]
+      ]
+     },
+     {
+      "kind": "p",
+      "text": "Note that after line 3 the list `[10, 20, 30]` has no name left and is gone."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "Look left of the `=`. Bare name → the name moves. No `=` → an object was asked to change itself."
+     }
+    ],
+    "misconception": "That `.append` and `=` are both \"updating the variable\".",
+    "missed": "If you missed it. Syntax-reading error. The test is mechanical: what is immediately left of the `=`?",
+    "errorTypes": [
+     "syntax"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: classify each line as bind or change. Prereq: 1.1. Syntax lens: presence and left-hand side of `=`. Flow lens: once each. Object lens: two list objects, one abandoned.",
+     "target": "classify each line as bind or change",
+     "prereq": [
+      "1.1"
+     ],
+     "syntax": "presence and left-hand side of `=`",
+     "flow": "once each",
+     "object": "two list objects, one abandoned"
+    }
+   }
+  },
+  {
+   "id": "2.2",
+   "stage": 2,
+   "form": "Predict the result",
+   "kind": "predict",
+   "prompt": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "a = [1, 2]\nb = a\na.append(3)\nprint(a)\nprint(b)"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "a = [1, 2]\nb = a\na.append(3)\nprint(a)\nprint(b)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "[1, 2, 3]\n[1, 2, 3]"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`b = a` gave one list two names. `a.append(3)` changed that one list. There is nothing for `b` to be out of date about — it was never holding a separate copy, it was pointing at the object that changed."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That `b` captured a snapshot of `a` on line 2."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error. Redraw the diagram from 1.3."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "[1, 2, 3]\n[1, 2, 3]"
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "`b = a` gave one list two names. `a.append(3)` changed that one list. There is nothing for `b` to be out of date about — it was never holding a separate copy, it was pointing at the object that changed."
+     }
+    ],
+    "misconception": "That `b` captured a snapshot of `a` on line 2.",
+    "missed": "If you missed it. Object-model error. Redraw the diagram from 1.3.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [
+     "1.3"
+    ],
+    "authoring": {
+     "text": "Target: change is visible through every name. Prereq: 1.3, 2.1. Syntax lens: `.append` with no `=`. Flow lens: once each. Object lens: one list, two names, changed in place.",
+     "target": "change is visible through every name",
+     "prereq": [
+      "1.3",
+      "2.1"
+     ],
+     "syntax": "`.append` with no `=`",
+     "flow": "once each",
+     "object": "one list, two names, changed in place"
+    }
+   }
+  },
+  {
+   "id": "2.3",
+   "stage": 2,
+   "form": "Predict the result",
+   "kind": "predict",
+   "prompt": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "a = [1, 2]\nb = a\na = a + [3]\nprint(a)\nprint(b)"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "a = [1, 2]\nb = a\na = a + [3]\nprint(a)\nprint(b)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "[1, 2, 3]\n[1, 2]"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`a + [3]` builds a **new** list from the two operands. The original list is not touched. Line 3 then points `a` at the new one. `b` is still on the original."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That `+` extends the left-hand list."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "[1, 2, 3]\n[1, 2]"
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "`a + [3]` builds a **new** list from the two operands. The original list is not touched. Line 3 then points `a` at the new one. `b` is still on the original."
+     }
+    ],
+    "misconception": "That `+` extends the left-hand list.",
+    "missed": "If you missed it. Object-model error.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: `+` on lists creates. Prereq: 2.2. Syntax lens: `=` with a bare name left, `+` right. Flow lens: once each. Object lens: two lists, the names split.",
+     "target": "`+` on lists creates",
+     "prereq": [
+      "2.2"
+     ],
+     "syntax": "`=` with a bare name left, `+` right",
+     "flow": "once each",
+     "object": "two lists, the names split"
+    }
+   }
+  },
+  {
+   "id": "2.4",
+   "stage": 2,
+   "form": "Compare near-matches",
+   "kind": "compare",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Exercises 2.2 and 2.3 print different things on their last line. In one sentence each, say what line 3 did in **2.2** and what line 3 did in **2.3**. Do not use the word \"value\"."
+    }
+   ],
+   "snippets": [],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "In 2.2, line 3 **changed the one list that both names point at**. In 2.3, line 3 **built a second list and pointed `a` at it, leaving `b` on the first**."
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Both sentences must name *which object* and *which names*. If your sentence could be said about either snippet, it was not specific enough."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That identical printed contents imply identical events."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error, or vocabulary-only if you had the right picture but reached for \"value\" and could not get past it."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "In 2.2, line 3 **changed the one list that both names point at**. In 2.3, line 3 **built a second list and pointed `a` at it, leaving `b` on the first**."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "Both sentences must name *which object* and *which names*. If your sentence could be said about either snippet, it was not specific enough."
+     }
+    ],
+    "misconception": "That identical printed contents imply identical events.",
+    "missed": "If you missed it. Object-model error, or vocabulary-only if you had the right picture but reached for \"value\" and could not get past it.",
+    "errorTypes": [
+     "object",
+     "vocabulary"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: articulate the two events. Prereq: 2.2, 2.3. Syntax lens: `.append` versus `= ... +`. Flow lens: identical. Object lens: one object versus two.",
+     "target": "articulate the two events",
+     "prereq": [
+      "2.2",
+      "2.3"
+     ],
+     "syntax": "`.append` versus `= ... +`",
+     "flow": "identical",
+     "object": "one object versus two"
+    }
+   }
+  },
+  {
+   "id": "2.5",
+   "stage": 2,
+   "form": "Find and fix",
+   "kind": "fix",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "The intent is to end with `words` pointing at a sorted list. Say what is printed, and make the smallest fix."
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "words = [\"pear\", \"fig\", \"apple\"]\nwords = words.sort()\nprint(words)"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "words = [\"pear\", \"fig\", \"apple\"]\nwords = words.sort()\nprint(words)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "It prints `None`."
+       }
+      ]
+     },
+     {
+      "label": "Why",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`.sort()` sorts the list in place and hands back `None`. Line 2 then points `words` at that `None`, and the sorted list — which was sitting right there, correct — loses its only name."
+       }
+      ]
+     },
+     {
+      "label": "Smallest fix",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Drop the assignment:"
+       },
+       {
+        "kind": "code",
+        "lang": "python",
+        "text": "words = [\"pear\", \"fig\", \"apple\"]\nwords.sort()\nprint(words)          # ['apple', 'fig', 'pear']"
+       },
+       {
+        "kind": "p",
+        "text": "Or, if you wanted a new list and the original preserved, use `sorted`:"
+       },
+       {
+        "kind": "code",
+        "lang": "python",
+        "text": "words = [\"pear\", \"fig\", \"apple\"]\nordered = sorted(words)"
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That every method hands back the updated object, so reassigning is harmless or required."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error. The general habit: before writing `x = x.method()`, ask whether the method changes or produces."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "It prints `None`."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "`.sort()` sorts the list in place and hands back `None`. Line 2 then points `words` at that `None`, and the sorted list — which was sitting right there, correct — loses its only name."
+     }
+    ],
+    "misconception": "That every method hands back the updated object, so reassigning is harmless or required.",
+    "missed": "If you missed it. Object-model error. The general habit: before writing `x = x.method()`, ask whether the method changes or produces.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: changing methods return `None`. Prereq: 1.9, 2.1. Syntax lens: method call on the right of `=`. Flow lens: once each. Object lens: list changed, then abandoned; name bound to `None`.",
+     "target": "changing methods return `None`",
+     "prereq": [
+      "1.9",
+      "2.1"
+     ],
+     "syntax": "method call on the right of `=`",
+     "flow": "once each",
+     "object": "list changed, then abandoned; name bound to `None`"
+    }
+   }
+  },
+  {
+   "id": "2.6",
+   "stage": 2,
+   "form": "Predict the result",
+   "kind": "predict",
+   "prompt": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "n = 5\nm = n\nn += 1\nprint(n, m)"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "n = 5\nm = n\nn += 1\nprint(n, m)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`6 5`"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Numbers cannot be changed, so `n += 1` has no choice: it computes `6` as a new object and rebinds `n`. `m` never moves."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That `+=` always modifies \"in place\", whatever the type."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "`6 5`"
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "Numbers cannot be changed, so `n += 1` has no choice: it computes `6` as a new object and rebinds `n`. `m` never moves."
+     }
+    ],
+    "misconception": "That `+=` always modifies \"in place\", whatever the type.",
+    "missed": "If you missed it. Object-model error.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: `+=` on an unchangeable object. Prereq: 1.2. Syntax lens: `+=`. Flow lens: once each. Object lens: rebinding only.",
+     "target": "`+=` on an unchangeable object",
+     "prereq": [
+      "1.2"
+     ],
+     "syntax": "`+=`",
+     "flow": "once each",
+     "object": "rebinding only"
+    }
+   }
+  },
+  {
+   "id": "2.7",
+   "stage": 2,
+   "form": "Compare near-matches",
+   "kind": "compare",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Snippet **A**:"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "xs = [1, 2]\nys = xs\nxs += [3]\nprint(ys)"
+    },
+    {
+     "kind": "p",
+     "text": "Snippet **B**:"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "xs = [1, 2]\nys = xs\nxs = xs + [3]\nprint(ys)"
+    },
+    {
+     "kind": "p",
+     "text": "Predict both. Then say, in one sentence, why `+=` and `= ... +` are not the same instruction for lists."
+    }
+   ],
+   "snippets": [
+    {
+     "label": "A",
+     "code": "xs = [1, 2]\nys = xs\nxs += [3]\nprint(ys)\n"
+    },
+    {
+     "label": "B",
+     "code": "xs = [1, 2]\nys = xs\nxs = xs + [3]\nprint(ys)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "**A** prints `[1, 2, 3]`. **B** prints `[1, 2]`."
+       }
+      ]
+     },
+     {
+      "label": "Why they differ",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "For a list, `xs += [3]` asks the existing list to extend itself — the same object, changed, and `ys` sees it. `xs = xs + [3]` builds a new list and points only `xs` at it."
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`+=` is not defined as \"do the `+` then assign\". Changeable objects get to define what `+=` means to them, and lists define it as *extend myself*. Unchangeable objects have no such option, which is why 2.6 came out the way it did."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That `x += y` is always exactly `x = x + y`."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error. This is the single most useful item in Stage 2 — reread it."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "**A** prints `[1, 2, 3]`. **B** prints `[1, 2]`."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "For a list, `xs += [3]` asks the existing list to extend itself — the same object, changed, and `ys` sees it. `xs = xs + [3]` builds a new list and points only `xs` at it."
+     }
+    ],
+    "misconception": "That `x += y` is always exactly `x = x + y`.",
+    "missed": "If you missed it. Object-model error. This is the single most useful item in Stage 2 — reread it.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: `+=` differs by changeability. Prereq: 2.3, 2.6. Syntax lens: `+=` versus `= ... +`. Flow lens: identical. Object lens: one object changed versus two objects and a rebinding.",
+     "target": "`+=` differs by changeability",
+     "prereq": [
+      "2.3",
+      "2.6"
+     ],
+     "syntax": "`+=` versus `= ... +`",
+     "flow": "identical",
+     "object": "one object changed versus two objects and a rebinding"
+    }
+   }
+  },
+  {
+   "id": "2.8",
+   "stage": 2,
+   "form": "Draw names and objects",
+   "kind": "draw",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Draw the picture after each line."
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "p = [1]\nq = p\np.append(2)\np = [9]\nq.append(3)"
+    },
+    {
+     "kind": "p",
+     "text": "What does `print(p, q)` show at the end?"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "p = [1]\nq = p\np.append(2)\np = [9]\nq.append(3)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "after line 1:   p ─────▶ #1 [1]\nafter line 2:   p ──┬──▶ #1 [1]\n                q ──┘\nafter line 3:   p ──┬──▶ #1 [1, 2]\n                q ──┘\nafter line 4:   p ─────▶ #2 [9]\n                q ─────▶ #1 [1, 2]\nafter line 5:   p ─────▶ #2 [9]\n                q ─────▶ #1 [1, 2, 3]"
+       },
+       {
+        "kind": "p",
+        "text": "`print(p, q)` shows `[9] [1, 2, 3]`."
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Line 4 is the split: from then on the two names are on different objects and their changes no longer meet. Line 5 changes `#1`, which `p` left."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That once two names were \"the same\", they stay linked; or conversely, that `q` was already independent before line 4."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error. Note precisely *which line* separated them — that is the skill."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "after line 1:   p ─────▶ #1 [1]\nafter line 2:   p ──┬──▶ #1 [1]\n                q ──┘\nafter line 3:   p ──┬──▶ #1 [1, 2]\n                q ──┘\nafter line 4:   p ─────▶ #2 [9]\n                q ─────▶ #1 [1, 2]\nafter line 5:   p ─────▶ #2 [9]\n                q ─────▶ #1 [1, 2, 3]"
+     },
+     {
+      "kind": "p",
+      "text": "`print(p, q)` shows `[9] [1, 2, 3]`."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "Line 4 is the split: from then on the two names are on different objects and their changes no longer meet. Line 5 changes `#1`, which `p` left."
+     }
+    ],
+    "misconception": "That once two names were \"the same\", they stay linked; or conversely, that `q` was already independent before line 4.",
+    "missed": "If you missed it. Object-model error. Note precisely *which line* separated them — that is the skill.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: aliasing begins and ends at specific lines. Prereq: 2.2, 2.3. Syntax lens: mixed rebinds and method calls. Flow lens: five lines, once each. Object lens: two lists; sharing for lines 2–3 only.",
+     "target": "aliasing begins and ends at specific lines",
+     "prereq": [
+      "2.2",
+      "2.3"
+     ],
+     "syntax": "mixed rebinds and method calls",
+     "flow": "five lines, once each",
+     "object": "two lists; sharing for lines 2–3 only"
+    }
+   }
+  },
+  {
+   "id": "2.9",
+   "stage": 2,
+   "form": "Predict the result",
+   "kind": "predict",
+   "prompt": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "t = (1, 2)\nu = t\nt += (3,)\nprint(t)\nprint(u)"
+    },
+    {
+     "kind": "p",
+     "text": "Then say why this outcome is *forced* — that is, why Python had no other choice."
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "t = (1, 2)\nu = t\nt += (3,)\nprint(t)\nprint(u)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "(1, 2, 3)\n(1, 2)"
+       }
+      ]
+     },
+     {
+      "label": "Why it is forced",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "A tuple cannot be extended, so `+=` on a tuple has no way to change the existing object. Its only option is to build a new tuple and rebind `t`. `u` therefore keeps the original. Compare 2.7: identical syntax, opposite event, purely because of what kind of object it is applied to."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That `+=` failing to modify a tuple would be an error, or that `u` would follow along."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "(1, 2, 3)\n(1, 2)"
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "A tuple cannot be extended, so `+=` on a tuple has no way to change the existing object. Its only option is to build a new tuple and rebind `t`. `u` therefore keeps the original. Compare 2.7: identical syntax, opposite event, purely because of what kind of object it is applied to."
+     }
+    ],
+    "misconception": "That `+=` failing to modify a tuple would be an error, or that `u` would follow along.",
+    "missed": "If you missed it. Object-model error.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: `+=` on an unchangeable container. Prereq: 2.6, 2.7. Syntax lens: `(3,)` one-item tuple; `+=`. Flow lens: once each. Object lens: two tuples, names split.",
+     "target": "`+=` on an unchangeable container",
+     "prereq": [
+      "2.6",
+      "2.7"
+     ],
+     "syntax": "`(3,)` one-item tuple; `+=`",
+     "flow": "once each",
+     "object": "two tuples, names split"
+    }
+   }
+  },
+  {
+   "id": "2.10",
+   "stage": 2,
+   "form": "Predict the result",
+   "kind": "predict",
+   "prompt": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "pair = (1, [2, 3])\ninner = pair[1]\ninner.append(4)\nprint(pair)"
+    },
+    {
+     "kind": "p",
+     "text": "Is the tuple changed? Answer carefully."
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "pair = (1, [2, 3])\ninner = pair[1]\ninner.append(4)\nprint(pair)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`(1, [2, 3, 4])`"
+       },
+       {
+        "kind": "p",
+        "text": "**Is the tuple changed?** No — and yes, depending on what you mean, which is why the question says *carefully*. The tuple still points at exactly the two objects it pointed at when it was built: the number `1` and one particular list. Nothing about the tuple's own contents moved. What changed is one of the objects it points at."
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "\"Unchangeable\" is a claim about the container's own slots, not a promise about everything reachable from it."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That a tuple deep-freezes whatever is inside it, so `inner.append(4)` would fail."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error. Hold onto this: Stage 4 is built on it."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "`(1, [2, 3, 4])`"
+     },
+     {
+      "kind": "p",
+      "text": "**Is the tuple changed?** No — and yes, depending on what you mean, which is why the question says *carefully*. The tuple still points at exactly the two objects it pointed at when it was built: the number `1` and one particular list. Nothing about the tuple's own contents moved. What changed is one of the objects it points at."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "\"Unchangeable\" is a claim about the container's own slots, not a promise about everything reachable from it."
+     }
+    ],
+    "misconception": "That a tuple deep-freezes whatever is inside it, so `inner.append(4)` would fail.",
+    "missed": "If you missed it. Object-model error. Hold onto this: Stage 4 is built on it.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: unchangeable container holding a changeable object. Prereq: 2.2, 2.9. Syntax lens: `pair[1]` lookup binding a name to an inner object. Flow lens: once each. Object lens: tuple slots fixed, inner list changed.",
+     "target": "unchangeable container holding a changeable object",
+     "prereq": [
+      "2.2",
+      "2.9"
+     ],
+     "syntax": "`pair[1]` lookup binding a name to an inner object",
+     "flow": "once each",
+     "object": "tuple slots fixed, inner list changed"
+    }
+   }
+  },
+  {
+   "id": "2.11",
+   "stage": 2,
+   "form": "Find and fix",
+   "kind": "fix",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "The intent is to leave `original` untouched while `extended` gains an item. Say what actually happens and fix it with the smallest change."
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "original = [1, 2, 3]\nextended = original\nextended.append(4)\nprint(original)\nprint(extended)"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "original = [1, 2, 3]\nextended = original\nextended.append(4)\nprint(original)\nprint(extended)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "It prints `[1, 2, 3, 4]` twice. Line 2 did not copy anything, so line 3 changed the one and only list."
+       }
+      ]
+     },
+     {
+      "label": "Smallest fix",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Make line 2 produce a new list:"
+       },
+       {
+        "kind": "code",
+        "lang": "python",
+        "text": "extended = original[:]        # or list(original), or original.copy()"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "The requirement \"leave `original` untouched\" can only be met by creating a second object. There is no way to have one object and two independent histories."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That naming something `extended` makes it a separate thing; that assignment copies."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error. Go back to 1.16."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "It prints `[1, 2, 3, 4]` twice. Line 2 did not copy anything, so line 3 changed the one and only list."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "The requirement \"leave `original` untouched\" can only be met by creating a second object. There is no way to have one object and two independent histories."
+     }
+    ],
+    "misconception": "That naming something `extended` makes it a separate thing; that assignment copies.",
+    "missed": "If you missed it. Object-model error. Go back to 1.16.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [
+     "1.16"
+    ],
+    "authoring": {
+     "text": "Target: aliasing bug and its minimal repair. Prereq: 2.2. Syntax lens: bare name on the right versus a slice. Flow lens: once each. Object lens: one object versus two.",
+     "target": "aliasing bug and its minimal repair",
+     "prereq": [
+      "2.2"
+     ],
+     "syntax": "bare name on the right versus a slice",
+     "flow": "once each",
+     "object": "one object versus two"
+    }
+   }
+  },
+  {
+   "id": "2.12",
+   "stage": 2,
+   "form": "Predict the result",
+   "kind": "predict",
+   "prompt": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "data = [3, 1, 2]\ncopy_of_data = sorted(data)\nprint(data)\nprint(copy_of_data)"
+    },
+    {
+     "kind": "p",
+     "text": "Which line, if any, changed a list?"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "data = [3, 1, 2]\ncopy_of_data = sorted(data)\nprint(data)\nprint(copy_of_data)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "[3, 1, 2]\n[1, 2, 3]"
+       },
+       {
+        "kind": "p",
+        "text": "No line changed a list. `sorted(...)` reads its input and produces a brand-new list; the original is untouched."
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "The pairing to memorize: `list.sort()` changes and returns nothing; `sorted(list)` changes nothing and returns a new list. The same pattern holds for `list.reverse()` versus `reversed(list)`."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That `sorted` sorts the original as a side effect."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "[3, 1, 2]\n[1, 2, 3]"
+     },
+     {
+      "kind": "p",
+      "text": "No line changed a list. `sorted(...)` reads its input and produces a brand-new list; the original is untouched."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "The pairing to memorize: `list.sort()` changes and returns nothing; `sorted(list)` changes nothing and returns a new list. The same pattern holds for `list.reverse()` versus `reversed(list)`."
+     }
+    ],
+    "misconception": "That `sorted` sorts the original as a side effect.",
+    "missed": "If you missed it. Object-model error.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: producing function versus changing method. Prereq: 2.5. Syntax lens: `sorted(x)` versus `x.sort()`. Flow lens: once each. Object lens: two lists, no change.",
+     "target": "producing function versus changing method",
+     "prereq": [
+      "2.5"
+     ],
+     "syntax": "`sorted(x)` versus `x.sort()`",
+     "flow": "once each",
+     "object": "two lists, no change"
+    }
+   }
+  },
+  {
+   "id": "2.13",
+   "stage": 2,
+   "form": "Write a small program",
+   "kind": "write",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Write four lines such that:"
+    },
+    {
+     "kind": "list",
+     "ordered": false,
+     "items": [
+      "`a` and `b` point at the same list;",
+      "after your third line, `a` points at a **different** list than `b`;",
+      "and `b`'s list has never been changed."
+     ]
+    },
+    {
+     "kind": "p",
+     "text": "Then write four lines that reach the same printed output but by *changing* `b`'s list instead. Say which of your two programs would be dangerous if some other part of a program also pointed at that list."
+    }
+   ],
+   "snippets": [],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Splitting by rebinding (safe):"
+       },
+       {
+        "kind": "code",
+        "lang": "python",
+        "text": "a = [1, 2]\nb = a\na = a + [3]\nprint(a, b)           # [1, 2, 3] [1, 2]"
+       },
+       {
+        "kind": "p",
+        "text": "Reaching a similar-looking end by changing (dangerous):"
+       },
+       {
+        "kind": "code",
+        "lang": "python",
+        "text": "a = [1, 2]\nb = a\nb.append(3)\nprint(a, b)           # [1, 2, 3] [1, 2, 3]  — note: NOT the same output"
+       },
+       {
+        "kind": "p",
+        "text": "The honest answer to the last part: the second program cannot actually reproduce the first program's output, and that is the point. Changing `b`'s list is visible to every other name pointing at it — including names in code you did not write. The rebinding version affects nobody but `a`."
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "If you tried to make the second version match and could not, you have discovered the rule yourself: a change to a shared object cannot be kept private."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That in-place changing and rebinding are interchangeable techniques with the same reach."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "Splitting by rebinding (safe):"
+     },
+     {
+      "kind": "code",
+      "lang": "python",
+      "text": "a = [1, 2]\nb = a\na = a + [3]\nprint(a, b)           # [1, 2, 3] [1, 2]"
+     },
+     {
+      "kind": "p",
+      "text": "Reaching a similar-looking end by changing (dangerous):"
+     },
+     {
+      "kind": "code",
+      "lang": "python",
+      "text": "a = [1, 2]\nb = a\nb.append(3)\nprint(a, b)           # [1, 2, 3] [1, 2, 3]  — note: NOT the same output"
+     },
+     {
+      "kind": "p",
+      "text": "The honest answer to the last part: the second program cannot actually reproduce the first program's output, and that is the point. Changing `b`'s list is visible to every other name pointing at it — including names in code you did not write. The rebinding version affects nobody but `a`."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "If you tried to make the second version match and could not, you have discovered the rule yourself: a change to a shared object cannot be kept private."
+     }
+    ],
+    "misconception": "That in-place changing and rebinding are interchangeable techniques with the same reach.",
+    "missed": "If you missed it. Object-model error.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: construct both events deliberately. Prereq: 2.2–2.4. Syntax lens: choosing the left-hand side. Flow lens: once each. Object lens: sharing versus splitting.",
+     "target": "construct both events deliberately",
+     "prereq": [
+      "2.2",
+      "2.3",
+      "2.4"
+     ],
+     "syntax": "choosing the left-hand side",
+     "flow": "once each",
+     "object": "sharing versus splitting"
+    }
+   }
+  },
+  {
+   "id": "2.14",
+   "stage": 2,
+   "form": "What runs next?",
+   "kind": "order",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Number the lines in execution order and state what is printed."
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "items = []\nitems.append(\"a\")\nprint(len(items))\nitems = []\nitems.append(\"b\")\nitems.append(\"c\")\nprint(len(items))"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "items = []\nitems.append(\"a\")\nprint(len(items))\nitems = []\nitems.append(\"b\")\nitems.append(\"c\")\nprint(len(items))\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "1  items = []\n2  items.append(\"a\")\n3  print(len(items))     →  1\n4  items = []\n5  items.append(\"b\")\n6  items.append(\"c\")\n7  print(len(items))     →  2"
+       },
+       {
+        "kind": "p",
+        "text": "Output:"
+       },
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "1\n2"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Line 4 does not empty the existing list — it builds a *second* empty list and moves the name. The first list, holding `\"a\"`, is abandoned unchanged. (Contrast `items.clear()`, which would empty the existing one.)"
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That `items = []` \"resets the list\"."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error, though the output is the same either way here — which is why the diagram question matters more than the output."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "1  items = []\n2  items.append(\"a\")\n3  print(len(items))     →  1\n4  items = []\n5  items.append(\"b\")\n6  items.append(\"c\")\n7  print(len(items))     →  2"
+     },
+     {
+      "kind": "p",
+      "text": "Output:"
+     },
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "1\n2"
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "Line 4 does not empty the existing list — it builds a *second* empty list and moves the name. The first list, holding `\"a\"`, is abandoned unchanged. (Contrast `items.clear()`, which would empty the existing one.)"
+     }
+    ],
+    "misconception": "That `items = []` \"resets the list\".",
+    "missed": "If you missed it. Object-model error, though the output is the same either way here — which is why the diagram question matters more than the output.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: re-literal versus clear. Prereq: 2.1. Syntax lens: empty list literal. Flow lens: seven lines, once each. Object lens: two list objects.",
+     "target": "re-literal versus clear",
+     "prereq": [
+      "2.1"
+     ],
+     "syntax": "empty list literal",
+     "flow": "seven lines, once each",
+     "object": "two list objects"
+    }
+   }
+  },
+  {
+   "id": "2.15",
+   "stage": 2,
+   "form": "Compare near-matches",
+   "kind": "compare",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Snippet **A**:"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "s = \"abc\"\ns = s + \"d\"\nprint(s)"
+    },
+    {
+     "kind": "p",
+     "text": "Snippet **B**:"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "s = \"abc\"\ns[3] = \"d\"\nprint(s)"
+    },
+    {
+     "kind": "p",
+     "text": "Predict both. One of them fails — say what kind of failure and why it is *guaranteed*, not accidental."
+    }
+   ],
+   "snippets": [
+    {
+     "label": "A",
+     "code": "s = \"abc\"\ns = s + \"d\"\nprint(s)\n"
+    },
+    {
+     "label": "B",
+     "code": "s = \"abc\"\ns[3] = \"d\"\nprint(s)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "**A** prints `abcd`. **B** raises `TypeError: 'str' object does not support item assignment`."
+       }
+      ]
+     },
+     {
+      "label": "Why it is guaranteed",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Text objects have no changeable slots at all, so assigning into one is not a thing Python can attempt and fail at — it is refused outright, every time, regardless of the index. **A** works because it does not try to change anything: it builds a new text object and rebinds `s`."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That indexing on the left of `=` works on anything you can index. Reading works on strings; writing does not."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Syntax-reading error if you thought both lines were assignments of the same kind; object-model error if you expected **B** to work."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "**A** prints `abcd`. **B** raises `TypeError: 'str' object does not support item assignment`."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "Text objects have no changeable slots at all, so assigning into one is not a thing Python can attempt and fail at — it is refused outright, every time, regardless of the index. **A** works because it does not try to change anything: it builds a new text object and rebinds `s`."
+     }
+    ],
+    "misconception": "That indexing on the left of `=` works on anything you can index. Reading works on strings; writing does not.",
+    "missed": "If you missed it. Syntax-reading error if you thought both lines were assignments of the same kind; object-model error if you expected **B** to work.",
+    "errorTypes": [
+     "syntax",
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: item assignment requires a changeable object. Prereq: 2.1, 2.3. Syntax lens: `s[3] = ...` left-hand side. Flow lens: **B** stops at line 2; line 3 never runs. Object lens: no object changed in either.",
+     "target": "item assignment requires a changeable object",
+     "prereq": [
+      "2.1",
+      "2.3"
+     ],
+     "syntax": "`s[3] = ...` left-hand side",
+     "flow": "**B** stops at line 2; line 3 never runs",
+     "object": "no object changed in either"
+    }
+   }
+  },
+  {
+   "id": "2.16",
+   "stage": 2,
+   "form": "State the rule",
+   "kind": "rule",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Complete both sentences in plain language:"
+    },
+    {
+     "kind": "quote",
+     "text": "\"If the thing immediately to the left of the `=` is a bare name, then the line ...\" \"If a line has no `=` at all but ends in `.something(...)`, then the line ...\""
+    }
+   ],
+   "snippets": [],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "quote",
+        "text": "\"If the thing immediately to the left of the `=` is a bare name, then the line **points that name at whatever the right side produced, and changes no object**.\" \"If a line has no `=` at all but ends in `.something(...)`, then the line **may change the object it was called on, and moves no name**.\""
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Both halves need the negative clause — what the line does *not* do is the part learners omit, and it is the part that predicts the other names' behavior."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That the two forms are stylistic variants."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Vocabulary-only if your sentences meant the right thing; object-model if either negative clause was wrong."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "quote",
+      "text": "\"If the thing immediately to the left of the `=` is a bare name, then the line **points that name at whatever the right side produced, and changes no object**.\" \"If a line has no `=` at all but ends in `.something(...)`, then the line **may change the object it was called on, and moves no name**.\""
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "Both halves need the negative clause — what the line does *not* do is the part learners omit, and it is the part that predicts the other names' behavior."
+     }
+    ],
+    "misconception": "That the two forms are stylistic variants.",
+    "missed": "If you missed it. Vocabulary-only if your sentences meant the right thing; object-model if either negative clause was wrong.",
+    "errorTypes": [
+     "vocabulary",
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: generalize the left-of-`=` test. Prereq: 2.1–2.15. Syntax lens: statement shape. Flow lens: n/a. Object lens: bind versus change.",
+     "target": "generalize the left-of-`=` test",
+     "prereq": [
+      "2.1",
+      "2.2",
+      "2.3",
+      "2.4",
+      "2.5",
+      "2.6",
+      "2.7",
+      "2.8",
+      "2.9",
+      "2.10",
+      "2.11",
+      "2.12",
+      "2.13",
+      "2.14",
+      "2.15"
+     ],
+     "syntax": "statement shape",
+     "flow": "n/a",
+     "object": "bind versus change"
+    }
+   }
+  },
+  {
+   "id": "2.17",
+   "stage": 2,
+   "form": "Find and fix",
+   "kind": "fix",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "This is meant to print `[1, 2, 3]` and then `[1, 2, 3, 4]`. It prints something else. Diagnose and fix."
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "base = [1, 2, 3]\nbigger = base\nbigger += [4]\nprint(base)\nprint(bigger)"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "base = [1, 2, 3]\nbigger = base\nbigger += [4]\nprint(base)\nprint(bigger)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "It prints `[1, 2, 3, 4]` twice."
+       }
+      ]
+     },
+     {
+      "label": "Diagnosis",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Two separate mistakes stack here, and you should name both: line 2 did not copy (so `base` and `bigger` are one list), and line 3 uses `+=`, which for a list changes that shared object rather than making a new one. Either mistake alone would have been survivable; `bigger = base` followed by `bigger = bigger + [4]` would have printed the intended result by accident."
+       }
+      ]
+     },
+     {
+      "label": "Smallest fix",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Copy on line 2:"
+       },
+       {
+        "kind": "code",
+        "lang": "python",
+        "text": "bigger = base[:]\nbigger += [4]"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "The fix belongs at the line that failed to create a second object, not at the line that changed it. Changing line 3 to `bigger = bigger + [4]` also produces the wanted output, but leaves the aliasing in place for the next person to trip over."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That the visible symptom marks the buggy line."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error. Combines 2.7 and 2.11."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "It prints `[1, 2, 3, 4]` twice."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "Two separate mistakes stack here, and you should name both: line 2 did not copy (so `base` and `bigger` are one list), and line 3 uses `+=`, which for a list changes that shared object rather than making a new one. Either mistake alone would have been survivable; `bigger = base` followed by `bigger = bigger + [4]` would have printed the intended result by accident."
+     }
+    ],
+    "misconception": "That the visible symptom marks the buggy line.",
+    "missed": "If you missed it. Object-model error. Combines 2.7 and 2.11.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [
+     "2.7",
+     "2.11"
+    ],
+    "authoring": {
+     "text": "Target: diagnose a two-cause aliasing bug. Prereq: 2.7, 2.11. Syntax lens: `+=` on a shared name. Flow lens: once each. Object lens: one list, two names, changed once.",
+     "target": "diagnose a two-cause aliasing bug",
+     "prereq": [
+      "2.7",
+      "2.11"
+     ],
+     "syntax": "`+=` on a shared name",
+     "flow": "once each",
+     "object": "one list, two names, changed once"
+    }
+   }
+  }
+ ],
+ "checkpoint": {
+  "intro": [],
+  "items": [
+   {
+    "id": "C2.1",
+    "stage": 2,
+    "prompt": [
+     {
+      "kind": "p",
+      "text": "Which of these change an object rather than move a name? `x = x + 1` · `x.append(1)` · `x = []` · `x.sort()` · `x += [1]` (with `x` a list)"
+     }
+    ],
+    "snippets": [],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "Change an object: `x.append(1)`, `x.sort()`, and `x += [1]` when `x` is a list. Move a name: `x = x + 1`, `x = []`. **Error type if missed:** syntax-reading, unless you missed `+=`, which is object-model. Go back to 2.1 and 2.7."
+     }
+    ],
+    "errorTypes": [
+     "syntax",
+     "object"
+    ],
+    "goBack": [
+     "2.1",
+     "2.7"
+    ]
+   },
+   {
+    "id": "C2.2",
+    "stage": 2,
+    "prompt": [
+     {
+      "kind": "p",
+      "text": "Predict:"
+     },
+     {
+      "kind": "code",
+      "lang": "python",
+      "text": "a = [1]\nb = a\nb = b + [2]\nb.append(3)\nprint(a, b)"
+     }
+    ],
+    "snippets": [
+     {
+      "label": null,
+      "code": "a = [1]\nb = a\nb = b + [2]\nb.append(3)\nprint(a, b)\n"
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "`[1] [1, 2, 3]`. Line 3 built a new list and moved `b` onto it, so line 4's `.append` changes the *new* list and never touches `a`'s. **Error type if missed:** object-model. Go back to 2.8."
+     }
+    ],
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [
+     "2.8"
+    ]
+   },
+   {
+    "id": "C2.3",
+    "stage": 2,
+    "prompt": [
+     {
+      "kind": "p",
+      "text": "A learner writes `text = text.upper()` and it works, then writes `items = items.sort()` and their data vanishes. Explain the difference in two sentences."
+     }
+    ],
+    "snippets": [],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "`.upper()` does not change the text object (it cannot); it produces a new one, so the assignment is the only way to keep the result. `.sort()` does change the list and hands back `None`, so the assignment throws away the sorted list and stores nothing. **Error type if missed:** object-model. Go back to 2.5 and 2.12."
+     }
+    ],
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [
+     "2.5",
+     "2.12"
+    ]
+   },
+   {
+    "id": "C2.4",
+    "stage": 2,
+    "prompt": [
+     {
+      "kind": "p",
+      "text": "Can a tuple's contents ever appear to change? Give a two-line example or explain why not."
+     }
+    ],
+    "snippets": [],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "Yes, if it holds a changeable object:"
+     },
+     {
+      "kind": "code",
+      "lang": "python",
+      "text": "t = ([1], 2)\nt[0].append(9)        # t is now ([1, 9], 2)"
+     },
+     {
+      "kind": "p",
+      "text": "The tuple's own two slots never changed. **Error type if missed:** object-model. Go back to 2.10."
+     }
+    ],
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [
+     "2.10"
+    ]
+   },
+   {
+    "id": "C2.5",
+    "stage": 2,
+    "prompt": [
+     {
+      "kind": "p",
+      "text": "Draw the picture after the last line:"
+     },
+     {
+      "kind": "code",
+      "lang": "python",
+      "text": "one = [0]\ntwo = one\none = one + [1]\ntwo.append(2)"
+     }
+    ],
+    "snippets": [
+     {
+      "label": null,
+      "code": "one = [0]\ntwo = one\none = one + [1]\ntwo.append(2)\n"
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "one ─────▶ #2 [0, 1]\ntwo ─────▶ #1 [0, 2]"
+     },
+     {
+      "kind": "p",
+      "text": "Line 3 split them; line 4 changed the list `one` had left behind. **Error type if missed:** object-model. Go back to 2.8."
+     }
+    ],
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [
+     "2.8"
+    ]
+   },
+   {
+    "id": "C2.6",
+    "stage": 2,
+    "prompt": [
+     {
+      "kind": "p",
+      "text": "In one sentence: why does `n += 1` rebind `n` when `nums += [1]` does not rebind `nums`?"
+     }
+    ],
+    "snippets": [],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "Because a number object cannot be changed, so `+=` has no option but to build a new one and rebind; a list can change itself, so `+=` asks it to, and no name needs to move. **Error type if missed:** object-model. Go back to 2.7 and 2.9."
+     }
+    ],
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [
+     "2.7",
+     "2.9"
+    ]
+   }
+  ]
+ },
+ "capstone": null,
+ "after": [
+  {
+   "kind": "p",
+   "text": "You can now say, for any line, whether it moved a name or changed an object, and you can predict what every other name sees afterward. Stage 3 turns to the third case flagged earlier — lines where the `=` has brackets or a key on its left — and to reading nested access accurately."
+  }
+ ],
+ "summary": "Separate changing a thing from replacing a name"
+}

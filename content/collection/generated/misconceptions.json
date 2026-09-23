@@ -1,0 +1,129 @@
+[
+ {
+  "id": "assignment-copies-a-value",
+  "text": "Assignment copies a value",
+  "exercises": [
+   "1.2",
+   "1.16",
+   "2.11",
+   "3.3",
+   "3.18"
+  ]
+ },
+ {
+  "id": "immutable-values-cannot-be-shared",
+  "text": "Immutable values cannot be shared",
+  "exercises": [
+   "1.6",
+   "1.14",
+   "2.6",
+   "2.9"
+  ]
+ },
+ {
+  "id": "a-new-outer-container-means-new-inner-objects",
+  "text": "A new outer container means new inner objects",
+  "exercises": [
+   "4.2",
+   "4.3",
+   "4.11",
+   "4.16",
+   "9.2"
+  ]
+ },
+ {
+  "id": "times-makes-independent-inner-lists",
+  "text": "`*` makes independent inner lists",
+  "exercises": [
+   "4.6",
+   "4.7",
+   "4.9",
+   "5.18",
+   "6.15",
+   "7.18",
+   "9.C3"
+  ]
+ },
+ {
+  "id": "function-parameters-are-copies",
+  "text": "Function parameters are copies",
+  "exercises": [
+   "8.4",
+   "8.5",
+   "8.6",
+   "8.7",
+   "C8.3"
+  ]
+ },
+ {
+  "id": "for-means-only-counting",
+  "text": "`for` means only counting",
+  "exercises": [
+   "6.1",
+   "6.2",
+   "6.6",
+   "6.9",
+   "6.13"
+  ]
+ },
+ {
+  "id": "indentation-is-cosmetic",
+  "text": "Indentation is cosmetic",
+  "exercises": [
+   "5.1",
+   "5.4",
+   "7.1",
+   "7.3",
+   "7.13",
+   "9.C1"
+  ]
+ },
+ {
+  "id": "def-runs-the-body-immediately",
+  "text": "`def` runs the body immediately",
+  "exercises": [
+   "8.1",
+   "8.2",
+   "8.18"
+  ]
+ },
+ {
+  "id": "break-ends-all-surrounding-loops",
+  "text": "`break` ends all surrounding loops",
+  "exercises": [
+   "7.6",
+   "7.16",
+   "8.15",
+   "9.C5"
+  ]
+ },
+ {
+  "id": "set-order-is-reliable",
+  "text": "Set order is reliable",
+  "exercises": [
+   "6.9",
+   "6.10"
+  ]
+ },
+ {
+  "id": "methods-that-change-also-return-the-changed-object",
+  "text": "Methods that change also return the changed object",
+  "exercises": [
+   "2.5",
+   "2.12",
+   "8.20",
+   "9.1",
+   "9.8"
+  ]
+ },
+ {
+  "id": "defaults-are-created-per-call",
+  "text": "Defaults are created per call",
+  "exercises": [
+   "8.16",
+   "8.17",
+   "9.3",
+   "9.C6"
+  ]
+ }
+]

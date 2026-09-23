@@ -1,0 +1,2395 @@
+{
+ "stage": 6,
+ "file": "stage-06-iterating-collections.md",
+ "title": "Iterating Different Collections",
+ "move": "for any collection, say what a `for` loop hands you on each pass, in what order, and how many times it can be walked.",
+ "adds": [
+  {
+   "kind": "p",
+   "text": "Stage 5 always looped over a list or a range. The loop machinery does not care what it is walking, but *what it hands you* differs, and so does the order, and so does whether you can walk it twice."
+  }
+ ],
+ "ideas": [
+  {
+   "title": "The formal words, at last",
+   "blocks": [
+    {
+     "kind": "table",
+     "head": [
+      "Plain phrase you have been using",
+      "Formal term"
+     ],
+     "rows": [
+      [
+       "a name pointing at an object",
+       "a **binding**"
+      ],
+      [
+       "the thing being looped over",
+       "an **iterable**"
+      ],
+      [
+       "the name the `for` line rebinds",
+       "the **loop variable**"
+      ],
+      [
+       "indented lines belonging together",
+       "a **block**"
+      ],
+      [
+       "the order in which lines run",
+       "**control flow**"
+      ],
+      [
+       "changeable / unchangeable",
+       "**mutable** / **immutable**"
+      ],
+      [
+       "may be used as a dictionary key or set item",
+       "**hashable**"
+      ]
+     ]
+    },
+    {
+     "kind": "p",
+     "text": "Nothing changed. You may now say \"the loop variable is rebound on each pass\" instead of \"the `for` line points the name at the next value\", and mean exactly the same thing."
+    },
+    {
+     "kind": "p",
+     "text": "An **iterable** is simply *anything a `for` loop can walk*. Lists, tuples, strings, ranges, dictionaries, sets, files, and generators are all iterables."
+    }
+   ]
+  },
+  {
+   "title": "What each iterable hands you",
+   "blocks": [
+    {
+     "kind": "table",
+     "head": [
+      "Iterable",
+      "Each pass gives you",
+      "Order"
+     ],
+     "rows": [
+      [
+       "list, tuple",
+       "the item at the next position",
+       "as stored"
+      ],
+      [
+       "string",
+       "one character, as a one-character string",
+       "left to right"
+      ],
+      [
+       "`range`",
+       "the next number",
+       "as counted"
+      ],
+      [
+       "dictionary",
+       "the next **key**",
+       "insertion order"
+      ],
+      [
+       "set",
+       "the next item",
+       "**not guaranteed**"
+      ],
+      [
+       "generator",
+       "the next produced value",
+       "as produced, **once only**"
+      ]
+     ]
+    },
+    {
+     "kind": "p",
+     "text": "The dictionary row is the one people are surprised by:"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "ages = {\"ann\": 30, \"bo\": 25}\nfor x in ages:\n    print(x)          # ann, bo — the keys"
+    },
+    {
+     "kind": "p",
+     "text": "To get values or pairs, ask for them:"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "for v in ages.values():       # 30, 25\nfor k, v in ages.items():     # (\"ann\", 30) then (\"bo\", 25), unpacked into two names"
+    },
+    {
+     "kind": "p",
+     "text": "`ages.items()` hands you a two-item tuple per pass, and `for k, v in ...` **unpacks** it: two bindings per pass instead of one. Unpacking is not special to loops — `k, v = (\"ann\", 30)` does the same thing on its own line."
+    }
+   ]
+  },
+  {
+   "title": "Set order is not yours to rely on",
+   "blocks": [
+    {
+     "kind": "p",
+     "text": "A set has no positions and keeps no order you may depend on. A given Python run may hand you `{3, 1, 2}` as 1, 2, 3, and that stability for small integers is an artifact of how sets are built, not a promise. For text, the order can differ between runs of the same program."
+    },
+    {
+     "kind": "p",
+     "text": "If you need an order, ask for one:"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "for x in sorted(scores):\n    ..."
+    },
+    {
+     "kind": "p",
+     "text": "Sets also require their items to be **hashable**, for exactly the reason dictionary keys are (Stage 3): a set files each item by what it looks like, so an item that could change afterward cannot be filed. `{[1, 2]}` is a `TypeError`; `{(1, 2)}` is fine."
+    }
+   ]
+  },
+  {
+   "title": "Generators produce values one at a time — and only once",
+   "blocks": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "squares = (n * n for n in range(4))\nprint(list(squares))      # [0, 1, 4, 9]\nprint(list(squares))      # []   ← nothing left"
+    },
+    {
+     "kind": "p",
+     "text": "A generator is a *recipe in progress*, not a container. It holds no items; it produces the next one when asked. Once it has produced its last value it is **exhausted**, and every later request finds nothing. Anything that walks a generator — `list()`, `sum()`, `max()`, a `for` loop, even `in` — consumes it."
+    },
+    {
+     "kind": "p",
+     "text": "This is the same design as `range`, with one crucial difference: a `range` can be walked again from the start, because it recomputes; a generator cannot, because it has moved on."
+    },
+    {
+     "kind": "p",
+     "text": "Note the punctuation: `(n * n for n in range(4))` in round brackets is a generator; `[n * n for n in range(4)]` in square brackets is a **list comprehension**, which builds an actual list right now and can be walked as often as you like. One character decides."
+    }
+   ]
+  },
+  {
+   "title": "Comprehensions, briefly",
+   "blocks": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "[n * n for n in range(4)]           # [0, 1, 4, 9]\n[n for n in range(10) if n % 3 == 0] # [0, 3, 6, 9]\n{k: len(v) for k, v in data.items()} # a dictionary comprehension"
+    },
+    {
+     "kind": "p",
+     "text": "Read one left to right as: *\"build a list of «this expression», for each «loop variable» from «this iterable», keeping only those where «condition».\"* It is the Stage 5 accumulator pattern compressed into an expression, and it produces a **new** object — it never changes the iterable it walks."
+    },
+    {
+     "kind": "p",
+     "text": "Because the expression is re-evaluated on every pass, a comprehension is the general fix for the Stage 4 repetition pitfall:"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "grid = [[0] * 3 for _ in range(3)]   # three distinct inner lists"
+    },
+    {
+     "kind": "p",
+     "text": "`_` is an ordinary name, used by convention when the value is not needed."
+    }
+   ]
+  },
+  {
+   "title": "`enumerate` and `zip`",
+   "blocks": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "for i, c in enumerate(\"abc\"):        # (0, 'a'), (1, 'b'), (2, 'c')\nfor a, b in zip([1, 2], \"xy\"):       # (1, 'x'), (2, 'y')"
+    },
+    {
+     "kind": "p",
+     "text": "`enumerate` hands you position-and-item pairs, which is what people are reaching for when they write `for i in range(len(xs))` and then immediately do `xs[i]`. `zip` walks two iterables in step and stops at the shorter one."
+    }
+   ]
+  },
+  {
+   "title": "Changing a dictionary or set while looping over it",
+   "blocks": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "d = {\"a\": 1, \"b\": 2}\nfor k in d:\n    d[\"c\"] = 3        # RuntimeError: dictionary changed size during iteration"
+    },
+    {
+     "kind": "p",
+     "text": "Unlike a list, which quietly gives wrong answers (Stage 5), a dictionary or set detects the change and refuses. Loop over a snapshot — `for k in list(d):` — if you must add or remove keys."
+    }
+   ]
+  }
+ ],
+ "exercises": [
+  {
+   "id": "6.1",
+   "stage": 6,
+   "form": "Predict the result",
+   "kind": "predict",
+   "prompt": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "for c in \"hi\":\n    print(c, len(c))"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "for c in \"hi\":\n    print(c, len(c))\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "h 1\ni 1"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Iterating a string hands you one-character *strings*, not some separate character type. That is why `len(c)` is 1 rather than an error."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That a string yields something other than strings, or that `for c in \"hi\"` needs an index."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Syntax-reading error."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "h 1\ni 1"
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "Iterating a string hands you one-character *strings*, not some separate character type. That is why `len(c)` is 1 rather than an error."
+     }
+    ],
+    "misconception": "That a string yields something other than strings, or that `for c in \"hi\"` needs an index.",
+    "missed": "If you missed it. Syntax-reading error.",
+    "errorTypes": [
+     "syntax"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: strings as iterables. Prereq: 5.1. Syntax lens: string as the iterable. Flow lens: two passes. Object lens: two new one-character strings.",
+     "target": "strings as iterables",
+     "prereq": [
+      "5.1"
+     ],
+     "syntax": "string as the iterable",
+     "flow": "two passes",
+     "object": "two new one-character strings"
+    }
+   }
+  },
+  {
+   "id": "6.2",
+   "stage": 6,
+   "form": "Predict the result",
+   "kind": "predict",
+   "prompt": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "ages = {\"ann\": 30, \"bo\": 25}\nfor x in ages:\n    print(x)\nprint(\"---\")\nfor x in ages.values():\n    print(x)"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "ages = {\"ann\": 30, \"bo\": 25}\nfor x in ages:\n    print(x)\nprint(\"---\")\nfor x in ages.values():\n    print(x)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "ann\nbo\n---\n30\n25"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "A dictionary iterates its **keys** by default; `.values()` asks for the other half. Both come out in insertion order (Stage 3)."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That looping a dictionary yields values, or pairs."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Syntax-reading error."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "ann\nbo\n---\n30\n25"
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "A dictionary iterates its **keys** by default; `.values()` asks for the other half. Both come out in insertion order (Stage 3)."
+     }
+    ],
+    "misconception": "That looping a dictionary yields values, or pairs.",
+    "missed": "If you missed it. Syntax-reading error.",
+    "errorTypes": [
+     "syntax"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: default dictionary iteration. Prereq: 3.6, 5.1. Syntax lens: bare `d` versus `d.values()`. Flow lens: two passes each. Object lens: no change.",
+     "target": "default dictionary iteration",
+     "prereq": [
+      "3.6",
+      "5.1"
+     ],
+     "syntax": "bare `d` versus `d.values()`",
+     "flow": "two passes each",
+     "object": "no change"
+    }
+   }
+  },
+  {
+   "id": "6.3",
+   "stage": 6,
+   "form": "Compare near-matches",
+   "kind": "compare",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Snippet **A**:"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "d = {\"a\": 1, \"b\": 2}\nfor k in d:\n    print(k, d[k])"
+    },
+    {
+     "kind": "p",
+     "text": "Snippet **B**:"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "d = {\"a\": 1, \"b\": 2}\nfor k, v in d.items():\n    print(k, v)"
+    },
+    {
+     "kind": "p",
+     "text": "Predict both. State one advantage of each form."
+    }
+   ],
+   "snippets": [
+    {
+     "label": "A",
+     "code": "d = {\"a\": 1, \"b\": 2}\nfor k in d:\n    print(k, d[k])\n"
+    },
+    {
+     "label": "B",
+     "code": "d = {\"a\": 1, \"b\": 2}\nfor k, v in d.items():\n    print(k, v)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Both print:"
+       },
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "a 1\nb 2"
+       }
+      ]
+     },
+     {
+      "label": "Advantages",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "**A** is the right shape when you mostly want keys and only occasionally need a value — and it keeps working if you want to look up something *other* than `d[k]`. **B** avoids repeating the lookup, which is both faster and harder to get wrong (in **A** you can accidentally look up the wrong dictionary, or a stale key)."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That `.items()` changes the loop's behavior rather than just what it hands you."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Syntax-reading error."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "Both print:"
+     },
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "a 1\nb 2"
+     }
+    ],
+    "reasoning": [],
+    "misconception": "That `.items()` changes the loop's behavior rather than just what it hands you.",
+    "missed": "If you missed it. Syntax-reading error.",
+    "errorTypes": [
+     "syntax"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: two idioms for the same walk. Prereq: 6.2. Syntax lens: single loop variable versus unpacking. Flow lens: identical. Object lens: `.items()` yields tuples.",
+     "target": "two idioms for the same walk",
+     "prereq": [
+      "6.2"
+     ],
+     "syntax": "single loop variable versus unpacking",
+     "flow": "identical",
+     "object": "`.items()` yields tuples"
+    }
+   }
+  },
+  {
+   "id": "6.4",
+   "stage": 6,
+   "form": "Label the code",
+   "kind": "label",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Using the formal vocabulary from this stage, describe what each part of this line does: `for k, v in scores.items():`"
+    }
+   ],
+   "snippets": [],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`for` opens a loop and a **block**, ended by the colon. `scores.items()` produces an **iterable** of two-item tuples, one per key–value pair. `k, v` are two **loop variables**: each pass takes the tuple handed over and **unpacks** it, **binding** `k` to the first item and `v` to the second. The indented block then runs once per pass."
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "The sentence must contain the unpacking step. `k, v` is not a compound name; it is two names being bound from one tuple."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That `k, v` is special `for`-loop syntax rather than ordinary unpacking."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Vocabulary-only if you described it correctly in plain words."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "`for` opens a loop and a **block**, ended by the colon. `scores.items()` produces an **iterable** of two-item tuples, one per key–value pair. `k, v` are two **loop variables**: each pass takes the tuple handed over and **unpacks** it, **binding** `k` to the first item and `v` to the second. The indented block then runs once per pass."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "The sentence must contain the unpacking step. `k, v` is not a compound name; it is two names being bound from one tuple."
+     }
+    ],
+    "misconception": "That `k, v` is special `for`-loop syntax rather than ordinary unpacking.",
+    "missed": "If you missed it. Vocabulary-only if you described it correctly in plain words.",
+    "errorTypes": [
+     "vocabulary"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: name the parts formally. Prereq: 6.3. Syntax lens: `for a, b in ...:`. Flow lens: one pass per pair. Object lens: two bindings per pass.",
+     "target": "name the parts formally",
+     "prereq": [
+      "6.3"
+     ],
+     "syntax": "`for a, b in ...:`",
+     "flow": "one pass per pair",
+     "object": "two bindings per pass"
+    }
+   }
+  },
+  {
+   "id": "6.5",
+   "stage": 6,
+   "form": "Predict the result",
+   "kind": "predict",
+   "prompt": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "pairs = [(1, \"a\"), (2, \"b\")]\nfor n, letter in pairs:\n    print(n, letter)\nfor item in pairs:\n    print(item, len(item))"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "pairs = [(1, \"a\"), (2, \"b\")]\nfor n, letter in pairs:\n    print(n, letter)\nfor item in pairs:\n    print(item, len(item))\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "1 a\n2 b\n(1, 'a') 2\n(2, 'b') 2"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "The same iterable hands over the same tuples both times. The only difference is whether the `for` line unpacks them into two names or binds one name to the whole tuple. `len(item)` is 2 because each item is a two-item tuple."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That unpacking is a property of the data rather than of how the `for` line is written."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Syntax-reading error."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "1 a\n2 b\n(1, 'a') 2\n(2, 'b') 2"
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "The same iterable hands over the same tuples both times. The only difference is whether the `for` line unpacks them into two names or binds one name to the whole tuple. `len(item)` is 2 because each item is a two-item tuple."
+     }
+    ],
+    "misconception": "That unpacking is a property of the data rather than of how the `for` line is written.",
+    "missed": "If you missed it. Syntax-reading error.",
+    "errorTypes": [
+     "syntax"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: unpacking is optional. Prereq: 6.4. Syntax lens: two loop variables versus one. Flow lens: two passes each. Object lens: same tuple objects.",
+     "target": "unpacking is optional",
+     "prereq": [
+      "6.4"
+     ],
+     "syntax": "two loop variables versus one",
+     "flow": "two passes each",
+     "object": "same tuple objects"
+    }
+   }
+  },
+  {
+   "id": "6.6",
+   "stage": 6,
+   "form": "Predict the result",
+   "kind": "predict",
+   "prompt": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "squares = (n * n for n in range(4))\nprint(list(squares))\nprint(list(squares))\nprint(sum(n * n for n in range(4)))"
+    },
+    {
+     "kind": "p",
+     "text": "Explain the second line's output in terms of the recipe idea."
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "squares = (n * n for n in range(4))\nprint(list(squares))\nprint(list(squares))\nprint(sum(n * n for n in range(4)))\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "[0, 1, 4, 9]\n[]\n14"
+       }
+      ]
+     },
+     {
+      "label": "Explanation",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "The generator is a recipe *in progress*. The first `list(...)` asked it for everything, which ran the recipe to completion. The second call asked an exhausted recipe, which has nothing further to produce — so it hands back an empty list rather than an error. The third line builds a brand-new generator and consumes that one, giving 0+1+4+9 = 14."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That a generator stores its values, so re-listing it replays them; or that exhaustion raises an error."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error. The silent empty result is what makes this bug hard."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "[0, 1, 4, 9]\n[]\n14"
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "The generator is a recipe *in progress*. The first `list(...)` asked it for everything, which ran the recipe to completion. The second call asked an exhausted recipe, which has nothing further to produce — so it hands back an empty list rather than an error. The third line builds a brand-new generator and consumes that one, giving 0+1+4+9 = 14."
+     }
+    ],
+    "misconception": "That a generator stores its values, so re-listing it replays them; or that exhaustion raises an error.",
+    "missed": "If you missed it. Object-model error. The silent empty result is what makes this bug hard.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: one-pass consumption. Prereq: 5.5. Syntax lens: round brackets. Flow lens: recipe advances and cannot rewind. Object lens: generator holds no items.",
+     "target": "one-pass consumption",
+     "prereq": [
+      "5.5"
+     ],
+     "syntax": "round brackets",
+     "flow": "recipe advances and cannot rewind",
+     "object": "generator holds no items"
+    }
+   }
+  },
+  {
+   "id": "6.7",
+   "stage": 6,
+   "form": "Compare near-matches",
+   "kind": "compare",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Snippet **A**:"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "g = (n for n in range(3))\nprint(len(list(g)))\nprint(len(list(g)))"
+    },
+    {
+     "kind": "p",
+     "text": "Snippet **B**:"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "r = range(3)\nprint(len(list(r)))\nprint(len(list(r)))"
+    },
+    {
+     "kind": "p",
+     "text": "Predict both and say precisely why they differ."
+    }
+   ],
+   "snippets": [
+    {
+     "label": "A",
+     "code": "g = (n for n in range(3))\nprint(len(list(g)))\nprint(len(list(g)))\n"
+    },
+    {
+     "label": "B",
+     "code": "r = range(3)\nprint(len(list(r)))\nprint(len(list(r)))\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "**A** prints `3` then `0`. **B** prints `3` then `3`."
+       }
+      ]
+     },
+     {
+      "label": "Why",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "A `range` is a *description* — \"the numbers 0, 1, 2\" — and walking it recomputes from the start each time. A generator is a *position in a computation*; once it has advanced past the end, that particular generator is finished forever. Both avoid storing their values; only one can be replayed."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That \"does not store its values\" implies \"cannot be reused\". Those are separate properties."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "**A** prints `3` then `0`. **B** prints `3` then `3`."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "A `range` is a *description* — \"the numbers 0, 1, 2\" — and walking it recomputes from the start each time. A generator is a *position in a computation*; once it has advanced past the end, that particular generator is finished forever. Both avoid storing their values; only one can be replayed."
+     }
+    ],
+    "misconception": "That \"does not store its values\" implies \"cannot be reused\". Those are separate properties.",
+    "missed": "If you missed it. Object-model error.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: lazy but restartable versus lazy and one-pass. Prereq: 5.5, 6.6. Syntax lens: `range(3)` versus `(n for n in range(3))`. Flow lens: two walks. Object lens: exhaustion.",
+     "target": "lazy but restartable versus lazy and one-pass",
+     "prereq": [
+      "5.5",
+      "6.6"
+     ],
+     "syntax": "`range(3)` versus `(n for n in range(3))`",
+     "flow": "two walks",
+     "object": "exhaustion"
+    }
+   }
+  },
+  {
+   "id": "6.8",
+   "stage": 6,
+   "form": "Find and fix",
+   "kind": "fix",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "The intent is to print the total twice. Diagnose and give the smallest fix."
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "values = (n for n in [1, 2, 3])\nprint(sum(values))\nprint(sum(values))"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "values = (n for n in [1, 2, 3])\nprint(sum(values))\nprint(sum(values))\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "It prints `6` then `0`."
+       }
+      ]
+     },
+     {
+      "label": "Diagnosis",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`sum` walks the generator to its end; the second `sum` finds it exhausted and totals nothing."
+       }
+      ]
+     },
+     {
+      "label": "Smallest fix",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Build a real container once:"
+       },
+       {
+        "kind": "code",
+        "lang": "python",
+        "text": "values = [n for n in [1, 2, 3]]      # or simply values = [1, 2, 3]"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "If you need to walk something twice, it must be a container, not a recipe. The alternative fix — building a second generator — works but is worth resisting when the data is small enough to keep."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That the second `sum` would fail loudly. It fails silently with a plausible-looking number."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "It prints `6` then `0`."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "`sum` walks the generator to its end; the second `sum` finds it exhausted and totals nothing."
+     }
+    ],
+    "misconception": "That the second `sum` would fail loudly. It fails silently with a plausible-looking number.",
+    "missed": "If you missed it. Object-model error.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: generator exhaustion in real code. Prereq: 6.6. Syntax lens: generator expression bound to a name. Flow lens: consumed on first use. Object lens: no stored items.",
+     "target": "generator exhaustion in real code",
+     "prereq": [
+      "6.6"
+     ],
+     "syntax": "generator expression bound to a name",
+     "flow": "consumed on first use",
+     "object": "no stored items"
+    }
+   }
+  },
+  {
+   "id": "6.9",
+   "stage": 6,
+   "form": "Predict the result",
+   "kind": "predict",
+   "prompt": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "nums = {3, 1, 2}\nprint(len(nums))\nprint(sorted(nums))\nnums.add(1)\nprint(len(nums))"
+    },
+    {
+     "kind": "p",
+     "text": "Then say what you *cannot* safely predict about this snippet."
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "nums = {3, 1, 2}\nprint(len(nums))\nprint(sorted(nums))\nnums.add(1)\nprint(len(nums))\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "3\n[1, 2, 3]\n3"
+       },
+       {
+        "kind": "p",
+        "text": "**What you cannot safely predict:** the *order* in which the set would hand out its items if you looped over it directly. The `sorted(...)` line is predictable precisely because it does not depend on set order. Also note `nums.add(1)` changed nothing — 1 was already there, and a set holds at most one of each item, so `len` stays 3."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That a set preserves the order you typed, or that adding a duplicate grows it."
+       }
+      ]
+     },
+     {
+      "label": "If you missed the last part",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "3\n[1, 2, 3]\n3"
+     },
+     {
+      "kind": "p",
+      "text": "**What you cannot safely predict:** the *order* in which the set would hand out its items if you looped over it directly. The `sorted(...)` line is predictable precisely because it does not depend on set order. Also note `nums.add(1)` changed nothing — 1 was already there, and a set holds at most one of each item, so `len` stays 3."
+     }
+    ],
+    "reasoning": [],
+    "misconception": "That a set preserves the order you typed, or that adding a duplicate grows it.",
+    "missed": "If you missed the last part. Object-model error.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: set uniqueness and unreliable order. Prereq: 3.9. Syntax lens: set literal, `.add`. Flow lens: once each. Object lens: one set object, unchanged by the duplicate add.",
+     "target": "set uniqueness and unreliable order",
+     "prereq": [
+      "3.9"
+     ],
+     "syntax": "set literal, `.add`",
+     "flow": "once each",
+     "object": "one set object, unchanged by the duplicate add"
+    }
+   }
+  },
+  {
+   "id": "6.10",
+   "stage": 6,
+   "form": "Find and fix",
+   "kind": "fix",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "The intent is to print the words in a stable, repeatable order. Explain why this is unreliable and fix it."
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "words = {\"pear\", \"fig\", \"apple\"}\nfor w in words:\n    print(w)"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "words = {\"pear\", \"fig\", \"apple\"}\nfor w in words:\n    print(w)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "The loop prints the three words in an order determined by how the set happens to file them. For strings, that filing depends on a value Python randomizes at start-up, so **the order can differ between runs of the same program on the same machine**. Code that appeared to work yesterday can print differently today."
+       }
+      ]
+     },
+     {
+      "label": "Fix",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "python",
+        "text": "for w in sorted(words):\n    print(w)              # apple, fig, pear"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`sorted` produces a new list in a defined order and leaves the set alone. If insertion order is what you want, a set was the wrong container — use a list, or a dictionary with `None` values."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That observed stability in one run is a guarantee."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error, of the \"I tested it once\" variety."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "The loop prints the three words in an order determined by how the set happens to file them. For strings, that filing depends on a value Python randomizes at start-up, so **the order can differ between runs of the same program on the same machine**. Code that appeared to work yesterday can print differently today."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "`sorted` produces a new list in a defined order and leaves the set alone. If insertion order is what you want, a set was the wrong container — use a list, or a dictionary with `None` values."
+     }
+    ],
+    "misconception": "That observed stability in one run is a guarantee.",
+    "missed": "If you missed it. Object-model error, of the \"I tested it once\" variety.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: set order must not be relied on. Prereq: 6.9. Syntax lens: `sorted(iterable)`. Flow lens: three passes. Object lens: new list produced; set untouched.",
+     "target": "set order must not be relied on",
+     "prereq": [
+      "6.9"
+     ],
+     "syntax": "`sorted(iterable)`",
+     "flow": "three passes",
+     "object": "new list produced; set untouched"
+    }
+   }
+  },
+  {
+   "id": "6.11",
+   "stage": 6,
+   "form": "Predict the result",
+   "kind": "predict",
+   "prompt": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "for i, c in enumerate(\"abc\"):\n    print(i, c)\nprint(\"---\")\nfor i, c in enumerate(\"abc\", start=1):\n    print(i, c)"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "for i, c in enumerate(\"abc\"):\n    print(i, c)\nprint(\"---\")\nfor i, c in enumerate(\"abc\", start=1):\n    print(i, c)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "0 a\n1 b\n2 c\n---\n1 a\n2 b\n3 c"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`enumerate` hands over `(position, item)` tuples, unpacked into two names. `start=` changes only the first number handed over — it does not skip the first item."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That `start=1` begins at the second character."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Syntax-reading error."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "0 a\n1 b\n2 c\n---\n1 a\n2 b\n3 c"
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "`enumerate` hands over `(position, item)` tuples, unpacked into two names. `start=` changes only the first number handed over — it does not skip the first item."
+     }
+    ],
+    "misconception": "That `start=1` begins at the second character.",
+    "missed": "If you missed it. Syntax-reading error.",
+    "errorTypes": [
+     "syntax"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: `enumerate` and its `start`. Prereq: 6.5. Syntax lens: keyword argument. Flow lens: three passes each. Object lens: tuples produced per pass.",
+     "target": "`enumerate` and its `start`",
+     "prereq": [
+      "6.5"
+     ],
+     "syntax": "keyword argument",
+     "flow": "three passes each",
+     "object": "tuples produced per pass"
+    }
+   }
+  },
+  {
+   "id": "6.12",
+   "stage": 6,
+   "form": "Compare near-matches",
+   "kind": "compare",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Snippet **A**:"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "xs = [\"a\", \"b\", \"c\"]\nfor i in range(len(xs)):\n    print(i, xs[i])"
+    },
+    {
+     "kind": "p",
+     "text": "Snippet **B**:"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "xs = [\"a\", \"b\", \"c\"]\nfor i, x in enumerate(xs):\n    print(i, x)"
+    },
+    {
+     "kind": "p",
+     "text": "Predict both. Then name one situation where **A** is still the right choice."
+    }
+   ],
+   "snippets": [
+    {
+     "label": "A",
+     "code": "xs = [\"a\", \"b\", \"c\"]\nfor i in range(len(xs)):\n    print(i, xs[i])\n"
+    },
+    {
+     "label": "B",
+     "code": "xs = [\"a\", \"b\", \"c\"]\nfor i, x in enumerate(xs):\n    print(i, x)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Both print:"
+       },
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "0 a\n1 b\n2 c"
+       }
+      ]
+     },
+     {
+      "label": "When A is still right",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "When you need the *position* for something other than fetching the item — writing back into the list (`xs[i] = ...`, Exercise 5.9), indexing a second list at the same position, or looking ahead at `xs[i + 1]`. `enumerate` is for when you want the item and its position; `range(len(...))` is for when you want to *address* positions."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That `range(len(xs))` is always a beginner's mistake. It has a real use; using it *only* to then write `xs[i]` is the mistake."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Syntax-reading error."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "Both print:"
+     },
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "0 a\n1 b\n2 c"
+     }
+    ],
+    "reasoning": [],
+    "misconception": "That `range(len(xs))` is always a beginner's mistake. It has a real use; using it *only* to then write `xs[i]` is the mistake.",
+    "missed": "If you missed it. Syntax-reading error.",
+    "errorTypes": [
+     "syntax"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: choose between position and item iteration. Prereq: 5.9, 6.11. Syntax lens: two loop headers. Flow lens: identical. Object lens: no change.",
+     "target": "choose between position and item iteration",
+     "prereq": [
+      "5.9",
+      "6.11"
+     ],
+     "syntax": "two loop headers",
+     "flow": "identical",
+     "object": "no change"
+    }
+   }
+  },
+  {
+   "id": "6.13",
+   "stage": 6,
+   "form": "Predict the result",
+   "kind": "predict",
+   "prompt": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "print(list(zip([1, 2, 3], \"xy\")))\nfor a, b in zip([1, 2, 3], \"xy\"):\n    print(a, b)"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "print(list(zip([1, 2, 3], \"xy\")))\nfor a, b in zip([1, 2, 3], \"xy\"):\n    print(a, b)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "[(1, 'x'), (2, 'y')]\n1 x\n2 y"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`zip` stops at the shorter iterable, so the `3` is never reached and is silently dropped. That silence is worth knowing about: a length mismatch does not announce itself."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That `zip` pads the shorter one or raises an error."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Flow error."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "[(1, 'x'), (2, 'y')]\n1 x\n2 y"
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "`zip` stops at the shorter iterable, so the `3` is never reached and is silently dropped. That silence is worth knowing about: a length mismatch does not announce itself."
+     }
+    ],
+    "misconception": "That `zip` pads the shorter one or raises an error.",
+    "missed": "If you missed it. Flow error.",
+    "errorTypes": [
+     "flow"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: `zip` truncates. Prereq: 6.11. Syntax lens: `zip(a, b)` with unpacking. Flow lens: two passes, not three. Object lens: tuples produced.",
+     "target": "`zip` truncates",
+     "prereq": [
+      "6.11"
+     ],
+     "syntax": "`zip(a, b)` with unpacking",
+     "flow": "two passes, not three",
+     "object": "tuples produced"
+    }
+   }
+  },
+  {
+   "id": "6.14",
+   "stage": 6,
+   "form": "Compare near-matches",
+   "kind": "compare",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Snippet **A**:"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "xs = [n * 2 for n in range(4)]\nprint(xs, type(xs).__name__)"
+    },
+    {
+     "kind": "p",
+     "text": "Snippet **B**:"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "xs = (n * 2 for n in range(4))\nprint(xs is not None, type(xs).__name__)\nprint(list(xs))"
+    },
+    {
+     "kind": "p",
+     "text": "Predict what each `type(...)` line reports and say which punctuation mark decides it."
+    }
+   ],
+   "snippets": [
+    {
+     "label": "A",
+     "code": "xs = [n * 2 for n in range(4)]\nprint(xs, type(xs).__name__)\n"
+    },
+    {
+     "label": "B",
+     "code": "xs = (n * 2 for n in range(4))\nprint(xs is not None, type(xs).__name__)\nprint(list(xs))\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "**A** prints `[0, 2, 4, 6] list`. **B** prints `True generator`, then `[0, 2, 4, 6]`."
+       },
+       {
+        "kind": "p",
+        "text": "**The deciding punctuation:** square brackets versus round brackets. Square brackets build the whole list immediately; round brackets build a recipe that produces values on demand and can be walked once."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That the brackets are interchangeable styling."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Syntax-reading error with an object-model consequence."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "**A** prints `[0, 2, 4, 6] list`. **B** prints `True generator`, then `[0, 2, 4, 6]`."
+     },
+     {
+      "kind": "p",
+      "text": "**The deciding punctuation:** square brackets versus round brackets. Square brackets build the whole list immediately; round brackets build a recipe that produces values on demand and can be walked once."
+     }
+    ],
+    "reasoning": [],
+    "misconception": "That the brackets are interchangeable styling.",
+    "missed": "If you missed it. Syntax-reading error with an object-model consequence.",
+    "errorTypes": [
+     "syntax",
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: comprehension versus generator expression. Prereq: 6.6. Syntax lens: bracket type. Flow lens: eager versus lazy. Object lens: list object versus generator object.",
+     "target": "comprehension versus generator expression",
+     "prereq": [
+      "6.6"
+     ],
+     "syntax": "bracket type",
+     "flow": "eager versus lazy",
+     "object": "list object versus generator object"
+    }
+   }
+  },
+  {
+   "id": "6.15",
+   "stage": 6,
+   "form": "Find and fix",
+   "kind": "fix",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "The intent is a 3×3 grid of independent rows, built for any size. Say why this fails and fix it using a comprehension."
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "size = 3\ngrid = [[0] * size] * size\ngrid[0][0] = 1\nprint(grid)"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "size = 3\ngrid = [[0] * size] * size\ngrid[0][0] = 1\nprint(grid)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "It prints `[[1, 0, 0], [1, 0, 0], [1, 0, 0]]` — one inner list, pointed at three times, exactly as in 4.6."
+       }
+      ]
+     },
+     {
+      "label": "Fix",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "python",
+        "text": "size = 3\ngrid = [[0] * size for _ in range(size)]\ngrid[0][0] = 1\nprint(grid)           # [[1, 0, 0], [0, 0, 0], [0, 0, 0]]"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "The comprehension **re-evaluates** `[0] * size` on every pass, so three separate lists are produced. This is the same repair as writing the three literals out by hand (4.9), generalized to any size — and it is why comprehensions are the standard idiom for building grids."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That the comprehension is merely shorter. Its re-evaluation is the substance."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error. Go back to 4.6 and 4.7."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "It prints `[[1, 0, 0], [1, 0, 0], [1, 0, 0]]` — one inner list, pointed at three times, exactly as in 4.6."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "The comprehension **re-evaluates** `[0] * size` on every pass, so three separate lists are produced. This is the same repair as writing the three literals out by hand (4.9), generalized to any size — and it is why comprehensions are the standard idiom for building grids."
+     }
+    ],
+    "misconception": "That the comprehension is merely shorter. Its re-evaluation is the substance.",
+    "missed": "If you missed it. Object-model error. Go back to 4.6 and 4.7.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [
+     "4.6",
+     "4.7"
+    ],
+    "authoring": {
+     "text": "Target: comprehension as the general repetition repair. Prereq: 4.6, 4.9, 6.14. Syntax lens: comprehension with an unused loop variable. Flow lens: inner expression evaluated once per pass. Object lens: three distinct inner lists.",
+     "target": "comprehension as the general repetition repair",
+     "prereq": [
+      "4.6",
+      "4.9",
+      "6.14"
+     ],
+     "syntax": "comprehension with an unused loop variable",
+     "flow": "inner expression evaluated once per pass",
+     "object": "three distinct inner lists"
+    }
+   }
+  },
+  {
+   "id": "6.16",
+   "stage": 6,
+   "form": "Predict the result",
+   "kind": "predict",
+   "prompt": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "data = {\"a\": [1, 2], \"b\": [3]}\nlengths = {k: len(v) for k, v in data.items()}\nprint(lengths)\nprint(data)"
+    },
+    {
+     "kind": "p",
+     "text": "Did the comprehension change `data`?"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "data = {\"a\": [1, 2], \"b\": [3]}\nlengths = {k: len(v) for k, v in data.items()}\nprint(lengths)\nprint(data)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "{'a': 2, 'b': 1}\n{'a': [1, 2], 'b': [3]}"
+       },
+       {
+        "kind": "p",
+        "text": "No — the comprehension did not change `data`. It read it and produced a new dictionary."
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Comprehensions always produce a new object. They are expressions, and expressions do not write into what they walk."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That a dictionary comprehension updates the dictionary it iterates."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "{'a': 2, 'b': 1}\n{'a': [1, 2], 'b': [3]}"
+     },
+     {
+      "kind": "p",
+      "text": "No — the comprehension did not change `data`. It read it and produced a new dictionary."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "Comprehensions always produce a new object. They are expressions, and expressions do not write into what they walk."
+     }
+    ],
+    "misconception": "That a dictionary comprehension updates the dictionary it iterates.",
+    "missed": "If you missed it. Object-model error.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: dictionary comprehension produces a new object. Prereq: 6.3, 6.14. Syntax lens: `{k: expr for k, v in ...}`. Flow lens: two passes. Object lens: two dictionaries; the inner lists are shared but unchanged.",
+     "target": "dictionary comprehension produces a new object",
+     "prereq": [
+      "6.3",
+      "6.14"
+     ],
+     "syntax": "`{k: expr for k, v in ...}`",
+     "flow": "two passes",
+     "object": "two dictionaries; the inner lists are shared but unchanged"
+    }
+   }
+  },
+  {
+   "id": "6.17",
+   "stage": 6,
+   "form": "Find and fix",
+   "kind": "fix",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "The intent is to remove every key whose value is 0. Say what happens and fix it."
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "counts = {\"a\": 1, \"b\": 0, \"c\": 0}\nfor k in counts:\n    if counts[k] == 0:\n        del counts[k]\nprint(counts)"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "counts = {\"a\": 1, \"b\": 0, \"c\": 0}\nfor k in counts:\n    if counts[k] == 0:\n        del counts[k]\nprint(counts)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "It raises `RuntimeError: dictionary changed size during iteration`."
+       }
+      ]
+     },
+     {
+      "label": "Why",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Deleting a key while the loop is walking the dictionary invalidates the walk. Unlike a list — which shrinks silently and skips items (5.13) — a dictionary detects the change and stops you."
+       }
+      ]
+     },
+     {
+      "label": "Fix",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Walk a snapshot of the keys:"
+       },
+       {
+        "kind": "code",
+        "lang": "python",
+        "text": "for k in list(counts):\n    if counts[k] == 0:\n        del counts[k]\nprint(counts)         # {'a': 1}"
+       },
+       {
+        "kind": "p",
+        "text": "`list(counts)` builds a separate list of the keys first, so deleting from the dictionary cannot disturb it. A comprehension is the other idiomatic fix: `counts = {k: v for k, v in counts.items() if v != 0}` — though note this *rebinds* `counts` rather than changing the original dictionary, which matters if another name points at it."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That deleting the current key is safe."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Flow error. Compare 5.13: the same mistake, one container loud and one silent."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "It raises `RuntimeError: dictionary changed size during iteration`."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "Deleting a key while the loop is walking the dictionary invalidates the walk. Unlike a list — which shrinks silently and skips items (5.13) — a dictionary detects the change and stops you."
+     }
+    ],
+    "misconception": "That deleting the current key is safe.",
+    "missed": "If you missed it. Flow error. Compare 5.13: the same mistake, one container loud and one silent.",
+    "errorTypes": [
+     "flow"
+    ],
+    "goBack": [
+     "5.13"
+    ],
+    "authoring": {
+     "text": "Target: mutation during dictionary iteration. Prereq: 5.13, 6.2. Syntax lens: `del d[k]` inside a body. Flow lens: raises on the first deletion. Object lens: snapshot list versus live dictionary.",
+     "target": "mutation during dictionary iteration",
+     "prereq": [
+      "5.13",
+      "6.2"
+     ],
+     "syntax": "`del d[k]` inside a body",
+     "flow": "raises on the first deletion",
+     "object": "snapshot list versus live dictionary"
+    }
+   }
+  },
+  {
+   "id": "6.18",
+   "stage": 6,
+   "form": "Write a small program",
+   "kind": "write",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Given `text = \"hello world\"`, write a loop that builds a dictionary counting how many times each character appears, skipping spaces. Then print the counts in alphabetical order of the character. Requirements: no comprehension, use `.get(...)` or an `if`, and produce a stable printed order."
+    }
+   ],
+   "snippets": [],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "python",
+        "text": "text = \"hello world\"\ncounts = {}\nfor c in text:\n    if c == \" \":\n        continue\n    counts[c] = counts.get(c, 0) + 1\nfor c in sorted(counts):\n    print(c, counts[c])"
+       },
+       {
+        "kind": "p",
+        "text": "Output:"
+       },
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "d 1\ne 1\nh 1\nl 3\no 2\nr 1\nw 1"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Three ideas combine. `counts.get(c, 0)` supplies a starting value for a key that is not there yet, avoiding a `KeyError` without a separate `if` (3.12 — and note it does *not* insert; the `counts[c] = ...` on the same line does). `continue` skips the space without nesting the rest of the body in an `if`. `sorted(counts)` walks the keys in a defined order, which is the only way to get a stable printout — a dictionary's own order here would be first-appearance order (`h e l o w r d`), which is stable but not alphabetical."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That `counts[c] += 1` works on a missing key. It does not — it must read the key first, and reading a missing key raises."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error if you tried to read a missing key; syntax-reading if the ordering step was skipped."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "python",
+      "text": "text = \"hello world\"\ncounts = {}\nfor c in text:\n    if c == \" \":\n        continue\n    counts[c] = counts.get(c, 0) + 1\nfor c in sorted(counts):\n    print(c, counts[c])"
+     },
+     {
+      "kind": "p",
+      "text": "Output:"
+     },
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "d 1\ne 1\nh 1\nl 3\no 2\nr 1\nw 1"
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "Three ideas combine. `counts.get(c, 0)` supplies a starting value for a key that is not there yet, avoiding a `KeyError` without a separate `if` (3.12 — and note it does *not* insert; the `counts[c] = ...` on the same line does). `continue` skips the space without nesting the rest of the body in an `if`. `sorted(counts)` walks the keys in a defined order, which is the only way to get a stable printout — a dictionary's own order here would be first-appearance order (`h e l o w r d`), which is stable but not alphabetical."
+     }
+    ],
+    "misconception": "That `counts[c] += 1` works on a missing key. It does not — it must read the key first, and reading a missing key raises.",
+    "missed": "If you missed it. Object-model error if you tried to read a missing key; syntax-reading if the ordering step was skipped.",
+    "errorTypes": [
+     "object",
+     "syntax"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: build a dictionary in a loop with a default. Prereq: 3.12, 5.12, 6.10. Syntax lens: `.get` with default, `continue`, `sorted`. Flow lens: eleven passes, one skipped body. Object lens: one dictionary changed repeatedly.",
+     "target": "build a dictionary in a loop with a default",
+     "prereq": [
+      "3.12",
+      "5.12",
+      "6.10"
+     ],
+     "syntax": "`.get` with default, `continue`, `sorted`",
+     "flow": "eleven passes, one skipped body",
+     "object": "one dictionary changed repeatedly"
+    }
+   }
+  },
+  {
+   "id": "6.19",
+   "stage": 6,
+   "form": "Predict the result",
+   "kind": "predict",
+   "prompt": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "xs = [1, 2, 3]\nit = iter(xs)\nprint(next(it))\nprint(next(it))\nfor x in it:\n    print(\"loop\", x)\nprint(list(it))"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "xs = [1, 2, 3]\nit = iter(xs)\nprint(next(it))\nprint(next(it))\nfor x in it:\n    print(\"loop\", x)\nprint(list(it))\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "1\n2\nloop 3\n[]"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`iter(xs)` produces an **iterator** — a one-pass position marker over the list, the same kind of object a `for` loop makes for you invisibly. `next` advances it. The `for` loop then picks up *where the iterator already is*, so it sees only what remains. By the last line it is exhausted."
+       },
+       {
+        "kind": "p",
+        "text": "This is what a `for` loop has been doing all along: it calls `iter` on whatever you give it and then repeatedly calls `next` until there is nothing left. A generator is simply an iterator you can write yourself — which is why 6.6 and 6.7 came out as they did."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That the `for` loop restarts from the beginning of `xs`, since `xs` still has three items."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error. Note that `xs` is untouched throughout — the iterator's position is not part of the list."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "1\n2\nloop 3\n[]"
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "`iter(xs)` produces an **iterator** — a one-pass position marker over the list, the same kind of object a `for` loop makes for you invisibly. `next` advances it. The `for` loop then picks up *where the iterator already is*, so it sees only what remains. By the last line it is exhausted."
+     },
+     {
+      "kind": "p",
+      "text": "This is what a `for` loop has been doing all along: it calls `iter` on whatever you give it and then repeatedly calls `next` until there is nothing left. A generator is simply an iterator you can write yourself — which is why 6.6 and 6.7 came out as they did."
+     }
+    ],
+    "misconception": "That the `for` loop restarts from the beginning of `xs`, since `xs` still has three items.",
+    "missed": "If you missed it. Object-model error. Note that `xs` is untouched throughout — the iterator's position is not part of the list.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: the iterator underneath every `for`. Prereq: 6.6, 6.7. Syntax lens: `iter`/`next`. Flow lens: shared position across two constructs. Object lens: iterator object distinct from the list.",
+     "target": "the iterator underneath every `for`",
+     "prereq": [
+      "6.6",
+      "6.7"
+     ],
+     "syntax": "`iter`/`next`",
+     "flow": "shared position across two constructs",
+     "object": "iterator object distinct from the list"
+    }
+   }
+  },
+  {
+   "id": "6.20",
+   "stage": 6,
+   "form": "State the rule",
+   "kind": "rule",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Answer each in one plain sentence, then again using the formal term:"
+    },
+    {
+     "kind": "list",
+     "ordered": true,
+     "items": [
+      "What does a `for` loop hand you when you loop over a dictionary?",
+      "What is the difference between `[...]` and `(...)` around a comprehension?",
+      "Why can you loop over a `range` twice but not a generator?",
+      "What must be true of an object for it to be a set item?"
+     ]
+    }
+   ],
+   "snippets": [],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "list",
+        "ordered": true,
+        "items": [
+         "The keys. *Formally:* iterating a dictionary yields its keys; `.values()` and `.items()` yield the other views.",
+         "Square brackets build the whole list now; round brackets build a recipe that produces values on demand. *Formally:* a list comprehension versus a generator expression — eager versus lazy, multi-pass versus one-pass.",
+         "Because a range recomputes its numbers from the start each time it is walked, while a generator holds a position in a computation that only moves forward. *Formally:* a range is a restartable iterable; a generator is its own iterator and is exhausted after one pass.",
+         "It must be the kind of object that cannot change after it is filed. *Formally:* it must be hashable — which immutable built-ins are, and lists, sets, and dictionaries are not."
+        ]
+       }
+      ]
+     },
+     {
+      "label": "If you missed any",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "(1) and (2) syntax-reading; (3) and (4) object-model; getting the plain sentence right and the term wrong is vocabulary-only."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "list",
+      "ordered": true,
+      "items": [
+       "The keys. *Formally:* iterating a dictionary yields its keys; `.values()` and `.items()` yield the other views.",
+       "Square brackets build the whole list now; round brackets build a recipe that produces values on demand. *Formally:* a list comprehension versus a generator expression — eager versus lazy, multi-pass versus one-pass.",
+       "Because a range recomputes its numbers from the start each time it is walked, while a generator holds a position in a computation that only moves forward. *Formally:* a range is a restartable iterable; a generator is its own iterator and is exhausted after one pass.",
+       "It must be the kind of object that cannot change after it is filed. *Formally:* it must be hashable — which immutable built-ins are, and lists, sets, and dictionaries are not."
+      ]
+     }
+    ],
+    "reasoning": [],
+    "misconception": "",
+    "missed": "If you missed any. (1) and (2) syntax-reading; (3) and (4) object-model; getting the plain sentence right and the term wrong is vocabulary-only.",
+    "errorTypes": [
+     "syntax",
+     "object",
+     "vocabulary"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: generalize the stage in both registers. Prereq: 6.1–6.19. Syntax lens: n/a. Flow lens: eager versus lazy. Object lens: hashability, exhaustion.",
+     "target": "generalize the stage in both registers",
+     "prereq": [
+      "6.1",
+      "6.2",
+      "6.3",
+      "6.4",
+      "6.5",
+      "6.6",
+      "6.7",
+      "6.8",
+      "6.9",
+      "6.10",
+      "6.11",
+      "6.12",
+      "6.13",
+      "6.14",
+      "6.15",
+      "6.16",
+      "6.17",
+      "6.18",
+      "6.19"
+     ],
+     "syntax": "n/a",
+     "flow": "eager versus lazy",
+     "object": "hashability, exhaustion"
+    }
+   }
+  }
+ ],
+ "checkpoint": {
+  "intro": [],
+  "items": [
+   {
+    "id": "C6.1",
+    "stage": 6,
+    "prompt": [
+     {
+      "kind": "p",
+      "text": "Predict:"
+     },
+     {
+      "kind": "code",
+      "lang": "python",
+      "text": "d = {\"x\": 1}\nfor k in d:\n    print(k + \"!\")"
+     }
+    ],
+    "snippets": [
+     {
+      "label": null,
+      "code": "d = {\"x\": 1}\nfor k in d:\n    print(k + \"!\")\n"
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "`x!`. The loop variable is bound to the key, a string, so `+ \"!\"` works. **Error type if missed:** syntax-reading. Go back to 6.2."
+     }
+    ],
+    "errorTypes": [
+     "syntax"
+    ],
+    "goBack": [
+     "6.2"
+    ]
+   },
+   {
+    "id": "C6.2",
+    "stage": 6,
+    "prompt": [
+     {
+      "kind": "p",
+      "text": "Which of these can be walked more than once? `[1, 2, 3]` · `range(3)` · `(n for n in range(3))` · `\"abc\"` · `{1, 2}` · `{\"a\": 1}.items()`"
+     }
+    ],
+    "snippets": [],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "Walkable more than once: `[1, 2, 3]`, `range(3)`, `\"abc\"`, `{1, 2}`, and `{\"a\": 1}.items()` (a view, which re-walks the live dictionary). Only `(n for n in range(3))` is one-pass. **Error type if missed:** object-model. Go back to 6.7."
+     }
+    ],
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [
+     "6.7"
+    ]
+   },
+   {
+    "id": "C6.3",
+    "stage": 6,
+    "prompt": [
+     {
+      "kind": "p",
+      "text": "Predict and explain:"
+     },
+     {
+      "kind": "code",
+      "lang": "python",
+      "text": "g = (n for n in range(5))\nprint(2 in g)\nprint(list(g))"
+     }
+    ],
+    "snippets": [
+     {
+      "label": null,
+      "code": "g = (n for n in range(5))\nprint(2 in g)\nprint(list(g))\n"
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "`True` then `[3, 4]`. The `in` test consumed the generator up to and including the value 2, so only what came after it remains. This is the sharpest form of the trap: a mere membership test silently ate part of the data. **Error type if missed:** object-model. Go back to 6.6."
+     }
+    ],
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [
+     "6.6"
+    ]
+   },
+   {
+    "id": "C6.4",
+    "stage": 6,
+    "prompt": [
+     {
+      "kind": "p",
+      "text": "A learner writes `for i, x in xs:` where `xs = [1, 2, 3]` and gets an error. Explain what unpacking expects and what would fix it."
+     }
+    ],
+    "snippets": [],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "Unpacking `i, x` requires each item handed over to be a container of exactly two things; the items here are plain numbers, so Python reports `TypeError: cannot unpack non-iterable int object`. The fix is `for i, x in enumerate(xs):`, or `for x in xs:` if the position is not needed. **Error type if missed:** syntax-reading. Go back to 6.5 and 6.11."
+     }
+    ],
+    "errorTypes": [
+     "syntax"
+    ],
+    "goBack": [
+     "6.5",
+     "6.11"
+    ]
+   },
+   {
+    "id": "C6.5",
+    "stage": 6,
+    "prompt": [
+     {
+      "kind": "p",
+      "text": "Rewrite using a comprehension:"
+     },
+     {
+      "kind": "code",
+      "lang": "python",
+      "text": "out = []\nfor w in [\"ann\", \"bo\", \"cy\"]:\n    if len(w) > 2:\n        out.append(w.upper())"
+     }
+    ],
+    "snippets": [
+     {
+      "label": null,
+      "code": "out = []\nfor w in [\"ann\", \"bo\", \"cy\"]:\n    if len(w) > 2:\n        out.append(w.upper())\n"
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "`out = [w.upper() for w in [\"ann\", \"bo\", \"cy\"] if len(w) > 2]`, which gives `['ANN']`. **Error type if missed:** syntax-reading. Go back to 6.14."
+     }
+    ],
+    "errorTypes": [
+     "syntax"
+    ],
+    "goBack": [
+     "6.14"
+    ]
+   },
+   {
+    "id": "C6.6",
+    "stage": 6,
+    "prompt": [
+     {
+      "kind": "p",
+      "text": "In one sentence each, using the formal terms: what is an *iterable*, what is a *loop variable*, and what does *hashable* mean?"
+     }
+    ],
+    "snippets": [],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "An **iterable** is anything a `for` loop can walk. A **loop variable** is the name the `for` line rebinds on each pass. **Hashable** means the object can be filed by what it looks like and will not change afterward, so it may be used as a dictionary key or a set item. **Error type if missed:** vocabulary-only, if you could say each in plain words. Go back to the table at the top of this stage."
+     }
+    ],
+    "errorTypes": [
+     "vocabulary"
+    ],
+    "goBack": []
+   }
+  ]
+ },
+ "capstone": null,
+ "after": [
+  {
+   "kind": "p",
+   "text": "You can now predict what any collection hands you, in what order, and how many times it can be walked — and you have the formal vocabulary for it. Stage 7 puts one loop inside another."
+  }
+ ],
+ "summary": "Predict what each kind of collection hands you"
+}

@@ -48,6 +48,14 @@ type Props = {
   runKey: string
   picked: GraphPick
   onPick: (pick: GraphPick) => void
+  /**
+   * Frame everything, always. For a thumbnail — one of a reading
+   * exercise's pictures to choose from — which is small, never grows and
+   * is never picked in: the one place where fitting the content is right.
+   * The memory panel never fits (invariant 15): there, the zoom depends on
+   * the pane alone, so nothing moves when a line adds something.
+   */
+  fit?: boolean
 }
 
 type Edge = { from: string; to: string; label: string | null; key: string }
@@ -61,7 +69,7 @@ const reduced = () =>
 /** Where a node is drawn now, where it is going, and how big it is. */
 type Body = { x: number; y: number; tx: number; ty: number; w: number; h: number }
 
-export function MemoryGraph({ snapshot, handles, runKey, picked, onPick }: Props) {
+export function MemoryGraph({ snapshot, handles, runKey, picked, onPick, fit = false }: Props) {
   const hostRef = useRef<HTMLDivElement | null>(null)
   const worldRef = useRef<HTMLDivElement | null>(null)
   const edgeLayerRef = useRef<SVGGElement | null>(null)
@@ -194,7 +202,9 @@ export function MemoryGraph({ snapshot, handles, runKey, picked, onPick }: Props
    *  just arrived, which the overview scrolls to if it has to. */
   const aim = (reveal: string[] = []) => {
     const ids = nearRef.current
-    if (ids === null) {
+    if (fit) {
+      target.current = frame(boxes(null), viewport.current, 16, 1)
+    } else if (ids === null) {
       const show = boxes(new Set(reveal))
       target.current = overview(boxes(null), viewport.current, scroll.current, show)
       scroll.current = { x: target.current.x, y: target.current.y }

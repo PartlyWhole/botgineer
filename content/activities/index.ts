@@ -8,6 +8,7 @@
  */
 import type { SceneSpec } from '../../src/scene/spec'
 import type { RobotMode } from '../../src/panels/RobotPanel'
+import { readingActivities, reviewActivity, singleActivity, type ReadLevel } from './reading'
 
 export type Activity = {
   id: string
@@ -18,9 +19,13 @@ export type Activity = {
   /**
    * How the player talks to the robot. `console` is one line at a time and
    * is where everyone starts; `editor` hands over a whole program and is
-   * unlocked once there is a whole program worth writing.
+   * unlocked once there is a whole program worth writing; `read` is the
+   * Reading Python collection, where the player says what a program will
+   * do before the robot runs it.
    */
   mode: RobotMode
+  /** Read only: which part of the collection this level plays. */
+  read?: ReadLevel
   /** Console only: what the robot says before the first prompt. */
   greeting?: string
   /** Console only: the guide's lesson, by id in `content/lessons`. */
@@ -120,8 +125,6 @@ const takeAnOrder: Activity = {
   brief: 'A courier tells the robot two things, then asks it a question.',
   mode: 'console',
   lesson: 'take-an-order',
-  // Where the editor is unlocked: the next activity hands over a whole
-  // program instead of a line at a time.
   next: 'practice-remembering',
   greeting: 'Someone is coming. Keep whatever she tells you — she will want it back.',
   starter: '',
@@ -156,10 +159,15 @@ const takeAnOrder: Activity = {
   },
 }
 
+/**
+ * Stage 1's first "write a small program": the editor is unlocked here,
+ * after the ideas, and the sets come after it.
+ */
 const wakeTheRobot: Activity = {
   id: 'wake',
   title: 'Wake the Robot',
   mode: 'editor',
+  next: 's1-set-1',
   brief:
     'The robot is asleep. It reads three things out of its own memory: whether it has power, what it should call itself, and how charged it is. Give those names values.',
   starter: '# Give the robot what it needs.\n# power, name, charge\n\n',
@@ -267,8 +275,8 @@ const practiceRemembering: Activity = {
   title: 'Practice: Remembering',
   brief: 'Fresh questions on names: keeping things, sharing them and moving them.',
   mode: 'console',
-  practice: { unit: 'remembering' },
-  next: 'wake',
+  practice: { unit: 'stage-1' },
+  next: 's1-ideas',
   greeting: 'Practice time. Watch the arrows.',
   starter: '',
   options: { max_steps: 3000, wall_clock_s: 15 },
@@ -287,7 +295,16 @@ export const ACTIVITIES: Activity[] = [
   takeAnOrder,
   practiceRemembering,
   wakeTheRobot,
+  ...readingActivities(),
 ]
 
-export const activityById = (id: string): Activity | null =>
-  ACTIVITIES.find((a) => a.id === id) ?? null
+/** A level by id: one on the path, or one made on demand — a stage's
+ *  review (`s2-review`) or a single item (`x-4.6`). */
+export function activityById(id: string): Activity | null {
+  const found = ACTIVITIES.find((a) => a.id === id)
+  if (found) return found
+  const review = /^s(\d)-review$/.exec(id)
+  if (review) return reviewActivity(Number(review[1]))
+  if (id.startsWith('x-')) return singleActivity(id.slice(2))
+  return null
+}

@@ -134,6 +134,41 @@ export function recordTry(skill: string, right: boolean, now = Date.now()): void
   store.write(record(store.read(), skill, right, now))
 }
 
+/**
+ * Records several first tries at once, in one write — one item of the
+ * collection is evidence about an exercise, its concepts, the
+ * misconceptions it attacks, the lenses it reads through, and, on a miss,
+ * which kind of mistake it was.
+ */
+export function recordAll(entries: readonly (readonly [key: string, right: boolean])[], now = Date.now()): void {
+  let m = store.read()
+  for (const [k, right] of entries) m = record(m, k, right, now)
+  store.write(m)
+}
+
+/**
+ * What mastery is kept about, by key. One store, several kinds of thing:
+ *
+ *   `<concept>`      a concept or warm-up skill, by its bare id — the
+ *                    warm-up's records predate the prefixes, and concept
+ *                    ids are unique across both families
+ *   `ex:<id>`        one collection item; `right` is right first time
+ *   `mis:<id>`       a misconception: right is *caught*, wrong *fell for*
+ *   `lens:<lens>`    syntax, flow or object reading
+ *   `err:<type>`     a miss of this kind; only misses are recorded, so
+ *                    `tries` is the count
+ */
+export const KEY = {
+  exercise: (id: string) => `ex:${id}`,
+  misconception: (id: string) => `mis:${id}`,
+  lens: (l: string) => `lens:${l}`,
+  error: (t: string) => `err:${t}`,
+}
+
+/** Whether an item's most recent first try was a miss. A miss sets the
+ *  streak to nothing, and only a right answer builds one. */
+export const lastMissed = (r: SkillRecord | undefined): boolean => r !== undefined && r.tries > 0 && r.streak === 0
+
 export const currentMastery = (): Mastery => store.read()
 
 export const useMastery = (): Mastery => store.use()

@@ -6,7 +6,7 @@
  * the real interpreter and asks the judge about what came back.
  */
 import { describe, expect, it } from 'vitest'
-import { SKILLS } from '../../content/skills'
+import { SKILLS } from '../../content/concepts'
 import { LESSONS } from '../../content/lessons'
 import { bin, evaluate, float, int, name, render, repr, str } from '../../src/practice/python'
 import { GENERATORS, generate, rng, type Attempt } from '../../src/practice/exercises'

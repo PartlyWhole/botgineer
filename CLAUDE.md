@@ -21,17 +21,23 @@ to see an object appear is the moment they made it. Keep the chrome thin
 notes or briefs.
 
 **The beginner gets a console, not an editor.** An activity declares
-`mode: 'console' | 'editor'`. The console is one line at a time, and it is
-where the game starts; the editor is what a later activity unlocks. They
-are not two engines — see invariant 7.
+`mode: 'console' | 'editor' | 'read'`. The console is one line at a time,
+and it is where the game starts; the editor is what a later activity
+unlocks. They are not two engines — see invariant 7.
+
+**Then the map is the Reading Python collection.** After the warm-up, the
+nine stages of `content/collection/` are the game: read a program, commit
+a prediction, *then* watch the robot run it, and read the key. `read` mode
+is the same two panels and the same one snapshot (invariants 21–25).
 
 ## Commands
 
 ```sh
 npm run dev           # vite, base '/'
 npm run typecheck
-npm run test          # unit tests (node)
+npm run test          # unit tests, and tests/semantics: the real engine in Node
 npm run test:browser  # playwright against the PRODUCTION build at /botgineer/
+npm run collection    # regenerate content/collection/generated/ from the markdown
 ```
 
 ## Layout
@@ -61,7 +67,7 @@ npm run test:browser  # playwright against the PRODUCTION build at /botgineer/
 | `content/roadmap.ts` | the levels, grouped into units, in play order. The only place the order lives |
 | `src/progress/progress.ts` | which levels are finished (localStorage) and what that unlocks. One of the **two stored things** — see invariant 19 |
 | `src/roadmap/RoadmapScreen.tsx` | the home screen: a Duolingo-style winding path of levels, one unit per coloured stretch, the cast beside it |
-| `content/skills.ts` | the skills. A lesson's `teaches` introduces them; practice exercises them; mastery tracks each |
+| `content/concepts.ts` | the concepts: the warm-up's 13 skills (a lesson's `teaches` introduces them, practice exercises them) and the collection's ~45, tagged by its specs. Mastery tracks each |
 | `src/practice/python.ts` | just enough Python (literals, names, `+ - * / // % <` …) to know an exercise's answer before asking it. Pure; checked against CPython by the browser suite |
 | `src/practice/exercises.ts` | one seeded generator per skill: the question, setup lines, a working answer, and a judge that names the mistake |
 | `src/practice/session.ts` | which exercises a session asks, weighted towards weak and faded skills. Pure and seeded |
@@ -72,7 +78,29 @@ npm run test:browser  # playwright against the PRODUCTION build at /botgineer/
 | `src/roadmap/layout.ts` | where stops, trail and mascots go on the path. Pure and unit-tested |
 | `src/app/roadmap.css` | the map's look, deliberately separate from `styles.css`. Nunito, bundled from npm |
 | `content/activities/` | the activities: brief, scene, starter |
-| `public/runtime/pytrace/` | vendored engine. `browser/worker.mjs` is **patched** to resolve Pyodide relative to itself (`../../pyodide/`) so it works under a sub-path |
+| `public/runtime/pytrace/` | vendored engine. `browser/worker.mjs` is **patched** to resolve Pyodide relative to itself (`../../pyodide/`) so it works under a sub-path, and the wheel's encoder is **patched** to emit a function's `defaults` (schema too). `PATCHES.md` says how |
+| `content/collection/*.md` | the Reading Python collection: nine stages, glossary, conventions. **The source of truth**, edited as markdown. `ERRATA.md` lists corrections the audit forced |
+| `scripts/collection.mjs` | markdown → `content/collection/generated/*.json` (committed; a unit test fails if stale) |
+| `content/collection/specs/` | how each item is graded, hand-written, keyed by id: its `Part`s, concepts and the key's own `model` answers. One per item (there is a test) |
+| `src/collection/model.ts` | the collection's types: content (blocks, keys, authoring records) and specs (`Part`, `Check`, `Answer`, `Graded`) |
+| `src/collection/index.ts` | generated content joined to specs: items, snippets, misconceptions, lenses, sets. Variant ids (`v:…`) resolve here too |
+| `src/collection/grade.ts` | the graders, one per interaction; pure; truth is `RunEvidence`, never a stored answer |
+| `src/collection/runner.ts` | plays an item: prepare (run snippets, `ast` bodies, pictures), run a program with its checker, model answers. Shared by the page and the Node sweep |
+| `src/collection/traceOrder.ts` | trace → the collection's execution-order numbering. The one place they are reconciled |
+| `src/collection/distractors.ts` | `canonical` memory (identity-aware), and wrong pictures made by named misconceptions |
+| `src/collection/checker.ts`, `facts.ts` | programs about programs (the hidden checker; Python's `ast` for block bodies), and facts derived from memory for answers |
+| `src/collection/levels.ts` | what a reading level plays; the checkpoint gate and the review, **derived from mastery** |
+| `src/collection/variants.ts` | seeded templates of the templatable families; answered by running them |
+| `src/collection/useReadSession.ts` | answer → commit → act, first tries recorded once |
+| `src/collection/voice.ts` | what the crow says, plain before Stage 6 and formal from it |
+| `content/activities/reading.ts` | the collection's levels, generated from it: ideas, sets, practice, checkpoint, capstone; `sN-review` and `x-<id>` made on demand |
+| `src/app/useReadLevel.ts` | a reading level, played: its items, resume point, guide line, finished |
+| `src/panels/ReadPanel.tsx`, `ReadSheet.tsx` | (B) the code and the answers; (A) the question and, after the commit, the key |
+| `src/panels/IdeasSheet.tsx`, `IdeasPanel.tsx` | a stage's ideas with every example runnable in place |
+| `src/ui/CodeView.tsx`, `forms/`, `Blocks.tsx` | clickable read-only code; one widget per interaction; the collection's prose |
+| `src/roadmap/GlossaryScreen.tsx` | `#/glossary` and `#/glossary/<term>` |
+| `src/app/read.css` | reading's styling, deliberately separate |
+| `tests/semantics/` | the shipped wheel in the shipped Pyodide, in Node: the collection audit and sweep, graders on crafted misses, variants |
 | `public/runtime/pyodide/` | copied from the pinned npm package at build time; gitignored |
 
 ## Load-bearing invariants
@@ -176,8 +204,9 @@ npm run test:browser  # playwright against the PRODUCTION build at /botgineer/
    budget-elided values are marked `partial` and said so, never shown as
    complete.
 14. **`window.botgineer` is the test surface.** Browser tests drive
-   `setProgram`/`getProgram`/`run`/`say`/`snapshot`/`state` rather than
-   typing into a contenteditable. Keep the shape stable. Readiness is
+   `setProgram`/`getProgram`/`run`/`say`/`snapshot`/`state` — and, for
+   reading, `read.state`/`answer`/`commit`/`submit`/`mark`/`next`/`models`
+   — rather than typing into a contenteditable. Keep the shape stable. Readiness is
    `.app[data-boot="ready"]`, not a visible badge. The editor journeys run
    against an activity that still has an editor (`EDITOR` in the spec),
    because the starting activity is a console.
@@ -217,8 +246,10 @@ npm run test:browser  # playwright against the PRODUCTION build at /botgineer/
    sub-path with **no** isolation headers, so the `coi-serviceworker` path
    is what gets exercised. Do not add COOP/COEP to the test server.
 19. **Two things are stored, and only two.** Finished level ids
-   (`progress.ts`) and per-skill mastery (`mastery.ts`), both in this
-   browser's localStorage through `storage.ts`. Everything the map and the
+   (`progress.ts`) and mastery (`mastery.ts`), both in this
+   browser's localStorage through `storage.ts`. Mastery is keyed: a
+   concept by its bare id, `ex:<item>`, `mis:<misconception>`,
+   `lens:<lens>`, and `err:<kind>` (misses only). Everything the map and the
    skills screen show is derived from those, the roadmap's order and the
    clock — including a skill's fading, which is computed when read and
    never written. Finished levels are written by the Workbench on
@@ -251,3 +282,33 @@ npm run test:browser  # playwright against the PRODUCTION build at /botgineer/
   `max_steps` makes an endless loop feel like a hang.
 - Live `input()` and cooperative interrupt need `crossOriginIsolated`.
   Drive capability UI from `header.host.capabilities`, never from a guess.
+21. **Content is markdown; grading is code; the interpreter is the key.**
+   The collection's prose is never edited in JSON, and how to grade is
+   never guessed from prose: a spec per item says what to compare, and
+   the truth comes from running the snippet. Each spec carries the key's
+   own answers (`model`), and the sweep (`tests/semantics`) grades every
+   one against real CPython 3.14. A key that disagrees with the
+   interpreter is fixed in the markdown and logged in `ERRATA.md`; the
+   interpreter wins.
+22. **Commit before run.** An item's snippets run *quietly* when it opens
+   (a picture choice needs the truth to draw its options), and nothing of
+   that run is shown: memory empty, no scrubber, no output, key shut. The
+   commit locks every prediction, grades it, and only then shows the run
+   and opens the key. While a repair or program is owed, the key's code
+   stays folded. Only first tries are recorded against mastery.
+23. **Reading's runs are queued.** An item runs several programs (each
+   snippet, the `ast` block finder, a checker after a repair), some shown
+   and some not. They go through one queue in the workbench, so two are
+   never in flight at once. `RunEvidence` (`extract.runEvidence`) is what
+   graders see — `extract.ts` is still the only translation.
+24. **Execution order is mapped in one place.** The trace counts one `line`
+   event per visit, which is the collection's convention, except that the
+   collection sometimes numbers a calling line again after the call
+   returns. That revisit is optional on both sides (`traceOrder`). Never
+   change the content to fit the trace.
+25. **The checkpoint gate is derived.** All but one right first time
+   passes (a vocabulary-only miss counts as right). A failed checkpoint is
+   not finished; its missed questions' "go back to" exercises are an
+   amber review before it, owed until each has been done since. All of it
+   is read from `ex:` records — nothing about a checkpoint is stored.
+

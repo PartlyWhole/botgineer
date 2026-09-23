@@ -1,0 +1,2542 @@
+{
+ "stage": 7,
+ "file": "stage-07-nested-structure.md",
+ "title": "Following Nested Structure",
+ "move": "at any line, say which indentation level is active — which loop that line belongs to, and therefore how many times it runs.",
+ "adds": [
+  {
+   "kind": "p",
+   "text": "One loop is a rhythm you can hold in your head. Two loops are not, and guessing starts here. Everything you need is still visible on the page: the colons say where blocks open, the indentation says which block each line is in, and the count of passes is the product of the levels."
+  }
+ ],
+ "ideas": [
+  {
+   "title": "Reading a nested loop",
+   "blocks": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "for row in range(2):\n    for col in range(3):\n        print(row, col)\n    print(\"end of row\", row)\nprint(\"done\")"
+    },
+    {
+     "kind": "p",
+     "text": "Read it as three distinct levels:"
+    },
+    {
+     "kind": "table",
+     "head": [
+      "Level",
+      "Lines",
+      "Runs"
+     ],
+     "rows": [
+      [
+       "outer body",
+       "`for col ...:` and `print(\"end of row\", row)`",
+       "2 times (once per outer pass)"
+      ],
+      [
+       "inner body",
+       "`print(row, col)`",
+       "6 times (3 per outer pass)"
+      ],
+      [
+       "after everything",
+       "`print(\"done\")`",
+       "1 time"
+      ]
+     ]
+    },
+    {
+     "kind": "p",
+     "text": "The inner loop **starts over from the beginning on every outer pass**. That is the sentence to internalize: `range(3)` is walked afresh each time the outer loop comes round, so `col` goes 0, 1, 2 and then 0, 1, 2 again."
+    },
+    {
+     "kind": "p",
+     "text": "Total passes through the innermost body: outer count × inner count. Two loops of `range(1000)` is a million passes; this is where accidental slowness lives."
+    }
+   ]
+  },
+  {
+   "title": "The vertical-line test",
+   "blocks": [
+    {
+     "kind": "p",
+     "text": "To find which loop a line belongs to, draw a vertical line down from each colon and read the indentation:"
+    },
+    {
+     "kind": "code",
+     "lang": "text",
+     "text": "for row in range(2):          ← level 0\n    for col in range(3):      ← level 1  (inside the outer body)\n        print(row, col)       ← level 2  (inside the inner body)\n    print(\"end of row\", row)  ← level 1  (back in the outer body)\nprint(\"done\")                 ← level 0  (after both loops)"
+    },
+    {
+     "kind": "p",
+     "text": "Unindenting one step means *that block just ended*. A line's meaning is decided entirely by how far right it sits."
+    }
+   ]
+  },
+  {
+   "title": "`break` and `continue` affect the loop they are directly inside",
+   "blocks": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "for row in grid:\n    for cell in row:\n        if cell == target:\n            break        # leaves the INNER loop only\n    # execution continues here — the outer loop keeps going"
+    },
+    {
+     "kind": "p",
+     "text": "`break` never leaves more than one loop. This is the most common nested-loop error and it is silent: the search appears to work on small inputs and quietly scans everything on larger ones."
+    },
+    {
+     "kind": "p",
+     "text": "Three ways to leave both loops:"
+    },
+    {
+     "kind": "list",
+     "ordered": true,
+     "items": [
+      "A flag: set `found = True` before the inner `break`, then `if found: break` in the outer body.",
+      "Put the search in a function and `return` — one word, leaves everything. (Stage 8.)",
+      "Restructure so there is only one loop, e.g. by iterating over pairs."
+     ]
+    },
+    {
+     "kind": "p",
+     "text": "Option 2 is the usual answer in real code, and it is the reason Stage 8 comes next."
+    }
+   ]
+  },
+  {
+   "title": "Nested loops and nested data",
+   "blocks": [
+    {
+     "kind": "p",
+     "text": "The shape of the loop usually mirrors the shape of the data:"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "grid = [[1, 2, 3], [4, 5, 6]]\n\nfor row in grid:            # row is an inner LIST\n    for cell in row:        # cell is a NUMBER\n        print(cell)"
+    },
+    {
+     "kind": "p",
+     "text": "Notice that `row` is bound to the inner list *object itself* — not a copy — so `row.append(...)` inside the outer body changes the grid (Stage 5.8), and `row = something` does not."
+    },
+    {
+     "kind": "p",
+     "text": "To reach cells by position, nest the ranges:"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "for r in range(len(grid)):\n    for c in range(len(grid[r])):\n        grid[r][c] = grid[r][c] * 2"
+    },
+    {
+     "kind": "p",
+     "text": "`len(grid)` is the number of rows; `len(grid[r])` is the length of *that* row, which is the correct way to write it even when you believe every row is the same length."
+    }
+   ]
+  },
+  {
+   "title": "Unpacking in nested walks",
+   "blocks": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "points = [(0, \"a\"), (1, \"b\")]\nfor i, label in points:\n    ...\n\nfor r, row in enumerate(grid):\n    for c, cell in enumerate(row):\n        print(r, c, cell)"
+    },
+    {
+     "kind": "p",
+     "text": "`enumerate` at both levels gives you row and column positions along with the value — the standard way to walk a grid when you need coordinates."
+    }
+   ]
+  }
+ ],
+ "exercises": [
+  {
+   "id": "7.1",
+   "stage": 7,
+   "form": "Mark the block",
+   "kind": "block",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "For each line, say which loop it belongs to and how many times it runs."
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "for a in range(2):\n    for b in range(3):\n        print(a, b)\n    print(\"outer\", a)\nprint(\"done\")"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "for a in range(2):\n    for b in range(3):\n        print(a, b)\n    print(\"outer\", a)\nprint(\"done\")\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "table",
+        "head": [
+         "Line",
+         "Belongs to",
+         "Runs"
+        ],
+        "rows": [
+         [
+          "`for a in range(2):`",
+          "top level",
+          "3 visits (2 passes + the ending check)"
+         ],
+         [
+          "`for b in range(3):`",
+          "outer body",
+          "2 times (started afresh each outer pass), 4 visits each"
+         ],
+         [
+          "`print(a, b)`",
+          "inner body",
+          "**6** times"
+         ],
+         [
+          "`print(\"outer\", a)`",
+          "outer body",
+          "2 times"
+         ],
+         [
+          "`print(\"done\")`",
+          "after both",
+          "1 time"
+         ]
+        ]
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Indentation alone decides membership. The inner body's count is the product, 2 × 3."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That `print(\"outer\", a)`, being below the inner loop, runs after everything — or that it runs six times because it is \"inside a loop\"."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Syntax-reading error. Draw the vertical lines."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "table",
+      "head": [
+       "Line",
+       "Belongs to",
+       "Runs"
+      ],
+      "rows": [
+       [
+        "`for a in range(2):`",
+        "top level",
+        "3 visits (2 passes + the ending check)"
+       ],
+       [
+        "`for b in range(3):`",
+        "outer body",
+        "2 times (started afresh each outer pass), 4 visits each"
+       ],
+       [
+        "`print(a, b)`",
+        "inner body",
+        "**6** times"
+       ],
+       [
+        "`print(\"outer\", a)`",
+        "outer body",
+        "2 times"
+       ],
+       [
+        "`print(\"done\")`",
+        "after both",
+        "1 time"
+       ]
+      ]
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "Indentation alone decides membership. The inner body's count is the product, 2 × 3."
+     }
+    ],
+    "misconception": "That `print(\"outer\", a)`, being below the inner loop, runs after everything — or that it runs six times because it is \"inside a loop\".",
+    "missed": "If you missed it. Syntax-reading error. Draw the vertical lines.",
+    "errorTypes": [
+     "syntax"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: level identification and run counts. Prereq: 5.1. Syntax lens: three indentation levels. Flow lens: multiplicative counts. Object lens: none.",
+     "target": "level identification and run counts",
+     "prereq": [
+      "5.1"
+     ],
+     "syntax": "three indentation levels",
+     "flow": "multiplicative counts",
+     "object": "none"
+    }
+   }
+  },
+  {
+   "id": "7.2",
+   "stage": 7,
+   "form": "What runs next?",
+   "kind": "order",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Number the execution order for the first **five** visits to any line, then give the complete output."
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "for x in \"ab\":\n    for y in [1, 2]:\n        print(x, y)"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "for x in \"ab\":\n    for y in [1, 2]:\n        print(x, y)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "First five visits:"
+       },
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "1  for x in \"ab\":        (x = \"a\")\n2      for y in [1, 2]:  (y = 1)\n3          print(x, y)    → a 1\n4      for y in [1, 2]:  (y = 2)\n5          print(x, y)    → a 2"
+       },
+       {
+        "kind": "p",
+        "text": "Complete output:"
+       },
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "a 1\na 2\nb 1\nb 2"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "The inner loop runs to completion — including its final \"nothing left\" visit — before the outer loop advances. Then `[1, 2]` is walked from the start again."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That the two loops advance in lockstep, giving `a 1` then `b 2`."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Flow error."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "First five visits:"
+     },
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "1  for x in \"ab\":        (x = \"a\")\n2      for y in [1, 2]:  (y = 1)\n3          print(x, y)    → a 1\n4      for y in [1, 2]:  (y = 2)\n5          print(x, y)    → a 2"
+     },
+     {
+      "kind": "p",
+      "text": "Complete output:"
+     },
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "a 1\na 2\nb 1\nb 2"
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "The inner loop runs to completion — including its final \"nothing left\" visit — before the outer loop advances. Then `[1, 2]` is walked from the start again."
+     }
+    ],
+    "misconception": "That the two loops advance in lockstep, giving `a 1` then `b 2`.",
+    "missed": "If you missed it. Flow error.",
+    "errorTypes": [
+     "flow"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: inner loop completes per outer pass. Prereq: 7.1, 5.2. Syntax lens: two headers. Flow lens: 2 × 2 passes. Object lens: two bindings per inner pass.",
+     "target": "inner loop completes per outer pass",
+     "prereq": [
+      "7.1",
+      "5.2"
+     ],
+     "syntax": "two headers",
+     "flow": "2 × 2 passes",
+     "object": "two bindings per inner pass"
+    }
+   }
+  },
+  {
+   "id": "7.3",
+   "stage": 7,
+   "form": "Compare near-matches",
+   "kind": "compare",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Snippet **A**:"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "for a in range(2):\n    for b in range(2):\n        print(a, b)"
+    },
+    {
+     "kind": "p",
+     "text": "Snippet **B**:"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "for a in range(2):\n    for b in range(2):\n        pass\n    print(a, b)"
+    },
+    {
+     "kind": "p",
+     "text": "Predict both outputs. In **B**, what is `b` bound to when the print runs, and why?"
+    }
+   ],
+   "snippets": [
+    {
+     "label": "A",
+     "code": "for a in range(2):\n    for b in range(2):\n        print(a, b)\n"
+    },
+    {
+     "label": "B",
+     "code": "for a in range(2):\n    for b in range(2):\n        pass\n    print(a, b)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "**A**:"
+       },
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "0 0\n0 1\n1 0\n1 1"
+       },
+       {
+        "kind": "p",
+        "text": "**B**:"
+       },
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "0 1\n1 1"
+       }
+      ]
+     },
+     {
+      "label": "Why `b` is 1",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "The `print` in **B** sits in the *outer* body, so it runs after the inner loop has finished. The loop variable survives (5.3), still bound to the last value the inner loop gave it — `1`. On the second outer pass the inner loop runs again and leaves `b` at 1 once more."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That a line below an inner loop is unreachable, or that `b` is unbound outside its loop."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Flow error, with a name-lifetime component."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "**A**:"
+     },
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "0 0\n0 1\n1 0\n1 1"
+     },
+     {
+      "kind": "p",
+      "text": "**B**:"
+     },
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "0 1\n1 1"
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "The `print` in **B** sits in the *outer* body, so it runs after the inner loop has finished. The loop variable survives (5.3), still bound to the last value the inner loop gave it — `1`. On the second outer pass the inner loop runs again and leaves `b` at 1 once more."
+     }
+    ],
+    "misconception": "That a line below an inner loop is unreachable, or that `b` is unbound outside its loop.",
+    "missed": "If you missed it. Flow error, with a name-lifetime component.",
+    "errorTypes": [
+     "flow"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: outer-body line after an inner loop; loop-variable persistence. Prereq: 5.3, 7.1. Syntax lens: indentation of the print. Flow lens: runs once per outer pass. Object lens: `b` retains its last binding.",
+     "target": "outer-body line after an inner loop; loop-variable persistence",
+     "prereq": [
+      "5.3",
+      "7.1"
+     ],
+     "syntax": "indentation of the print",
+     "flow": "runs once per outer pass",
+     "object": "`b` retains its last binding"
+    }
+   }
+  },
+  {
+   "id": "7.4",
+   "stage": 7,
+   "form": "Predict the result",
+   "kind": "predict",
+   "prompt": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "total = 0\nfor row in [[1, 2], [3, 4]]:\n    for cell in row:\n        total = total + cell\n    print(\"after row\", total)\nprint(\"total\", total)"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "total = 0\nfor row in [[1, 2], [3, 4]]:\n    for cell in row:\n        total = total + cell\n    print(\"after row\", total)\nprint(\"total\", total)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "after row 3\nafter row 10\ntotal 10"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`print(\"after row\", total)` is in the outer body, so it runs once per row — after that row's cells have been added. 1+2 = 3; then 3+4 brings the running total to 10."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That the accumulator resets per row. Nothing resets it; it is bound once, before both loops."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Flow error. Compare: moving `total = 0` into the outer body would give per-row sums instead."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "after row 3\nafter row 10\ntotal 10"
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "`print(\"after row\", total)` is in the outer body, so it runs once per row — after that row's cells have been added. 1+2 = 3; then 3+4 brings the running total to 10."
+     }
+    ],
+    "misconception": "That the accumulator resets per row. Nothing resets it; it is bound once, before both loops.",
+    "missed": "If you missed it. Flow error. Compare: moving `total = 0` into the outer body would give per-row sums instead.",
+    "errorTypes": [
+     "flow"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: accumulator across nested loops. Prereq: 5.6, 7.1. Syntax lens: initialization outside both loops. Flow lens: 4 inner passes, 2 outer prints. Object lens: `total` rebound four times.",
+     "target": "accumulator across nested loops",
+     "prereq": [
+      "5.6",
+      "7.1"
+     ],
+     "syntax": "initialization outside both loops",
+     "flow": "4 inner passes, 2 outer prints",
+     "object": "`total` rebound four times"
+    }
+   }
+  },
+  {
+   "id": "7.5",
+   "stage": 7,
+   "form": "Build a trace table",
+   "kind": "table",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Make a table with one row per pass of the **inner** loop, showing `i`, `j`, and `count` after the body runs. Then give the output."
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "count = 0\nfor i in range(3):\n    for j in range(2):\n        count = count + 1\nprint(count, i, j)"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "count = 0\nfor i in range(3):\n    for j in range(2):\n        count = count + 1\nprint(count, i, j)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "table",
+        "head": [
+         "inner pass",
+         "`i`",
+         "`j`",
+         "`count` after"
+        ],
+        "rows": [
+         [
+          "1",
+          "0",
+          "0",
+          "1"
+         ],
+         [
+          "2",
+          "0",
+          "1",
+          "2"
+         ],
+         [
+          "3",
+          "1",
+          "0",
+          "3"
+         ],
+         [
+          "4",
+          "1",
+          "1",
+          "4"
+         ],
+         [
+          "5",
+          "2",
+          "0",
+          "5"
+         ],
+         [
+          "6",
+          "2",
+          "1",
+          "6"
+         ]
+        ]
+       },
+       {
+        "kind": "p",
+        "text": "Output: `6 2 1`."
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "3 × 2 = 6 passes. Both loop variables survive, holding their last values: `i` reached 2, and `j` reached 1 on its final walk."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That `j` ends at 2 (the range bound) or is unbound."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Flow error."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "table",
+      "head": [
+       "inner pass",
+       "`i`",
+       "`j`",
+       "`count` after"
+      ],
+      "rows": [
+       [
+        "1",
+        "0",
+        "0",
+        "1"
+       ],
+       [
+        "2",
+        "0",
+        "1",
+        "2"
+       ],
+       [
+        "3",
+        "1",
+        "0",
+        "3"
+       ],
+       [
+        "4",
+        "1",
+        "1",
+        "4"
+       ],
+       [
+        "5",
+        "2",
+        "0",
+        "5"
+       ],
+       [
+        "6",
+        "2",
+        "1",
+        "6"
+       ]
+      ]
+     },
+     {
+      "kind": "p",
+      "text": "Output: `6 2 1`."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "3 × 2 = 6 passes. Both loop variables survive, holding their last values: `i` reached 2, and `j` reached 1 on its final walk."
+     }
+    ],
+    "misconception": "That `j` ends at 2 (the range bound) or is unbound.",
+    "missed": "If you missed it. Flow error.",
+    "errorTypes": [
+     "flow"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: full nested trace, terminal bindings. Prereq: 7.2, 5.3. Syntax lens: two ranges. Flow lens: product of counts. Object lens: two surviving bindings.",
+     "target": "full nested trace, terminal bindings",
+     "prereq": [
+      "7.2",
+      "5.3"
+     ],
+     "syntax": "two ranges",
+     "flow": "product of counts",
+     "object": "two surviving bindings"
+    }
+   }
+  },
+  {
+   "id": "7.6",
+   "stage": 7,
+   "form": "Find and fix",
+   "kind": "fix",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "The intent is to stop searching entirely once the target is found. Say what actually happens and fix it using a flag."
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "grid = [[1, 2], [3, 4]]\ntarget = 2\nfor row in grid:\n    for cell in row:\n        if cell == target:\n            print(\"found\")\n            break\nprint(\"search over\")"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "grid = [[1, 2], [3, 4]]\ntarget = 2\nfor row in grid:\n    for cell in row:\n        if cell == target:\n            print(\"found\")\n            break\nprint(\"search over\")\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "It prints:"
+       },
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "found\nsearch over"
+       },
+       {
+        "kind": "p",
+        "text": "which *looks* correct — and that is the problem. The `break` left only the inner loop; the outer loop then continued and scanned `[3, 4]` in full. With a target in the first of a thousand rows, the program still reads all thousand. Change `target` to 3 and you would see `found` printed while the first row was scanned pointlessly first."
+       }
+      ]
+     },
+     {
+      "label": "Fix with a flag",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "python",
+        "text": "found = False\nfor row in grid:\n    for cell in row:\n        if cell == target:\n            print(\"found\")\n            found = True\n            break\n    if found:\n        break\nprint(\"search over\")"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "The outer loop needs its own `break`, and it needs a way to know that the inner one succeeded. That is all a flag is."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That `break` exits all enclosing loops."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Flow error — and note that no output difference gave it away, which is why this bug survives testing."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "It prints:"
+     },
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "found\nsearch over"
+     },
+     {
+      "kind": "p",
+      "text": "which *looks* correct — and that is the problem. The `break` left only the inner loop; the outer loop then continued and scanned `[3, 4]` in full. With a target in the first of a thousand rows, the program still reads all thousand. Change `target` to 3 and you would see `found` printed while the first row was scanned pointlessly first."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "The outer loop needs its own `break`, and it needs a way to know that the inner one succeeded. That is all a flag is."
+     }
+    ],
+    "misconception": "That `break` exits all enclosing loops.",
+    "missed": "If you missed it. Flow error — and note that no output difference gave it away, which is why this bug survives testing.",
+    "errorTypes": [
+     "flow"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: `break` leaves one loop. Prereq: 5.10, 7.1. Syntax lens: `break` depth versus loop depth. Flow lens: outer loop continues. Object lens: flag binding carries information across levels.",
+     "target": "`break` leaves one loop",
+     "prereq": [
+      "5.10",
+      "7.1"
+     ],
+     "syntax": "`break` depth versus loop depth",
+     "flow": "outer loop continues",
+     "object": "flag binding carries information across levels"
+    }
+   }
+  },
+  {
+   "id": "7.7",
+   "stage": 7,
+   "form": "Predict the result",
+   "kind": "predict",
+   "prompt": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "for i in range(3):\n    for j in range(3):\n        if j == 1:\n            continue\n        if i == 2:\n            break\n        print(i, j)"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "for i in range(3):\n    for j in range(3):\n        if j == 1:\n            continue\n        if i == 2:\n            break\n        print(i, j)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "0 0\n0 2\n1 0\n1 2"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Trace by outer pass:"
+       },
+       {
+        "kind": "list",
+        "ordered": false,
+        "items": [
+         "`i = 0`: `j = 0` prints; `j = 1` hits `continue` and skips the rest of that pass; `j = 2` prints.",
+         "`i = 1`: identical.",
+         "`i = 2`: `j = 0` — `continue` does not fire, then `if i == 2` fires and `break` ends the inner loop. Nothing prints. The outer loop then advances, finds nothing left, and the program ends."
+        ]
+       },
+       {
+        "kind": "p",
+        "text": "Note the ordering trap: at `i = 2, j = 1`, the `continue` would have fired first — but the loop already broke at `j = 0`, so that never arises."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That `continue` and `break` can be read in isolation from the order of the `if`s above them."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Flow error."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "0 0\n0 2\n1 0\n1 2"
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "Trace by outer pass:"
+     },
+     {
+      "kind": "list",
+      "ordered": false,
+      "items": [
+       "`i = 0`: `j = 0` prints; `j = 1` hits `continue` and skips the rest of that pass; `j = 2` prints.",
+       "`i = 1`: identical.",
+       "`i = 2`: `j = 0` — `continue` does not fire, then `if i == 2` fires and `break` ends the inner loop. Nothing prints. The outer loop then advances, finds nothing left, and the program ends."
+      ]
+     },
+     {
+      "kind": "p",
+      "text": "Note the ordering trap: at `i = 2, j = 1`, the `continue` would have fired first — but the loop already broke at `j = 0`, so that never arises."
+     }
+    ],
+    "misconception": "That `continue` and `break` can be read in isolation from the order of the `if`s above them.",
+    "missed": "If you missed it. Flow error.",
+    "errorTypes": [
+     "flow"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: `continue` and `break` interacting in a nested body. Prereq: 5.11, 7.6. Syntax lens: two guards in one body. Flow lens: order of the guards decides. Object lens: none.",
+     "target": "`continue` and `break` interacting in a nested body",
+     "prereq": [
+      "5.11",
+      "7.6"
+     ],
+     "syntax": "two guards in one body",
+     "flow": "order of the guards decides",
+     "object": "none"
+    }
+   }
+  },
+  {
+   "id": "7.8",
+   "stage": 7,
+   "form": "Predict the result",
+   "kind": "predict",
+   "prompt": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "grid = [[1, 2], [3, 4]]\nfor row in grid:\n    row.append(0)\nprint(grid)\n\ngrid2 = [[1, 2], [3, 4]]\nfor row in grid2:\n    row = row + [0]\nprint(grid2)"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "grid = [[1, 2], [3, 4]]\nfor row in grid:\n    row.append(0)\nprint(grid)\n\ngrid2 = [[1, 2], [3, 4]]\nfor row in grid2:\n    row = row + [0]\nprint(grid2)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "[[1, 2, 0], [3, 4, 0]]\n[[1, 2], [3, 4]]"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`row` is bound to the inner list object itself. `.append` changes that object, and the grid's slot points at it. `row = row + [0]` builds a new list and rebinds the loop variable — inert, exactly as in 5.7 and 5.8."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That a loop over a nested structure hands you copies of the rows."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error. Go back to 3.13 and 5.8."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "[[1, 2, 0], [3, 4, 0]]\n[[1, 2], [3, 4]]"
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "`row` is bound to the inner list object itself. `.append` changes that object, and the grid's slot points at it. `row = row + [0]` builds a new list and rebinds the loop variable — inert, exactly as in 5.7 and 5.8."
+     }
+    ],
+    "misconception": "That a loop over a nested structure hands you copies of the rows.",
+    "missed": "If you missed it. Object-model error. Go back to 3.13 and 5.8.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [
+     "3.13",
+     "5.8"
+    ],
+    "authoring": {
+     "text": "Target: loop variable aliases the inner object. Prereq: 5.8. Syntax lens: `.append` versus `= ... +`. Flow lens: two passes each. Object lens: inner lists changed versus untouched.",
+     "target": "loop variable aliases the inner object",
+     "prereq": [
+      "5.8"
+     ],
+     "syntax": "`.append` versus `= ... +`",
+     "flow": "two passes each",
+     "object": "inner lists changed versus untouched"
+    }
+   }
+  },
+  {
+   "id": "7.9",
+   "stage": 7,
+   "form": "Find and fix",
+   "kind": "fix",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "The intent is to double every cell in place. Say what happens and fix it."
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "grid = [[1, 2], [3, 4]]\nfor row in grid:\n    for cell in row:\n        cell = cell * 2\nprint(grid)"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "grid = [[1, 2], [3, 4]]\nfor row in grid:\n    for cell in row:\n        cell = cell * 2\nprint(grid)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "It prints `[[1, 2], [3, 4]]` — unchanged. `cell = cell * 2` rebinds the inner loop variable and never writes into any list."
+       }
+      ]
+     },
+     {
+      "label": "Fix",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Write the slots by position:"
+       },
+       {
+        "kind": "code",
+        "lang": "python",
+        "text": "grid = [[1, 2], [3, 4]]\nfor r in range(len(grid)):\n    for c in range(len(grid[r])):\n        grid[r][c] = grid[r][c] * 2\nprint(grid)                       # [[2, 4], [6, 8]]"
+       },
+       {
+        "kind": "p",
+        "text": "Or replace each row's contents in place, which also works through any other name pointing at that row:"
+       },
+       {
+        "kind": "code",
+        "lang": "python",
+        "text": "for row in grid:\n    row[:] = [cell * 2 for cell in row]"
+       },
+       {
+        "kind": "p",
+        "text": "Or, if rebinding `grid` is acceptable, build a new structure:"
+       },
+       {
+        "kind": "code",
+        "lang": "python",
+        "text": "grid = [[cell * 2 for cell in row] for row in grid]"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Three fixes, three different object-level effects: the first two change the existing inner lists; the third leaves them alone and points `grid` at entirely new lists. Which is correct depends on whether anything else points at the old rows."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That assigning to the innermost loop variable edits the grid."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error. Go back to 5.9."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "It prints `[[1, 2], [3, 4]]` — unchanged. `cell = cell * 2` rebinds the inner loop variable and never writes into any list."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "Three fixes, three different object-level effects: the first two change the existing inner lists; the third leaves them alone and points `grid` at entirely new lists. Which is correct depends on whether anything else points at the old rows."
+     }
+    ],
+    "misconception": "That assigning to the innermost loop variable edits the grid.",
+    "missed": "If you missed it. Object-model error. Go back to 5.9.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [
+     "5.9"
+    ],
+    "authoring": {
+     "text": "Target: in-place cell update at two levels. Prereq: 5.9, 7.8. Syntax lens: `grid[r][c] = ...` versus `cell = ...`. Flow lens: 4 inner passes. Object lens: slot writes versus rebinding.",
+     "target": "in-place cell update at two levels",
+     "prereq": [
+      "5.9",
+      "7.8"
+     ],
+     "syntax": "`grid[r][c] = ...` versus `cell = ...`",
+     "flow": "4 inner passes",
+     "object": "slot writes versus rebinding"
+    }
+   }
+  },
+  {
+   "id": "7.10",
+   "stage": 7,
+   "form": "Predict the result",
+   "kind": "predict",
+   "prompt": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "grid = [[1, 2, 3], [4, 5]]\nfor r in range(len(grid)):\n    for c in range(len(grid[r])):\n        grid[r][c] = grid[r][c] * 10\nprint(grid)"
+    },
+    {
+     "kind": "p",
+     "text": "Why would `range(3)` for the inner loop have been wrong?"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "grid = [[1, 2, 3], [4, 5]]\nfor r in range(len(grid)):\n    for c in range(len(grid[r])):\n        grid[r][c] = grid[r][c] * 10\nprint(grid)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`[[10, 20, 30], [40, 50]]`"
+       }
+      ]
+     },
+     {
+      "label": "Why `range(3)` would be wrong",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "The second row has only two slots, so `c = 2` would raise `IndexError` on `grid[1][2]`. Writing `range(len(grid[r]))` asks each row for its own length, which is correct whatever the shape — and it costs nothing when the rows happen to be equal."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That a \"grid\" is necessarily rectangular, so one length can be measured once and reused."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Syntax-reading error, of the assumed-shape kind."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "`[[10, 20, 30], [40, 50]]`"
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "The second row has only two slots, so `c = 2` would raise `IndexError` on `grid[1][2]`. Writing `range(len(grid[r]))` asks each row for its own length, which is correct whatever the shape — and it costs nothing when the rows happen to be equal."
+     }
+    ],
+    "misconception": "That a \"grid\" is necessarily rectangular, so one length can be measured once and reused.",
+    "missed": "If you missed it. Syntax-reading error, of the assumed-shape kind.",
+    "errorTypes": [
+     "syntax"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: per-row length in nested position loops. Prereq: 7.9, 3.4. Syntax lens: `len(grid[r])`. Flow lens: 3 + 2 inner passes. Object lens: slot writes.",
+     "target": "per-row length in nested position loops",
+     "prereq": [
+      "7.9",
+      "3.4"
+     ],
+     "syntax": "`len(grid[r])`",
+     "flow": "3 + 2 inner passes",
+     "object": "slot writes"
+    }
+   }
+  },
+  {
+   "id": "7.11",
+   "stage": 7,
+   "form": "Predict the result",
+   "kind": "predict",
+   "prompt": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "grid = [[\"a\", \"b\"], [\"c\", \"d\"]]\nfor r, row in enumerate(grid):\n    for c, cell in enumerate(row):\n        print(r, c, cell)"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "grid = [[\"a\", \"b\"], [\"c\", \"d\"]]\nfor r, row in enumerate(grid):\n    for c, cell in enumerate(row):\n        print(r, c, cell)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "0 0 a\n0 1 b\n1 0 c\n1 1 d"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`enumerate` at both levels gives row index with row, then column index with cell. Four inner passes, each binding four names in total across the two levels."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That nesting `enumerate` restarts the outer counter, or that `c` continues counting across rows. Each inner `enumerate` is a fresh one, starting at 0 on every outer pass."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Flow error."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "0 0 a\n0 1 b\n1 0 c\n1 1 d"
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "`enumerate` at both levels gives row index with row, then column index with cell. Four inner passes, each binding four names in total across the two levels."
+     }
+    ],
+    "misconception": "That nesting `enumerate` restarts the outer counter, or that `c` continues counting across rows. Each inner `enumerate` is a fresh one, starting at 0 on every outer pass.",
+    "missed": "If you missed it. Flow error.",
+    "errorTypes": [
+     "flow"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: coordinates via nested `enumerate`. Prereq: 6.11, 7.2. Syntax lens: unpacking at two levels. Flow lens: inner enumerate restarts. Object lens: fresh tuples per pass.",
+     "target": "coordinates via nested `enumerate`",
+     "prereq": [
+      "6.11",
+      "7.2"
+     ],
+     "syntax": "unpacking at two levels",
+     "flow": "inner enumerate restarts",
+     "object": "fresh tuples per pass"
+    }
+   }
+  },
+  {
+   "id": "7.12",
+   "stage": 7,
+   "form": "Write a small program",
+   "kind": "write",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Build a 3×3 multiplication grid: `table[r][c]` should be `(r + 1) * (c + 1)`. Print it row by row. Requirements: the rows must be independent objects, and you must build them with a loop or comprehension, not by writing three literals."
+    }
+   ],
+   "snippets": [],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "python",
+        "text": "table = []\nfor r in range(3):\n    row = []\n    for c in range(3):\n        row.append((r + 1) * (c + 1))\n    table.append(row)\n\nfor row in table:\n    print(row)"
+       },
+       {
+        "kind": "p",
+        "text": "Output:"
+       },
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "[1, 2, 3]\n[2, 4, 6]\n[3, 6, 9]"
+       },
+       {
+        "kind": "p",
+        "text": "Or as a comprehension:"
+       },
+       {
+        "kind": "code",
+        "lang": "python",
+        "text": "table = [[(r + 1) * (c + 1) for c in range(3)] for r in range(3)]"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "In the loop version, `row = []` must sit **inside the outer body** so it runs three times and produces three distinct lists — see 7.13. In the comprehension version, the inner comprehension is re-evaluated per outer pass for the same reason (6.15)."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That the accumulator for the row can be bound once before the outer loop, as the total was in 7.4. A number accumulator and a per-row container are opposite cases."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error if your rows came out shared; syntax-reading if the nesting was off."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "python",
+      "text": "table = []\nfor r in range(3):\n    row = []\n    for c in range(3):\n        row.append((r + 1) * (c + 1))\n    table.append(row)\n\nfor row in table:\n    print(row)"
+     },
+     {
+      "kind": "p",
+      "text": "Output:"
+     },
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "[1, 2, 3]\n[2, 4, 6]\n[3, 6, 9]"
+     },
+     {
+      "kind": "p",
+      "text": "Or as a comprehension:"
+     },
+     {
+      "kind": "code",
+      "lang": "python",
+      "text": "table = [[(r + 1) * (c + 1) for c in range(3)] for r in range(3)]"
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "In the loop version, `row = []` must sit **inside the outer body** so it runs three times and produces three distinct lists — see 7.13. In the comprehension version, the inner comprehension is re-evaluated per outer pass for the same reason (6.15)."
+     }
+    ],
+    "misconception": "That the accumulator for the row can be bound once before the outer loop, as the total was in 7.4. A number accumulator and a per-row container are opposite cases.",
+    "missed": "If you missed it. Object-model error if your rows came out shared; syntax-reading if the nesting was off.",
+    "errorTypes": [
+     "object",
+     "syntax"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: build independent rows in a nested loop. Prereq: 6.15, 7.4. Syntax lens: placement of `row = []`. Flow lens: 3 outer, 9 inner passes. Object lens: three distinct inner lists.",
+     "target": "build independent rows in a nested loop",
+     "prereq": [
+      "6.15",
+      "7.4"
+     ],
+     "syntax": "placement of `row = []`",
+     "flow": "3 outer, 9 inner passes",
+     "object": "three distinct inner lists"
+    }
+   }
+  },
+  {
+   "id": "7.13",
+   "stage": 7,
+   "form": "Compare near-matches",
+   "kind": "compare",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Snippet **A**:"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "rows = []\nfor r in range(2):\n    row = []\n    for c in range(2):\n        row.append(c)\n    rows.append(row)\nprint(rows, rows[0] is rows[1])"
+    },
+    {
+     "kind": "p",
+     "text": "Snippet **B**:"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "rows = []\nrow = []\nfor r in range(2):\n    for c in range(2):\n        row.append(c)\n    rows.append(row)\nprint(rows, rows[0] is rows[1])"
+    },
+    {
+     "kind": "p",
+     "text": "Predict both. Identify the single line whose *position* causes the difference."
+    }
+   ],
+   "snippets": [
+    {
+     "label": "A",
+     "code": "rows = []\nfor r in range(2):\n    row = []\n    for c in range(2):\n        row.append(c)\n    rows.append(row)\nprint(rows, rows[0] is rows[1])\n"
+    },
+    {
+     "label": "B",
+     "code": "rows = []\nrow = []\nfor r in range(2):\n    for c in range(2):\n        row.append(c)\n    rows.append(row)\nprint(rows, rows[0] is rows[1])\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "**A** prints `[[0, 1], [0, 1]] False`. **B** prints `[[0, 1, 0, 1], [0, 1, 0, 1]] True`."
+       }
+      ]
+     },
+     {
+      "label": "The deciding line is `row = []`, and specifically its position",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "In **A** it is inside the outer body, so it runs twice and produces two lists. In **B** it runs once, before everything, so there is one list — appended to four times and then appended into `rows` twice. Both slots of `rows` point at that one list, which is why the identity check is `True` and why both \"rows\" show all four values."
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "The number of times a line runs is the number of objects it produces. Same rule as 4.7 and 6.15, now expressed as an indentation choice."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That where a line sits is a matter of tidiness."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error, caused by a flow misreading — the pair that this stage exists to train."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "**A** prints `[[0, 1], [0, 1]] False`. **B** prints `[[0, 1, 0, 1], [0, 1, 0, 1]] True`."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "The number of times a line runs is the number of objects it produces. Same rule as 4.7 and 6.15, now expressed as an indentation choice."
+     }
+    ],
+    "misconception": "That where a line sits is a matter of tidiness.",
+    "missed": "If you missed it. Object-model error, caused by a flow misreading — the pair that this stage exists to train.",
+    "errorTypes": [
+     "object",
+     "flow"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: accumulator placement decides object count. Prereq: 4.7, 7.12. Syntax lens: indentation level of a binding. Flow lens: once versus per-outer-pass. Object lens: one inner list versus two.",
+     "target": "accumulator placement decides object count",
+     "prereq": [
+      "4.7",
+      "7.12"
+     ],
+     "syntax": "indentation level of a binding",
+     "flow": "once versus per-outer-pass",
+     "object": "one inner list versus two"
+    }
+   }
+  },
+  {
+   "id": "7.14",
+   "stage": 7,
+   "form": "Find and fix",
+   "kind": "fix",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "The intent is to collect every pair of different names. Diagnose the two things wrong with the output and fix them."
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "names = [\"ann\", \"bo\", \"cy\"]\npairs = []\nfor a in names:\n    for b in names:\n        pairs.append((a, b))\nprint(pairs)\nprint(len(pairs))"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "names = [\"ann\", \"bo\", \"cy\"]\npairs = []\nfor a in names:\n    for b in names:\n        pairs.append((a, b))\nprint(pairs)\nprint(len(pairs))\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "It prints all nine pairs, `len` 9. Two things are wrong: it includes pairs of a name with itself (`(\"ann\", \"ann\")`), and it includes both orders of each pair (`(\"ann\", \"bo\")` and `(\"bo\", \"ann\")`), which the phrase \"every pair of different names\" does not want."
+       }
+      ]
+     },
+     {
+      "label": "Fix",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "python",
+        "text": "names = [\"ann\", \"bo\", \"cy\"]\npairs = []\nfor i in range(len(names)):\n    for j in range(i + 1, len(names)):\n        pairs.append((names[i], names[j]))\nprint(pairs)      # [('ann', 'bo'), ('ann', 'cy'), ('bo', 'cy')]\nprint(len(pairs)) # 3"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Starting the inner loop at `i + 1` does both jobs at once: it skips the self-pair and it never revisits an earlier name. This \"inner range depends on the outer variable\" shape is worth recognizing — it is how every pairs/combinations loop is written."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That the inner iterable must be independent of the outer loop variable."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Flow error."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "It prints all nine pairs, `len` 9. Two things are wrong: it includes pairs of a name with itself (`(\"ann\", \"ann\")`), and it includes both orders of each pair (`(\"ann\", \"bo\")` and `(\"bo\", \"ann\")`), which the phrase \"every pair of different names\" does not want."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "Starting the inner loop at `i + 1` does both jobs at once: it skips the self-pair and it never revisits an earlier name. This \"inner range depends on the outer variable\" shape is worth recognizing — it is how every pairs/combinations loop is written."
+     }
+    ],
+    "misconception": "That the inner iterable must be independent of the outer loop variable.",
+    "missed": "If you missed it. Flow error.",
+    "errorTypes": [
+     "flow"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: dependent inner range. Prereq: 7.10. Syntax lens: `range(i + 1, len(names))`. Flow lens: 3 + 2 + 1 passes, not 9. Object lens: tuples accumulated.",
+     "target": "dependent inner range",
+     "prereq": [
+      "7.10"
+     ],
+     "syntax": "`range(i + 1, len(names))`",
+     "flow": "3 + 2 + 1 passes, not 9",
+     "object": "tuples accumulated"
+    }
+   }
+  },
+  {
+   "id": "7.15",
+   "stage": 7,
+   "form": "Predict the result",
+   "kind": "predict",
+   "prompt": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "counts = 0\nfor a in range(3):\n    for b in range(3):\n        if a == b:\n            continue\n        counts += 1\nprint(counts)"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "counts = 0\nfor a in range(3):\n    for b in range(3):\n        if a == b:\n            continue\n        counts += 1\nprint(counts)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`6`"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "3 × 3 = 9 inner passes; the three where `a == b` hit `continue` before reaching the counter. 9 − 3 = 6."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That `continue` in a nested body skips the rest of the outer pass too. It abandons only the current inner pass."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Flow error."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "`6`"
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "3 × 3 = 9 inner passes; the three where `a == b` hit `continue` before reaching the counter. 9 − 3 = 6."
+     }
+    ],
+    "misconception": "That `continue` in a nested body skips the rest of the outer pass too. It abandons only the current inner pass.",
+    "missed": "If you missed it. Flow error.",
+    "errorTypes": [
+     "flow"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: `continue` at the inner level. Prereq: 5.11, 7.7. Syntax lens: guard before the accumulator. Flow lens: 9 passes, 6 completions. Object lens: `counts` rebound six times.",
+     "target": "`continue` at the inner level",
+     "prereq": [
+      "5.11",
+      "7.7"
+     ],
+     "syntax": "guard before the accumulator",
+     "flow": "9 passes, 6 completions",
+     "object": "`counts` rebound six times"
+    }
+   }
+  },
+  {
+   "id": "7.16",
+   "stage": 7,
+   "form": "What runs next?",
+   "kind": "order",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Number the execution order completely and give the output. Note carefully where control goes after the `break`."
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "found = None\nfor row in [[1, 2], [3, 4]]:\n    for cell in row:\n        if cell > 2:\n            found = cell\n            break\n    if found is not None:\n        break\nprint(found)"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "found = None\nfor row in [[1, 2], [3, 4]]:\n    for cell in row:\n        if cell > 2:\n            found = cell\n            break\n    if found is not None:\n        break\nprint(found)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "1   found = None\n2   for row in [[1, 2], [3, 4]]:      (row = [1, 2])\n3       for cell in row:              (cell = 1)\n4           if cell > 2:               → False\n5       for cell in row:              (cell = 2)\n6           if cell > 2:               → False\n7       for cell in row:              (nothing left; inner loop ends)\n8       if found is not None:          → False\n9   for row in [[1, 2], [3, 4]]:      (row = [3, 4])\n10      for cell in row:              (cell = 3)\n11          if cell > 2:               → True\n12              found = cell\n13              break                  → leaves the inner loop\n14      if found is not None:          → True\n15          break                      → leaves the outer loop\n16  print(found)                       → 3"
+       },
+       {
+        "kind": "p",
+        "text": "Output: `3`."
+       },
+       {
+        "kind": "p",
+        "text": "**Where control goes after the `break` on line 13:** to the first line of the **outer body** that follows the inner loop — line 14 — *not* out of both loops and not back to the inner `for`."
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "This is 7.6's flag pattern written correctly, and the numbering is the proof that it stops early: the cell `4` is never examined."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That `break` jumps to after the outer loop."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Flow error."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "1   found = None\n2   for row in [[1, 2], [3, 4]]:      (row = [1, 2])\n3       for cell in row:              (cell = 1)\n4           if cell > 2:               → False\n5       for cell in row:              (cell = 2)\n6           if cell > 2:               → False\n7       for cell in row:              (nothing left; inner loop ends)\n8       if found is not None:          → False\n9   for row in [[1, 2], [3, 4]]:      (row = [3, 4])\n10      for cell in row:              (cell = 3)\n11          if cell > 2:               → True\n12              found = cell\n13              break                  → leaves the inner loop\n14      if found is not None:          → True\n15          break                      → leaves the outer loop\n16  print(found)                       → 3"
+     },
+     {
+      "kind": "p",
+      "text": "Output: `3`."
+     },
+     {
+      "kind": "p",
+      "text": "**Where control goes after the `break` on line 13:** to the first line of the **outer body** that follows the inner loop — line 14 — *not* out of both loops and not back to the inner `for`."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "This is 7.6's flag pattern written correctly, and the numbering is the proof that it stops early: the cell `4` is never examined."
+     }
+    ],
+    "misconception": "That `break` jumps to after the outer loop.",
+    "missed": "If you missed it. Flow error.",
+    "errorTypes": [
+     "flow"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: exact destination of `break`; flag pattern. Prereq: 7.6. Syntax lens: two `break`s at two levels. Flow lens: early exit verified by numbering. Object lens: `found` carries the value out.",
+     "target": "exact destination of `break`; flag pattern",
+     "prereq": [
+      "7.6"
+     ],
+     "syntax": "two `break`s at two levels",
+     "flow": "early exit verified by numbering",
+     "object": "`found` carries the value out"
+    }
+   }
+  },
+  {
+   "id": "7.17",
+   "stage": 7,
+   "form": "Predict the result",
+   "kind": "predict",
+   "prompt": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "matrix = [[1, 2], [3, 4]]\nflat = []\nfor row in matrix:\n    for cell in row:\n        flat.append(cell)\nprint(flat)\nprint([cell for row in matrix for cell in row])"
+    },
+    {
+     "kind": "p",
+     "text": "Read the comprehension aloud and say which loop is the outer one."
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "matrix = [[1, 2], [3, 4]]\nflat = []\nfor row in matrix:\n    for cell in row:\n        flat.append(cell)\nprint(flat)\nprint([cell for row in matrix for cell in row])\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Both lines print `[1, 2, 3, 4]`."
+       }
+      ]
+     },
+     {
+      "label": "Reading the comprehension",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`[cell for row in matrix for cell in row]` reads left to right in the *same order as the nested loops*: `for row in matrix` is the outer loop, `for cell in row` is the inner one, and `cell` — written first — is what gets collected. The rule: the `for` clauses appear in outer-to-inner order, just as they would if written out."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That the clauses read right-to-left, or that the leading expression belongs to the first `for`."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Syntax-reading error."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "Both lines print `[1, 2, 3, 4]`."
+     }
+    ],
+    "reasoning": [],
+    "misconception": "That the clauses read right-to-left, or that the leading expression belongs to the first `for`.",
+    "missed": "If you missed it. Syntax-reading error.",
+    "errorTypes": [
+     "syntax"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: nested comprehension clause order. Prereq: 6.14, 7.2. Syntax lens: two `for` clauses in one comprehension. Flow lens: 2 × 2 passes. Object lens: one new flat list.",
+     "target": "nested comprehension clause order",
+     "prereq": [
+      "6.14",
+      "7.2"
+     ],
+     "syntax": "two `for` clauses in one comprehension",
+     "flow": "2 × 2 passes",
+     "object": "one new flat list"
+    }
+   }
+  },
+  {
+   "id": "7.18",
+   "stage": 7,
+   "form": "Find and fix",
+   "kind": "fix",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "The intent is a list of three independent counters, each a two-item list. Say why this fails and give two different fixes."
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "counters = [[0, 0]] * 3\nfor i in range(3):\n    counters[i][0] = i\nprint(counters)"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "counters = [[0, 0]] * 3\nfor i in range(3):\n    counters[i][0] = i\nprint(counters)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "It prints `[[2, 0], [2, 0], [2, 0]]`. There is one inner list; the loop wrote its slot 0 three times, ending at 2, and all three outer slots point at it."
+       },
+       {
+        "kind": "p",
+        "text": "**Fix one — build with re-evaluation:**"
+       },
+       {
+        "kind": "code",
+        "lang": "python",
+        "text": "counters = [[0, 0] for _ in range(3)]"
+       },
+       {
+        "kind": "p",
+        "text": "**Fix two — write the literals separately** (fine for a fixed, small size):"
+       },
+       {
+        "kind": "code",
+        "lang": "python",
+        "text": "counters = [[0, 0], [0, 0], [0, 0]]"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Both fixes do the same thing: make the inner literal run three times. What does *not* work is any copy of `counters` after the fact — `counters[:]` or `list(counters)` duplicate the outer level, which was never the problem (4.9)."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That the loop is at fault. The loop is correct; the construction on line 1 is the bug."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error. Go back to 4.6 and 6.15."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "It prints `[[2, 0], [2, 0], [2, 0]]`. There is one inner list; the loop wrote its slot 0 three times, ending at 2, and all three outer slots point at it."
+     },
+     {
+      "kind": "p",
+      "text": "**Fix one — build with re-evaluation:**"
+     },
+     {
+      "kind": "code",
+      "lang": "python",
+      "text": "counters = [[0, 0] for _ in range(3)]"
+     },
+     {
+      "kind": "p",
+      "text": "**Fix two — write the literals separately** (fine for a fixed, small size):"
+     },
+     {
+      "kind": "code",
+      "lang": "python",
+      "text": "counters = [[0, 0], [0, 0], [0, 0]]"
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "Both fixes do the same thing: make the inner literal run three times. What does *not* work is any copy of `counters` after the fact — `counters[:]` or `list(counters)` duplicate the outer level, which was never the problem (4.9)."
+     }
+    ],
+    "misconception": "That the loop is at fault. The loop is correct; the construction on line 1 is the bug.",
+    "missed": "If you missed it. Object-model error. Go back to 4.6 and 6.15.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [
+     "4.6",
+     "6.15"
+    ],
+    "authoring": {
+     "text": "Target: the repetition pitfall exposed by a loop. Prereq: 4.6, 6.15, 5.18. Syntax lens: `[[0, 0]] * 3`. Flow lens: three writes to one object. Object lens: one inner list, three arrows.",
+     "target": "the repetition pitfall exposed by a loop",
+     "prereq": [
+      "4.6",
+      "6.15",
+      "5.18"
+     ],
+     "syntax": "`[[0, 0]] * 3`",
+     "flow": "three writes to one object",
+     "object": "one inner list, three arrows"
+    }
+   }
+  },
+  {
+   "id": "7.19",
+   "stage": 7,
+   "form": "State the rule",
+   "kind": "rule",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Answer each in one sentence:"
+    },
+    {
+     "kind": "list",
+     "ordered": true,
+     "items": [
+      "How do you work out how many times the innermost line runs?",
+      "Which loop does a `break` leave?",
+      "What is the inner loop's iterable walked from — the start, or where it left off — on each outer pass?",
+      "How do you decide which loop a given line belongs to?"
+     ]
+    }
+   ],
+   "snippets": [],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "list",
+        "ordered": true,
+        "items": [
+         "Multiply the pass counts of every loop it is inside — outer × inner (× any further levels).",
+         "Only the loop it is directly inside; control resumes at the next line of the enclosing body.",
+         "From the start — the inner loop's iterable is walked afresh on every outer pass.",
+         "By its indentation: it belongs to the nearest colon-block above it that is indented less than it is."
+        ]
+       }
+      ]
+     },
+     {
+      "label": "If you missed any",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "(1) and (3) flow; (2) flow; (4) syntax-reading."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "list",
+      "ordered": true,
+      "items": [
+       "Multiply the pass counts of every loop it is inside — outer × inner (× any further levels).",
+       "Only the loop it is directly inside; control resumes at the next line of the enclosing body.",
+       "From the start — the inner loop's iterable is walked afresh on every outer pass.",
+       "By its indentation: it belongs to the nearest colon-block above it that is indented less than it is."
+      ]
+     }
+    ],
+    "reasoning": [],
+    "misconception": "",
+    "missed": "If you missed any. (1) and (3) flow; (2) flow; (4) syntax-reading.",
+    "errorTypes": [
+     "flow",
+     "syntax"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: generalize the stage. Prereq: 7.1–7.18. Syntax lens: indentation. Flow lens: counts and `break` scope. Object lens: none.",
+     "target": "generalize the stage",
+     "prereq": [
+      "7.1",
+      "7.2",
+      "7.3",
+      "7.4",
+      "7.5",
+      "7.6",
+      "7.7",
+      "7.8",
+      "7.9",
+      "7.10",
+      "7.11",
+      "7.12",
+      "7.13",
+      "7.14",
+      "7.15",
+      "7.16",
+      "7.17",
+      "7.18"
+     ],
+     "syntax": "indentation",
+     "flow": "counts and `break` scope",
+     "object": "none"
+    }
+   }
+  }
+ ],
+ "checkpoint": {
+  "intro": [],
+  "items": [
+   {
+    "id": "C7.1",
+    "stage": 7,
+    "prompt": [
+     {
+      "kind": "p",
+      "text": "How many lines does this print, and what is the last one?"
+     },
+     {
+      "kind": "code",
+      "lang": "python",
+      "text": "for a in range(4):\n    for b in range(5):\n        print(a, b)"
+     }
+    ],
+    "snippets": [
+     {
+      "label": null,
+      "code": "for a in range(4):\n    for b in range(5):\n        print(a, b)\n"
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "20 lines; the last is `3 4`. **Error type if missed:** flow. Go back to 7.1."
+     }
+    ],
+    "errorTypes": [
+     "flow"
+    ],
+    "goBack": [
+     "7.1"
+    ]
+   },
+   {
+    "id": "C7.2",
+    "stage": 7,
+    "prompt": [
+     {
+      "kind": "p",
+      "text": "Predict:"
+     },
+     {
+      "kind": "code",
+      "lang": "python",
+      "text": "for i in range(2):\n    for j in range(2):\n        print(i, j)\n    print(\"-\")"
+     }
+    ],
+    "snippets": [
+     {
+      "label": null,
+      "code": "for i in range(2):\n    for j in range(2):\n        print(i, j)\n    print(\"-\")\n"
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "0 0\n0 1\n-\n1 0\n1 1\n-"
+     },
+     {
+      "kind": "p",
+      "text": "**Error type if missed:** syntax-reading (the `-` is in the outer body). Go back to 7.3."
+     }
+    ],
+    "errorTypes": [
+     "syntax"
+    ],
+    "goBack": [
+     "7.3"
+    ]
+   },
+   {
+    "id": "C7.3",
+    "stage": 7,
+    "prompt": [
+     {
+      "kind": "p",
+      "text": "A learner's nested search prints \"found\" and then keeps searching. Name the cause in one sentence and give two different repairs."
+     }
+    ],
+    "snippets": [],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "The `break` leaves only the inner loop, so the outer loop keeps going. Repairs: set a flag and `break` again in the outer body; or move the search into a function and `return` (Stage 8). **Error type if missed:** flow. Go back to 7.6."
+     }
+    ],
+    "errorTypes": [
+     "flow"
+    ],
+    "goBack": [
+     "7.6"
+    ]
+   },
+   {
+    "id": "C7.4",
+    "stage": 7,
+    "prompt": [
+     {
+      "kind": "p",
+      "text": "Predict and explain the identity check:"
+     },
+     {
+      "kind": "code",
+      "lang": "python",
+      "text": "rows = [[0] * 2 for _ in range(2)]\nrows[0][0] = 9\nprint(rows, rows[0] is rows[1])"
+     }
+    ],
+    "snippets": [
+     {
+      "label": null,
+      "code": "rows = [[0] * 2 for _ in range(2)]\nrows[0][0] = 9\nprint(rows, rows[0] is rows[1])\n"
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "`[[9, 0], [0, 0]] False`. The comprehension re-evaluated `[0] * 2` on each pass, so the two rows are distinct objects and writing one does not touch the other. **Error type if missed:** object-model. Go back to 6.15 and 7.18."
+     }
+    ],
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [
+     "6.15",
+     "7.18"
+    ]
+   },
+   {
+    "id": "C7.5",
+    "stage": 7,
+    "prompt": [
+     {
+      "kind": "p",
+      "text": "In this snippet, which lines are at which level, and how many times does each run?"
+     },
+     {
+      "kind": "code",
+      "lang": "python",
+      "text": "total = 0\nfor a in [1, 2]:\n    total += a\n    for b in [10]:\n        total += b\nprint(total)"
+     }
+    ],
+    "snippets": [
+     {
+      "label": null,
+      "code": "total = 0\nfor a in [1, 2]:\n    total += a\n    for b in [10]:\n        total += b\nprint(total)\n"
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "`total = 0` and `print(total)` are at the top level, once each. `total += a` and the `for b` line are in the outer body: twice each. `total += b` is in the inner body: twice (once per outer pass, since `[10]` has one item). Output: `23`. **Error type if missed:** syntax-reading. Go back to 7.1 and 7.4."
+     }
+    ],
+    "errorTypes": [
+     "syntax"
+    ],
+    "goBack": [
+     "7.1",
+     "7.4"
+    ]
+   },
+   {
+    "id": "C7.6",
+    "stage": 7,
+    "prompt": [
+     {
+      "kind": "p",
+      "text": "Rewrite as a single nested-loop comprehension:"
+     },
+     {
+      "kind": "code",
+      "lang": "python",
+      "text": "out = []\nfor row in [[1, 2], [3]]:\n    for cell in row:\n        out.append(cell * 2)"
+     }
+    ],
+    "snippets": [
+     {
+      "label": null,
+      "code": "out = []\nfor row in [[1, 2], [3]]:\n    for cell in row:\n        out.append(cell * 2)\n"
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "`out = [cell * 2 for row in [[1, 2], [3]] for cell in row]`, giving `[2, 4, 6]`. **Error type if missed:** syntax-reading. Go back to 7.17."
+     }
+    ],
+    "errorTypes": [
+     "syntax"
+    ],
+    "goBack": [
+     "7.17"
+    ]
+   }
+  ]
+ },
+ "capstone": null,
+ "after": [
+  {
+   "kind": "p",
+   "text": "You can now say, for any line at any depth, which loop owns it and how many times it runs — and you have seen that the clean way to leave a nested search is a `return`. Stage 8 introduces the boundary that makes that possible."
+  }
+ ],
+ "summary": "Track which indentation level is active"
+}

@@ -1,0 +1,1967 @@
+{
+ "stage": 1,
+ "file": "stage-01-straight-line-code.md",
+ "title": "Reading Straight-Line Code",
+ "move": "follow a program one line at a time, and say for each line which names exist afterward and what they point at.",
+ "adds": [
+  {
+   "kind": "p",
+   "text": "Nothing here loops, branches, or calls a function you wrote. Every line runs once, top to bottom. That is exactly why it is the right place to build the habit you will use for the rest of the collection: *before* asking what a program means, ask what each single line does to the set of names and objects."
+  }
+ ],
+ "ideas": [
+  {
+   "title": "The three literal forms you will see in this stage",
+   "blocks": [
+    {
+     "kind": "table",
+     "head": [
+      "Written form",
+      "What Python makes",
+      "Can it be changed after it exists?"
+     ],
+     "rows": [
+      [
+       "`7`, `-3`, `2.5`",
+       "a number object",
+       "no"
+      ],
+      [
+       "`\"cat\"`, `'cat'`",
+       "a text object (a string)",
+       "no"
+      ],
+      [
+       "`[10, 20, 30]`",
+       "a list object holding three things",
+       "yes — Stage 2"
+      ]
+     ]
+    },
+    {
+     "kind": "p",
+     "text": "You need only recognize them for now."
+    }
+   ]
+  },
+  {
+   "title": "A name is a label, not a box",
+   "blocks": [
+    {
+     "kind": "p",
+     "text": "When you write:"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "count = 7"
+    },
+    {
+     "kind": "p",
+     "text": "Python does three things, in this order:"
+    },
+    {
+     "kind": "list",
+     "ordered": true,
+     "items": [
+      "Works out the right-hand side. Here that produces a number object, `7`.",
+      "Creates the name `count` if it does not exist yet.",
+      "Points `count` at that object."
+     ]
+    },
+    {
+     "kind": "p",
+     "text": "The name is a **label stuck onto an object**. It is not a container that the number was poured into. This distinction looks like hair-splitting now. By Stage 4 it is the whole game."
+    }
+   ]
+  },
+  {
+   "title": "Rebinding moves the label",
+   "blocks": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "count = 7\ncount = 8"
+    },
+    {
+     "kind": "p",
+     "text": "The second line does **not** change the object `7` into `8`. Numbers cannot be changed. It peels the label `count` off `7` and sticks it onto a different object, `8`. The `7` is simply no longer labeled."
+    },
+    {
+     "kind": "p",
+     "text": "We will say the second line **rebinds** `count`. In plain words: *gives the name a new object*."
+    }
+   ]
+  },
+  {
+   "title": "The right-hand side is worked out first — always",
+   "blocks": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "total = total + 1"
+    },
+    {
+     "kind": "p",
+     "text": "reads as: *\"work out `total + 1` using whatever `total` points at right now, then point `total` at the result.\"* The old value is used before the label moves. Read every assignment right-to-left in this way and a large family of confusions never happens."
+    }
+   ]
+  },
+  {
+   "title": "Two names can point at one object",
+   "blocks": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "a = [10, 20]\nb = a"
+    },
+    {
+     "kind": "p",
+     "text": "There is **one** list here, wearing two labels. The line `b = a` does not build a second list; it copies the *arrow*, not the object. We draw it like this:"
+    },
+    {
+     "kind": "code",
+     "lang": "text",
+     "text": "a ──┐\n    ├──▶ #1 [10, 20]\nb ──┘"
+    },
+    {
+     "kind": "p",
+     "text": "With numbers and strings this never causes trouble, because those objects cannot be changed. With lists it causes a great deal of trouble, which is Stage 2."
+    }
+   ]
+  },
+  {
+   "title": "`print` shows an object; it does not produce one",
+   "blocks": [
+    {
+     "kind": "p",
+     "text": "`print(x)` writes a readable form of the object to the screen and hands back nothing useful (an object called `None`). Printing is not the same as having a value. A line that prints has done its job by the time the next line starts."
+    }
+   ]
+  },
+  {
+   "title": "`id()`, used sparingly",
+   "blocks": [
+    {
+     "kind": "p",
+     "text": "`id(x)` gives a number that identifies *which object* `x` points at right now. Two names give the same `id` exactly when they point at the same object. We use it only when a diagram is in dispute, and only on lists — Python is allowed to reuse small number and short string objects behind the scenes, so `id` on those tells you about Python's bookkeeping, not about your program."
+    }
+   ]
+  }
+ ],
+ "exercises": [
+  {
+   "id": "1.1",
+   "stage": 1,
+   "form": "Label the code",
+   "kind": "label",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "For each piece of this line, say its plain-language role: `days`, `=`, `30 + 1`."
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "days = 30 + 1"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "days = 30 + 1\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`days` is a name being created and pointed at something. `=` says \"work out the right side, then point the left-side name at the result\" — it is not a claim of equality. `30 + 1` is an expression that produces one number object, `31`."
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "The line has exactly three parts and only one of them produces an object. The `=` is an instruction, not a comparison."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That `=` means \"is equal to\", imported from mathematics."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Syntax-reading error. Reread \"A name is a label, not a box\"."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "`days` is a name being created and pointed at something. `=` says \"work out the right side, then point the left-side name at the result\" — it is not a claim of equality. `30 + 1` is an expression that produces one number object, `31`."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "The line has exactly three parts and only one of them produces an object. The `=` is an instruction, not a comparison."
+     }
+    ],
+    "misconception": "That `=` means \"is equal to\", imported from mathematics.",
+    "missed": "If you missed it. Syntax-reading error. Reread \"A name is a label, not a box\".",
+    "errorTypes": [
+     "syntax"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: assignment structure. Prereq: none. Syntax lens: the three-part shape `name = expression`. Flow lens: runs once, now. Object lens: one number object created, one name bound.",
+     "target": "assignment structure",
+     "prereq": [],
+     "syntax": "the three-part shape `name = expression`",
+     "flow": "runs once, now",
+     "object": "one number object created, one name bound"
+    }
+   }
+  },
+  {
+   "id": "1.2",
+   "stage": 1,
+   "form": "Predict the result",
+   "kind": "predict",
+   "prompt": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "x = 4\ny = x\nx = 9\nprint(x, y)"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "x = 4\ny = x\nx = 9\nprint(x, y)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`9 4`"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`y = x` points `y` at the object `x` currently points at — the number `4`. `x = 9` then moves only the label `x`. Nothing reaches over and changes `y`, because `y` was never attached to `x`; it was attached to `4`."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That `y = x` creates a live link between the two names, so that later changes to `x` show up in `y`."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error. The arrow was copied, not the name."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "`9 4`"
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "`y = x` points `y` at the object `x` currently points at — the number `4`. `x = 9` then moves only the label `x`. Nothing reaches over and changes `y`, because `y` was never attached to `x`; it was attached to `4`."
+     }
+    ],
+    "misconception": "That `y = x` creates a live link between the two names, so that later changes to `x` show up in `y`.",
+    "missed": "If you missed it. Object-model error. The arrow was copied, not the name.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: rebinding does not disturb other names. Prereq: 1.1. Syntax lens: three assignments, one call. Flow lens: four lines, once each. Object lens: two number objects; `y` stays on the first.",
+     "target": "rebinding does not disturb other names",
+     "prereq": [
+      "1.1"
+     ],
+     "syntax": "three assignments, one call",
+     "flow": "four lines, once each",
+     "object": "two number objects; `y` stays on the first"
+    }
+   }
+  },
+  {
+   "id": "1.3",
+   "stage": 1,
+   "form": "Draw names and objects",
+   "kind": "draw",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Draw the names and objects that exist immediately after the last line runs."
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "p = [1, 2]\nq = p\nr = [1, 2]"
+    },
+    {
+     "kind": "p",
+     "text": "Then answer: how many list objects exist? How many names?"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "p = [1, 2]\nq = p\nr = [1, 2]\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "p ──┐\n    ├──▶ #1 [1, 2]\nq ──┘\nr ─────▶ #2 [1, 2]"
+       },
+       {
+        "kind": "p",
+        "text": "Two list objects. Three names."
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`q = p` copies an arrow. `r = [1, 2]` contains a **literal**, and every time Python runs a list literal it builds a fresh list — even if an identical-looking one already exists."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That equal-looking lists are the same list."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error. Look for the bracket literal: brackets in an expression mean *a new list is being made right now*."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "p ──┐\n    ├──▶ #1 [1, 2]\nq ──┘\nr ─────▶ #2 [1, 2]"
+     },
+     {
+      "kind": "p",
+      "text": "Two list objects. Three names."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "`q = p` copies an arrow. `r = [1, 2]` contains a **literal**, and every time Python runs a list literal it builds a fresh list — even if an identical-looking one already exists."
+     }
+    ],
+    "misconception": "That equal-looking lists are the same list.",
+    "missed": "If you missed it. Object-model error. Look for the bracket literal: brackets in an expression mean *a new list is being made right now*.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: literal creates, assignment copies an arrow. Prereq: 1.2. Syntax lens: `[...]` literal versus a bare name on the right. Flow lens: three lines, once each. Object lens: two list objects, three bindings.",
+     "target": "literal creates, assignment copies an arrow",
+     "prereq": [
+      "1.2"
+     ],
+     "syntax": "`[...]` literal versus a bare name on the right",
+     "flow": "three lines, once each",
+     "object": "two list objects, three bindings"
+    }
+   }
+  },
+  {
+   "id": "1.4",
+   "stage": 1,
+   "form": "What runs next?",
+   "kind": "order",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Number every line in the order Python reaches it, and write what is printed beside the line that prints it."
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "a = 2\nprint(a)\na = a + 5\nb = a\nprint(b)"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "a = 2\nprint(a)\na = a + 5\nb = a\nprint(b)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "1  a = 2\n2  print(a)        →  2\n3  a = a + 5\n4  b = a\n5  print(b)        →  7"
+       },
+       {
+        "kind": "p",
+        "text": "Output:"
+       },
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "2\n7"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Straight-line code: each line runs exactly once, in written order. Line 3 uses the old `a` (2) to compute 7, then rebinds `a`. Line 4 points `b` at whatever `a` points at *at that moment*, which is 7."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That `b = a` on line 4 would somehow reflect `a`'s earlier value, or that it tracks `a` afterward."
+       }
+      ]
+     },
+     {
+      "label": "If you missed the output",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error. **If you missed the numbering.** Flow error — but a mild one; straight-line numbering is just the written order."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "1  a = 2\n2  print(a)        →  2\n3  a = a + 5\n4  b = a\n5  print(b)        →  7"
+     },
+     {
+      "kind": "p",
+      "text": "Output:"
+     },
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "2\n7"
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "Straight-line code: each line runs exactly once, in written order. Line 3 uses the old `a` (2) to compute 7, then rebinds `a`. Line 4 points `b` at whatever `a` points at *at that moment*, which is 7."
+     }
+    ],
+    "misconception": "That `b = a` on line 4 would somehow reflect `a`'s earlier value, or that it tracks `a` afterward.",
+    "missed": "If you missed the output. Object-model error. **If you missed the numbering.** Flow error — but a mild one; straight-line numbering is just the written order.",
+    "errorTypes": [
+     "object",
+     "flow"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: execution-order notation on the easy case. Prereq: 1.2. Syntax lens: statement per line. Flow lens: one pass, no repetition. Object lens: rebinding then binding.",
+     "target": "execution-order notation on the easy case",
+     "prereq": [
+      "1.2"
+     ],
+     "syntax": "statement per line",
+     "flow": "one pass, no repetition",
+     "object": "rebinding then binding"
+    }
+   }
+  },
+  {
+   "id": "1.5",
+   "stage": 1,
+   "form": "Compare near-matches",
+   "kind": "compare",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Snippet **A**:"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "n = 3\nn = n + 1\nprint(n)"
+    },
+    {
+     "kind": "p",
+     "text": "Snippet **B**:"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "n = 3\nm = n + 1\nprint(n)"
+    },
+    {
+     "kind": "p",
+     "text": "Both start the same. Name the first line where their effect differs, and say what each prints."
+    }
+   ],
+   "snippets": [
+    {
+     "label": "A",
+     "code": "n = 3\nn = n + 1\nprint(n)\n"
+    },
+    {
+     "label": "B",
+     "code": "n = 3\nm = n + 1\nprint(n)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "The first line where the effect differs is line 2. **A** prints `4`; **B** prints `3`."
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Both line 2s compute the same thing, `4`. They differ in *which name they point at the result*. **A** rebinds `n` itself, so line 3 sees the new object. **B** binds a brand-new name `m` and leaves `n` where it was."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That the *computation* is what matters. It is not; the left-hand name is what matters."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Syntax-reading error — you read the right-hand sides and skipped the left-hand names."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "The first line where the effect differs is line 2. **A** prints `4`; **B** prints `3`."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "Both line 2s compute the same thing, `4`. They differ in *which name they point at the result*. **A** rebinds `n` itself, so line 3 sees the new object. **B** binds a brand-new name `m` and leaves `n` where it was."
+     }
+    ],
+    "misconception": "That the *computation* is what matters. It is not; the left-hand name is what matters.",
+    "missed": "If you missed it. Syntax-reading error — you read the right-hand sides and skipped the left-hand names.",
+    "errorTypes": [
+     "syntax"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: the left side selects which arrow moves. Prereq: 1.1. Syntax lens: left-hand name of an assignment. Flow lens: identical. Object lens: same object produced, different binding.",
+     "target": "the left side selects which arrow moves",
+     "prereq": [
+      "1.1"
+     ],
+     "syntax": "left-hand name of an assignment",
+     "flow": "identical",
+     "object": "same object produced, different binding"
+    }
+   }
+  },
+  {
+   "id": "1.6",
+   "stage": 1,
+   "form": "Predict the result",
+   "kind": "predict",
+   "prompt": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "s = \"cat\"\nt = s\ns = s + \"s\"\nprint(s)\nprint(t)"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "s = \"cat\"\nt = s\ns = s + \"s\"\nprint(s)\nprint(t)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "cats\ncat"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Strings cannot be changed. `s + \"s\"` does not lengthen the existing text object; it builds a **new** text object `\"cats\"` and line 3 points `s` at it. `t` was pointed at the original `\"cat\"` on line 2 and is still there."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That `+` on a string modifies it in place, and therefore that `t` would come along for the ride."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error. Note that this is the *safe* version of the trap: because strings cannot be changed, you can never be surprised. Stage 2 runs the same shape with lists, where you can."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "cats\ncat"
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "Strings cannot be changed. `s + \"s\"` does not lengthen the existing text object; it builds a **new** text object `\"cats\"` and line 3 points `s` at it. `t` was pointed at the original `\"cat\"` on line 2 and is still there."
+     }
+    ],
+    "misconception": "That `+` on a string modifies it in place, and therefore that `t` would come along for the ride.",
+    "missed": "If you missed it. Object-model error. Note that this is the *safe* version of the trap: because strings cannot be changed, you can never be surprised. Stage 2 runs the same shape with lists, where you can.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: immutable value plus operator creates a new object. Prereq: 1.2. Syntax lens: `+` in an expression on the right. Flow lens: once each. Object lens: two text objects, two names, no sharing at the end.",
+     "target": "immutable value plus operator creates a new object",
+     "prereq": [
+      "1.2"
+     ],
+     "syntax": "`+` in an expression on the right",
+     "flow": "once each",
+     "object": "two text objects, two names, no sharing at the end"
+    }
+   }
+  },
+  {
+   "id": "1.7",
+   "stage": 1,
+   "form": "State the rule",
+   "kind": "rule",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "In one sentence, and without using the words *variable* or *memory*, say what Python does when it meets a line of the form `name = expression`. Your sentence must make clear which side is worked out first."
+    }
+   ],
+   "snippets": [],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Any sentence equivalent to: *\"Python works out the expression on the right, producing one object, and then makes the name on the left point at that object.\"*"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "The rule must contain the ordering (right side first) and the result (the name points at an object). Sentences like \"it stores the value in the variable\" are the ones to avoid — they smuggle in the box picture."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "The box-and-contents picture of names."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Vocabulary-only error if your idea was right but your wording used \"stores\"; object-model error if you had the ordering backwards."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "Any sentence equivalent to: *\"Python works out the expression on the right, producing one object, and then makes the name on the left point at that object.\"*"
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "The rule must contain the ordering (right side first) and the result (the name points at an object). Sentences like \"it stores the value in the variable\" are the ones to avoid — they smuggle in the box picture."
+     }
+    ],
+    "misconception": "The box-and-contents picture of names.",
+    "missed": "If you missed it. Vocabulary-only error if your idea was right but your wording used \"stores\"; object-model error if you had the ordering backwards.",
+    "errorTypes": [
+     "vocabulary",
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: generalizing the assignment rule. Prereq: 1.1–1.6. Syntax lens: the general form. Flow lens: n/a. Object lens: bind or rebind.",
+     "target": "generalizing the assignment rule",
+     "prereq": [
+      "1.1",
+      "1.2",
+      "1.3",
+      "1.4",
+      "1.5",
+      "1.6"
+     ],
+     "syntax": "the general form",
+     "flow": "n/a",
+     "object": "bind or rebind"
+    }
+   }
+  },
+  {
+   "id": "1.8",
+   "stage": 1,
+   "form": "Find and fix",
+   "kind": "fix",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "This is meant to swap the two names so that `a` points at 2 and `b` points at 1. It does not. Say what it actually prints, explain in one sentence why, and make the smallest correction."
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "a = 1\nb = 2\na = b\nb = a\nprint(a, b)"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "a = 1\nb = 2\na = b\nb = a\nprint(a, b)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "It prints `2 2`."
+       }
+      ]
+     },
+     {
+      "label": "Why",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Line 3 rebinds `a` to point at 2. The original 1 is now unlabeled and unreachable. Line 4 then points `b` at whatever `a` points at — which is already 2. The first value was destroyed before it was needed."
+       }
+      ]
+     },
+     {
+      "label": "Smallest correction",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Either keep the old value with a third name:"
+       },
+       {
+        "kind": "code",
+        "lang": "python",
+        "text": "a = 1\nb = 2\ntemp = a\na = b\nb = temp"
+       },
+       {
+        "kind": "p",
+        "text": "or use a single simultaneous assignment, which works out **both** right-hand values before pointing either name:"
+       },
+       {
+        "kind": "code",
+        "lang": "python",
+        "text": "a = 1\nb = 2\na, b = b, a"
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That the two assignment lines happen \"together\", or that `a` retains a memory of its former value."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Flow error — you did not carry the state forward from line 3 into line 4."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "It prints `2 2`."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "Line 3 rebinds `a` to point at 2. The original 1 is now unlabeled and unreachable. Line 4 then points `b` at whatever `a` points at — which is already 2. The first value was destroyed before it was needed."
+     }
+    ],
+    "misconception": "That the two assignment lines happen \"together\", or that `a` retains a memory of its former value.",
+    "missed": "If you missed it. Flow error — you did not carry the state forward from line 3 into line 4.",
+    "errorTypes": [
+     "flow"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: sequential rebinding destroys reachability. Prereq: 1.2, 1.4. Syntax lens: two assignments in sequence versus one tuple assignment. Flow lens: strictly ordered. Object lens: an object with no remaining name.",
+     "target": "sequential rebinding destroys reachability",
+     "prereq": [
+      "1.2",
+      "1.4"
+     ],
+     "syntax": "two assignments in sequence versus one tuple assignment",
+     "flow": "strictly ordered",
+     "object": "an object with no remaining name"
+    }
+   }
+  },
+  {
+   "id": "1.9",
+   "stage": 1,
+   "form": "Predict the result",
+   "kind": "predict",
+   "prompt": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "z = print(\"hello\")\nprint(z)"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "z = print(\"hello\")\nprint(z)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "hello\nNone"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Line 1 does two separate things: it prints `hello` as a side effect, and it produces the object `None`, which `z` is then pointed at. `None` is Python's \"nothing useful here\" object. Line 2 prints that object."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That `print` hands back the thing it printed, so `z` would be `\"hello\"`."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error. Ask of every call: *what does it do* versus *what does it hand back*. They are different questions."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "hello\nNone"
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "Line 1 does two separate things: it prints `hello` as a side effect, and it produces the object `None`, which `z` is then pointed at. `None` is Python's \"nothing useful here\" object. Line 2 prints that object."
+     }
+    ],
+    "misconception": "That `print` hands back the thing it printed, so `z` would be `\"hello\"`.",
+    "missed": "If you missed it. Object-model error. Ask of every call: *what does it do* versus *what does it hand back*. They are different questions.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: side effect versus produced object. Prereq: 1.1. Syntax lens: a call used on the right of an assignment. Flow lens: once each. Object lens: `z` bound to `None`.",
+     "target": "side effect versus produced object",
+     "prereq": [
+      "1.1"
+     ],
+     "syntax": "a call used on the right of an assignment",
+     "flow": "once each",
+     "object": "`z` bound to `None`"
+    }
+   }
+  },
+  {
+   "id": "1.10",
+   "stage": 1,
+   "form": "Draw names and objects",
+   "kind": "draw",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Draw the picture after line 3, then after line 4."
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "first = \"ann\"\nsecond = first\nsecond = \"bo\"\nfirst = second"
+    },
+    {
+     "kind": "p",
+     "text": "How many text objects were created by this program? How many are still labeled at the end?"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "first = \"ann\"\nsecond = first\nsecond = \"bo\"\nfirst = second\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "After line 3:"
+       },
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "first  ─────▶ #1 \"ann\"\nsecond ─────▶ #2 \"bo\""
+       },
+       {
+        "kind": "p",
+        "text": "After line 4:"
+       },
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "first  ──┐\n         ├──▶ #2 \"bo\"\nsecond ──┘"
+       },
+       {
+        "kind": "p",
+        "text": "Two text objects were created. One is still labeled at the end; `\"ann\"` has lost its last name."
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Line 2 made `second` share `#1`. Line 3 rebound `second` alone. Line 4 rebound `first` to whatever `second` points at, which abandons `#1`."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That rebinding `second` on line 3 would also affect `first`, since they had been \"the same\"."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error — sharing is a fact about a moment, not a permanent relationship."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "After line 3:"
+     },
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "first  ─────▶ #1 \"ann\"\nsecond ─────▶ #2 \"bo\""
+     },
+     {
+      "kind": "p",
+      "text": "After line 4:"
+     },
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "first  ──┐\n         ├──▶ #2 \"bo\"\nsecond ──┘"
+     },
+     {
+      "kind": "p",
+      "text": "Two text objects were created. One is still labeled at the end; `\"ann\"` has lost its last name."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "Line 2 made `second` share `#1`. Line 3 rebound `second` alone. Line 4 rebound `first` to whatever `second` points at, which abandons `#1`."
+     }
+    ],
+    "misconception": "That rebinding `second` on line 3 would also affect `first`, since they had been \"the same\".",
+    "missed": "If you missed it. Object-model error — sharing is a fact about a moment, not a permanent relationship.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: sharing is not a lasting link. Prereq: 1.2, 1.3. Syntax lens: four assignments. Flow lens: once each. Object lens: two objects, one abandoned.",
+     "target": "sharing is not a lasting link",
+     "prereq": [
+      "1.2",
+      "1.3"
+     ],
+     "syntax": "four assignments",
+     "flow": "once each",
+     "object": "two objects, one abandoned"
+    }
+   }
+  },
+  {
+   "id": "1.11",
+   "stage": 1,
+   "form": "Compare near-matches",
+   "kind": "compare",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Snippet **A**:"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "v = [1, 2]\nw = v\nprint(id(v) == id(w))"
+    },
+    {
+     "kind": "p",
+     "text": "Snippet **B**:"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "v = [1, 2]\nw = [1, 2]\nprint(id(v) == id(w))"
+    },
+    {
+     "kind": "p",
+     "text": "Predict both outputs and explain the difference in one sentence using the words *same object*."
+    }
+   ],
+   "snippets": [
+    {
+     "label": "A",
+     "code": "v = [1, 2]\nw = v\nprint(id(v) == id(w))\n"
+    },
+    {
+     "label": "B",
+     "code": "v = [1, 2]\nw = [1, 2]\nprint(id(v) == id(w))\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "**A** prints `True`. **B** prints `False`."
+       }
+      ]
+     },
+     {
+      "label": "Explanation",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "In **A**, `w = v` points `w` at the *same object* `v` points at, so the two ids match; in **B** each `[1, 2]` literal builds a separate object, so the ids differ even though the contents look identical."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That \"looks the same\" and \"is the same object\" are one question. They are two questions: `==` asks the first, `id` (and `is`) asks the second."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error. Note that this exercise deliberately uses lists: on small numbers and short strings, Python may reuse objects behind the scenes, so the same comparison can come out `True` for reasons that have nothing to do with your program."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "**A** prints `True`. **B** prints `False`."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "In **A**, `w = v` points `w` at the *same object* `v` points at, so the two ids match; in **B** each `[1, 2]` literal builds a separate object, so the ids differ even though the contents look identical."
+     }
+    ],
+    "misconception": "That \"looks the same\" and \"is the same object\" are one question. They are two questions: `==` asks the first, `id` (and `is`) asks the second.",
+    "missed": "If you missed it. Object-model error. Note that this exercise deliberately uses lists: on small numbers and short strings, Python may reuse objects behind the scenes, so the same comparison can come out `True` for reasons that have nothing to do with your program.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: identity versus equal appearance. Prereq: 1.3. Syntax lens: `[...]` literal versus bare name. Flow lens: once each. Object lens: one object versus two.",
+     "target": "identity versus equal appearance",
+     "prereq": [
+      "1.3"
+     ],
+     "syntax": "`[...]` literal versus bare name",
+     "flow": "once each",
+     "object": "one object versus two"
+    }
+   }
+  },
+  {
+   "id": "1.12",
+   "stage": 1,
+   "form": "Label the code",
+   "kind": "label",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Say the plain-language role of every piece of this line, including what the parentheses do and in what order the two pieces of work happen."
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "size = len(\"hello\")"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "size = len(\"hello\")\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`\"hello\"` is a text literal, which produces a text object. `len` is a name already pointing at a built-in function object. The parentheses mean *use that function now, on what is inside*. `len(\"hello\")` produces the number object `5`. `size` is then pointed at that `5`. Order: the literal is made first, the call runs second, the name is pointed last."
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Calls are just another way of producing an object for the right side of an assignment. The order rule from 1.7 is unchanged."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That `size` is somehow linked to `\"hello\"`, so that changing the word would change `size`."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Syntax-reading error if you could not name the parentheses' job; object-model error if you thought a link persisted."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "`\"hello\"` is a text literal, which produces a text object. `len` is a name already pointing at a built-in function object. The parentheses mean *use that function now, on what is inside*. `len(\"hello\")` produces the number object `5`. `size` is then pointed at that `5`. Order: the literal is made first, the call runs second, the name is pointed last."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "Calls are just another way of producing an object for the right side of an assignment. The order rule from 1.7 is unchanged."
+     }
+    ],
+    "misconception": "That `size` is somehow linked to `\"hello\"`, so that changing the word would change `size`.",
+    "missed": "If you missed it. Syntax-reading error if you could not name the parentheses' job; object-model error if you thought a link persisted.",
+    "errorTypes": [
+     "syntax",
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: a call as a right-hand expression. Prereq: 1.1, 1.9. Syntax lens: `name(argument)`. Flow lens: inner first, then the call, then the binding. Object lens: number object bound to `size`.",
+     "target": "a call as a right-hand expression",
+     "prereq": [
+      "1.1",
+      "1.9"
+     ],
+     "syntax": "`name(argument)`",
+     "flow": "inner first, then the call, then the binding",
+     "object": "number object bound to `size`"
+    }
+   }
+  },
+  {
+   "id": "1.13",
+   "stage": 1,
+   "form": "Write a small program",
+   "kind": "write",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Write four lines, using only assignment and `print`, that end with:"
+    },
+    {
+     "kind": "list",
+     "ordered": false,
+     "items": [
+      "exactly two names, `m` and `n`;",
+      "both pointing at the **same** list object;",
+      "and a printed line proving they point at the same object."
+     ]
+    }
+   ],
+   "snippets": [],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Any program of this shape:"
+       },
+       {
+        "kind": "code",
+        "lang": "python",
+        "text": "m = [1, 2, 3]\nn = m\nprint(id(m) == id(n))\nprint(m is n)"
+       },
+       {
+        "kind": "p",
+        "text": "(The last two lines both prove it; either alone plus a fourth line of your choice satisfies the four-line requirement.)"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "The only way to get two names onto one list without copying is to put a bare name on the right-hand side. Writing `n = [1, 2, 3]` a second time fails the requirement, however identical it looks."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That retyping the same literal gives you the same object."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "Any program of this shape:"
+     },
+     {
+      "kind": "code",
+      "lang": "python",
+      "text": "m = [1, 2, 3]\nn = m\nprint(id(m) == id(n))\nprint(m is n)"
+     },
+     {
+      "kind": "p",
+      "text": "(The last two lines both prove it; either alone plus a fourth line of your choice satisfies the four-line requirement.)"
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "The only way to get two names onto one list without copying is to put a bare name on the right-hand side. Writing `n = [1, 2, 3]` a second time fails the requirement, however identical it looks."
+     }
+    ],
+    "misconception": "That retyping the same literal gives you the same object.",
+    "missed": "If you missed it. Object-model error.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: deliberately constructing sharing. Prereq: 1.3, 1.11. Syntax lens: bare name on the right. Flow lens: once each. Object lens: one object, two names.",
+     "target": "deliberately constructing sharing",
+     "prereq": [
+      "1.3",
+      "1.11"
+     ],
+     "syntax": "bare name on the right",
+     "flow": "once each",
+     "object": "one object, two names"
+    }
+   }
+  },
+  {
+   "id": "1.14",
+   "stage": 1,
+   "form": "Predict the result",
+   "kind": "predict",
+   "prompt": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "a = 5\nb = a\na = a + 1\nb = b + 1\nprint(a, b, a == b)"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "a = 5\nb = a\na = a + 1\nb = b + 1\nprint(a, b, a == b)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`6 6 True`"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`b = a` points `b` at `5`. Lines 3 and 4 each compute a new number and rebind their own name. Both end at `6` — but they are *not* connected. They arrived at the same value independently. `a == b` asks whether the two objects look the same, and they do."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Two opposite ones, and this exercise catches both: that `b` would still be `5` because it \"was set before\", and that `b` would be `7` because it \"follows `a`\"."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error. Notice that a correct output here is weak evidence — the follow-up question is what matters: *are `a` and `b` connected?* No. They independently arrived at equal-looking numbers."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "`6 6 True`"
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "`b = a` points `b` at `5`. Lines 3 and 4 each compute a new number and rebind their own name. Both end at `6` — but they are *not* connected. They arrived at the same value independently. `a == b` asks whether the two objects look the same, and they do."
+     }
+    ],
+    "misconception": "Two opposite ones, and this exercise catches both: that `b` would still be `5` because it \"was set before\", and that `b` would be `7` because it \"follows `a`\".",
+    "missed": "If you missed it. Object-model error. Notice that a correct output here is weak evidence — the follow-up question is what matters: *are `a` and `b` connected?* No. They independently arrived at equal-looking numbers.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: equal values without any relationship. Prereq: 1.2, 1.11. Syntax lens: two independent rebindings. Flow lens: once each. Object lens: no sharing; `==` compares appearance.",
+     "target": "equal values without any relationship",
+     "prereq": [
+      "1.2",
+      "1.11"
+     ],
+     "syntax": "two independent rebindings",
+     "flow": "once each",
+     "object": "no sharing; `==` compares appearance"
+    }
+   }
+  },
+  {
+   "id": "1.15",
+   "stage": 1,
+   "form": "Find and fix",
+   "kind": "fix",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "The intent was to print the number of characters in the word, then the word itself. Say what actually happens, and fix it with the smallest possible change."
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "word = \"banana\"\nword = len(word)\nprint(word)\nprint(word)"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "word = \"banana\"\nword = len(word)\nprint(word)\nprint(word)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "It prints `6` twice. Line 2 rebinds `word` to the number 6, so the text object `\"banana\"` loses its only name and the second `print` has no way back to it."
+       }
+      ]
+     },
+     {
+      "label": "Smallest correction",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Use a different name for the length:"
+       },
+       {
+        "kind": "code",
+        "lang": "python",
+        "text": "word = \"banana\"\nsize = len(word)\nprint(size)\nprint(word)"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "The bug is not in `len`. It is in reusing a name that was still needed. This is the same failure as 1.8, wearing different clothes."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That a name can hold both \"the word\" and \"the length of the word\", or that the original value survives somewhere."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error, with a flow component: you must carry the effect of line 2 into line 4."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "It prints `6` twice. Line 2 rebinds `word` to the number 6, so the text object `\"banana\"` loses its only name and the second `print` has no way back to it."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "The bug is not in `len`. It is in reusing a name that was still needed. This is the same failure as 1.8, wearing different clothes."
+     }
+    ],
+    "misconception": "That a name can hold both \"the word\" and \"the length of the word\", or that the original value survives somewhere.",
+    "missed": "If you missed it. Object-model error, with a flow component: you must carry the effect of line 2 into line 4.",
+    "errorTypes": [
+     "object",
+     "flow"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: rebinding discards what you still need. Prereq: 1.8, 1.12. Syntax lens: same name on both sides. Flow lens: strictly ordered. Object lens: text object abandoned.",
+     "target": "rebinding discards what you still need",
+     "prereq": [
+      "1.8",
+      "1.12"
+     ],
+     "syntax": "same name on both sides",
+     "flow": "strictly ordered",
+     "object": "text object abandoned"
+    }
+   }
+  },
+  {
+   "id": "1.16",
+   "stage": 1,
+   "form": "State the rule",
+   "kind": "rule",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Complete this sentence in plain language, then give a two-line example that demonstrates it:"
+    },
+    {
+     "kind": "quote",
+     "text": "\"Writing `b = a` does not make a second ...\""
+    }
+   ],
+   "snippets": [],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "\"Writing `b = a` does not make a second **object** — it makes a second **name for the same object**.\""
+       },
+       {
+        "kind": "p",
+        "text": "Example:"
+       },
+       {
+        "kind": "code",
+        "lang": "python",
+        "text": "a = [1]\nb = a\nprint(a is b)     # True — one object, two names"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "The sentence must contrast *object* with *name*. Saying \"does not make a second copy\" is acceptable but weaker, because it does not say what it *does* make."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That assignment duplicates."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Vocabulary-only if you had the idea but said \"copy of the variable\"; object-model otherwise."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "\"Writing `b = a` does not make a second **object** — it makes a second **name for the same object**.\""
+     },
+     {
+      "kind": "p",
+      "text": "Example:"
+     },
+     {
+      "kind": "code",
+      "lang": "python",
+      "text": "a = [1]\nb = a\nprint(a is b)     # True — one object, two names"
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "The sentence must contrast *object* with *name*. Saying \"does not make a second copy\" is acceptable but weaker, because it does not say what it *does* make."
+     }
+    ],
+    "misconception": "That assignment duplicates.",
+    "missed": "If you missed it. Vocabulary-only if you had the idea but said \"copy of the variable\"; object-model otherwise.",
+    "errorTypes": [
+     "vocabulary",
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: generalizing aliasing. Prereq: 1.3, 1.11, 1.13. Syntax lens: bare name on the right. Flow lens: n/a. Object lens: one object, two bindings.",
+     "target": "generalizing aliasing",
+     "prereq": [
+      "1.3",
+      "1.11",
+      "1.13"
+     ],
+     "syntax": "bare name on the right",
+     "flow": "n/a",
+     "object": "one object, two bindings"
+    }
+   }
+  }
+ ],
+ "checkpoint": {
+  "intro": [
+   {
+    "kind": "p",
+    "text": "No new syntax. Four to six minutes."
+   }
+  ],
+  "items": [
+   {
+    "id": "C1.1",
+    "stage": 1,
+    "prompt": [
+     {
+      "kind": "p",
+      "text": "What does `x = x` do? Is it an error?"
+     }
+    ],
+    "snippets": [],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "`x = x` works out the right side (whatever `x` already points at) and points `x` at it. Net effect: nothing. It is not an error, *provided* `x` already exists; if it does not, Python cannot work out the right side and reports a `NameError`. **Error type if missed:** object-model."
+     }
+    ],
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": []
+   },
+   {
+    "id": "C1.2",
+    "stage": 1,
+    "prompt": [
+     {
+      "kind": "p",
+      "text": "Predict:"
+     },
+     {
+      "kind": "code",
+      "lang": "python",
+      "text": "k = \"7\"\nj = 7\nprint(k == j)"
+     }
+    ],
+    "snippets": [
+     {
+      "label": null,
+      "code": "k = \"7\"\nj = 7\nprint(k == j)\n"
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "`False`. `\"7\"` is a text object, `7` is a number object; they do not compare equal. **Error type if missed:** syntax-reading — the quotes are the whole message of the line."
+     }
+    ],
+    "errorTypes": [
+     "syntax"
+    ],
+    "goBack": []
+   },
+   {
+    "id": "C1.3",
+    "stage": 1,
+    "prompt": [
+     {
+      "kind": "p",
+      "text": "After these lines, how many list objects exist, and how many arrows point at each?"
+     },
+     {
+      "kind": "code",
+      "lang": "python",
+      "text": "one = [0]\ntwo = one\nthree = two\nfour = [0]"
+     }
+    ],
+    "snippets": [
+     {
+      "label": null,
+      "code": "one = [0]\ntwo = one\nthree = two\nfour = [0]\n"
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "Two list objects. `one`, `two`, and `three` all point at the first one (three arrows); `four` alone points at the second (one arrow). **Error type if missed:** object-model. Go back to 1.3 and 1.13."
+     }
+    ],
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [
+     "1.3",
+     "1.13"
+    ]
+   },
+   {
+    "id": "C1.4",
+    "stage": 1,
+    "prompt": [
+     {
+      "kind": "p",
+      "text": "In `total = total * 2`, which happens first: Python looking up what `total` points at, or `total` being pointed somewhere new?"
+     }
+    ],
+    "snippets": [],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "The lookup happens first. Python must know what `total` points at in order to compute `total * 2`; only after the result exists does the name move. **Error type if missed:** object-model. Go back to 1.7 and 1.8."
+     }
+    ],
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [
+     "1.7",
+     "1.8"
+    ]
+   },
+   {
+    "id": "C1.5",
+    "stage": 1,
+    "prompt": [
+     {
+      "kind": "p",
+      "text": "A learner says: \"`y = x` puts the value of `x` into `y`.\" Rewrite that sentence so it is accurate for a list, using the word *object*."
+     }
+    ],
+    "snippets": [],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "\"`y = x` makes `y` point at the same object `x` points at.\" Anything that keeps the word *value* and drops *object* has not fixed the sentence. **Error type if missed:** vocabulary-only, if your explanation was otherwise right. Go back to 1.16."
+     }
+    ],
+    "errorTypes": [
+     "vocabulary"
+    ],
+    "goBack": [
+     "1.16"
+    ]
+   },
+   {
+    "id": "C1.6",
+    "stage": 1,
+    "prompt": [
+     {
+      "kind": "p",
+      "text": "Number the execution order and give the printed output:"
+     },
+     {
+      "kind": "code",
+      "lang": "python",
+      "text": "p = 1\nq = p + 1\np = q + 1\nprint(p, q)"
+     }
+    ],
+    "snippets": [
+     {
+      "label": null,
+      "code": "p = 1\nq = p + 1\np = q + 1\nprint(p, q)\n"
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "1  p = 1\n2  q = p + 1\n3  p = q + 1\n4  print(p, q)   →  3 2"
+     },
+     {
+      "kind": "p",
+      "text": "Output: `3 2`. **Error type if missed:** flow error, if you used the *final* `p` when computing line 2. Go back to 1.4."
+     }
+    ],
+    "errorTypes": [
+     "flow"
+    ],
+    "goBack": [
+     "1.4"
+    ]
+   }
+  ]
+ },
+ "capstone": null,
+ "after": [
+  {
+   "kind": "p",
+   "text": "You should now be able to look at any sequence of assignments and say, without running it, which names exist and which object each one points at. Stage 2 keeps the same lines and changes one thing: the objects will now be the kind that can be **changed** while a name still points at them."
+  }
+ ],
+ "summary": "Follow one line at a time"
+}

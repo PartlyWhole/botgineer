@@ -1,0 +1,2183 @@
+{
+ "stage": 4,
+ "file": "stage-04-sharing-and-copies.md",
+ "title": "Sharing, Shallow Copies, and Deep Copies",
+ "move": "track the outer object and the inner objects as *separate* things, and say for any copy exactly which level was duplicated.",
+ "adds": [
+  {
+   "kind": "p",
+   "text": "Stages 2 and 3 established that a container holds arrows, not copies. This stage takes that one sentence seriously and follows it to its consequences, which are the ones that produce the most baffling bugs in real programs."
+  },
+  {
+   "kind": "p",
+   "text": "This is the hardest stage in the collection. Draw every diagram."
+  }
+ ],
+ "ideas": [
+  {
+   "title": "A container holds arrows",
+   "blocks": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "inner = [1, 2]\nouter = [inner, inner]"
+    },
+    {
+     "kind": "code",
+     "lang": "text",
+     "text": "outer ─▶ #2 [ ●, ● ]\n              │  │\n              ▼  ▼\n             #1 [1, 2]"
+    },
+    {
+     "kind": "p",
+     "text": "One inner list, pointed at from two slots. `outer[0].append(3)` changes what both slots point at, so `outer` prints as `[[1, 2, 3], [1, 2, 3]]`. Nothing was duplicated at any point."
+    }
+   ]
+  },
+  {
+   "title": "The three levels of \"copy\"",
+   "blocks": [
+    {
+     "kind": "p",
+     "text": "Given `original = [[1, 2], [3, 4]]`:"
+    },
+    {
+     "kind": "p",
+     "text": "**No copy (aliasing).**"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "same = original"
+    },
+    {
+     "kind": "p",
+     "text": "One list. Two names. Any change anywhere is visible everywhere."
+    },
+    {
+     "kind": "p",
+     "text": "**One-level copy (\"shallow\").**"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "shallow = original[:]        # also list(original), original.copy(), copy.copy(original)"
+    },
+    {
+     "kind": "p",
+     "text": "A **new outer list**, whose slots point at *the same two inner lists*:"
+    },
+    {
+     "kind": "code",
+     "lang": "text",
+     "text": "original ─▶ #1 [ ●, ● ]\n                 │  │\nshallow  ─▶ #3 [ ●, ● ]\n                 │  │\n                 ▼  ▼\n                #2 [1,2]   #4 [3,4]"
+    },
+    {
+     "kind": "p",
+     "text": "So:"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "shallow.append([5, 6])   # affects original?  NO  — outer lists are separate\nshallow[0].append(99)    # affects original?  YES — inner list is shared"
+    },
+    {
+     "kind": "p",
+     "text": "Both of those sentences must be sayable on sight. A shallow copy protects the outer level and nothing below it."
+    },
+    {
+     "kind": "p",
+     "text": "**All-levels copy (\"deep\").**"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "import copy\ndeep = copy.deepcopy(original)"
+    },
+    {
+     "kind": "p",
+     "text": "New outer list *and* new inner lists, all the way down. Now nothing is shared and no change through one name can be seen through the other."
+    },
+    {
+     "kind": "p",
+     "text": "Deep copying is not the default answer. It costs time and memory, it duplicates things you may have wanted shared, and reaching for it reflexively usually means the sharing was not understood. Use it when you genuinely need an independent snapshot of a nested structure."
+    }
+   ]
+  },
+  {
+   "title": "`+` and `*` on lists both build a new outer list",
+   "blocks": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "a = [[0], [1]]\nb = a + [[2]]        # new outer list; b's first two slots point at a's inner lists\nc = a * 2            # new outer list of four slots, pointing at a's TWO inner lists"
+    },
+    {
+     "kind": "p",
+     "text": "Both are one-level operations, exactly like `[:]`. `*` is the dangerous one, because it is usually written to *construct* something rather than to copy it:"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "grid = [[0] * 3] * 3"
+    },
+    {
+     "kind": "p",
+     "text": "Read it in two steps."
+    },
+    {
+     "kind": "list",
+     "ordered": true,
+     "items": [
+      "`[0] * 3` builds one list, `[0, 0, 0]`.",
+      "`[ ... ] * 3` builds an outer list with **three slots all pointing at that one list**."
+     ]
+    },
+    {
+     "kind": "code",
+     "lang": "text",
+     "text": "grid ─▶ [ ●, ●, ● ]\n          │  │  │\n          └──┴──┴──▶ [0, 0, 0]"
+    },
+    {
+     "kind": "p",
+     "text": "So `grid[0][0] = 1` sets what looks like every row's first cell:"
+    },
+    {
+     "kind": "code",
+     "lang": "text",
+     "text": "[[1, 0, 0], [1, 0, 0], [1, 0, 0]]"
+    },
+    {
+     "kind": "p",
+     "text": "The printed grid looks right when you build it and wrong the moment you write into it. It is not a bug in `*`; `*` did exactly what it says — repeat the arrow three times."
+    },
+    {
+     "kind": "p",
+     "text": "`[0] * 3` is perfectly safe, because the repeated object is a number, which cannot be changed. The pitfall requires a **changeable** thing being repeated."
+    },
+    {
+     "kind": "p",
+     "text": "**The fix, for a fixed size**, is to write the inner lists separately so each `[0] * 3` runs on its own:"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "grid = [[0] * 3, [0] * 3, [0] * 3]"
+    },
+    {
+     "kind": "p",
+     "text": "Now three inner lists exist. For an arbitrary size you need a loop, which is Stage 5, or a list comprehension, which is Stage 6. Both work for the same reason: the inner literal is *re-run* each time."
+    }
+   ]
+  },
+  {
+   "title": "Dictionaries copy the same way",
+   "blocks": [
+    {
+     "kind": "p",
+     "text": "`dict(d)` and `d.copy()` are one-level copies. The new dictionary has its own set of pairs — adding or removing a key affects only one of them — but each key still points at the very same value object:"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "d = {\"xs\": [1, 2]}\ne = dict(d)\ne[\"ys\"] = [9]         # d is unaffected\ne[\"xs\"].append(3)     # d[\"xs\"] is now [1, 2, 3]"
+    }
+   ]
+  },
+  {
+   "title": "The diagnostic question",
+   "blocks": [
+    {
+     "kind": "p",
+     "text": "Whenever a change shows up somewhere you did not expect, ask in this order:"
+    },
+    {
+     "kind": "list",
+     "ordered": true,
+     "items": [
+      "Did I copy at all, or only rebind a name?",
+      "If I copied, which **level** did I copy?",
+      "Is the object I changed above that level, or below it?"
+     ]
+    }
+   ]
+  }
+ ],
+ "exercises": [
+  {
+   "id": "4.1",
+   "stage": 4,
+   "form": "Draw names and objects",
+   "kind": "draw",
+   "prompt": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "inner = [1, 2]\nouter = [inner, inner]\ninner.append(3)"
+    },
+    {
+     "kind": "p",
+     "text": "Draw the picture, then predict `print(outer)`. How many list objects exist?"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "inner = [1, 2]\nouter = [inner, inner]\ninner.append(3)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "inner ─────────────▶ #1 [1, 2, 3]\n                        ▲   ▲\nouter ─▶ #2 [ ●, ● ] ───┘   │\n              └─────────────┘"
+       },
+       {
+        "kind": "p",
+        "text": "`print(outer)` shows `[[1, 2, 3], [1, 2, 3]]`. Two list objects exist: the outer one and the single inner one."
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`[inner, inner]` evaluates the name `inner` twice, but a name evaluates to *the object it points at* — the same object both times. No duplication happens anywhere in this snippet."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That listing a name twice produces two of it, or that `outer` printing two lists means two lists exist."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error. Note that printing cannot distinguish one shared list from two equal lists — only a diagram or `is` can."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "inner ─────────────▶ #1 [1, 2, 3]\n                        ▲   ▲\nouter ─▶ #2 [ ●, ● ] ───┘   │\n              └─────────────┘"
+     },
+     {
+      "kind": "p",
+      "text": "`print(outer)` shows `[[1, 2, 3], [1, 2, 3]]`. Two list objects exist: the outer one and the single inner one."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "`[inner, inner]` evaluates the name `inner` twice, but a name evaluates to *the object it points at* — the same object both times. No duplication happens anywhere in this snippet."
+     }
+    ],
+    "misconception": "That listing a name twice produces two of it, or that `outer` printing two lists means two lists exist.",
+    "missed": "If you missed it. Object-model error. Note that printing cannot distinguish one shared list from two equal lists — only a diagram or `is` can.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: containers hold arrows; repeated name is one object. Prereq: 3.10. Syntax lens: a name appearing twice in a literal. Flow lens: once each. Object lens: two objects, three arrows into one of them.",
+     "target": "containers hold arrows; repeated name is one object",
+     "prereq": [
+      "3.10"
+     ],
+     "syntax": "a name appearing twice in a literal",
+     "flow": "once each",
+     "object": "two objects, three arrows into one of them"
+    }
+   }
+  },
+  {
+   "id": "4.2",
+   "stage": 4,
+   "form": "Predict the result",
+   "kind": "predict",
+   "prompt": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "original = [[1, 2], [3, 4]]\nshallow = original[:]\nshallow.append([5, 6])\nprint(original)\nprint(shallow)"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "original = [[1, 2], [3, 4]]\nshallow = original[:]\nshallow.append([5, 6])\nprint(original)\nprint(shallow)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "[[1, 2], [3, 4]]\n[[1, 2], [3, 4], [5, 6]]"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`original[:]` built a new outer list. `.append` changes the *outer* level — the level that was duplicated — so `original` is untouched."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That a shallow copy is \"not a real copy\" and so protects nothing."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "[[1, 2], [3, 4]]\n[[1, 2], [3, 4], [5, 6]]"
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "`original[:]` built a new outer list. `.append` changes the *outer* level — the level that was duplicated — so `original` is untouched."
+     }
+    ],
+    "misconception": "That a shallow copy is \"not a real copy\" and so protects nothing.",
+    "missed": "If you missed it. Object-model error.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: shallow copy protects the outer level. Prereq: 3.16. Syntax lens: `[:]` then `.append`. Flow lens: once each. Object lens: two outer lists, two shared inner lists.",
+     "target": "shallow copy protects the outer level",
+     "prereq": [
+      "3.16"
+     ],
+     "syntax": "`[:]` then `.append`",
+     "flow": "once each",
+     "object": "two outer lists, two shared inner lists"
+    }
+   }
+  },
+  {
+   "id": "4.3",
+   "stage": 4,
+   "form": "Predict the result",
+   "kind": "predict",
+   "prompt": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "original = [[1, 2], [3, 4]]\nshallow = original[:]\nshallow[0].append(99)\nprint(original)\nprint(shallow)"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "original = [[1, 2], [3, 4]]\nshallow = original[:]\nshallow[0].append(99)\nprint(original)\nprint(shallow)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "[[1, 2, 99], [3, 4]]\n[[1, 2, 99], [3, 4]]"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`shallow[0]` is not a copy of the first inner list — it *is* the first inner list, the same object `original[0]` points at. Appending changes it, and both outer lists have a slot pointing at it."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That copying a list copies what is inside it."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error. This is the single most important prediction in the collection; if you got 4.2 right and 4.3 wrong, you have the level distinction to build on. Redraw both diagrams side by side."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "[[1, 2, 99], [3, 4]]\n[[1, 2, 99], [3, 4]]"
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "`shallow[0]` is not a copy of the first inner list — it *is* the first inner list, the same object `original[0]` points at. Appending changes it, and both outer lists have a slot pointing at it."
+     }
+    ],
+    "misconception": "That copying a list copies what is inside it.",
+    "missed": "If you missed it. Object-model error. This is the single most important prediction in the collection; if you got 4.2 right and 4.3 wrong, you have the level distinction to build on. Redraw both diagrams side by side.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [
+     "4.2"
+    ],
+    "authoring": {
+     "text": "Target: shallow copy does not protect inner levels. Prereq: 4.2. Syntax lens: `shallow[0].append(...)` — two levels down, no `=`. Flow lens: once each. Object lens: one inner list shared by two outer lists.",
+     "target": "shallow copy does not protect inner levels",
+     "prereq": [
+      "4.2"
+     ],
+     "syntax": "`shallow[0].append(...)` — two levels down, no `=`",
+     "flow": "once each",
+     "object": "one inner list shared by two outer lists"
+    }
+   }
+  },
+  {
+   "id": "4.4",
+   "stage": 4,
+   "form": "Compare near-matches",
+   "kind": "compare",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Exercises 4.2 and 4.3 differ by one character's worth of intent. State the general rule they demonstrate, in the form: \"A one-level copy protects ... and does not protect ...\"."
+    }
+   ],
+   "snippets": [],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "\"A one-level copy protects **the outer container — its length, the order of its slots, and which objects those slots point at** — and does not protect **the objects those slots point at, which remain shared**.\""
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "The rule must name both halves. Saying only \"it's a shallow copy\" restates the label without saying what the label buys you."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That copies are all-or-nothing."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Vocabulary-only if you had the picture; object-model otherwise."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "\"A one-level copy protects **the outer container — its length, the order of its slots, and which objects those slots point at** — and does not protect **the objects those slots point at, which remain shared**.\""
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "The rule must name both halves. Saying only \"it's a shallow copy\" restates the label without saying what the label buys you."
+     }
+    ],
+    "misconception": "That copies are all-or-nothing.",
+    "missed": "If you missed it. Vocabulary-only if you had the picture; object-model otherwise.",
+    "errorTypes": [
+     "vocabulary",
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: articulate the level rule. Prereq: 4.2, 4.3. Syntax lens: n/a. Flow lens: n/a. Object lens: level boundary.",
+     "target": "articulate the level rule",
+     "prereq": [
+      "4.2",
+      "4.3"
+     ],
+     "syntax": "n/a",
+     "flow": "n/a",
+     "object": "level boundary"
+    }
+   }
+  },
+  {
+   "id": "4.5",
+   "stage": 4,
+   "form": "Predict the result",
+   "kind": "predict",
+   "prompt": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "import copy\noriginal = [[1, 2], [3, 4]]\ndeep = copy.deepcopy(original)\ndeep[0].append(99)\nprint(original)\nprint(deep)"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "import copy\noriginal = [[1, 2], [3, 4]]\ndeep = copy.deepcopy(original)\ndeep[0].append(99)\nprint(original)\nprint(deep)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "[[1, 2], [3, 4]]\n[[1, 2, 99], [3, 4]]"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`deepcopy` rebuilt every level, so `deep[0]` is a different object from `original[0]`. Nothing is shared, and the change is confined."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That `deepcopy` and `[:]` differ only in speed."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error. Compare directly with 4.3 — same third line, opposite outcome, and the only difference is which copy was used."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "[[1, 2], [3, 4]]\n[[1, 2, 99], [3, 4]]"
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "`deepcopy` rebuilt every level, so `deep[0]` is a different object from `original[0]`. Nothing is shared, and the change is confined."
+     }
+    ],
+    "misconception": "That `deepcopy` and `[:]` differ only in speed.",
+    "missed": "If you missed it. Object-model error. Compare directly with 4.3 — same third line, opposite outcome, and the only difference is which copy was used.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [
+     "4.3"
+    ],
+    "authoring": {
+     "text": "Target: deep copy duplicates every level. Prereq: 4.3. Syntax lens: `copy.deepcopy(...)`. Flow lens: once each. Object lens: four lists, no sharing.",
+     "target": "deep copy duplicates every level",
+     "prereq": [
+      "4.3"
+     ],
+     "syntax": "`copy.deepcopy(...)`",
+     "flow": "once each",
+     "object": "four lists, no sharing"
+    }
+   }
+  },
+  {
+   "id": "4.6",
+   "stage": 4,
+   "form": "Predict the result",
+   "kind": "predict",
+   "prompt": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "grid = [[0] * 3] * 3\nprint(grid)\ngrid[0][0] = 1\nprint(grid)"
+    },
+    {
+     "kind": "p",
+     "text": "Explain the second output by counting how many inner list objects exist."
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "grid = [[0] * 3] * 3\nprint(grid)\ngrid[0][0] = 1\nprint(grid)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "[[0, 0, 0], [0, 0, 0], [0, 0, 0]]\n[[1, 0, 0], [1, 0, 0], [1, 0, 0]]"
+       }
+      ]
+     },
+     {
+      "label": "Explanation",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Exactly **one** inner list object exists. `[0] * 3` ran once, producing it; `[...] * 3` then built an outer list with three slots all pointing at that one object. Writing `grid[0][0] = 1` writes into it, and all three slots show the result."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That `*` on a list of lists produces independent copies of the inner list."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error. The give-away is that the *first* print looks perfect — construction is not where the bug shows."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "[[0, 0, 0], [0, 0, 0], [0, 0, 0]]\n[[1, 0, 0], [1, 0, 0], [1, 0, 0]]"
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "Exactly **one** inner list object exists. `[0] * 3` ran once, producing it; `[...] * 3` then built an outer list with three slots all pointing at that one object. Writing `grid[0][0] = 1` writes into it, and all three slots show the result."
+     }
+    ],
+    "misconception": "That `*` on a list of lists produces independent copies of the inner list.",
+    "missed": "If you missed it. Object-model error. The give-away is that the *first* print looks perfect — construction is not where the bug shows.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: the nested repetition pitfall. Prereq: 4.1. Syntax lens: two applications of `*`, read innermost first. Flow lens: inner literal runs once. Object lens: two objects, three arrows to one.",
+     "target": "the nested repetition pitfall",
+     "prereq": [
+      "4.1"
+     ],
+     "syntax": "two applications of `*`, read innermost first",
+     "flow": "inner literal runs once",
+     "object": "two objects, three arrows to one"
+    }
+   }
+  },
+  {
+   "id": "4.7",
+   "stage": 4,
+   "form": "Compare near-matches",
+   "kind": "compare",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Snippet **A**:"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "grid = [[0] * 3] * 3\ngrid[0][0] = 1\nprint(grid)"
+    },
+    {
+     "kind": "p",
+     "text": "Snippet **B**:"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "grid = [[0] * 3, [0] * 3, [0] * 3]\ngrid[0][0] = 1\nprint(grid)"
+    },
+    {
+     "kind": "p",
+     "text": "Predict both. Say precisely what `[0] * 3` does in each snippet and how many times it runs."
+    }
+   ],
+   "snippets": [
+    {
+     "label": "A",
+     "code": "grid = [[0] * 3] * 3\ngrid[0][0] = 1\nprint(grid)\n"
+    },
+    {
+     "label": "B",
+     "code": "grid = [[0] * 3, [0] * 3, [0] * 3]\ngrid[0][0] = 1\nprint(grid)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "**A** prints `[[1, 0, 0], [1, 0, 0], [1, 0, 0]]`. **B** prints `[[1, 0, 0], [0, 0, 0], [0, 0, 0]]`."
+       },
+       {
+        "kind": "p",
+        "text": "**What `[0] * 3` does, and how often.** In **A** it runs **once**, producing one list, which `* 3` then points at three times. In **B** it is written three separate times and therefore runs **three times**, producing three distinct lists; the outer literal's slots point at three different objects."
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "The number of times a literal or an expression *runs* is the number of objects it produces. `*` does not re-run anything — it copies arrows."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That the two spellings are equivalent shorthand."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Flow error as much as object-model: you did not ask how many times the inner expression ran."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "**A** prints `[[1, 0, 0], [1, 0, 0], [1, 0, 0]]`. **B** prints `[[1, 0, 0], [0, 0, 0], [0, 0, 0]]`."
+     },
+     {
+      "kind": "p",
+      "text": "**What `[0] * 3` does, and how often.** In **A** it runs **once**, producing one list, which `* 3` then points at three times. In **B** it is written three separate times and therefore runs **three times**, producing three distinct lists; the outer literal's slots point at three different objects."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "The number of times a literal or an expression *runs* is the number of objects it produces. `*` does not re-run anything — it copies arrows."
+     }
+    ],
+    "misconception": "That the two spellings are equivalent shorthand.",
+    "missed": "If you missed it. Flow error as much as object-model: you did not ask how many times the inner expression ran.",
+    "errorTypes": [
+     "flow",
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: repetition versus re-evaluation. Prereq: 4.6. Syntax lens: `[x] * n` versus an explicit literal. Flow lens: evaluation count. Object lens: one inner object versus three.",
+     "target": "repetition versus re-evaluation",
+     "prereq": [
+      "4.6"
+     ],
+     "syntax": "`[x] * n` versus an explicit literal",
+     "flow": "evaluation count",
+     "object": "one inner object versus three"
+    }
+   }
+  },
+  {
+   "id": "4.8",
+   "stage": 4,
+   "form": "Predict the result",
+   "kind": "predict",
+   "prompt": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "row = [0] * 3\nrow[0] = 1\nprint(row)"
+    },
+    {
+     "kind": "p",
+     "text": "Why is there no pitfall here?"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "row = [0] * 3\nrow[0] = 1\nprint(row)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`[1, 0, 0]`. No pitfall."
+       }
+      ]
+     },
+     {
+      "label": "Why",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "The repeated object is the number `0`, which cannot be changed. The list does contain the same `0` object three times, but there is no operation that could make one of those slots' object \"become\" something else — the only way to alter the list is to write a slot, and writing a slot repoints exactly one slot. The trap needs a *changeable* repeated object."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That `*` is inherently unsafe, so `[0] * 3` must be avoided too. Over-correcting is its own error."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "`[1, 0, 0]`. No pitfall."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "The repeated object is the number `0`, which cannot be changed. The list does contain the same `0` object three times, but there is no operation that could make one of those slots' object \"become\" something else — the only way to alter the list is to write a slot, and writing a slot repoints exactly one slot. The trap needs a *changeable* repeated object."
+     }
+    ],
+    "misconception": "That `*` is inherently unsafe, so `[0] * 3` must be avoided too. Over-correcting is its own error.",
+    "missed": "If you missed it. Object-model error.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: the pitfall's precondition. Prereq: 4.6, 2.1. Syntax lens: `[0] * 3`. Flow lens: once. Object lens: repeated unchangeable object.",
+     "target": "the pitfall's precondition",
+     "prereq": [
+      "4.6",
+      "2.1"
+     ],
+     "syntax": "`[0] * 3`",
+     "flow": "once",
+     "object": "repeated unchangeable object"
+    }
+   }
+  },
+  {
+   "id": "4.9",
+   "stage": 4,
+   "form": "Find and fix",
+   "kind": "fix",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "The intent is a 2×2 board where each cell can be set independently. Show what goes wrong with a single write, and fix it with the smallest change."
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "board = [[\"-\"] * 2] * 2\nboard[0][0] = \"X\"\nprint(board)"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "board = [[\"-\"] * 2] * 2\nboard[0][0] = \"X\"\nprint(board)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "It prints `[['X', '-'], ['X', '-']]` — one write appeared to change both rows, because there is one row."
+       }
+      ]
+     },
+     {
+      "label": "Smallest fix",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "python",
+        "text": "board = [[\"-\"] * 2, [\"-\"] * 2]\nboard[0][0] = \"X\"\nprint(board)          # [['X', '-'], ['-', '-']]"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "The fix must make the inner literal run twice. `board[:]`, `list(board)`, or `copy.copy(board)` would **not** help — they duplicate the outer level, which was never the problem. `copy.deepcopy(board)` would produce two rows but only *after* the damage of having built one, and it is a heavier tool than the situation needs."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That any copying operation fixes any sharing problem."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error, specifically about which level to intervene at."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "It prints `[['X', '-'], ['X', '-']]` — one write appeared to change both rows, because there is one row."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "The fix must make the inner literal run twice. `board[:]`, `list(board)`, or `copy.copy(board)` would **not** help — they duplicate the outer level, which was never the problem. `copy.deepcopy(board)` would produce two rows but only *after* the damage of having built one, and it is a heavier tool than the situation needs."
+     }
+    ],
+    "misconception": "That any copying operation fixes any sharing problem.",
+    "missed": "If you missed it. Object-model error, specifically about which level to intervene at.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: repair at the correct level. Prereq: 4.6, 4.7. Syntax lens: `[\"-\"] * 2` inside `* 2`. Flow lens: inner expression evaluation count. Object lens: one inner list versus two.",
+     "target": "repair at the correct level",
+     "prereq": [
+      "4.6",
+      "4.7"
+     ],
+     "syntax": "`[\"-\"] * 2` inside `* 2`",
+     "flow": "inner expression evaluation count",
+     "object": "one inner list versus two"
+    }
+   }
+  },
+  {
+   "id": "4.10",
+   "stage": 4,
+   "form": "Predict the result",
+   "kind": "predict",
+   "prompt": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "a = [[1], [2]]\nb = a + [[3]]\nb[0].append(99)\nprint(a)\nprint(b)\nprint(len(a), len(b))"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "a = [[1], [2]]\nb = a + [[3]]\nb[0].append(99)\nprint(a)\nprint(b)\nprint(len(a), len(b))\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "[[1, 99], [2]]\n[[1, 99], [2], [3]]\n2 3"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`a + [[3]]` builds a new outer list of length 3 whose first two slots point at `a`'s existing inner lists. So `b[0]` *is* `a[0]`, and appending 99 shows through both. The differing lengths confirm the outer lists are separate objects."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That `+` produces an independent structure because it \"makes a new list\" — true of the outer level only."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error. `+` is a one-level operation, exactly like `[:]`."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "[[1, 99], [2]]\n[[1, 99], [2], [3]]\n2 3"
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "`a + [[3]]` builds a new outer list of length 3 whose first two slots point at `a`'s existing inner lists. So `b[0]` *is* `a[0]`, and appending 99 shows through both. The differing lengths confirm the outer lists are separate objects."
+     }
+    ],
+    "misconception": "That `+` produces an independent structure because it \"makes a new list\" — true of the outer level only.",
+    "missed": "If you missed it. Object-model error. `+` is a one-level operation, exactly like `[:]`.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: `+` is a shallow operation. Prereq: 2.3, 4.3. Syntax lens: `a + [[3]]`. Flow lens: once each. Object lens: two outer lists sharing two inner ones.",
+     "target": "`+` is a shallow operation",
+     "prereq": [
+      "2.3",
+      "4.3"
+     ],
+     "syntax": "`a + [[3]]`",
+     "flow": "once each",
+     "object": "two outer lists sharing two inner ones"
+    }
+   }
+  },
+  {
+   "id": "4.11",
+   "stage": 4,
+   "form": "Draw names and objects",
+   "kind": "draw",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Draw the picture after every line, keeping the inner lists as separate boxes."
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "d = {\"xs\": [1, 2]}\ne = dict(d)\ne[\"ys\"] = [9]\ne[\"xs\"].append(3)"
+    },
+    {
+     "kind": "p",
+     "text": "Then predict `print(d)` and `print(e)`."
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "d = {\"xs\": [1, 2]}\ne = dict(d)\ne[\"ys\"] = [9]\ne[\"xs\"].append(3)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "after line 1:  d ─▶ #1 {\"xs\": ●}\n                             └──▶ #2 [1, 2]\n\nafter line 2:  d ─▶ #1 {\"xs\": ●} ──┐\n               e ─▶ #3 {\"xs\": ●} ──┴──▶ #2 [1, 2]\n\nafter line 3:  d ─▶ #1 {\"xs\": ●} ──┐\n               e ─▶ #3 {\"xs\": ●, \"ys\": ●} ─┴──▶ #2 [1, 2]\n                                       └──▶ #4 [9]\n\nafter line 4:  same shape; #2 is now [1, 2, 3]"
+       },
+       {
+        "kind": "p",
+        "text": "`print(d)` shows `{'xs': [1, 2, 3]}`. `print(e)` shows `{'xs': [1, 2, 3], 'ys': [9]}`."
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`dict(d)` duplicated the *set of pairs*, so adding `\"ys\"` touched only `e`. It did not duplicate the value objects, so `e[\"xs\"]` and `d[\"xs\"]` are one list."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That dictionaries copy differently from lists. They do not — the level rule is identical."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "after line 1:  d ─▶ #1 {\"xs\": ●}\n                             └──▶ #2 [1, 2]\n\nafter line 2:  d ─▶ #1 {\"xs\": ●} ──┐\n               e ─▶ #3 {\"xs\": ●} ──┴──▶ #2 [1, 2]\n\nafter line 3:  d ─▶ #1 {\"xs\": ●} ──┐\n               e ─▶ #3 {\"xs\": ●, \"ys\": ●} ─┴──▶ #2 [1, 2]\n                                       └──▶ #4 [9]\n\nafter line 4:  same shape; #2 is now [1, 2, 3]"
+     },
+     {
+      "kind": "p",
+      "text": "`print(d)` shows `{'xs': [1, 2, 3]}`. `print(e)` shows `{'xs': [1, 2, 3], 'ys': [9]}`."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "`dict(d)` duplicated the *set of pairs*, so adding `\"ys\"` touched only `e`. It did not duplicate the value objects, so `e[\"xs\"]` and `d[\"xs\"]` are one list."
+     }
+    ],
+    "misconception": "That dictionaries copy differently from lists. They do not — the level rule is identical.",
+    "missed": "If you missed it. Object-model error.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: shallow copy of a dictionary. Prereq: 4.2, 4.3, 3.18. Syntax lens: `dict(d)`, key write, value-method call. Flow lens: once each. Object lens: two dictionaries, two lists, one shared.",
+     "target": "shallow copy of a dictionary",
+     "prereq": [
+      "4.2",
+      "4.3",
+      "3.18"
+     ],
+     "syntax": "`dict(d)`, key write, value-method call",
+     "flow": "once each",
+     "object": "two dictionaries, two lists, one shared"
+    }
+   }
+  },
+  {
+   "id": "4.12",
+   "stage": 4,
+   "form": "Find and fix",
+   "kind": "fix",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "The intent is a snapshot of `state` that is unaffected by any later change. Say what happens and give the smallest correct fix."
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "state = {\"players\": [\"ann\", \"bo\"], \"round\": 1}\nsnapshot = state.copy()\nstate[\"players\"].append(\"cy\")\nstate[\"round\"] = 2\nprint(snapshot)"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "state = {\"players\": [\"ann\", \"bo\"], \"round\": 1}\nsnapshot = state.copy()\nstate[\"players\"].append(\"cy\")\nstate[\"round\"] = 2\nprint(snapshot)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "It prints `{'players': ['ann', 'bo', 'cy'], 'round': 1}`. The snapshot caught the `round` change (it did not follow it) but not the `players` change (it did follow that one), which is the worst of both worlds — a snapshot that is half stale is harder to notice than one that is wholly wrong."
+       }
+      ]
+     },
+     {
+      "label": "Smallest correct fix",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "python",
+        "text": "import copy\nsnapshot = copy.deepcopy(state)"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "This is the situation deep copying is *for*: the requirement is explicitly an independent snapshot of a nested structure. Contrast 4.9, where the requirement was to build independent rows and deep copying would have been a heavy fix for a construction mistake. The question that separates them: *do I need a frozen record of something nested (deep copy), or did I fail to create distinct objects in the first place (build them separately)?*"
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That `.copy()` means \"make an independent copy\"."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "It prints `{'players': ['ann', 'bo', 'cy'], 'round': 1}`. The snapshot caught the `round` change (it did not follow it) but not the `players` change (it did follow that one), which is the worst of both worlds — a snapshot that is half stale is harder to notice than one that is wholly wrong."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "This is the situation deep copying is *for*: the requirement is explicitly an independent snapshot of a nested structure. Contrast 4.9, where the requirement was to build independent rows and deep copying would have been a heavy fix for a construction mistake. The question that separates them: *do I need a frozen record of something nested (deep copy), or did I fail to create distinct objects in the first place (build them separately)?*"
+     }
+    ],
+    "misconception": "That `.copy()` means \"make an independent copy\".",
+    "missed": "If you missed it. Object-model error.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: when deep copying is the right tool. Prereq: 4.5, 4.11. Syntax lens: `.copy()` versus `copy.deepcopy`. Flow lens: once each. Object lens: shared inner list defeats the snapshot.",
+     "target": "when deep copying is the right tool",
+     "prereq": [
+      "4.5",
+      "4.11"
+     ],
+     "syntax": "`.copy()` versus `copy.deepcopy`",
+     "flow": "once each",
+     "object": "shared inner list defeats the snapshot"
+    }
+   }
+  },
+  {
+   "id": "4.13",
+   "stage": 4,
+   "form": "Compare near-matches",
+   "kind": "compare",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Snippet **A**:"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "xs = [[1], [2]]\nys = xs\nprint(xs is ys, xs[0] is ys[0])"
+    },
+    {
+     "kind": "p",
+     "text": "Snippet **B**:"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "xs = [[1], [2]]\nys = xs[:]\nprint(xs is ys, xs[0] is ys[0])"
+    },
+    {
+     "kind": "p",
+     "text": "Snippet **C**:"
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "import copy\nxs = [[1], [2]]\nys = copy.deepcopy(xs)\nprint(xs is ys, xs[0] is ys[0])"
+    },
+    {
+     "kind": "p",
+     "text": "Predict all three lines of output and say what the pair of answers tells you in each case."
+    }
+   ],
+   "snippets": [
+    {
+     "label": "A",
+     "code": "xs = [[1], [2]]\nys = xs\nprint(xs is ys, xs[0] is ys[0])\n"
+    },
+    {
+     "label": "B",
+     "code": "xs = [[1], [2]]\nys = xs[:]\nprint(xs is ys, xs[0] is ys[0])\n"
+    },
+    {
+     "label": "C",
+     "code": "import copy\nxs = [[1], [2]]\nys = copy.deepcopy(xs)\nprint(xs is ys, xs[0] is ys[0])\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "list",
+        "ordered": false,
+        "items": [
+         "**A** prints `True True` — one outer list, so of course one set of inner lists.",
+         "**B** prints `False True` — different outer objects, *same* inner object. This pair of answers is the signature of a one-level copy.",
+         "**C** prints `False False` — nothing shared at any level."
+        ]
+       }
+      ]
+     },
+     {
+      "label": "What the pair tells you",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Reading the two booleans as a pair identifies the copy depth without any diagram: `True True` = no copy, `False True` = one level, `False False` = deep."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That `is` on the outer object settles the question. It settles one level only."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "list",
+      "ordered": false,
+      "items": [
+       "**A** prints `True True` — one outer list, so of course one set of inner lists.",
+       "**B** prints `False True` — different outer objects, *same* inner object. This pair of answers is the signature of a one-level copy.",
+       "**C** prints `False False` — nothing shared at any level."
+      ]
+     }
+    ],
+    "reasoning": [],
+    "misconception": "That `is` on the outer object settles the question. It settles one level only.",
+    "missed": "If you missed it. Object-model error.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: diagnose copy depth with `is`. Prereq: 4.2, 4.3, 4.5. Syntax lens: `is` at two levels. Flow lens: once each. Object lens: identity per level.",
+     "target": "diagnose copy depth with `is`",
+     "prereq": [
+      "4.2",
+      "4.3",
+      "4.5"
+     ],
+     "syntax": "`is` at two levels",
+     "flow": "once each",
+     "object": "identity per level"
+    }
+   }
+  },
+  {
+   "id": "4.14",
+   "stage": 4,
+   "form": "Write a small program",
+   "kind": "write",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Using no loops and no `import`, write code producing a list `rows` such that:"
+    },
+    {
+     "kind": "list",
+     "ordered": false,
+     "items": [
+      "`rows` has three items, each a list `[0, 0]`;",
+      "`rows[0][0] = 5` changes only the first row;",
+      "and a printed line proves the three inner lists are distinct objects."
+     ]
+    },
+    {
+     "kind": "p",
+     "text": "Then, in one sentence, say what you would have to change to make all three rows share one list on purpose."
+    }
+   ],
+   "snippets": [],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "python",
+        "text": "rows = [[0, 0], [0, 0], [0, 0]]\nrows[0][0] = 5\nprint(rows)                              # [[5, 0], [0, 0], [0, 0]]\nprint(rows[0] is rows[1], rows[1] is rows[2])   # False False"
+       },
+       {
+        "kind": "p",
+        "text": "**To share on purpose**, bind the inner list to a name and use that name three times — `shared = [0, 0]` then `rows = [shared, shared, shared]` — or write `[[0, 0]] * 3`. Sharing is a legitimate thing to want; it just has to be deliberate."
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Three separately written literals run three times and produce three objects. The `is` line is the proof; printing alone would look identical in both designs."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That equal-looking rows must be distinct objects."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "python",
+      "text": "rows = [[0, 0], [0, 0], [0, 0]]\nrows[0][0] = 5\nprint(rows)                              # [[5, 0], [0, 0], [0, 0]]\nprint(rows[0] is rows[1], rows[1] is rows[2])   # False False"
+     },
+     {
+      "kind": "p",
+      "text": "**To share on purpose**, bind the inner list to a name and use that name three times — `shared = [0, 0]` then `rows = [shared, shared, shared]` — or write `[[0, 0]] * 3`. Sharing is a legitimate thing to want; it just has to be deliberate."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "Three separately written literals run three times and produce three objects. The `is` line is the proof; printing alone would look identical in both designs."
+     }
+    ],
+    "misconception": "That equal-looking rows must be distinct objects.",
+    "missed": "If you missed it. Object-model error.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: construct independence deliberately. Prereq: 4.7, 4.13. Syntax lens: repeated literals. Flow lens: three evaluations. Object lens: three distinct inner objects.",
+     "target": "construct independence deliberately",
+     "prereq": [
+      "4.7",
+      "4.13"
+     ],
+     "syntax": "repeated literals",
+     "flow": "three evaluations",
+     "object": "three distinct inner objects"
+    }
+   }
+  },
+  {
+   "id": "4.15",
+   "stage": 4,
+   "form": "Find and fix",
+   "kind": "fix",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "The intent is to keep `history` as a record of past states. Diagnose the bug and give the smallest fix."
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "current = [1, 2]\nhistory = []\nhistory.append(current)\ncurrent.append(3)\nhistory.append(current)\nprint(history)"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "current = [1, 2]\nhistory = []\nhistory.append(current)\ncurrent.append(3)\nhistory.append(current)\nprint(history)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "It prints `[[1, 2, 3], [1, 2, 3]]`. Both entries in `history` are the same list — the one `current` points at — so the \"past state\" was overwritten by the later change, and appending it a second time just added a second arrow to it."
+       }
+      ]
+     },
+     {
+      "label": "Smallest fix",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Store a copy at the moment of recording:"
+       },
+       {
+        "kind": "code",
+        "lang": "python",
+        "text": "history.append(current[:])\n...\nhistory.append(current[:])"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Recording a changeable object stores a *live view*, not a historical fact. Any log, undo stack, or audit trail that appends a changeable object without copying has this bug. If `current` contained nested lists, `[:]` would not be enough and `copy.deepcopy` would be right."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That appending to a list \"saves\" what the object looked like at that moment."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error — and the most consequential one in this stage, because the symptom appears far from the cause."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "It prints `[[1, 2, 3], [1, 2, 3]]`. Both entries in `history` are the same list — the one `current` points at — so the \"past state\" was overwritten by the later change, and appending it a second time just added a second arrow to it."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "Recording a changeable object stores a *live view*, not a historical fact. Any log, undo stack, or audit trail that appends a changeable object without copying has this bug. If `current` contained nested lists, `[:]` would not be enough and `copy.deepcopy` would be right."
+     }
+    ],
+    "misconception": "That appending to a list \"saves\" what the object looked like at that moment.",
+    "missed": "If you missed it. Object-model error — and the most consequential one in this stage, because the symptom appears far from the cause.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: snapshot-versus-live-view in accumulation. Prereq: 4.12. Syntax lens: `.append(name)` versus `.append(name[:])`. Flow lens: two appends around one change. Object lens: two arrows to one list.",
+     "target": "snapshot-versus-live-view in accumulation",
+     "prereq": [
+      "4.12"
+     ],
+     "syntax": "`.append(name)` versus `.append(name[:])`",
+     "flow": "two appends around one change",
+     "object": "two arrows to one list"
+    }
+   }
+  },
+  {
+   "id": "4.16",
+   "stage": 4,
+   "form": "Predict the result",
+   "kind": "predict",
+   "prompt": [
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "import copy\ndata = {\"a\": [1, 2]}\nshallow = copy.copy(data)\ndeep = copy.deepcopy(data)\ndata[\"a\"].append(3)\nprint(shallow)\nprint(deep)"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "import copy\ndata = {\"a\": [1, 2]}\nshallow = copy.copy(data)\ndeep = copy.deepcopy(data)\ndata[\"a\"].append(3)\nprint(shallow)\nprint(deep)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "text",
+        "text": "{'a': [1, 2, 3]}\n{'a': [1, 2]}"
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "`copy.copy` is precisely a one-level copy — the same depth as `dict(d)` or `[:]` — so `shallow[\"a\"]` is the same list that was changed. `deep` has its own list and shows the state as of the moment of copying."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That `copy.copy` is deeper than `.copy()` because it comes from a module."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "{'a': [1, 2, 3]}\n{'a': [1, 2]}"
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "`copy.copy` is precisely a one-level copy — the same depth as `dict(d)` or `[:]` — so `shallow[\"a\"]` is the same list that was changed. `deep` has its own list and shows the state as of the moment of copying."
+     }
+    ],
+    "misconception": "That `copy.copy` is deeper than `.copy()` because it comes from a module.",
+    "missed": "If you missed it. Object-model error.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: `copy.copy` is shallow. Prereq: 4.5, 4.11. Syntax lens: two functions from `copy`. Flow lens: once each. Object lens: one shared list, one duplicated.",
+     "target": "`copy.copy` is shallow",
+     "prereq": [
+      "4.5",
+      "4.11"
+     ],
+     "syntax": "two functions from `copy`",
+     "flow": "once each",
+     "object": "one shared list, one duplicated"
+    }
+   }
+  },
+  {
+   "id": "4.17",
+   "stage": 4,
+   "form": "State the rule",
+   "kind": "rule",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "Complete each sentence in plain language:"
+    },
+    {
+     "kind": "quote",
+     "text": "\"`b = a[:]` gives me a new ... whose slots point at ...\" \"`[x] * n` repeats ... , not ...\" \"I should reach for a deep copy only when ...\""
+    }
+   ],
+   "snippets": [],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "quote",
+        "text": "\"`b = a[:]` gives me a new **outer list** whose slots point at **the very same objects `a`'s slots point at**.\" \"`[x] * n` repeats **the arrow to one object**, not **the object itself**.\" \"I should reach for a deep copy only when **I need an independent snapshot of a nested structure that will keep changing** — not as a routine fix for sharing I have not understood.\""
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Each sentence targets a different one: that copying is total; that repetition duplicates; that deep copying is a general safety measure."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Vocabulary-only if the ideas were right."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "quote",
+      "text": "\"`b = a[:]` gives me a new **outer list** whose slots point at **the very same objects `a`'s slots point at**.\" \"`[x] * n` repeats **the arrow to one object**, not **the object itself**.\" \"I should reach for a deep copy only when **I need an independent snapshot of a nested structure that will keep changing** — not as a routine fix for sharing I have not understood.\""
+     }
+    ],
+    "reasoning": [],
+    "misconception": "Each sentence targets a different one: that copying is total; that repetition duplicates; that deep copying is a general safety measure.",
+    "missed": "If you missed it. Vocabulary-only if the ideas were right.",
+    "errorTypes": [
+     "vocabulary"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: generalize the whole stage. Prereq: 4.1–4.16. Syntax lens: n/a. Flow lens: n/a. Object lens: levels.",
+     "target": "generalize the whole stage",
+     "prereq": [
+      "4.1",
+      "4.2",
+      "4.3",
+      "4.4",
+      "4.5",
+      "4.6",
+      "4.7",
+      "4.8",
+      "4.9",
+      "4.10",
+      "4.11",
+      "4.12",
+      "4.13",
+      "4.14",
+      "4.15",
+      "4.16"
+     ],
+     "syntax": "n/a",
+     "flow": "n/a",
+     "object": "levels"
+    }
+   }
+  },
+  {
+   "id": "4.18",
+   "stage": 4,
+   "form": "Find and fix",
+   "kind": "fix",
+   "prompt": [
+    {
+     "kind": "p",
+     "text": "This function-free snippet is meant to give each of three students their own empty score list. Diagnose and fix, and say which single word in the code was the whole problem."
+    },
+    {
+     "kind": "code",
+     "lang": "python",
+     "text": "blank = []\nscores = {\"ann\": blank, \"bo\": blank, \"cy\": blank}\nscores[\"ann\"].append(10)\nprint(scores)"
+    }
+   ],
+   "snippets": [
+    {
+     "label": null,
+     "code": "blank = []\nscores = {\"ann\": blank, \"bo\": blank, \"cy\": blank}\nscores[\"ann\"].append(10)\nprint(scores)\n"
+    }
+   ],
+   "key": {
+    "sections": [
+     {
+      "label": "Answer",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "It prints `{'ann': [10], 'bo': [10], 'cy': [10]}`."
+       }
+      ]
+     },
+     {
+      "label": "The problem word: `blank`",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Using a name puts *that one object* into all three slots. Nothing about the word \"blank\" makes Python produce a fresh list per use."
+       }
+      ]
+     },
+     {
+      "label": "Fix",
+      "blocks": [
+       {
+        "kind": "code",
+        "lang": "python",
+        "text": "scores = {\"ann\": [], \"bo\": [], \"cy\": []}"
+       },
+       {
+        "kind": "p",
+        "text": "Now the empty-list literal runs three times and produces three lists."
+       }
+      ]
+     },
+     {
+      "label": "Reasoning",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Same shape as 4.6 and 4.14, in dictionary clothing: a name evaluates to an existing object, a literal creates a new one. Naming something to signal \"a fresh empty one\" does not make it so — this is how the bug survives code review."
+       }
+      ]
+     },
+     {
+      "label": "Targeted misconception",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "That an empty list is a kind of value, so all empty lists are interchangeable."
+       }
+      ]
+     },
+     {
+      "label": "If you missed it",
+      "blocks": [
+       {
+        "kind": "p",
+        "text": "Object-model error."
+       }
+      ]
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "It prints `{'ann': [10], 'bo': [10], 'cy': [10]}`."
+     }
+    ],
+    "reasoning": [
+     {
+      "kind": "p",
+      "text": "Same shape as 4.6 and 4.14, in dictionary clothing: a name evaluates to an existing object, a literal creates a new one. Naming something to signal \"a fresh empty one\" does not make it so — this is how the bug survives code review."
+     }
+    ],
+    "misconception": "That an empty list is a kind of value, so all empty lists are interchangeable.",
+    "missed": "If you missed it. Object-model error.",
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [],
+    "authoring": {
+     "text": "Target: name reuse versus repeated literal, in a dictionary. Prereq: 4.1, 4.14. Syntax lens: a name used three times as a value. Flow lens: one evaluation of `[]`. Object lens: one list, three arrows.",
+     "target": "name reuse versus repeated literal, in a dictionary",
+     "prereq": [
+      "4.1",
+      "4.14"
+     ],
+     "syntax": "a name used three times as a value",
+     "flow": "one evaluation of `[]`",
+     "object": "one list, three arrows"
+    }
+   }
+  }
+ ],
+ "checkpoint": {
+  "intro": [],
+  "items": [
+   {
+    "id": "C4.1",
+    "stage": 4,
+    "prompt": [
+     {
+      "kind": "p",
+      "text": "After `b = a[:]` where `a = [[1], [2]]`, which of these affect `a`? `b.append([3])` · `b[0].append(3)` · `b[0] = [3]` · `b = [3]`"
+     }
+    ],
+    "snippets": [],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "Only `b[0].append(3)` affects `a`. `b.append([3])` and `b[0] = [3]` change `b`'s own outer list; `b = [3]` does not change any object at all, it just moves the name `b`. **Error type if missed:** object-model. Go back to 4.2, 4.3."
+     }
+    ],
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [
+     "4.2",
+     "4.3"
+    ]
+   },
+   {
+    "id": "C4.2",
+    "stage": 4,
+    "prompt": [
+     {
+      "kind": "p",
+      "text": "Predict:"
+     },
+     {
+      "kind": "code",
+      "lang": "python",
+      "text": "xs = [[]] * 2\nxs[0].append(\"a\")\nprint(xs)"
+     }
+    ],
+    "snippets": [
+     {
+      "label": null,
+      "code": "xs = [[]] * 2\nxs[0].append(\"a\")\nprint(xs)\n"
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "`[['a'], ['a']]`. One inner list, two slots. **Error type if missed:** object-model. Go back to 4.6."
+     }
+    ],
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [
+     "4.6"
+    ]
+   },
+   {
+    "id": "C4.3",
+    "stage": 4,
+    "prompt": [
+     {
+      "kind": "p",
+      "text": "In one sentence, why is `[0] * 5` safe when `[[]] * 5` is a trap?"
+     }
+    ],
+    "snippets": [],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "Because `0` cannot be changed, so having the same `0` in five slots is indistinguishable from having five, whereas the same empty list in five slots can be changed once and appear to change five times. **Error type if missed:** object-model. Go back to 4.8."
+     }
+    ],
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [
+     "4.8"
+    ]
+   },
+   {
+    "id": "C4.4",
+    "stage": 4,
+    "prompt": [
+     {
+      "kind": "p",
+      "text": "A learner fixes an aliasing bug by calling `copy.deepcopy` on everything, everywhere. Give two reasons this is a poor default."
+     }
+    ],
+    "snippets": [],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "Any two of: it duplicates objects that were meant to be shared, so the program silently stops working as designed; it costs time and memory proportional to the whole structure; it hides the real question of which level needed protecting, so the next bug of this kind is just as mysterious; and it can fail or behave oddly on objects that are not meant to be duplicated. **Error type if missed:** object-model. Go back to 4.12."
+     }
+    ],
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [
+     "4.12"
+    ]
+   },
+   {
+    "id": "C4.5",
+    "stage": 4,
+    "prompt": [
+     {
+      "kind": "p",
+      "text": "Draw the picture and predict the output:"
+     },
+     {
+      "kind": "code",
+      "lang": "python",
+      "text": "a = [1, 2]\ncontainer = [a, a[:]]\na.append(3)\nprint(container)"
+     }
+    ],
+    "snippets": [
+     {
+      "label": null,
+      "code": "a = [1, 2]\ncontainer = [a, a[:]]\na.append(3)\nprint(container)\n"
+     }
+    ],
+    "answer": [
+     {
+      "kind": "code",
+      "lang": "text",
+      "text": "a         ─────▶ #1 [1, 2, 3]\n                    ▲\ncontainer ─▶ #3 [ ●, ● ]\n                 │   └──▶ #2 [1, 2]\n                 └────────┘  (to #1)"
+     },
+     {
+      "kind": "p",
+      "text": "Output: `[[1, 2, 3], [1, 2]]`. The first slot points at `a`'s list; the second points at a one-level copy made *before* the append. **Error type if missed:** object-model. Go back to 4.1 and 4.15."
+     }
+    ],
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [
+     "4.1",
+     "4.15"
+    ]
+   },
+   {
+    "id": "C4.6",
+    "stage": 4,
+    "prompt": [
+     {
+      "kind": "p",
+      "text": "A change made through name `x` shows up when you print `y`. List the three questions from \"The diagnostic question\" and answer them for this snippet:"
+     },
+     {
+      "kind": "code",
+      "lang": "python",
+      "text": "y = {\"k\": [1]}\nx = y[\"k\"]\nx.append(2)"
+     }
+    ],
+    "snippets": [
+     {
+      "label": null,
+      "code": "y = {\"k\": [1]}\nx = y[\"k\"]\nx.append(2)\n"
+     }
+    ],
+    "answer": [
+     {
+      "kind": "p",
+      "text": "(1) *Did I copy at all?* No — `x = y[\"k\"]` is a lookup, which produces the existing object, not a copy. (2) *Which level did I copy?* None. (3) *Is the object I changed above or below the copy level?* There is no copy level; `x` and `y[\"k\"]` are one list, so the change is shared. Output would be `{'k': [1, 2]}`. **Error type if missed:** object-model. Go back to 3.13 and 4.3."
+     }
+    ],
+    "errorTypes": [
+     "object"
+    ],
+    "goBack": [
+     "3.13",
+     "4.3"
+    ]
+   }
+  ]
+ },
+ "capstone": null,
+ "after": [
+  {
+   "kind": "p",
+   "text": "You can now say, for any copy, which level was duplicated, and predict exactly which changes cross between two structures. Stage 5 changes subject entirely: the same object model, but lines that run more than once."
+  }
+ ],
+ "summary": "Track outer objects and inner objects separately"
+}

@@ -1171,3 +1171,95 @@
 a.to-map {
   text-decoration: none;
 }
+
+/* A review owed by a failed checkpoint: amber, whatever the unit's colour,
+   because it is not the unit's next step so much as a step back. */
+.map .map-stop.review {
+  --u: #f2a93b;
+  --u-lip: #c9801a;
+  --u-soft: #fdeccc;
+  --u-deep: #8a5200;
+}
+
+/* The collection's icons are drawn as outlines; the warm-up's as fills. */
+.map-stop .map-node-face svg path[fill='none'] {
+  fill: none;
+}
+
+/* ------------------------ skills: mistakes and models ------------------------ */
+
+.skills-note {
+  margin: 8px 0 0;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.skills-note a,
+.mis-links a {
+  color: var(--brand-deep);
+  font-weight: 700;
+}
+
+.err-bars {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.err-bars li {
+  display: grid;
+  grid-template-columns: 9.5em 1fr 2.5em;
+  gap: 10px;
+  align-items: center;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.err-track {
+  height: 12px;
+  border-radius: 999px;
+  background: var(--locked);
+  overflow: hidden;
+}
+
+.err-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: #f2a93b;
+}
+
+.err-count {
+  text-align: right;
+}
+
+.mis-list {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.mis {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 2px solid var(--locked);
+}
+
+.mis p {
+  margin: 0 0 4px;
+}
+
+.mis-links {
+  font-size: 13px;
+}
+
+.skills-unit > .skills-note,
+.skills-unit > .err-bars,
+.skills-unit > .mis-list {
+  margin: 14px 18px;
+}
