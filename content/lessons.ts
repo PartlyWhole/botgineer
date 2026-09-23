@@ -716,8 +716,8 @@ export const takeAnOrder: Lesson = {
   steps: [
     {
       speaker: 'courier',
-      say: 'Afternoon! I\'m Ana, with a delivery. Put me on the ticket, would you? `customer = "Ana"`',
-      done: ({ snapshot }) => points(snapshot, 'customer', "'Ana'"),
+      say: 'Afternoon! Mira again, with a delivery. Put me on the ticket, would you? `customer = "Mira"`',
+      done: ({ snapshot }) => points(snapshot, 'customer', "'Mira'"),
     },
     {
       speaker: 'courier',

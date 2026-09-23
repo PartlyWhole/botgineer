@@ -769,9 +769,9 @@ test('the courier asks, and the robot answers from what it stored', async ({ pag
   await expect(page.getByTestId('waiting')).toContainText('customer')
   await expect(page.locator('[data-testid="actor-ticket"] .sign-body')).toHaveText('no customer')
 
-  await say(page, 'customer = "Ana"')
+  await say(page, 'customer = "Mira"')
   // Storing a name is visible in the world, not just in memory.
-  await expect(page.locator('[data-testid="actor-ticket"] .sign-body')).toHaveText('Ana')
+  await expect(page.locator('[data-testid="actor-ticket"] .sign-body')).toHaveText('Mira')
   await expect(page.getByTestId('waiting')).toHaveCount(0)
 
   await say(page, 'parcels = 7')
@@ -929,7 +929,7 @@ test('a new line pops the same bubble in again, and the speaker talks', async ({
     // started for this line is already running when this looks.
     const watch = new MutationObserver(() => pops.push(guide.getAnimations().length))
     watch.observe(guide, { childList: true, subtree: true, characterData: true })
-    await window.botgineer.say('customer = "Ana"')
+    await window.botgineer.say('customer = "Mira"')
     await new Promise((r) => setTimeout(r, 60))
     watch.disconnect()
     return {
@@ -947,7 +947,7 @@ test('a new line pops the same bubble in again, and the speaker talks', async ({
 
 test('a finished scene gets one celebration, from the whole cast', async ({ page }) => {
   await open(page, 'order')
-  await say(page, 'customer = "Ana"')
+  await say(page, 'customer = "Mira"')
   await say(page, 'parcels = 7')
   await say(page, 'parcels * 2')
   await expect(page.getByTestId('advance')).toBeVisible()
@@ -1215,7 +1215,7 @@ test('the last lesson offers somewhere to go, and only once it is done', async (
   await open(page, 'order')
   await expect(page.getByTestId('advance')).toHaveCount(0)
 
-  await say(page, 'customer = "Ana"')
+  await say(page, 'customer = "Mira"')
   await say(page, 'parcels = 7')
   await expect(page.getByTestId('advance')).toHaveCount(0)
   await say(page, 'parcels * 2')
@@ -1411,7 +1411,7 @@ test("a short speaker's tail reaches down to its own head", async ({ page }) => 
   // way above the crow. Its tail used to stop at the bubble and point at
   // the air.
   await open(page, 'order')
-  await say(page, 'customer = "Ana"')
+  await say(page, 'customer = "Mira"')
   await say(page, 'parcels = 7')
   await say(page, 'parcels * 2')
   await expect(page.getByTestId('guide')).toHaveAttribute('data-speaker', 'crow')
@@ -1434,7 +1434,7 @@ test('no bubble covers a character, whoever is speaking', async ({ page }) => {
   // robot's face, because bubbles used to hang from their own speaker's
   // head rather than from one band above the whole cast.
   await open(page, 'order')
-  await say(page, 'customer = "Ana"')
+  await say(page, 'customer = "Mira"')
   await say(page, 'parcels = 7')
   await say(page, 'parcels * 2')
 

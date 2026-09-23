@@ -240,7 +240,7 @@
 }
 
 .stage .bubble code {
-  /* One expression, one line. Breaking `customer = "Ana"` across two
+  /* One expression, one line. Breaking `customer = "Mira"` across two
      chips is exactly the reading the lesson is trying to teach against. */
   white-space: nowrap;
   padding: 1px 5px;

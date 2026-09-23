@@ -423,7 +423,7 @@ describe('names point at objects', () => {
 /* -------------------------- four: taking an order -------------------------- */
 
 describe('taking an order', () => {
-  const customer = bound('customer', 'str', "'Ana'")
+  const customer = bound('customer', 'str', "'Mira'")
   const parcels = bound('parcels', 'int', '7')
   const stored = snap([customer.object, parcels.object], [customer.binding, parcels.binding])
 
@@ -468,13 +468,13 @@ describe.each(ALL.map((l) => [l.id, l] as const))('%s', (_id, lesson) => {
     const objects = [
       value('int', '10'),
       value('int', '99'),
-      value('str', "'Ana'"),
+      value('str', "'Mira'"),
       value('int', '7'),
     ]
     const bindings: Binding[] = [
       { name: 'x', scope: 'global', target: 'v:int:99' },
       { name: 'y', scope: 'global', target: 'v:int:10' },
-      { name: 'customer', scope: 'global', target: "v:str:'Ana'" },
+      { name: 'customer', scope: 'global', target: "v:str:'Mira'" },
       { name: 'parcels', scope: 'global', target: 'v:int:7' },
     ]
     const memories = [
