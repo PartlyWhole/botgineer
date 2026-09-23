@@ -299,3 +299,39 @@ test('the capstone keeps all eight of its steps on screen', async ({ page }) => 
   await expect(steps.first()).toContainText('Mark the blocks')
   if (process.env.SHOTS) await page.screenshot({ path: `${process.env.SHOTS}/capstone-steps.png` })
 })
+
+test('unlocking opens every level without finishing any, and starting over forgets everything', async ({ page }) => {
+  await page.goto('./#/map')
+  await page.evaluate(() => localStorage.clear())
+  await page.reload()
+  await expect(page.getByTestId('level-s9-capstone')).toHaveAttribute('data-state', 'locked')
+
+  await page.getByTestId('map-end').getByTestId('unlock-all').click()
+  await expect(page.getByTestId('level-s9-capstone')).toHaveAttribute('data-state', 'unlocked')
+  await expect(page.getByTestId('level-sandbox')).toHaveAttribute('data-state', 'current')
+  await expect(page.getByTestId('map-tally')).toContainText('0 of 61')
+  await page.getByTestId('level-s9-capstone').click()
+  await expect(page.getByTestId('map-go')).toBeVisible()
+  await expect(page.getByTestId('trophy-stage-9')).not.toHaveClass(/earned/)
+  // It survives a reload, like the rest of progress.
+  await page.reload()
+  await expect(page.getByTestId('level-s9-capstone')).toHaveAttribute('data-state', 'unlocked')
+
+  // Something to forget: a finished level and a mastery record.
+  await page.evaluate(() => {
+    localStorage.setItem('botgineer.progress.v1', JSON.stringify(['sandbox', '*unlock-all']))
+    localStorage.setItem('botgineer.mastery.v1', JSON.stringify({ int: { tries: 1, right: 1, score: 0.35, streak: 1, last: Date.now() } }))
+  })
+  await page.reload()
+  await expect(page.getByTestId('level-sandbox')).toHaveAttribute('data-state', 'done')
+
+  const controls = page.getByTestId('map-end')
+  await controls.getByTestId('reset').click()
+  await controls.getByTestId('reset-cancel').click()
+  await expect(page.getByTestId('level-sandbox')).toHaveAttribute('data-state', 'done')
+  await controls.getByTestId('reset').click()
+  await controls.getByTestId('reset-confirm').click()
+  await expect(page.getByTestId('level-sandbox')).toHaveAttribute('data-state', 'current')
+  await expect(page.getByTestId('level-s9-capstone')).toHaveAttribute('data-state', 'locked')
+  expect(await page.evaluate(() => localStorage.getItem('botgineer.mastery.v1'))).toBe('{}')
+})

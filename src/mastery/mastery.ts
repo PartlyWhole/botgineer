@@ -171,4 +171,9 @@ export const lastMissed = (r: SkillRecord | undefined): boolean => r !== undefin
 
 export const currentMastery = (): Mastery => store.read()
 
+/** Forgets every record. Part of "start over". */
+export function resetMastery(): void {
+  store.write({})
+}
+
 export const useMastery = (): Mastery => store.use()

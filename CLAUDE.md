@@ -249,7 +249,10 @@ npm run collection    # regenerate content/collection/generated/ from the markdo
    (`progress.ts`) and mastery (`mastery.ts`), both in this
    browser's localStorage through `storage.ts`. Mastery is keyed: a
    concept by its bare id, `ex:<item>`, `mis:<misconception>`,
-   `lens:<lens>`, and `err:<kind>` (misses only). Everything the map and the
+   `lens:<lens>`, and `err:<kind>` (misses only). The progress set can also hold
+   `*unlock-all`, the player's choice to open every level
+   (`ProgressControls` on the map): it opens levels without finishing
+   them, so no trophy is earned by it. "Start over" clears both stores. Everything the map and the
    skills screen show is derived from those, the roadmap's order and the
    clock — including a skill's fading, which is computed when read and
    never written. Finished levels are written by the Workbench on

@@ -5,7 +5,7 @@
 import { describe, expect, it } from 'vitest'
 import { ACTIVITIES } from '../../content/activities'
 import { LEVEL_ORDER, ROADMAP, levelActivity } from '../../content/roadmap'
-import { levelStates, unitDone } from '../../src/progress/progress'
+import { UNLOCK_ALL, levelStates, unitDone } from '../../src/progress/progress'
 import { MASCOT_X, PITCH, SWING, mascotAt, stops, stretchHeight, swingOf, trail } from '../../src/roadmap/layout'
 
 describe('the roadmap content', () => {
@@ -56,6 +56,12 @@ describe('what progress unlocks', () => {
 
   it('ignores finished ids that are not on the path', () => {
     expect(levelStates(order, new Set(['zzz'])).get('a')).toBe('current')
+  })
+
+  it('opens every level once unlocked, without finishing any', () => {
+    expect([...levelStates(order, new Set([UNLOCK_ALL])).values()]).toEqual(['current', 'unlocked', 'unlocked', 'unlocked'])
+    expect([...levelStates(order, new Set([UNLOCK_ALL, 'a'])).values()]).toEqual(['done', 'current', 'unlocked', 'unlocked'])
+    expect(unitDone(order, new Set([UNLOCK_ALL]))).toBe(false)
   })
 
   it('awards a unit its trophy only when every level in it is done', () => {

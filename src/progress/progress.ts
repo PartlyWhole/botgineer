@@ -15,7 +15,17 @@
  */
 import { stored } from './storage'
 
-export type LevelState = 'done' | 'current' | 'locked'
+/** `unlocked`: not finished and not next, but open to play — every level
+ *  is, once the player has chosen to unlock everything. */
+export type LevelState = 'done' | 'current' | 'unlocked' | 'locked'
+
+/**
+ * Kept in the same set as the finished level ids: the player's choice to
+ * open every level. It is a fact about the player like the others, and it
+ * is not a level, so nothing that counts finished levels counts it — and
+ * it earns nothing: a trophy still needs its levels actually finished.
+ */
+export const UNLOCK_ALL = '*unlock-all'
 
 /**
  * Each level's state, from the play order and what is finished.
@@ -34,7 +44,7 @@ export function levelStates(order: string[], done: ReadonlySet<string>): Map<str
     else if (!found) {
       out.set(id, 'current')
       found = true
-    } else out.set(id, 'locked')
+    } else out.set(id, done.has(UNLOCK_ALL) ? 'unlocked' : 'locked')
   }
   return out
 }
@@ -60,11 +70,21 @@ export function markDone(id: string): void {
   store.write(new Set([...now, id]))
 }
 
-/** Forgets everything. For tests, and for a "start over" if one is ever
- *  offered. */
+/** Forgets every finished level, and the unlock. Part of "start over". */
 export function resetProgress(): void {
   store.write(new Set())
 }
+
+/** Opens every level, or closes them again. Finished levels stay finished
+ *  either way. */
+export function setUnlockAll(on: boolean): void {
+  const now = new Set(store.read())
+  if (on) now.add(UNLOCK_ALL)
+  else now.delete(UNLOCK_ALL)
+  store.write(now)
+}
+
+export const allUnlocked = (done: ReadonlySet<string>): boolean => done.has(UNLOCK_ALL)
 
 /** The finished levels, now, outside React. */
 export const finishedLevels = (): ReadonlySet<string> => store.read()

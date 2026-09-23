@@ -1263,3 +1263,74 @@ a.to-map {
 .skills-unit > .mis-list {
   margin: 14px 18px;
 }
+
+/* ------------------------------ progress controls ------------------------------ */
+
+/* Open, not next: the unit's colour, a little quieter than the one to play. */
+.map-stop.unlocked .map-node-face {
+  filter: saturate(0.75) brightness(1.04);
+}
+
+.progress-controls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.progress-controls.compact {
+  justify-content: stretch;
+  flex-direction: column;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 2px solid var(--locked);
+}
+
+.progress-button {
+  padding: 8px 14px;
+  border-radius: 12px;
+  border: 2px solid var(--locked-lip);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 800;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.progress-button[aria-pressed='true'] {
+  border-color: #3d8bfd;
+  color: #1d4fa3;
+}
+
+.progress-button.quiet-button {
+  border-color: transparent;
+  color: var(--ink-soft);
+}
+
+.progress-button.danger {
+  border-color: var(--bad);
+  background: var(--bad);
+  color: #fff;
+}
+
+.progress-confirm {
+  flex-basis: 100%;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--bad-bg);
+  text-align: left;
+}
+
+.progress-confirm p {
+  margin: 0 0 10px;
+  font-size: 14px;
+  color: var(--ink);
+}
+
+.progress-confirm-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}

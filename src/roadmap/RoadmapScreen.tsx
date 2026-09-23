@@ -22,6 +22,7 @@ import { mascotAt, stops, stretchHeight, trail } from './layout'
 import { LEVEL_NAMES, level, levelIndex, useMastery, type Mastery } from '../mastery/mastery'
 import { conceptsOfUnit, skillsOfUnit } from '../../content/concepts'
 import { reviewOwed } from '../collection/levels'
+import { ProgressControls } from './ProgressControls'
 
 /**
  * A unit's stops as the map draws them: its levels, and — while a failed
@@ -132,10 +133,11 @@ export function RoadmapScreen() {
             />
           ))}
 
-          <div className="map-end">
+          <div className="map-end" data-testid="map-end">
             <Signpost />
             <p className="map-end-title">More levels on the way</p>
             <p className="map-end-note">The robot is still learning. So are we.</p>
+            <ProgressControls />
           </div>
         </div>
 
@@ -185,6 +187,7 @@ export function RoadmapScreen() {
                 />
               </div>
             </div>
+            <ProgressControls compact />
           </div>
         </aside>
       </div>
@@ -355,7 +358,9 @@ function LevelNode({
       ? 'done'
       : state === 'current'
         ? 'up next'
-        : waiting
+        : state === 'unlocked'
+          ? 'open to play'
+          : waiting
           ? 'waiting — do the review first'
           : 'locked — finish the levels before it first'
   const face =
