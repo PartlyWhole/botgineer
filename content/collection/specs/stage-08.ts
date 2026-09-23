@@ -8,9 +8,9 @@ import {
   choice,
   diagram,
   finishes,
+  firstDifference,
   fix,
   forbid,
-  line,
   number,
   order,
   output,
@@ -54,10 +54,7 @@ export const STAGE_8: Record<string, Spec> = {
     parts: [
       output("['a']", { snippet: 'A' }),
       output("['a', 'new']", { snippet: 'B' }),
-      // The automatic rule charges a call's effects to the calling line, so
-      // it lands on line 5; the key's point is the body line that differs.
-      // The key names no line, so both are accepted.
-      line('Click the first line where the two snippets’ behaviour differs.', [2, 5], 2),
+      firstDifference(2),
       choice('Which sentence states the rule?', [
         'The caller sees a change only when the body changes the object its name points at; rebinding the parameter moves a name the caller cannot see',
         'Lists are passed by reference, so any change to `items` reaches the caller',
@@ -248,9 +245,7 @@ export const STAGE_8: Record<string, Spec> = {
     parts: [
       output('[3, 1, 2] [1, 2, 3]', { snippet: 'A' }),
       output('[1, 2, 3] [1, 2, 3] True', { snippet: 'B' }),
-      // As in 8.6: the automatic rule lands on the call (line 6); the body
-      // line that differs is line 2. Both are accepted.
-      line('Click the first line where the two snippets’ behaviour differs.', [2, 6], 2),
+      firstDifference(2),
       choice('Which would you rather be handed by a colleague, and why?', [
         'A — it leaves the caller’s list alone and hands back a new sorted one; B changes the caller’s list and returns that same object',
         'B — returning the changed list makes it more convenient, at no cost',

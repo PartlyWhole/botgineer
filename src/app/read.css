@@ -428,7 +428,7 @@ a.term {
   border-bottom: 1px solid var(--line);
   /* A long program (the capstone is 33 lines) scrolls in its own box,
      so the questions about it are still on screen under it. */
-  max-height: min(40vh, 400px);
+  max-height: min(34vh, 400px);
   overflow-y: auto;
 }
 
@@ -975,4 +975,44 @@ a.term {
   .topbar .whereabouts {
     gap: 6px;
   }
+}
+
+.capstone-steps {
+  list-style: none;
+  margin: 10px 0 0 !important;
+  padding: 0 !important;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 6px;
+  font-size: 12.5px;
+}
+
+.capstone-steps li {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink-soft);
+}
+
+.capstone-steps li.now {
+  border-color: var(--brand);
+  color: var(--ink);
+  font-weight: 700;
+}
+.capstone-steps li.right {
+  border-color: var(--good);
+  background: var(--value-bg);
+}
+.capstone-steps li.wrong {
+  border-color: var(--warn);
+  background: var(--warn-bg);
+}
+
+.capstone-id {
+  font-family: var(--mono);
+  font-weight: 700;
+  color: var(--brand-deep);
 }

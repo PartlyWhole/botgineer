@@ -276,6 +276,12 @@ export type RunEvidence = {
   afterVisit: (i: number) => MemorySnapshot
   /** What visit `i`'s line printed, calls it made included. */
   printedBy: (i: number) => string
+  /** Memory the instant visit `i`'s line was reached. */
+  beforeVisit: (i: number) => MemorySnapshot
+  /** What was printed between visit `i` and the next visit anywhere — one
+   *  step of execution, not the whole line: a line that makes a call has
+   *  printed nothing yet when the call's first line is reached. */
+  printedUntilNext: (i: number) => string
   /** A hidden checker's verdict, when the program carried one. */
   verdict: unknown
 }
@@ -337,6 +343,8 @@ export function runEvidence(steps: readonly StepRecord[], terminal: TerminalReco
     },
     afterVisit: (i) => memAt(endOf(i)),
     printedBy: (i) => printed(visits[i]!.step, endOf(i)),
+    beforeVisit: (i) => memAt(visits[i]!.step),
+    printedUntilNext: (i) => printed(visits[i]!.step, i + 1 < visits.length ? visits[i + 1]!.step : steps.length - 1),
     verdict: last ? verdictOf(last) : null,
   }
 }

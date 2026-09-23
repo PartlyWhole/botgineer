@@ -78,6 +78,27 @@ export function ReadSheet({ session, title }: { session: ReadSession; title: str
         <article className="card capstone-card" data-testid="capstone-brief">
           <p className="card-kicker">The capstone program</p>
           <Blocks blocks={capstone.brief} />
+          {/* All eight steps, on every step: one program, read in order —
+              mark, trace, draw, predict, diagnose, find the hidden one,
+              repair, extend. */}
+          <ol className="capstone-steps" data-testid="capstone-steps">
+            {session.items.map((it, i) => {
+              const step = itemById(it.id)
+              const r = session.results[i]
+              return (
+                <li
+                  key={it.id}
+                  className={`${i === session.at ? 'now' : ''} ${r === true ? 'right' : r === false ? 'wrong' : ''}`}
+                  aria-current={i === session.at ? 'step' : undefined}
+                >
+                  <span className="capstone-id">{it.id.replace(/^9\./, '')}</span>
+                  {step?.kind === 'exercise' ? step.exercise.form : it.id}
+                  {r === true && <span className="sr-only">, right first time</span>}
+                  {r === false && <span className="sr-only">, missed first time</span>}
+                </li>
+              )
+            })}
+          </ol>
         </article>
       )}
 

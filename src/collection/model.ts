@@ -148,7 +148,8 @@ export type Derived<T> = T | ((ev: RunEvidence[]) => T)
  * A check a written or repaired program must pass.
  *
  * `py` is a Python expression evaluated in the program's own namespace
- * after it has run (`m is n`); `output` compares everything it printed;
+ * after it has run (`m is n`); `output` compares everything it printed,
+ * `printed` looks for one line of it and `printedMatch` a pattern in it;
  * `forbid` and `require` read the source, for instructions such as "using
  * only assignment and print". Each has a sentence that says, when it
  * fails, what was wanted.
@@ -157,6 +158,8 @@ export type Check =
   | { py: string; say: string }
   | { output: string; say: string }
   | { printed: string; say: string }
+  /** A regular expression the whole printed output must match. */
+  | { printedMatch: string; say: string }
   | { forbid: string; say: string }
   | { require: string; say: string }
   | { raises: string | null; say: string }

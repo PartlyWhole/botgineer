@@ -124,6 +124,7 @@ export const block = (
 export const py = (expr: string, say: string): Check => ({ py: expr, say })
 export const prints = (text: string, say = `It should print exactly:\n${text}`): Check => ({ output: text, say })
 export const printsLine = (text: string, say: string): Check => ({ printed: text, say })
+export const printsLike = (re: string, say: string): Check => ({ printedMatch: re, say })
 export const forbid = (re: string, say: string): Check => ({ forbid: re, say })
 export const requires = (re: string, say: string): Check => ({ require: re, say })
 export const finishes = (say = 'It should run to the end without an error.'): Check => ({ raises: null, say })

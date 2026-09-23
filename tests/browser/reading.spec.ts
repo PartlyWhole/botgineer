@@ -290,3 +290,12 @@ test('an example that leans on the text before it runs with what the text set up
   await expect(page.getByTestId('node-shallow')).toBeVisible()
   await expect(page.getByTestId('node-original')).toBeVisible()
 })
+
+test('the capstone keeps all eight of its steps on screen', async ({ page }) => {
+  await open(page, 's9-capstone')
+  const steps = page.getByTestId('capstone-steps').locator('li')
+  await expect(steps).toHaveCount(8)
+  await expect(steps.first()).toHaveAttribute('aria-current', 'step')
+  await expect(steps.first()).toContainText('Mark the blocks')
+  if (process.env.SHOTS) await page.screenshot({ path: `${process.env.SHOTS}/capstone-steps.png` })
+})

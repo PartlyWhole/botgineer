@@ -118,18 +118,27 @@ const an = (w: string) => `${/^[AEIOU]/.test(w) ? 'an' : 'a'} ${w}`
 /* ------------------------------ divergence ------------------------------ */
 
 /**
- * The first line where two snippets' behaviour differs: the first visit
- * after which memory or output differs (that line's effect differed), or
- * where the two go to different lines (then the first line whose text
- * differs, since a difference in flow starts with a difference in code).
+ * The first line where two snippets' behaviour differs.
+ *
+ * The two runs are walked a step at a time — one line visit, at any
+ * depth — and a line's effect is what changed between reaching it and
+ * reaching whatever comes next: memory, and anything printed. Walking
+ * steps rather than whole lines matters when the difference is inside a
+ * function: a whole call line's effect includes its body, and it would be
+ * named instead of the body line that actually differs.
+ *
+ * Where the two go to different lines the difference is in flow, and it
+ * starts with a difference in the code, so the first line whose text
+ * differs is the answer.
  */
 export function divergence(a: RunEvidence, b: RunEvidence, sourceA: string, sourceB: string): number | null {
   const n = Math.min(a.visits.length, b.visits.length)
   const textual = firstTextDifference(sourceA, sourceB)
+  const after = (ev: RunEvidence, i: number) => (i + 1 < ev.visits.length ? ev.beforeVisit(i + 1) : ev.final)
   for (let i = 0; i < n; i++) {
     if (a.visits[i]!.line !== b.visits[i]!.line) return textual ?? a.visits[Math.max(0, i - 1)]!.line
-    const ea = canonical(a.afterVisit(i)) + '\u0000' + a.printedBy(i)
-    const eb = canonical(b.afterVisit(i)) + '\u0000' + b.printedBy(i)
+    const ea = canonical(after(a, i)) + '\u0000' + a.printedUntilNext(i)
+    const eb = canonical(after(b, i)) + '\u0000' + b.printedUntilNext(i)
     if (ea !== eb) return a.visits[i]!.line
   }
   if (a.visits.length !== b.visits.length) return textual
@@ -169,6 +178,7 @@ export function runChecks(
       return { ok: v === true, say: c.say }
     }
     if ('output' in c) return { ok: normalise(program.run.output) === normalise(c.output), say: c.say }
+    if ('printedMatch' in c) return { ok: new RegExp(c.printedMatch, 'm').test(normalise(program.run.output)), say: c.say }
     if ('printed' in c) return { ok: normalise(program.run.output).split('\n').includes(normalise(c.printed)), say: c.say }
     if ('forbid' in c) return { ok: !new RegExp(c.forbid, 'm').test(program.source), say: c.say }
     if ('require' in c) return { ok: new RegExp(c.require, 'm').test(program.source), say: c.say }
