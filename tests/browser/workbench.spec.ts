@@ -1508,6 +1508,8 @@ for (const unit of ['thinking', 'remembering']) {
       expect(asked).toHaveLength(5)
       await expect(page.getByTestId('guide')).toContainText('5 of 5 right first time')
       await expect(page.getByTestId('advance')).toBeVisible()
+      // Thinking ends on its answers, sorted into their kinds.
+      if (unit === 'thinking') await expect(page.getByTestId('prop')).toHaveAttribute('data-prop', 'kinds')
       await page.goto('./#/map')
     }
   })
@@ -1519,9 +1521,13 @@ test('a wrong answer says why, keeps the question on screen, and counts against 
   const ex = (await exercise(page))!
   // A line that is an answer, and wrong, for every skill in this unit: a
   // failed line counts as an attempt.
+  // Every thinking exercise is about a picture, like the lessons, and the
+  // question stays under it while the crow talks about the answer.
+  await expect(page.getByTestId('prop')).toBeVisible()
   await say(page, 'undefined_name')
   await expect(page.getByTestId('guide')).toContainText('Not quite')
-  await expect(page.getByTestId('practice-task')).toBeVisible()
+  await expect(page.getByTestId('prop-ask')).toBeVisible()
+  await expect(page.getByTestId('prop')).toHaveAttribute('data-verdict', 'miss')
 
   await say(page, 'undefined_name')
   // Two misses and the crow shows a way.

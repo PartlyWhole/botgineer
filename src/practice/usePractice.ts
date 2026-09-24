@@ -15,6 +15,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { recordTry, currentMastery } from '../mastery/mastery'
 import type { Attempt, Exercise } from './exercises'
 import { planSession } from './session'
+import type { Thought } from '../memory/extract'
+import { NO_STAGING, type Staging } from '../scene/props'
 
 export type PracticeGuide = { text: string }
 
@@ -33,6 +35,12 @@ export type PracticeState = {
   current: Exercise | null
   /** Judges a line the player typed. */
   onAttempt: (a: Attempt) => void
+  /**
+   * The exercise's picture, with the last answer drawn into it: a miss as
+   * it came out, a right answer with its tick while the praise is read.
+   * Once the session is done, every right answer sorted into its kind.
+   */
+  staging: Staging
 }
 
 const PRAISE = ['Right!', 'Spot on.', 'That is it.', 'Nicely done.', 'Exactly.', 'Yes!']
@@ -52,6 +60,10 @@ export function usePractice(
   const [misses, setMisses] = useState(0)
   const [results, setResults] = useState<(boolean | null)[]>(() => exercises.map(() => null))
   const [feedback, setFeedback] = useState<{ kind: 'wrong' | 'right'; text: string } | null>(null)
+  /** What the robot made of the last line judged for this exercise. */
+  const [said, setSaid] = useState<Thought | null>(null)
+  /** Every right answer this session, for the kinds at the end. */
+  const [rights, setRights] = useState<Thought[]>([])
   const started = useRef(-1)
   const timer = useRef<number | null>(null)
 
@@ -73,6 +85,7 @@ export function usePractice(
       if (!current || feedback?.kind === 'right') return
       const { verdict, why } = current.judge(a)
       if (verdict === 'ignore') return
+      setSaid(a.ok ? a.thought : null)
 
       const first = results[at] === null && misses === 0
       if (first) {
@@ -83,9 +96,11 @@ export function usePractice(
       if (verdict === 'correct') {
         const praise = `${PRAISE[at % PRAISE.length]}${current.praise ? ` ${current.praise}` : ''}`
         setFeedback({ kind: 'right', text: praise })
+        if (a.thought) setRights((rs) => [...rs, a.thought!])
         timer.current = window.setTimeout(() => {
           timer.current = null
           setFeedback(null)
+          setSaid(null)
           setMisses(0)
           setAt((i) => i + 1)
         }, readingTime(praise))
@@ -110,11 +125,37 @@ export function usePractice(
       ? feedback.text
       : current!.say
 
+  const staging: Staging = done
+    ? rights.length > 0
+      ? { current: { key: 'practice:done', prop: { kind: 'kinds' }, answer: null, verdict: null, heard: rights }, leaving: null }
+      : NO_STAGING
+    : current!.show
+      ? {
+          current: {
+            key: `practice:${at}`,
+            prop: current!.show,
+            ask: current!.ask,
+            answer: said,
+            verdict: feedback?.kind === 'right' ? 'right' : feedback ? 'miss' : null,
+            heard: rights,
+          },
+          leaving: null,
+        }
+      : NO_STAGING
+
   return {
     guide: { text },
     done,
-    meter: { at: Math.min(at, exercises.length), of: exercises.length, results, task: done ? null : current!.say },
+    // The question stays in the meter only when there is no picture to
+    // carry it; with one, it sits under the picture instead.
+    meter: {
+      at: Math.min(at, exercises.length),
+      of: exercises.length,
+      results,
+      task: done || current!.show ? null : current!.say,
+    },
     current: done ? null : current,
     onAttempt,
+    staging,
   }
 }

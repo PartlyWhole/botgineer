@@ -275,7 +275,11 @@ npm run collection    # regenerate content/collection/generated/ from the markdo
    still has to get it right to move on, but a third attempt is learning,
    not evidence. A session is React state and is never stored; mastery is
    what persists. Each exercise gets a clean console (`Workbench.restart`)
-   with its setup lines run and shown as given.
+   with its setup lines run and shown as given. A warm-up exercise also
+   carries a picture (`show`, `ask`), drawn the way a lesson step's is
+   (invariant 26) from the session's own state: the last judged answer,
+   a tick while the praise is read, and at the end the session's right
+   answers sorted into their kinds.
 
 ## Engine facts that shape the UI
 

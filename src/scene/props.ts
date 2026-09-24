@@ -60,7 +60,7 @@ export type Prop =
   /** `have` bolts, `use` of them used up; the answer is ringed. */
   | { kind: 'bolts'; have: number; use: number }
   /** A balance with `left` and `right` blocks, asked `left op right`. */
-  | { kind: 'balance'; left: number; right: number; op: '>' | '==' }
+  | { kind: 'balance'; left: number; right: number; op: '>' | '<' | '==' }
   /** An expression worked one operation at a time: `first` is done
    *  first, then each of `then`. The working shows once answered. */
   | { kind: 'expr'; text: string; first: string; then: string[] }

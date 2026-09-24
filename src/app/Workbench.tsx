@@ -479,7 +479,10 @@ export function Workbench({ activity }: { activity: Activity }) {
   }, [said])
   // The lesson's picture, and the last one leaving with its answer.
   // Nothing new is known here: it is the same evidence the guide reads.
-  const stage = useMemo(() => (lesson && !practice && !reading ? stageOf(lesson, evidence) : NO_STAGING), [lesson, practice, reading, evidence])
+  const stage = useMemo(
+    () => (practice ? practice.staging : lesson && !reading ? stageOf(lesson, evidence) : NO_STAGING),
+    [lesson, practice, reading, evidence],
+  )
   // The whole progression: the guide offers the next lesson once this one
   // is genuinely done. Derived like everything else, so scrubbing back
   // through the trace withdraws the offer too.

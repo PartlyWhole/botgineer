@@ -198,6 +198,9 @@
   stroke: #9aa4bf;
   stroke-width: 1.5;
 }
+.prop .tick.minor {
+  stroke-width: 1;
+}
 
 /* Anything drawn from its own box: scales and turns about itself. */
 .prop .apple-drop,

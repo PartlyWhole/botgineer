@@ -421,6 +421,9 @@ function Glasses({ view, level }: { view: PropView; level: number }) {
         1
       </text>
       <line x1="46" x2="52" y1="78" y2="78" className="tick" />
+      {[1, 2, 3, 4, 6, 7, 8, 9].map((k) => (
+        <line key={k} x1="49" x2="52" y1={116 - 7.6 * k} y2={116 - 7.6 * k} className="tick minor" />
+      ))}
       <line x1="46" x2="52" y1="116" y2="116" className="tick" />
       <text x="42" y="119" className="tick-label end">
         0
@@ -809,7 +812,9 @@ function Share({ view, litres, robots }: { view: PropView; litres: number; robot
   const left = n === null ? litres : Math.max(0, litres - each * robots)
   const scale = 6
   const tankH = 72
-  const tanks = Array.from({ length: robots }, (_, i) => 150 - ((robots - 1) * 48) / 2 + i * 48)
+  // Three tanks sit closer than two, so the last stays on the stage.
+  const gap = robots > 2 ? 40 : 48
+  const tanks = Array.from({ length: robots }, (_, i) => 146 - ((robots - 1) * gap) / 2 + i * gap)
   return (
     <g className="share">
       <g className="jug" transform="translate(40,0)">
@@ -880,7 +885,7 @@ function Bolts({ view, have, use }: { view: PropView; have: number; use: number 
 
 /* --- balance: a question makes a bool --- */
 
-function Balance({ view, left, right, op }: { view: PropView; left: number; right: number; op: '>' | '==' }) {
+function Balance({ view, left, right, op }: { view: PropView; left: number; right: number; op: '>' | '<' | '==' }) {
   const b = boolOf(view.answer)
   const tilt = left === right ? 0 : left > right ? -8 : 8
   const stack = (count: number, x: number, split?: number) =>

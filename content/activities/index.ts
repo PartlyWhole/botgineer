@@ -293,6 +293,12 @@ const practiceScene = (id: string): SceneSpec => ({
   watches: [],
 })
 
+/**
+ * Practice on the warm-up: the same pictures as its lessons, with new
+ * numbers each time, so practice is the lessons' world rather than a
+ * quiz beside it. The remembering practice keeps the plain yard: its
+ * questions are about memory, which the memory graph already draws.
+ */
 const practiceThinking: Activity = {
   id: 'practice-thinking',
   title: 'Practice: Thinking',
@@ -303,7 +309,7 @@ const practiceThinking: Activity = {
   greeting: 'Practice time. Every question is new.',
   starter: '',
   options: { max_steps: 3000, wall_clock_s: 15 },
-  scene: practiceScene('practice-thinking'),
+  scene: { ...WORKSHOP, id: 'practice-thinking', title: 'Practice yard' },
 }
 
 const practiceRemembering: Activity = {

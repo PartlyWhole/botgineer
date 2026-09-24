@@ -20,6 +20,7 @@
  */
 import type { Thought } from '../memory/extract'
 import type { MemorySnapshot } from '../memory/model'
+import type { Prop } from '../scene/props'
 import { bin, evaluate, int, render, repr, str, type BinOp, type Expr } from './python'
 
 /* ------------------------------ randomness ------------------------------ */
@@ -69,6 +70,11 @@ export type Exercise = {
   say: string
   /** Lines run before the player starts, and shown as given. */
   setup: string[]
+  /** The picture the question is about, drawn on the stage with the
+   *  answer in it — as a lesson step's is. */
+  show?: Prop | undefined
+  /** The question in a few words, kept under the picture. */
+  ask?: string | undefined
   /** One line that answers it — shown after two misses, and what the
    *  browser suite types to check the judge against real Python. */
   answer: string
@@ -125,21 +131,18 @@ const PAIRS = [
 ] as const
 const THINGS = ['bolts', 'gears', 'sparks', 'crates', 'wheels', 'wires'] as const
 
-/** Questions whose kind is decided by what they ask, and their answers
- *  as Python writes them. */
-const SITUATIONS: { say: string; type: 'bool' | 'int' | 'float' | 'str'; value: string; hint: string }[] = [
-  { say: 'How many wheels does a bicycle have?', type: 'int', value: '2', hint: 'but count the wheels again.' },
-  { say: 'How many legs does a spider have?', type: 'int', value: '8', hint: 'but a spider has more legs than that.' },
-  { say: 'How many days are in a week?', type: 'int', value: '7', hint: 'Monday to Sunday — count them.' },
-  { say: 'Half a pizza is left. How much of the pizza is that?', type: 'float', value: '0.5', hint: 'half is exactly in the middle of 0 and 1.' },
-  { say: 'A quarter of a cake is left. How much of the cake is that?', type: 'float', value: '0.25', hint: 'a quarter is half of a half.' },
-  { say: 'A big bottle holds one and a half litres. How many litres?', type: 'float', value: '1.5', hint: 'halfway between 1 and 2.' },
-  { say: 'Is ice cold?', type: 'bool', value: 'True', hint: 'but touch some ice!' },
-  { say: 'Can a cat fly?', type: 'bool', value: 'False', hint: 'but have you seen a cat fly?' },
-  { say: 'Does a triangle have three corners?', type: 'bool', value: 'True', hint: 'but count the corners.' },
-  { say: 'Is 3 more than 10?', type: 'bool', value: 'False', hint: 'but look at the numbers again.' },
-  { say: 'Write the name Sam so a person can read it.', type: 'str', value: 'Sam', hint: 'spell it exactly: Sam.' },
-  { say: 'Write the word hello for a person to read.', type: 'str', value: 'hello', hint: 'spell it exactly: hello.' },
+/** Questions whose kind is decided by what they ask, each about a
+ *  picture from the first level, and their answers as Python writes them. */
+const SITUATIONS: { say: string; ask: string; show: Prop; type: 'bool' | 'int' | 'float' | 'str'; value: string; hint: string }[] = [
+  { say: 'How many hollows does this egg box have?', ask: 'How many hollows?', show: { kind: 'carton', slots: 6 }, type: 'int', value: '6', hint: 'count the hollows again.' },
+  { say: 'How many apples are in the basket?', ask: 'How many apples?', show: { kind: 'basket', apples: 4 }, type: 'int', value: '4', hint: 'count the apples again.' },
+  { say: 'Which floor is the car park, one under the ground?', ask: 'Which floor is the car park?', show: { kind: 'lift', lowest: -2, highest: 3 }, type: 'int', value: '-1', hint: 'under the ground needs a minus sign.' },
+  { say: 'How full is the glass? Empty is 0 and full is 1.', ask: 'How full is the glass?', show: { kind: 'glass', level: 0.5 }, type: 'float', value: '0.5', hint: 'the water is exactly halfway.' },
+  { say: 'A football match is two halves of 45 minutes. How long is it, in hours?', ask: 'How many hours is 90 minutes?', show: { kind: 'match' }, type: 'float', value: '1.5', hint: 'halfway between one hour and two.' },
+  { say: 'Is the lamp on?', ask: 'Is the lamp on?', show: { kind: 'lamp' }, type: 'bool', value: 'False', hint: 'but look at the lamp.' },
+  { say: 'Is 3 more than 5? Just answer.', ask: 'Is 3 more than 5?', show: { kind: 'balance', left: 3, right: 5, op: '>' }, type: 'bool', value: 'False', hint: 'but which side of the balance is lower?' },
+  { say: 'Write the name Mira on the card, for Mira to read.', ask: 'Write "Mira" on the card.', show: { kind: 'card' }, type: 'str', value: 'Mira', hint: 'spell it exactly: Mira.' },
+  { say: 'Write the word hello on the card, for a person to read.', ask: 'Write "hello" on the card.', show: { kind: 'card' }, type: 'str', value: 'hello', hint: 'spell it exactly: hello.' },
 ]
 
 /** Why a question wants its kind, said when the kind was wrong. */
@@ -158,46 +161,89 @@ const KIND_PRAISE: Record<'bool' | 'int' | 'float' | 'str', string> = {
 }
 
 export const GENERATORS: Record<string, Generator> = {
+  // The warm-up's skills ask about a picture on the stage, the way the
+  // lessons do: the same situations, new numbers each time, and the
+  // answer drawn into the picture. The remembering skills below are
+  // about memory, which the memory graph already draws.
+
   int(r) {
-    const lo = between(r, 3, 40)
-    const hi = lo + between(r, 4, 9)
+    if (r() < 0.5) {
+      const n = between(r, 2, 6)
+      return {
+        key: `int:apples:${n}`,
+        skill: 'int',
+        say: 'How many apples are in the basket?',
+        ask: 'How many apples?',
+        show: { kind: 'basket', apples: n },
+        setup: [],
+        answer: String(n),
+        expect: { type: 'int', repr: String(n) },
+        praise: 'Counted, so an `int`.',
+        judge(a) {
+          if (!a.ok) return failed(a, { NameError: 'Write the number with digits, like `3`.' })
+          const t = a.thought
+          if (!t) return { verdict: 'ignore' }
+          if (t.type === 'float') return { verdict: 'wrong', why: 'The dot means measured. Apples are counted — no dot.' }
+          if (t.type !== 'int') return { verdict: 'wrong', why: `That is a \`${t.type}\`. How many is a whole number.` }
+          if (t.repr !== String(n)) return { verdict: 'wrong', why: 'Count the apples again — your count is drawn above the basket.' }
+          return { verdict: 'correct' }
+        },
+      }
+    }
+    const [where, floor] = pick(r, [
+      ['the car park, one floor under the ground', -1],
+      ['the cellar, two floors under the ground', -2],
+      ['the ground floor', 0],
+      ['the top floor', 3],
+      ['two floors up from the ground', 2],
+    ] as const)
     return {
-      key: `int:${lo}:${hi}`,
+      key: `int:lift:${floor}`,
       skill: 'int',
-      say: `Think of a whole number bigger than ${lo} and smaller than ${hi}.`,
+      say: `Send the lift to ${where}. Which floor is that?`,
+      ask: `Which floor is ${where.split(',')[0]}?`,
+      show: { kind: 'lift', lowest: -2, highest: 3 },
       setup: [],
-      answer: String(lo + 1),
-      expect: { type: 'int', repr: String(lo + 1) },
+      answer: String(floor),
+      expect: { type: 'int', repr: String(floor) },
+      praise: 'Floors are counted, below zero too.',
       judge(a) {
         if (!a.ok) return failed(a)
         const t = a.thought
         if (!t) return { verdict: 'ignore' }
-        if (t.type === 'float') return { verdict: 'wrong', why: 'That has a dot, so it is a `float`. Whole numbers have none.' }
-        if (t.type !== 'int') return { verdict: 'wrong', why: `That is a \`${t.type}\`, not a whole number.` }
-        const n = Number(t.repr)
-        if (n <= lo || n >= hi) return { verdict: 'wrong', why: `In between: more than ${lo}, less than ${hi}.` }
+        if (t.type === 'float') return { verdict: 'wrong', why: 'Stuck between floors! A lift stops at whole floors — no dot.' }
+        if (t.type !== 'int') return { verdict: 'wrong', why: `That is a \`${t.type}\`. A floor is a whole number.` }
+        if (floor < 0 && t.repr === String(-floor)) return { verdict: 'wrong', why: 'That is *up*. Under the ground needs a minus sign.' }
+        if (t.repr !== String(floor)) return { verdict: 'wrong', why: `The lift went to floor ${t.repr}. Floor 0 is the ground.` }
         return { verdict: 'correct' }
       },
     }
   },
 
   float(r) {
-    const a = between(r, 1, 9)
+    // Tenths, which the glass is marked in, so each can be read by eye.
+    const level = pick(r, [0.2, 0.3, 0.5, 0.7, 0.8] as const)
+    const want = String(level)
     return {
-      key: `float:${a}`,
+      key: `float:glass:${level}`,
       skill: 'float',
-      say: `Think of a measurement between ${a} and ${a + 1} — a decimal, like \`${a}.5\`.`,
+      say: 'How full is the glass? Empty is `0` and full is `1` — measure it.',
+      ask: 'How full is the glass?',
+      show: { kind: 'glass', level },
       setup: [],
-      answer: `${a}.5`,
-      expect: { type: 'float', repr: `${a}.5` },
+      answer: want,
+      expect: { type: 'float', repr: want },
+      praise: 'Measured, so a `float`.',
       judge(x) {
         if (!x.ok) return failed(x)
         const t = x.thought
         if (!t) return { verdict: 'ignore' }
-        if (t.type === 'int') return { verdict: 'wrong', why: 'No dot, so that is an `int`. A measurement needs one.' }
-        if (t.type !== 'float') return { verdict: 'wrong', why: `That is a \`${t.type}\`. A decimal is a \`float\`.` }
+        if (t.type === 'tuple' && /,/.test(x.source)) return { verdict: 'wrong', why: 'Python writes the dot as a full stop, not a comma.' }
+        if (t.type === 'int') return { verdict: 'wrong', why: 'No whole number fits — it is between `0` and `1`. Use a dot.' }
+        if (t.type !== 'float') return { verdict: 'wrong', why: `That is a \`${t.type}\`. A measurement is a number with a dot.` }
         const n = Number(t.repr)
-        if (!(n > a && n < a + 1)) return { verdict: 'wrong', why: `Somewhere between ${a} and ${a + 1}.` }
+        // A picture is read by eye, so close is right.
+        if (Math.abs(n - level) > 0.051) return { verdict: 'wrong', why: `I filled the other glass to ${t.repr} — compare them.` }
         return { verdict: 'correct' }
       },
     }
@@ -209,10 +255,13 @@ export const GENERATORS: Record<string, Generator> = {
     return {
       key: `str:${w}`,
       skill: 'str',
-      say: `Think of the word ${w} — as text, not as a name.`,
+      say: `Write the word ${w} on the card, so a person can read it.`,
+      ask: `Write "${w}" on the card.`,
+      show: { kind: 'card' },
       setup: [],
       answer: `"${w}"`,
       expect: { type: 'str', repr: want },
+      praise: 'Words for people, so a `str`.',
       judge(a) {
         if (!a.ok) return failed(a, { NameError: `Without quotes, the robot looked for a name called \`${w}\`. Text goes in quotes.` })
         const t = a.thought
@@ -225,20 +274,46 @@ export const GENERATORS: Record<string, Generator> = {
   },
 
   bool(r) {
-    const x = between(r, 2, 30)
-    let y = between(r, 2, 30)
-    if (y === x) y = x + between(r, 1, 5)
-    const more = r() < 0.5
-    const truth = more ? x > y : x < y
+    if (r() < 0.4) {
+      const on = r() < 0.5
+      const word = on ? 'True' : 'False'
+      return {
+        key: `bool:lamp:${word}`,
+        skill: 'bool',
+        say: `Turn the lamp ${on ? 'on' : 'off'}. The switch only knows \`True\` and \`False\`.`,
+        ask: `Turn the lamp ${on ? 'on' : 'off'}.`,
+        show: { kind: 'lamp' },
+        setup: [],
+        answer: word,
+        expect: { type: 'bool', repr: word },
+        praise: 'A switch is a `bool`.',
+        judge(a) {
+          const said = a.source.trim()
+          if (said === 'true' || said === 'false') return { verdict: 'wrong', why: 'Capital letter: `True` or `False`.' }
+          if (!a.ok) return failed(a, { NameError: 'The robot\'s on is `True` and its off is `False`.' })
+          const t = a.thought
+          if (!t) return { verdict: 'ignore' }
+          if (t.type === 'str') return { verdict: 'wrong', why: 'A word on a note lights nothing. No quotes.' }
+          if (t.type !== 'bool') return { verdict: 'wrong', why: 'A switch has only two answers: `True` or `False`.' }
+          return t.repr === word ? { verdict: 'correct' } : { verdict: 'wrong', why: `That turned it ${on ? 'off' : 'on'}.` }
+        },
+      }
+    }
+    const x = between(r, 1, 9)
+    let y = between(r, 1, 9)
+    if (y === x) y = x === 9 ? 8 : x + 1
+    const truth = x > y
     const word = truth ? 'True' : 'False'
     return {
-      key: `bool:${x}:${y}:${more}`,
+      key: `bool:${x}:${y}`,
       skill: 'bool',
-      say: `Is ${x} ${more ? 'more' : 'less'} than ${y}? Answer with just \`True\` or \`False\` — no working out.`,
+      say: `Look at the balance. Is ${x} more than ${y}? Answer with just \`True\` or \`False\` — no working out.`,
+      ask: `Is ${x} more than ${y}?`,
+      show: { kind: 'balance', left: x, right: y, op: '>' },
       setup: [],
       answer: word,
       expect: { type: 'bool', repr: word },
-      praise: `${x} ${truth ? 'is' : 'is not'} ${more ? 'more' : 'less'} than ${y}.`,
+      praise: `${x} ${truth ? 'is' : 'is not'} more than ${y}.`,
       judge(a) {
         const said = a.source.trim()
         if (said === 'true' || said === 'false') return { verdict: 'wrong', why: 'Capital letter: `True` or `False`.' }
@@ -246,20 +321,22 @@ export const GENERATORS: Record<string, Generator> = {
         const t = a.thought
         if (!t) return { verdict: 'ignore' }
         if (said !== 'True' && said !== 'False') return { verdict: 'wrong', why: 'Say it yourself — just `True` or `False`.' }
-        return t.repr === word ? { verdict: 'correct' } : { verdict: 'wrong', why: `Look again: ${x} and ${y}.` }
+        return t.repr === word ? { verdict: 'correct' } : { verdict: 'wrong', why: 'Look again: which side of the balance is lower?' }
       },
     }
   },
 
   kind(r) {
-    // The question decides the kind: this is the first level's lesson,
-    // asked without a hint about which kind to use.
+    // The question decides the kind: the first level's lesson, asked with
+    // no hint about which kind to use.
     const s = pick(r, SITUATIONS)
     const want = s.type === 'str' ? repr({ t: 'str', v: s.value }) : s.value
     return {
       key: `kind:${s.say}`,
       skill: 'kind',
       say: `${s.say} You choose the kind.`,
+      ask: s.ask,
+      show: s.show,
       setup: [],
       answer: s.type === 'str' ? `"${s.value}"` : s.value,
       expect: { type: s.type, repr: want },
@@ -283,28 +360,46 @@ export const GENERATORS: Record<string, Generator> = {
 
   arith(r) {
     const kind = pick(r, ['*', '+', '-'] as const)
-    let x = between(r, 3, 12)
-    let y = between(r, 2, 12)
-    if (kind === '-' && y > x) [x, y] = [y + 5, x]
+    let x: number
+    let y: number
+    let show: Prop
+    let story: string
+    let ask: string
+    if (kind === '*') {
+      x = between(r, 2, 7)
+      y = between(r, 2, 6)
+      show = { kind: 'crates', crates: x, each: y }
+      story = `${x} crates with ${y} bolts in each. How many bolts?`
+      ask = `${x} crates of ${y} bolts.`
+    } else if (kind === '-') {
+      x = between(r, 8, 20)
+      y = between(r, 2, x - 2)
+      show = { kind: 'bolts', have: x, use: y }
+      story = `The robot has ${x} bolts and uses ${y}. How many are left?`
+      ask = `${x} bolts, ${y} used.`
+    } else {
+      x = between(r, 3, 12)
+      y = between(r, 2, 9)
+      show = { kind: 'tiles', parts: [String(x), '+', String(y)] }
+      story = `${x} bolts in one box and ${y} in another. How many altogether?`
+      ask = `${x} bolts and ${y} bolts.`
+    }
     const e = bin(kind, int(x), int(y))
     const want = value(e)
-    const story =
-      kind === '*'
-        ? `${x} crates with ${y} bolts in each. How many bolts?`
-        : kind === '+'
-          ? `${x} bolts in one box and ${y} in another. How many altogether?`
-          : `The robot has ${x} bolts and uses ${y}. How many are left?`
     return {
       key: `arith:${kind}:${x}:${y}`,
       skill: 'arith',
       say: `${story} Ask the robot.`,
+      ask,
+      show,
       setup: [],
       answer: render(e),
       expect: { type: 'int', repr: want },
       judge(a) {
-        if (!a.ok) return failed(a)
+        if (!a.ok) return failed(a, { SyntaxError: 'Times is a star, `*`.' })
         const t = a.thought
         if (!t) return { verdict: 'ignore' }
+        if (t.repr === want && !/[-+*]/.test(a.source)) return { verdict: 'wrong', why: 'Right number — now let the robot work it out.' }
         if (t.repr === want) return { verdict: 'correct' }
         return { verdict: 'wrong', why: `That comes to ${t.repr}. It is ${x} ${OPS_WORD[kind]} ${y}.` }
       },
@@ -312,16 +407,18 @@ export const GENERATORS: Record<string, Generator> = {
   },
 
   divide(r) {
-    const b = between(r, 2, 5)
+    const b = between(r, 2, 3)
     // Sometimes it shares out exactly, which is the case worth seeing:
     // `8 / 2` is `4.0`, a float, even though nothing is left over.
-    const a = r() < 0.4 ? b * between(r, 2, 6) : between(r, 3, 29)
+    const a = r() < 0.4 ? b * between(r, 2, 6) : between(r, b + 1, 6 * b)
     const e = bin('/', int(a), int(b))
     const want = value(e)
     return {
       key: `divide:${a}:${b}`,
       skill: 'divide',
       say: `Share ${a} litres of oil between ${b} robots. How much does each get?`,
+      ask: `Share ${a} litres between ${b}.`,
+      show: { kind: 'share', litres: a, robots: b },
       setup: [],
       answer: render(e),
       expect: { type: 'float', repr: want },
@@ -330,7 +427,9 @@ export const GENERATORS: Record<string, Generator> = {
         if (!x.ok) return failed(x)
         const t = x.thought
         if (!t) return { verdict: 'ignore' }
+        if (t.repr === want && !/\//.test(x.source)) return { verdict: 'wrong', why: 'Right amount — now let the robot share it, with `/`.' }
         if (t.repr === want) return { verdict: 'correct' }
+        if (t.type === 'int' && /\/\//.test(x.source)) return { verdict: 'wrong', why: '`//` shares whole litres only — look what is left in the jug. Use `/`.' }
         if (t.type === 'int') return { verdict: 'wrong', why: 'Sharing out is a measurement: divide with `/`, which gives a `float`.' }
         return { verdict: 'wrong', why: `That comes to ${t.repr}. Share ${a} between ${b}.` }
       },
@@ -346,6 +445,8 @@ export const GENERATORS: Record<string, Generator> = {
       key: `join:${x}${y}`,
       skill: 'join',
       say: `Join "${x}" and "${y}" into one word.`,
+      ask: `Glue "${x}" and "${y}".`,
+      show: { kind: 'tiles', parts: [`"${x}"`, '+', `"${y}"`] },
       setup: [],
       answer: render(e),
       expect: { type: 'str', repr: want },
@@ -361,9 +462,9 @@ export const GENERATORS: Record<string, Generator> = {
   },
 
   compare(r) {
-    const x = between(r, 2, 40)
-    let y = between(r, 2, 40)
-    if (y === x) y = x + 3
+    const x = between(r, 1, 9)
+    let y = between(r, 1, 9)
+    if (y === x) y = x === 9 ? 7 : x + 2
     const op = pick(r, ['>', '<'] as const)
     const e = bin(op, int(x), int(y))
     const want = value(e)
@@ -371,6 +472,8 @@ export const GENERATORS: Record<string, Generator> = {
       key: `compare:${x}${op}${y}`,
       skill: 'compare',
       say: `Ask the robot whether ${x} is ${op === '>' ? 'more' : 'less'} than ${y}.`,
+      ask: `Is ${x} ${op === '>' ? 'more' : 'less'} than ${y}?`,
+      show: { kind: 'balance', left: x, right: y, op },
       setup: [],
       answer: render(e),
       expect: { type: 'bool', repr: want },
@@ -399,6 +502,8 @@ export const GENERATORS: Record<string, Generator> = {
         key: `order:predict:${x}:${y}:${z}`,
         skill: 'order',
         say: `No robot this time: what does \`${render(e)}\` come to? Type just the number.`,
+        ask: `What is ${render(e)}?`,
+        show: { kind: 'expr', text: render(e), first: `${y} * ${z}`, then: [`${x} + ${y * z}`, want] },
         setup: [],
         answer: want,
         expect: { type: 'int', repr: want },
@@ -419,6 +524,8 @@ export const GENERATORS: Record<string, Generator> = {
       key: `order:brackets:${x}:${y}:${z}`,
       skill: 'order',
       say: `Add ${x} and ${y} first, then multiply by ${z} — all in one line.`,
+      ask: `${x} + ${y} first, then × ${z}.`,
+      show: { kind: 'expr', text: render(e), first: `(${x} + ${y})`, then: [`${x + y} * ${z}`, want] },
       setup: [],
       answer: render(e),
       expect: { type: 'int', repr: want },
