@@ -264,14 +264,6 @@ test('the ideas open on the story, are told a block a beat, and run in place', a
   await shot(page, 'C5-reading-fixed-5')
 })
 
-test('Stage 1’s ideas say the bridge into reading', async ({ page }) => {
-  await open(page, 's1-ideas')
-  await expect(page.getByTestId('guide')).toContainText('Mira has written the robot a program')
-  if (process.env.SHOTS) await page.screenshot({ path: `${process.env.SHOTS}/C5-1.png` })
-  await nextBeat(page)
-  await expect(page.getByTestId('guide')).toContainText('A good engineer knows what the robot will do before it does it.')
-})
-
 test('Stage 6 names each formal word on a beat of its own, and keeps it as a label', async ({ page }) => {
   await open(page, 's6-ideas')
   while (!(await beat(page)).text.includes('**binding**')) await nextBeat(page)

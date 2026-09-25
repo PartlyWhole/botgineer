@@ -18,9 +18,10 @@ import { operations } from './operations'
 import { namesPoint } from './names'
 import { takeAnOrder } from './order'
 import { wake } from './wake'
+import { s1Ideas } from './s1ideas'
 
 export * from './core'
-export { meet, types, choose, operations, namesPoint, takeAnOrder, wake }
+export { meet, types, choose, operations, namesPoint, takeAnOrder, wake, s1Ideas }
 
 export const LESSONS: Record<string, Lesson> = {
   [meet.id]: meet,
@@ -30,4 +31,5 @@ export const LESSONS: Record<string, Lesson> = {
   [namesPoint.id]: namesPoint,
   [takeAnOrder.id]: takeAnOrder,
   [wake.id]: wake,
+  [s1Ideas.id]: s1Ideas,
 }

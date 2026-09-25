@@ -352,6 +352,25 @@ const practiceRemembering: Activity = {
  *  is what the router opens with. The editor activities are reachable by
  *  hash but are not offered anywhere yet — they are what unlocking looks
  *  like, once there is a progression to unlock them from. */
+/**
+ * Stage 1's ideas, as a console lesson rather than the collection's page
+ * of prose (content/lessons/s1ideas.ts says why). Same id and place on
+ * the map as the reading level it replaces, so progress and links hold.
+ * The memory graph is the picture, so the stage needs no props slot.
+ */
+const stage1Ideas: Activity = {
+  id: 's1-ideas',
+  title: 'The Ideas',
+  brief: 'Read straight-line code one line at a time: right side first, then see which arrow moves.',
+  mode: 'console',
+  lesson: 's1-ideas',
+  next: 'wake',
+  greeting: 'Type an instruction and press Enter.',
+  starter: '',
+  options: { max_steps: 3000, wall_clock_s: 15 },
+  scene: practiceScene('s1-ideas'),
+}
+
 export const ACTIVITIES: Activity[] = [
   meetTheRobot,
   fiveDataTypes,
@@ -361,6 +380,7 @@ export const ACTIVITIES: Activity[] = [
   namingThings,
   takeAnOrder,
   practiceRemembering,
+  stage1Ideas,
   wakeTheRobot,
   ...readingActivities(),
 ]

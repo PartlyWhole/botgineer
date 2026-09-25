@@ -75,7 +75,9 @@ export function stageLevelIds(n: number): string[] {
 function stageActivities(n: number): Activity[] {
   const stage = STAGES[n - 1]!
   const out: Activity[] = []
-  out.push(
+  // Stage 1's ideas are a console lesson (content/lessons/s1ideas.ts),
+  // defined with the other console activities; the rest still read.
+  if (n !== 1) out.push(
     read(
       `s${n}-ideas`,
       stage.capstone ? 'How to read a long program' : 'The ideas',
