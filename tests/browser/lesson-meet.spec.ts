@@ -66,8 +66,8 @@ test('the misses are shown and named, then a number is thought of and let go', a
   await expect(page.getByTestId('guide')).toContainText("It's thinking of 7, because that's what you wrote.")
   // Thought of and let go: nothing had a name.
   await expect(page.getByTestId('memory')).toContainText('Memory is empty')
-  // Finished, and the way on is offered at once (invariant 10).
-  await expect(page.getByTestId('advance')).toBeVisible()
+  // Finished, but the crow is still talking: Next, not Continue.
+  await expect(page.getByTestId('advance')).toHaveCount(0)
 
   await page.evaluate(() => window.botgineer.next())
   expect((await beat(page)).kind).toBe('outro')
@@ -77,6 +77,9 @@ test('the misses are shown and named, then a number is thought of and let go', a
   await expect(page.getByTestId('guide')).toContainText('lets the thought go')
   await expect(page.getByTestId('thought')).toHaveCount(0)
   await expect(page.getByTestId('takeaway')).toContainText('thinks of whatever you write')
+  // The last line said, the way on arrives (invariant 10), and Next is gone.
+  await expect(page.getByTestId('advance')).toBeVisible()
+  await expect(page.getByTestId('beat-next')).toHaveCount(0)
 })
 
 test('a sum typed is worked out, and the praise says so', async ({ page }) => {

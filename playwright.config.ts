@@ -14,8 +14,11 @@ const PORT = Number(process.env.PORT ?? 8619)
 
 export default defineConfig({
   testDir: './tests/browser',
-  fullyParallel: false,
-  workers: 1,
+  // Every test opens its own page with its own storage, so they can run
+  // side by side against the one server. Two in CI (small runners), four
+  // locally; WORKERS overrides either.
+  fullyParallel: true,
+  workers: Number(process.env.WORKERS ?? (process.env.CI ? 2 : 4)),
   timeout: 90_000,
   expect: { timeout: 20_000 },
   reporter: process.env.CI ? 'line' : 'list',
