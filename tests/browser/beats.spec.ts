@@ -12,7 +12,7 @@
  */
 import { expect, test, type Page } from '@playwright/test'
 import { CROW_NAME } from '../../content/cast'
-import { beat, open, skip } from './helpers'
+import { beat, open, reachable, skip, speechSettled } from './helpers'
 
 /** Presses Next until the line moves on — the first press may only
  *  finish the typing. */
@@ -138,4 +138,87 @@ test('reduced motion shows every line whole, with a still cue', async ({ page })
   // Nothing is typing, so one press is one line.
   await page.getByTestId('beat-next').click()
   expect((await beat(page)).at).toBe(1)
+})
+
+/** Two boxes on screen overlap. */
+const clash = (a: DOMRect | null, b: DOMRect | null) =>
+  a !== null && b !== null && !(a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top)
+
+/** The boxes that must keep clear of each other on the stage, read at once. */
+const boxes = (page: Page) =>
+  page.evaluate(() => {
+    const r = (sel: string): DOMRect | null => document.querySelector(sel)?.getBoundingClientRect().toJSON() ?? null
+    return {
+      stage: r('.stage'),
+      bar: r('[data-testid="beat-bar"]'),
+      name: r('[data-testid="speaker-name"]'),
+      guide: r('[data-testid="guide"]'),
+      thought: r('[data-testid="thought"]'),
+      prop: r('[data-testid="prop"]'),
+      ask: r('[data-testid="prop-ask"]'),
+      pointer: r('[data-testid="ask-pointer"]'),
+      cast: [...document.querySelectorAll('.actor.robot, .actor.crow, .actor.courier')]
+        .filter((a) => a.getAttribute('data-offstage') !== 'yes')
+        .map((a) => a.getBoundingClientRect().toJSON() as DOMRect),
+    }
+  })
+
+// Order and wake wait on a name from their first beat, so their hint
+// strip is up while the crow and Mira talk — and it used to float over
+// Next, the one control a beat needs.
+for (const level of ['order', 'wake']) {
+  test(`Next stands clear of the hint strip in ${level}, and so does the pointer`, async ({ page }) => {
+    await open(page, level)
+    await expect(page.getByTestId('waiting')).toBeVisible()
+    expect((await beat(page)).listening).toBe(true)
+    expect(await reachable(page, 'beat-next')).toEqual({ inView: true, onTop: true, under: [] })
+    // And it works where it stands.
+    await next(page)
+    expect((await beat(page)).at).toBe(1)
+    await skip(page)
+    if (level === 'order') {
+      // The pointer takes no clicks, so only its box can say it is covered.
+      const { under } = await reachable(page, 'ask-pointer')
+      expect(under).toEqual([])
+    }
+  })
+}
+
+test.describe('at phone width', () => {
+  test.use({ viewport: { width: 390, height: 844 } })
+
+  test('the stage holds: the bubble over the cast, the picture in view, Next reachable', async ({ page }) => {
+    await open(page, 'types')
+    for (let i = 0; i < 8; i++) {
+      const b = await beat(page)
+      if (!b.listening) break
+      await speechSettled(page)
+      // Nothing stands on Next, and it is on screen.
+      expect(await reachable(page, 'beat-next'), `beat ${b.at}`).toEqual({ inView: true, onTop: true, under: [] })
+      const on = await boxes(page)
+      // The bubble is on the stage, under the bar — the name pill used to
+      // sit on it — and over the cast's heads rather than on them.
+      expect(on.guide!.top, `beat ${b.at}`).toBeGreaterThanOrEqual(on.stage!.top)
+      expect(on.guide!.bottom).toBeLessThanOrEqual(on.stage!.bottom)
+      expect(clash(on.name, on.bar), `name on the bar at beat ${b.at}`).toBe(false)
+      for (const actor of on.cast) expect(clash(on.guide, actor), `bubble on the cast at beat ${b.at}`).toBe(false)
+      if (on.thought) expect(on.thought.top).toBeGreaterThanOrEqual(on.stage!.top)
+      // The picture is in view and nothing talks over it.
+      if (on.prop) {
+        await expect(page.getByTestId('prop')).toBeVisible()
+        expect(on.prop.bottom).toBeLessThanOrEqual(on.stage!.bottom)
+        expect(clash(on.guide, on.prop), `bubble on the picture at beat ${b.at}`).toBe(false)
+      }
+      await next(page)
+    }
+    // The question: the pointer beside the question under the picture, not
+    // on it, and the picture still there.
+    await skip(page)
+    await speechSettled(page)
+    const on = await boxes(page)
+    expect(on.prop).not.toBeNull()
+    expect(clash(on.pointer, on.ask)).toBe(false)
+    expect(clash(on.guide, on.prop)).toBe(false)
+    expect(clash(on.name, on.bar)).toBe(false)
+  })
 })

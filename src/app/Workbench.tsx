@@ -33,8 +33,10 @@ import {
   LESSONS,
   NO_CAST,
   castAt,
+  cloud,
   script,
   staging as stageOf,
+  type CloudFrom,
   type Heard,
   type Line,
   type ScriptItem,
@@ -413,10 +415,13 @@ export function Workbench({ activity }: { activity: Activity }) {
           error,
         },
       ])
-      setLastLine({ source, ok: outcome.ok, error, thought: made ? said : null })
       // Only an accepted line joins the history, so only its output becomes
       // part of what the next replay is expected to repeat.
       const after = extractMemory(last)
+      // The line carries the memory entry it adds (the same object), so a
+      // lesson can take it back out and see whether the line moved it —
+      // a binding does a step without thinking of anything.
+      setLastLine({ source, ok: outcome.ok, error, thought: made ? said : null, memory: outcome.ok ? after : undefined })
       if (outcome.ok) {
         spokenRef.current = outcome.output
         setHistory((h) => [...h, entry])
@@ -444,7 +449,7 @@ export function Workbench({ activity }: { activity: Activity }) {
    * a few names in it. The setup lines become the history, exactly as if
    * they had been typed, so replay carries them; they are shown as given.
    */
-  const restart = useCallback(
+  const startOver = useCallback(
     async (setup: string[]) => {
       const entries: Entry[] = setup.map((source) => ({ source, echo: false }))
       stepsRef.current = []
@@ -466,6 +471,19 @@ export function Workbench({ activity }: { activity: Activity }) {
       setLineMemory([extractMemory(stepsRef.current[stepsRef.current.length - 1])])
     },
     [execute],
+  )
+
+  /** How many times the console has started over, and the last start —
+   *  so the test surface's `say` can wait for an exercise that is about
+   *  to start rather than type into the one before it. */
+  const restartsRef = useRef<{ n: number; running: Promise<void> }>({ n: 0, running: Promise.resolve() })
+  const restart = useCallback(
+    (setup: string[]): Promise<void> => {
+      const running = startOver(setup)
+      restartsRef.current = { n: restartsRef.current.n + 1, running }
+      return running
+    },
+    [startOver],
   )
 
   const pool = useMemo(
@@ -562,6 +580,14 @@ export function Workbench({ activity }: { activity: Activity }) {
   // again for anything the player likes.
   const listening = lines.length > 0 && beatAt < rest
   const moveTo = useCallback((at: number) => setTelling({ key: tellKey, at }), [tellKey])
+  // A practice session is paced by the line being told: its next exercise
+  // starts (clean console, setup run) only once the praise for the last
+  // one has been read (`usePractice`, "The praise is read over the
+  // answer"). Reported, never decided here.
+  const practiceTold = practice?.told
+  useEffect(() => {
+    practiceTold?.(beatAt)
+  }, [practiceTold, beatAt])
   // The ideas read several blocks under one line; the bubble stays put for
   // them rather than typing the same words again.
   const sayKey = ideas && !ideasSaid ? read.ideas.findIndex((b, i) => i <= beatAt && read.ideas.slice(i, beatAt + 1).every((x) => x.say === b.say)) : beatAt
@@ -614,6 +640,12 @@ export function Workbench({ activity }: { activity: Activity }) {
   const currentStep = steps[shown]
   const traceLine = currentStep?.location.module === '__main__' ? currentStep.location.line : null
 
+  // The latest of each, for the test surface's `say`, which waits across
+  // renders and must act on the one it wakes up in, not the one it was
+  // called from.
+  const latest = useRef({ say, busy })
+  latest.current = { say, busy }
+
   // A small, stable surface the browser tests drive.
   useEffect(() => {
     const api = {
@@ -622,10 +654,23 @@ export function Workbench({ activity }: { activity: Activity }) {
       run: () => run(),
       /** The console's equivalent of typing a line and pressing Enter.
        *  Skips any narration first, as a player pressing Next through it
-       *  would, so a journey can still answer a lesson by typing. */
-      say: (line: string) => {
+       *  would, so a journey can still answer a lesson by typing.
+       *
+       *  A practice praise is read over the answer, and the next exercise
+       *  starts — clean console, setup run — only once it is passed. So
+       *  this passes it and waits for that start to finish: typed at once,
+       *  the line would run at the last exercise's memory, be refused as
+       *  an answer to this one, and be lost. */
+      say: async (line: string) => {
+        const starting = practice !== null && practice.praising && practice.current !== null
+        const starts = restartsRef.current.n
         moveTo(rest)
-        return say(line)
+        if (starting) {
+          await until(() => restartsRef.current.n > starts)
+          await restartsRef.current.running
+        }
+        await until(() => !latest.current.busy)
+        return latest.current.say(line)
       },
       /** The line being told: where it is in this step's script, whether it
        *  is the question, and who says it. */
@@ -711,7 +756,7 @@ export function Workbench({ activity }: { activity: Activity }) {
         through: told.finished ? 1 : lines.length > 0 ? (beatAt + 1) / lines.length : 0,
         // The editor has its own way to hand over (Send to robot), and a
         // program is written at leisure: no pointer there.
-        prompt: activity.mode === 'console' ? 'Type your answer →' : '',
+        prompt: activity.mode === 'console' ? 'Type your answer' : '',
         takeaway: lesson!.takeaway,
         resting: told.finished && beatAt === rest,
         onNext: () => moveTo(Math.min(beatAt + 1, rest)),
@@ -735,14 +780,15 @@ export function Workbench({ activity }: { activity: Activity }) {
         }
       : practice
       ? {
-          // Practice has no beats yet, so nothing to step through: only
-          // the pointer at the console while a question waits.
+          // Practice tells a script the way a lesson step does — the
+          // praise, a lead, the question — with no bar of steps (the meter
+          // is its progress) and the pointer while a question waits.
           listening,
-          back: false,
+          back: beatAt > 0,
           steps: 0,
           step: 0,
           through: 0,
-          prompt: 'Type your answer →',
+          prompt: 'Type your answer',
           resting: practice.done,
           onNext: () => moveTo(Math.min(beatAt + 1, rest)),
           onBack: () => moveTo(Math.max(0, beatAt - 1)),
@@ -751,8 +797,19 @@ export function Workbench({ activity }: { activity: Activity }) {
       : undefined
   // A demonstration thought belongs to its beat alone. It is not evidence
   // and never joins `thoughts`: when the beat moves on, the cloud goes
-  // back to what the robot really thought last.
-  const shownThought = current?.thought ?? (thoughts.length > 0 ? (thoughts[thoughts.length - 1]?.repr ?? null) : null)
+  // back to what the robot really thought — if that belongs to this step
+  // (`cloud`). Where the step's telling began is taken when the step
+  // changes, the render its key does: the line that moved it is `lastLine`
+  // in that same render, so it is known whether the newest thought is the
+  // answer its praise is about.
+  const newest = thoughts[thoughts.length - 1]
+  const [cloudFrom, setCloudFrom] = useState<{ key: string } & CloudFrom>({ key: '', stale: undefined, answer: undefined })
+  let from: CloudFrom = cloudFrom
+  if (cloudFrom.key !== tellKey) {
+    from = { stale: newest, answer: lastLine?.ok && lastLine.thought ? newest : undefined }
+    setCloudFrom({ key: tellKey, ...from })
+  }
+  const shownThought = cloud(current, newest, from) || null
 
   return (
     <main className="workbench" style={{ ['--scene-w' as string]: `${sceneW}px` }}>
@@ -876,6 +933,16 @@ export function Workbench({ activity }: { activity: Activity }) {
       </section>
     </main>
   )
+}
+
+/** Resolves once `holds` does, checked every frame's worth of time; gives
+ *  up after `ms` rather than hang a journey that is already failing. */
+function until(holds: () => boolean, ms = 30_000): Promise<void> {
+  const end = Date.now() + ms
+  return new Promise((done) => {
+    const check = () => (holds() || Date.now() > end ? done() : void setTimeout(check, 16))
+    check()
+  })
 }
 
 /** Printed by `nameProbe` when the example stopped on a name it never saw. */

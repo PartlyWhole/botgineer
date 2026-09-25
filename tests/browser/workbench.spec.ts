@@ -1075,8 +1075,8 @@ for (const width of [null, 320]) {
     // longest line — the outro — beside the last value. Asserting after
     // the first line alone measured the lesson's shortest sentence.
     const moments: [string[], string][] = [
-      [OPS.slice(0, 7), "'botgineer'"],
-      [OPS.slice(7), '20'],
+      [OPS.slice(0, OPS.indexOf('"bot" + "gineer"') + 1), "'botgineer'"],
+      [OPS.slice(OPS.indexOf('"bot" + "gineer"') + 1), '20'],
     ]
     for (const [lines, value] of moments) {
       for (const line of lines) await say(page, line)
@@ -1176,4 +1176,66 @@ test('no bubble covers a character, whoever is speaking', async ({ page }) => {
     return out
   })
   expect(clashes).toEqual([])
+})
+
+/* ------------------------ the cloud and the next step ------------------------ */
+
+test("a thought belongs to its step: it stays for the praise and goes with it", async ({ page }) => {
+  await open(page, 'names')
+  await say(page, '7 * 6')
+  // Read over the praise for working it out.
+  await expect(page.getByTestId('guide')).toHaveAttribute('data-kind', 'praise')
+  await expect(page.getByTestId('thought')).toHaveText('42')
+
+  await say(page, 'x = 10')
+  // A binding did this step: it thought of nothing, and 42 is from the
+  // step before. Left up, it read as an answer to the question after.
+  await expect(page.getByTestId('guide')).toHaveAttribute('data-kind', 'praise')
+  await expect(page.getByTestId('thought')).toHaveCount(0)
+  await skip(page)
+  // And the right line is not answered as a miss to the next step.
+  await expect(page.getByTestId('guide')).toHaveAttribute('data-kind', 'ask')
+  await expect(page.getByTestId('guide')).toContainText('Ask for it back')
+  await expect(page.getByTestId('thought')).toHaveCount(0)
+
+  // What is thought of in this step shows, as ever.
+  await say(page, 'x')
+  await expect(page.getByTestId('thought')).toHaveText('10')
+})
+
+/* ------------------------------ practice pacing ------------------------------ */
+
+type Exercise = { answer: string; at: number }
+const exercise = (page: Page) =>
+  page.evaluate(() => (window.botgineer as unknown as { exercise: () => Exercise | null }).exercise())
+
+test('say() during a practice praise waits for the next exercise to start, and the line counts', async ({ page }) => {
+  await open(page, 'practice-thinking')
+  await expect.poll(() => page.evaluate(() => window.botgineer.state().busy)).toBe(false)
+  const first = (await exercise(page))!
+  await say(page, first.answer)
+  await expect.poll(async () => (await exercise(page))?.at).toBe(first.at + 1)
+  await expect(page.getByTestId('guide')).toHaveAttribute('data-kind', 'praise')
+  // The praise is read over the answer: the next exercise has not started,
+  // so the console still holds the line just answered.
+  await expect(page.getByTestId('console')).toContainText(first.answer)
+
+  // Straight from the praise, through the test surface: it passes the
+  // praise, waits for the clean console and setup, then types. Typed at
+  // once, the line ran at the last exercise's memory and was lost.
+  const second = (await exercise(page))!
+  await page.evaluate((line) => window.botgineer.say(line), second.answer)
+  await expect.poll(async () => (await exercise(page))?.at).toBe(second.at + 1)
+  await expect(page.locator('.practice-seg').nth(second.at)).toHaveClass(/right/)
+  expect(await page.evaluate(() => window.botgineer.state().history)).toContain(second.answer)
+
+  // Back is offered on a line past a praise, and returns to it (when the
+  // exercise has a lead: at its question the controls give way to the
+  // console).
+  await expect(page.getByTestId('guide')).toHaveAttribute('data-kind', 'praise')
+  await page.evaluate(() => window.botgineer.next())
+  if (await page.evaluate(() => window.botgineer.beat().listening)) {
+    await page.getByTestId('beat-back').click()
+    await expect(page.getByTestId('guide')).toHaveAttribute('data-kind', 'praise')
+  }
 })

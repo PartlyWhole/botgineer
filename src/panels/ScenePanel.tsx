@@ -86,8 +86,8 @@ export type Telling = {
   steps: number
   step: number
   through: number
-  /** Where the answer goes, said by the pointer at the ask; empty for no
-   *  pointer. */
+  /** Where the answer goes, said by the pointer at the ask (its arrow is
+   *  drawn here, pointing wherever the console is); empty for no pointer. */
   prompt: string
   /** Shown once the lesson is finished and its last line said. */
   takeaway?: string | undefined
@@ -266,8 +266,11 @@ export function ScenePanel({
   const asleep = new Set(cast?.asleep ?? [])
   const acting = new Map((cast?.acting ?? []).map((a) => [a.actor, a.do]))
 
+  const panelRef = useRef<HTMLDivElement | null>(null)
+  useFootRoom(panelRef, view.waitingFor.length)
+
   return (
-    <div className={`scene-panel ${compact ? 'compact' : ''}`} data-testid="scene">
+    <div ref={panelRef} className={`scene-panel ${compact ? 'compact' : ''}`} data-testid="scene">
       <div className="stage" data-scene={spec.id}>
         {/* Drawn before the cast, so everyone stands in front of it. */}
         {spec.floor && (
@@ -351,7 +354,12 @@ export function ScenePanel({
 
         {telling && telling.prompt !== '' && !telling.listening && !telling.resting && asking && (
           <p className="ask-pointer" data-testid="ask-pointer" aria-hidden="true">
-            <span className="ask-pointer-text">{telling.prompt}</span>
+            {/* The arrow on its own, so it can turn to where the console
+                is: beside the stage, or under it once the panels stack. */}
+            <span className="ask-pointer-text">
+              {telling.prompt}
+              <span className="ask-pointer-arrow">→</span>
+            </span>
           </p>
         )}
 
@@ -496,8 +504,12 @@ export function ScenePanel({
                 // the guide is the one thing that has to be readable. The
                 // body moves; the tail does not, so the clamp cannot make
                 // the bubble point at the wrong character.
+                //
+                // The shift is handed to CSS as a number rather than as the
+                // `left` itself, so a narrow stage — where the body is wider
+                // and has less room to slide — can clamp it further.
                 style={{
-                  left: `${bubbleX(speaker.actor.x) - 50}%`,
+                  ['--shift' as string]: String(bubbleX(speaker.actor.x) - 50),
                   ['--speaker' as string]: `var(${voice.colour})`,
                   ['--type-ms' as string]: `${typed?.ms ?? 0}ms`,
                 }}
@@ -626,6 +638,39 @@ function useBeside(ref: { current: HTMLDivElement | null }, deps: unknown[]) {
     return () => watch.disconnect()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps)
+}
+
+/**
+ * Keeps what stands on the stage's bottom edge — Next and Back, the
+ * pointer at the console, the takeaway, Continue — clear of the hint
+ * strip, which floats over the bottom of the stage (see `.stage-foot` in
+ * `styles.css` for why it floats rather than taking room).
+ *
+ * It used to sit over them: the order and wake scenes wait on a name from
+ * their first beat, so their narration opened with Next under "the ticket
+ * is waiting for `customer`", and the one control a beat needs could not
+ * be seen or pressed. How tall the strip is depends on how its hints wrap,
+ * which only layout knows, so it is measured and written straight to the
+ * panel as `--foot`, never through React — drawing, like `useBeside`.
+ */
+function useFootRoom(ref: { current: HTMLDivElement | null }, hints: number) {
+  useLayoutEffect(() => {
+    const panel = ref.current
+    const foot = panel?.querySelector<HTMLElement>(':scope > .stage-foot')
+    if (!panel || !foot) {
+      panel?.style.removeProperty('--foot')
+      return
+    }
+    const place = () => panel.style.setProperty('--foot', `${Math.ceil(foot.offsetHeight)}px`)
+    place()
+    const watch = new ResizeObserver(place)
+    watch.observe(foot)
+    return () => {
+      watch.disconnect()
+      panel.style.removeProperty('--foot')
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hints])
 }
 
 const box = (el: HTMLElement) => ({

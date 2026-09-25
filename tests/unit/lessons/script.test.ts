@@ -8,9 +8,10 @@
  */
 import { describe, expect, it } from 'vitest'
 import { CROW_NAME } from '../../../content/cast'
-import { castAt, guidance, operations, script, staging, type Lesson } from '../../../content/lessons'
-import { heard, was } from '../../../content/lessons/core'
-import { NOTHING, failed, line, th, typed } from './fixtures'
+import { castAt, cloud, guidance, script, staging, type Lesson } from '../../../content/lessons'
+import { beforeLast, heard, points, targetOf, was, type Evidence, type Line } from '../../../content/lessons/core'
+import type { MemorySnapshot } from '../../../src/memory/model'
+import { EMPTY, NOTHING, bound, failed, line, snap, th, typed } from './fixtures'
 
 const LAMP = { kind: 'lamp' } as const
 const GLASS = { kind: 'glass', level: 0.5 } as const
@@ -53,6 +54,22 @@ const DEMO: Lesson = {
   ],
   outro: [{ say: 'Done.' }, { say: 'All sorted.', show: GLASS, act: [{ actor: 'courier', do: 'hide' }] }],
   takeaway: 'Every value has a kind.',
+}
+
+/**
+ * A lesson written the way every lesson was before beats: steps with a
+ * question each, no beats, no praise, a string outro. Local on purpose —
+ * this once borrowed a real lesson for it, and went red the day that
+ * lesson was given beats, which says nothing about the engine.
+ */
+const PLAIN: Lesson = {
+  id: 'plain',
+  teaches: [],
+  steps: [
+    { say: 'Work out `7 * 6`.', done: (e) => heard(e, (t) => t.repr === '42' && t.source === '7 * 6') },
+    { say: 'Now `2 + 2`.', done: (e) => heard(e, was('int', '4')) },
+  ],
+  outro: 'Well done.',
 }
 
 const RIGHT = [line('True', th('bool', 'True')), line('False', th('bool', 'False')), line('3', th('int', '3'))]
@@ -132,10 +149,13 @@ describe('script', () => {
 
   it('is one item for a lesson with no beats, and guidance is that item', () => {
     for (const e of [NOTHING, typed(line('42', th('int', '42'))), typed(line('7 * 6', th('int', '42')))]) {
-      const s = script(operations, e)
+      const s = script(PLAIN, e)
       expect(s.items).toHaveLength(1)
-      expect({ text: s.items[0]!.text, speaker: s.items[0]!.speaker }).toEqual(guidance(operations, e))
+      expect({ text: s.items[0]!.text, speaker: s.items[0]!.speaker }).toEqual(guidance(PLAIN, e))
     }
+    // Finished, it is the outro alone.
+    const done = typed(line('7 * 6', th('int', '42')), line('2 + 2', th('int', '4')))
+    expect(script(PLAIN, done).items).toEqual([expect.objectContaining({ kind: 'outro', text: 'Well done.' })])
   })
 
   it('makes guidance the item the player rests on', () => {
@@ -188,6 +208,61 @@ describe('staging, beat by beat', () => {
     expect(at(e)(1).current).toMatchObject({ key: 'demo:3:b1', prop: GLASS })
   })
 
+  // The narration rule (docs/AUTHORING.md): a beat whose picture differs
+  // from the standing one only in narration fields changes that picture in
+  // place. The beat's own fields are adopted — the lamp's switch flips, the
+  // balance's lamp lights — and the element is kept, so the change plays
+  // as a transition rather than a new picture arriving.
+  const NARRATED: Lesson = {
+    id: 'n',
+    teaches: [],
+    ordered: true,
+    steps: [
+      {
+        beats: [
+          { say: 'A lamp.' },
+          { say: 'On.', show: { kind: 'lamp', demo: 'on' } },
+          { say: 'Off.', show: { kind: 'lamp', demo: 'off' } },
+        ],
+        say: 'Turn it on.',
+        ask: 'Lamp?',
+        show: LAMP,
+        done: (e) => heard(e, was('bool', 'True')),
+      },
+      {
+        beats: [
+          { say: 'A balance.', show: { kind: 'balance', left: 3, right: 5, op: '>' } },
+          { say: 'It tips.', show: { kind: 'balance', left: 3, right: 5, op: '>', lamp: true } },
+        ],
+        say: 'Is 7 * 6 the same as 42?',
+        show: LAMP,
+        done: (e) => heard(e, was('bool', 'False')),
+      },
+    ],
+    outro: 'Done.',
+  }
+
+  it('adopts a narration change on the step picture, and keeps its element', () => {
+    const n = (i: number) => staging(NARRATED, NOTHING, i).current!
+    expect(n(0)).toMatchObject({ key: 'n:0', prop: LAMP })
+    expect(n(1)).toMatchObject({ key: 'n:0', prop: { kind: 'lamp', demo: 'on' } })
+    expect(n(2)).toMatchObject({ key: 'n:0', prop: { kind: 'lamp', demo: 'off' } })
+    // The ask puts the narration back: a demonstration never answers the
+    // question that follows it.
+    expect(n(3)).toMatchObject({ key: 'n:0', prop: LAMP, ask: 'Lamp?' })
+  })
+
+  it('adopts a narration change on a beat picture too, keyed by the beat that set it', () => {
+    const e = typed(line('True', th('bool', 'True')))
+    // Step 0 has no praise, so step 1's items are its two beats and the ask.
+    const n = (i: number) => staging(NARRATED, e, i).current!
+    expect(n(0)).toMatchObject({ key: 'n:1:b0', prop: { kind: 'balance', op: '>' } })
+    expect(n(0).prop).not.toHaveProperty('lamp')
+    expect(n(1)).toMatchObject({ key: 'n:1:b0', prop: { kind: 'balance', lamp: true } })
+    // A different picture on the ask: the step's own, as its own element.
+    expect(n(2)).toMatchObject({ key: 'n:1', prop: LAMP })
+  })
+
   it('clamps an index outside the script', () => {
     expect(at()(99)).toEqual(at()(3))
     expect(at()(-4)).toEqual(at()(0))
@@ -222,6 +297,97 @@ describe('the cast, beat by beat', () => {
   })
 
   it('leaves a lesson with no actions alone', () => {
-    expect(castAt(operations, NOTHING)).toEqual({ hidden: [], asleep: [], acting: [] })
+    expect(castAt(PLAIN, NOTHING)).toEqual({ hidden: [], asleep: [], acting: [] })
+  })
+})
+
+describe('a line that moved the lesson through memory', () => {
+  // Evidence the way the workbench builds it: memory after each accepted
+  // line, then memory now; the last line carries the entry it added.
+  const x10 = bound('x', 'int', '10')
+  const named = snap([x10.object], [x10.binding])
+  const played = (lines: [Line, MemorySnapshot | null][]): Evidence => {
+    const memory: MemorySnapshot[] = []
+    const thoughts: Evidence['thoughts'] = []
+    let last: Line | null = null
+    for (const [l, m] of lines) {
+      const entry = m ? { ...m } : null
+      last = l.ok && entry ? { ...l, memory: entry } : l
+      if (l.ok && entry) memory.push(entry)
+      if (l.ok && l.thought) thoughts.push({ ...l.thought, source: l.source })
+    }
+    const now = memory[memory.length - 1] ?? EMPTY
+    // A copy, as the workbench's live snapshot is a separate extraction.
+    return { snapshot: { ...now }, thoughts, history: [...memory, { ...now }], last }
+  }
+
+  const BIND: Lesson = {
+    id: 'bind',
+    teaches: [],
+    steps: [
+      { say: 'Name it: `x = 10`.', done: (e) => e.history.some((m) => points(m, 'x', '10')) },
+      {
+        say: 'Ask for it back: `x`.',
+        done: (e) => heard(e, (t) => t.source === 'x'),
+        // Calls everything a miss: it must only ever be asked about a line
+        // that did not move the lesson.
+        nudge: () => 'That was a miss.',
+      },
+    ],
+    outro: 'Done.',
+  }
+
+  it('takes the line back out: its memory and its thought', () => {
+    const e = played([[line('x = 10', null), named]])
+    const was = beforeLast(e)
+    expect(targetOf(was.snapshot, 'x')).toBeNull()
+    expect(was.history.some((m) => targetOf(m, 'x') !== null)).toBe(false)
+    const thought = played([[line('x = 10', null), named], [line('x', th('int', '10')), named]])
+    expect(beforeLast(thought).thoughts).toEqual([])
+    expect(targetOf(beforeLast(thought).snapshot, 'x')).not.toBeNull()
+    // A line that failed left nothing behind.
+    const miss = { ...e, last: failed('y', 'NameError') }
+    expect(beforeLast(miss)).toBe(miss)
+  })
+
+  it('does not answer the binding that did a step as a miss to the next', () => {
+    const e = played([[line('x = 10', null), named]])
+    const s = script(BIND, e)
+    expect(s).toMatchObject({ at: 1, before: 0 })
+    expect(s.items[s.rest]).toMatchObject({ kind: 'ask', text: 'Ask for it back: `x`.' })
+    // A line after it that did nothing is the next step's miss, as ever.
+    const after = script(BIND, played([[line('x = 10', null), named], [line('z = 1', null), named]]))
+    expect(after.items[after.rest]).toMatchObject({ kind: 'reply', text: 'That was a miss.' })
+  })
+})
+
+describe('the cloud', () => {
+  const forty2 = { type: 'int', repr: '42', source: '7 * 6' }
+  const ten = { type: 'int', repr: '10', source: 'x' }
+  const item = (kind: 'praise' | 'beat' | 'ask', thought?: string) => ({ kind, asking: kind === 'ask', text: '', thought })
+  // The step began with 42 the newest thought, and 42 was what moved it.
+  const answered = { stale: forty2, answer: forty2 }
+
+  it('holds the answer while its praise is read, and lets it go after', () => {
+    expect(cloud(item('praise'), forty2, answered)).toBe('42')
+    expect(cloud(item('beat'), forty2, answered)).toBeNull()
+    // `42` over "Ask for it back: x" read as an answer to it.
+    expect(cloud(item('ask'), forty2, answered)).toBeNull()
+  })
+
+  it('does not bring back an older thought when a binding did the step', () => {
+    // `x = 10` moved it: nothing was thought, and 42 is from before.
+    expect(cloud(item('praise'), forty2, { stale: forty2, answer: undefined })).toBeNull()
+  })
+
+  it('shows what was thought since the step began, beat or ask', () => {
+    expect(cloud(item('ask'), ten, answered)).toBe('10')
+    expect(cloud(item('beat'), ten, answered)).toBe('10')
+  })
+
+  it('lets a beat set its own, or empty it', () => {
+    expect(cloud(item('beat', '?'), forty2, answered)).toBe('?')
+    expect(cloud(item('beat', ''), ten, answered)).toBe('')
+    expect(cloud(item('ask'), undefined, answered)).toBeNull()
   })
 })

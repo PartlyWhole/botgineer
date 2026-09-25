@@ -304,6 +304,11 @@ button.route.current {
   min-height: 0;
   position: relative;
   overflow: hidden;
+  /* What stands on the stage is sized by its width — the cast, the
+     pictures — so the speech and the controls ask the stage, not the
+     window, how much room there is (`console.css`, "a narrow stage"). A
+     phone and a desktop scene dragged to its minimum are the same case. */
+  container: stage / inline-size;
   background:
     radial-gradient(120% 80% at 50% 8%, #ffffff 0%, #eef3ff 55%, #e4ebfb 100%);
 }
@@ -1415,8 +1420,14 @@ code.inline {
      fixed 340px at 900px wide made a 874x304 letterbox: the robot's head
      touched the top edge, the ticket sat on it, and the speech had
      nowhere to go but over faces. */
+  /* At a phone's width the cast is small, but a line of speech is not:
+     it still wraps to three or four lines, and the stage has to hold that
+     above the tallest head, the picture on the floor, and under the floor
+     the question, the answer and Next. At 340px it held none of it — the
+     bubble ran up over the bar and down over the crow, and Next sat on the
+     answer. So the height has a floor of its own, and grows from there. */
   .scene-pane {
-    height: clamp(340px, 60vw, 620px);
+    height: clamp(480px, calc(30vw + 360px), 640px);
   }
 
   .robot-pane {
