@@ -12,7 +12,7 @@ import { bin, evaluate, float, int, name, render, repr, str } from '../../src/pr
 import { GENERATORS, generate, rng, type Attempt } from '../../src/practice/exercises'
 import { holdDays, level, record, strength, due, type Mastery } from '../../src/mastery/mastery'
 import { planSession, SESSION_LENGTH } from '../../src/practice/session'
-import { OPENING, SHELVED, WHO_WORKS, scriptOf } from '../../src/practice/usePractice'
+import { OPENING, SHELVED, WHO_WORKS, closingOf, replyOf, scriptOf } from '../../src/practice/usePractice'
 import { EMPTY, type MemorySnapshot } from '../../src/memory/model'
 
 const v = (e: Parameters<typeof evaluate>[0], env = {}) => repr(evaluate(e, env))
@@ -182,6 +182,175 @@ describe('the generators', () => {
     const j = ex.judge(attempt({ source: 'zz = 1', snapshot: bound([['zz', 'v:1', '1']]) }))
     expect(j.verdict).toBe('wrong')
     expect(j.why).toMatch(/name should be/)
+  })
+})
+
+/** Every exercise a skill's generator makes over many seeds, one per key. */
+const spread = (skill: string, seeds = 400) => {
+  const byKey = new Map<string, ReturnType<typeof generate>>()
+  for (let seed = 0; seed < seeds; seed++) {
+    const ex = generate(skill, seed)
+    byKey.set(ex.key, ex)
+  }
+  return [...byKey.values()]
+}
+
+/** Misses a player might type, for any exercise: the ones every judge
+ *  has to answer with a reason. */
+const MISSES: Attempt[] = [
+  attempt({ source: 'undefined_name', ok: false, error: 'NameError — the robot stopped there.' }),
+  attempt({ source: '1 +', ok: false, error: 'SyntaxError — that is not a whole line.' }),
+  attempt({ source: '999', thought: { type: 'int', repr: '999' } }),
+  attempt({ source: '0.25', thought: { type: 'float', repr: '0.25' } }),
+  attempt({ source: '"zz"', thought: { type: 'str', repr: "'zz'" } }),
+  attempt({ source: 'True', thought: { type: 'bool', repr: 'True' } }),
+  attempt({ source: 'true', ok: false, error: 'NameError — the robot stopped there.' }),
+]
+
+describe('what an exercise says', () => {
+  it('says every line in one short sentence (R2)', () => {
+    for (const s of SKILLS) {
+      for (const ex of spread(s.id)) {
+        const lines = [ex.say, ex.praise, ...(ex.lead ?? []), ...(ex.who ? [ex.who] : []), ...(ex.ask ? [ex.ask] : [])]
+        for (const m of MISSES) {
+          const j = ex.judge(m)
+          if (j.why) lines.push(j.why)
+        }
+        for (const l of lines) expect(l.length, `${ex.key}: ${l}`).toBeLessThanOrEqual(110)
+        // One sentence in the question: it stands alone (R3).
+        expect(ex.say.split(/[.?!](\s|$)/).filter((x) => x && x.trim()).length, ex.say).toBeLessThanOrEqual(2)
+        expect(ex.say, ex.key).not.toMatch(/^(Can|Could) (you|the robot)/)
+      }
+    }
+  })
+
+  it('declares who does the work, and a robot question refuses the typed answer (R4)', () => {
+    for (const s of SKILLS) {
+      for (const ex of spread(s.id)) {
+        expect(['you', 'robot'], ex.key).toContain(ex.tag)
+        if (ex.tag !== 'robot' || !ex.expect) continue
+        // The answer itself, typed as a literal, is what a robot question
+        // forbids: it has to be refused.
+        const j = ex.judge(attempt({ source: ex.expect.repr, thought: ex.expect, snapshot: bound([]) }))
+        expect(j.verdict, `${ex.key}: typed ${ex.expect.repr}`).toBe('wrong')
+      }
+    }
+  })
+
+  it('names a reason whenever it says no (R10)', () => {
+    for (const s of SKILLS) {
+      for (const ex of spread(s.id, 100)) {
+        for (const m of MISSES) {
+          const j = ex.judge(m)
+          if (j.verdict === 'wrong') expect(j.why, `${ex.key}: ${m.source}`).toBeTruthy()
+        }
+      }
+    }
+  })
+
+  it('the robot-or-you split matches the questions', () => {
+    const tagOf = (skill: string) => new Set(spread(skill).map((e) => e.tag))
+    for (const s of ['int', 'float', 'char', 'str', 'bool', 'kind', 'rebind', 'bind']) expect([...tagOf(s)], s).toEqual(['you'])
+    for (const s of ['arith', 'divide', 'join', 'compare', 'alias', 'recall']) expect([...tagOf(s)], s).toEqual(['robot'])
+    expect(tagOf('order')).toEqual(new Set(['you', 'robot']))
+  })
+})
+
+describe('the char exercises', () => {
+  const chars = spread('char')
+  const one = chars.find((e) => e.key.startsWith('char:first:'))!
+  const word = one.key.split(':')[2]!
+  const letter = word[0]!
+
+  it('are judged as a str one character long, since Python has no char type (R8)', () => {
+    for (const ex of chars) {
+      expect(ex.expect!.type).toBe('str')
+      expect(JSON.parse(ex.answer).length).toBe(1)
+      expect(ex.show?.kind).toBe('tiles')
+    }
+    expect(chars.some((e) => e.key.startsWith('char:name:'))).toBe(true)
+    expect(chars.some((e) => e.key.startsWith('char:last:'))).toBe(true)
+  })
+
+  it('names the whole word, the missing quotes and two letters as different mistakes', () => {
+    const whole = one.judge(attempt({ source: `"${word}"`, thought: { type: 'str', repr: `'${word}'` } }))
+    expect(whole.verdict).toBe('wrong')
+    expect(whole.why).toMatch(/whole word/)
+    const bare = one.judge(attempt({ source: letter, ok: false, error: 'NameError — the robot stopped there.' }))
+    expect(bare.why).toMatch(/quotes/)
+    const two = one.judge(attempt({ source: `"${word.slice(0, 2)}"`, thought: { type: 'str', repr: `'${word.slice(0, 2)}'` } }))
+    expect(two.why).toMatch(/2 characters/)
+    const empty = one.judge(attempt({ source: '""', thought: { type: 'str', repr: "''" } }))
+    expect(empty.why).toMatch(/nothing/)
+    expect(one.judge(attempt({ source: `"${letter}"`, thought: { type: 'str', repr: `'${letter}'` } })).verdict).toBe('correct')
+  })
+
+  it('tells a small letter from a capital', () => {
+    const mira = chars.find((e) => e.key === 'char:name:Mira')!
+    const small = mira.judge(attempt({ source: '"m"', thought: { type: 'str', repr: "'m'" } }))
+    expect(small.verdict).toBe('wrong')
+    expect(small.why).toMatch(/capital/)
+  })
+
+  it('are among the kind questions too', () => {
+    const kinds = spread('kind', 2000).filter((e) => e.expect?.type === 'str' && JSON.parse(e.answer).length === 1)
+    expect(kinds.length).toBeGreaterThan(0)
+    for (const ex of kinds) {
+      expect(ex.praise).toMatch(/length one/)
+      const whole = ex.judge(attempt({ source: '"gear"', thought: { type: 'str', repr: "'gear'" } }))
+      expect(whole.verdict).toBe('wrong')
+    }
+  })
+})
+
+describe("a session's script", () => {
+  const exercises = planSession(['int', 'arith', 'char', 'bool', 'compare'], {}, 1_000_000_000_000, 3)
+
+  it('opens on what practice is, then who works, then the question', () => {
+    const items = scriptOf(exercises, 0, null)
+    expect(items[0]!.text).toBe(OPENING)
+    expect(items[1]!.text).toBe(exercises[0]!.who ?? WHO_WORKS[exercises[0]!.tag])
+    const ask = items[items.length - 1]!
+    expect(ask.kind).toBe('ask')
+    expect(ask.asking).toBe(true)
+    expect(ask.tag).toBe(exercises[0]!.tag)
+    expect(ask.text).toBe(exercises[0]!.say)
+    for (const i of items.slice(0, -1)) expect(i.asking).toBe(false)
+  })
+
+  it('praises the last answer as its own beat, before the next question', () => {
+    const items = scriptOf(exercises, 1, null)
+    expect(items[0]!.kind).toBe('praise')
+    expect(items[0]!.text).toContain(exercises[0]!.praise)
+    expect(items[0]!.asking).toBe(false)
+    expect(items[items.length - 1]!.text).toBe(exercises[1]!.say)
+    // Who works is said only when it changes.
+    const says = items.some((i) => i.text === (exercises[1]!.who ?? WHO_WORKS[exercises[1]!.tag]))
+    expect(says).toBe(exercises[0]!.tag !== exercises[1]!.tag)
+  })
+
+  it('puts a miss where the question was, and a working line after two', () => {
+    const one = scriptOf(exercises, 0, replyOf(exercises[0]!, 'A reason.', 1))
+    expect(one[one.length - 1]!.kind).toBe('reply')
+    expect(one[one.length - 1]!.text).toBe('A reason.')
+    expect(one.length).toBe(scriptOf(exercises, 0, null).length)
+    expect(replyOf(exercises[0]!, 'A reason.', 2)).toContain(`One way: \`${exercises[0]!.answer}\``)
+  })
+
+  it('closes on the shelf, then the tally', () => {
+    const items = scriptOf(exercises, exercises.length, null, { right: 4, shelf: true })
+    expect(items.map((i) => i.kind)).toEqual(['praise', 'outro', 'outro'])
+    expect(items[1]!.text).toBe(SHELVED)
+    expect(items[2]!.text).toBe(closingOf(4, exercises.length))
+  })
+
+  it('keeps every line it says short (R2)', () => {
+    for (let seed = 0; seed < 200; seed++) {
+      const ex = planSession(SKILLS.map((s) => s.id), {}, 0, seed)
+      for (let at = 0; at <= ex.length; at++) {
+        for (const i of scriptOf(ex, at, null, { right: 5, shelf: true })) expect(i.text.length, i.text).toBeLessThanOrEqual(110)
+      }
+    }
   })
 })
 

@@ -65,6 +65,13 @@ export type PracticeState = {
    * the shelf, with every right answer on it.
    */
   staging: Staging
+  /**
+   * The picture at a given line of the script, the way a lesson's
+   * `staging(lesson, e, beat)` is: while the praise is read, the picture
+   * just answered stays on the stage with its tick and no question under
+   * it; from the next line on, it leaves and this exercise's arrives.
+   */
+  stagingAt: (beat: number) => Staging
 }
 
 const PRAISE = ['Right!', 'Spot on.', 'That’s it.', 'Nicely done.', 'Exactly.', 'Yes!']
@@ -75,8 +82,8 @@ export const OPENING = 'Fresh questions, and each one says who does the work.'
 
 /** Said before a question whose worker is not the last one's (R4). */
 export const WHO_WORKS: Record<Worker, string> = {
-  you: 'This one is yours: answer it straight from your own head.',
-  robot: 'This one is the robot’s: give it the working, and let it find the answer.',
+  you: 'This one is yours: work the answer out in your head, and type it.',
+  robot: 'This one is the robot’s: don’t type the answer, give it the working.',
 }
 
 /** What the crow says when a right answer is in: a word, then the reason. */
@@ -87,7 +94,8 @@ export const replyOf = (ex: Exercise, why: string | undefined, misses: number) =
   `${why ?? 'Not quite. Try again.'}${misses >= 2 ? ` One way: \`${ex.answer}\`` : ''}`
 
 /** The closing line, which the session comes to rest on. */
-export const closingOf = (right: number, of: number) => `That’s practice: ${right} of ${of} right first time.`
+export const closingOf = (right: number, of: number) =>
+  `That’s practice: ${right} of ${of} right first time, and every first try counts towards your skills.`
 
 /** Said once the session is over, when the shelf is on the stage. */
 export const SHELVED = 'Every right answer is on the shelf, beside its data type.'
@@ -112,7 +120,7 @@ export function scriptOf(
     return items
   }
   if (at === 0) items.push({ kind: 'beat', asking: false, text: OPENING })
-  if (!prev || prev.tag !== ex.tag) items.push({ kind: 'beat', asking: false, text: WHO_WORKS[ex.tag] })
+  if (!prev || prev.tag !== ex.tag) items.push({ kind: 'beat', asking: false, text: ex.who ?? WHO_WORKS[ex.tag] })
   for (const text of ex.lead ?? []) items.push({ kind: 'beat', asking: false, text })
   items.push({ kind: reply === null ? 'ask' : 'reply', asking: true, text: reply ?? ex.say, tag: ex.tag })
   return items
@@ -235,5 +243,7 @@ export function usePractice(
     current: done ? null : current,
     onAttempt,
     staging,
+    stagingAt: (beat: number) =>
+      beat === 0 && at > 0 && leaving ? { current: { ...leaving, ask: undefined }, leaving: null } : staging,
   }
 }
