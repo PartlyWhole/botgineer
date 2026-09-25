@@ -68,25 +68,41 @@ const WORKSHOP: SceneSpec = {
 }
 
 /**
- * The third level: working things out.
+ * Level 2: working things out.
  *
- * Same room, same empty memory. The robot computes and reports, each
- * question drawn on the stage, and the lesson ends on the fact that the
- * answer went nowhere — which is the
- * itch the naming lesson scratches. That ordering is the whole reason
- * this activity exists between them.
+ * Same room, same empty memory, and Mira back with a sum: seven crates
+ * of six bolts, which the robot cannot know and can work out. Each
+ * question is drawn on the stage, and the lesson ends on the fact that
+ * every answer went nowhere — the itch the naming lesson scratches. That
+ * ordering is the whole reason this activity sits between them.
+ *
+ * Mira stands where she does in the Lesson 1 workshop, and the lesson's
+ * first beat is her `enter`, so she arrives rather than waits (`castAt`).
+ * The scene is its own, not `WORKSHOP_WITH_MIRA`, which is declared
+ * further down and is Lesson 1's to change.
  */
 const workingOut: Activity = {
   id: 'operations',
   title: 'Working Things Out',
-  brief: 'Arithmetic, comparisons and joining words — none of it kept.',
+  brief: 'Give the robot the sum and let it work it out: numbers, questions and words, and what type comes back.',
   mode: 'console',
   lesson: 'operations',
   next: 'practice-thinking',
-  greeting: 'Give me something to work out.',
+  greeting: 'Give me a sum. I will work it out.',
   starter: '',
   options: { max_steps: 3000, wall_clock_s: 15 },
-  scene: WORKSHOP,
+  scene: {
+    id: 'workshop',
+    title: 'Workshop',
+    floor: { at: 76 },
+    actors: [
+      { id: 'crow', kind: 'crow', x: 10, y: 0, w: 14, stand: true },
+      { id: 'robot', kind: 'robot', x: 64, y: 0, w: 19, stand: true },
+      { id: 'courier', kind: 'courier', x: 87, y: 0, w: 15, stand: true },
+    ],
+    props: { x: 36.5, w: 32 },
+    watches: [],
+  },
 }
 
 /**

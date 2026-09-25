@@ -1,38 +1,111 @@
 /**
- * Working things out (`operations`), played: every operation drawn, and
- * none of the answers kept.
+ * Working things out (`operations`), played against real CPython: Mira's
+ * sum, the rule that the robot does the working, every operation drawn
+ * with the type that comes back, and none of the answers kept.
  */
-import { expect, test } from '@playwright/test'
-import { OPS, open, reprs, say } from './helpers'
+import { expect, test, type Page } from '@playwright/test'
+import { beat, open, reprs, say, skip } from './helpers'
 
-test('the operations lesson works things out, drawn, and keeps none of them', async ({ page }) => {
+/** Lines that answer this level right, in order. */
+const RIGHT = [
+  '7 * 6',
+  '20 - 7',
+  '9 / 2',
+  '8 / 2',
+  '2 + 0.5',
+  '3 > 5',
+  '2 + 2 == 4',
+  '"bot" + "gineer"',
+  '"ha" * 5',
+  'ord("M")',
+  'True + True + True',
+  '2 + 3 * 4',
+  '(2 + 3) * 4',
+]
+
+const next = (page: Page) => page.evaluate(() => window.botgineer.next())
+
+test('Mira brings a sum the robot cannot know, and the rule comes before the question', async ({ page }) => {
   await open(page, 'operations')
-  await expect(page.getByTestId('guide')).toContainText('7 * 6')
+  // She arrives on the first beat and says the problem herself.
+  await expect(page.getByTestId('guide')).toHaveAttribute('data-speaker', 'courier')
+  await expect(page.getByTestId('actor-courier')).toHaveAttribute('data-offstage', 'no')
+  expect((await beat(page)).listening).toBe(true)
+
+  // Walk the beats as a player would, noting what was said.
+  const told: string[] = []
+  let thoughtQ = false
+  for (let i = 0; i < 12 && !(await beat(page)).asking; i++) {
+    told.push((await beat(page)).text)
+    if ((await page.getByTestId('thought').textContent().catch(() => '')) === '?') thoughtQ = true
+    await next(page)
+  }
+  expect(told.some((t) => t.includes('Give the robot the sum'))).toBe(true)
+  expect(told.some((t) => t.includes('7 * 6'))).toBe(true)
+  expect(thoughtQ).toBe(true)
+
+  const ask = await beat(page)
+  expect(ask.text).toBe('How many bolts are in the crates?')
+  await expect(page.getByTestId('ask-tag')).toContainText('Robot works it out')
   await expect(page.getByTestId('prop')).toHaveAttribute('data-prop', 'crates')
+})
+
+test('the robot works out every operation, drawn, and keeps none of them', async ({ page }) => {
+  await open(page, 'operations')
 
   // Typing the answer is not asking the robot.
   await say(page, '42')
-  await expect(page.getByTestId('guide')).toContainText('let the robot')
-  await say(page, '7 * 6')
+  await expect(page.getByTestId('guide')).toContainText('you worked it out')
+  await say(page, RIGHT[0]!)
   await expect(page.getByTestId('thought')).toHaveText('42')
+  await expect(page.getByTestId('answer-tag')).toContainText('int')
 
-  // Whole litres only leave one in the jug — in the picture, too.
+  await say(page, RIGHT[1]!)
+  // Whole litres only leave one in the jug — in the picture, too — and
+  // the reply names `//` as a sign of its own.
   await say(page, '9 // 2')
-  await expect(page.getByTestId('guide')).toContainText('one is left in the jug')
+  await expect(page.getByTestId('guide')).toContainText('is a different sign')
   await expect(page.getByTestId('prop')).toHaveAttribute('aria-label', /Each tank gets 4\./)
-  await say(page, '9 / 2')
-  await say(page, '8 / 2')
+  await say(page, RIGHT[2]!)
+  await say(page, RIGHT[3]!)
   await expect(page.getByTestId('thought')).toHaveText('4.0')
 
+  // A comma is not a point: real Python makes a pair of it.
+  await say(page, '2 + 0,5')
+  await expect(page.getByTestId('guide')).toContainText('dot')
+  await say(page, RIGHT[4]!)
+  await expect(page.getByTestId('thought')).toHaveText('2.5')
+
   // One equals sign is not a question, and real Python says so.
-  for (const line of OPS.slice(3, 5)) await say(page, line)
+  await say(page, RIGHT[5]!)
   await say(page, '2 + 2 = 4')
   await expect(page.getByTestId('console-error').last()).toContainText('SyntaxError')
   await expect(page.getByTestId('guide')).toContainText('give it a name')
+  await say(page, RIGHT[6]!)
 
-  for (const line of OPS.slice(5)) await say(page, line)
+  await say(page, RIGHT[7]!)
+  await expect(page.getByTestId('thought')).toHaveText("'botgineer'")
+  await say(page, RIGHT[8]!)
+  await expect(page.getByTestId('thought')).toHaveText("'hahahahaha'")
+
+  // `ord` takes one character; Python refuses a word.
+  await say(page, 'ord("Mira")')
+  await expect(page.getByTestId('console-error').last()).toContainText('TypeError')
+  await expect(page.getByTestId('guide')).toContainText('one character')
+  await say(page, RIGHT[9]!)
+  await expect(page.getByTestId('thought')).toHaveText('77')
+
+  await say(page, RIGHT[10]!)
+  await expect(page.getByTestId('thought')).toHaveText('3')
+
+  await say(page, RIGHT[11]!)
+  await expect(page.getByTestId('thought')).toHaveText('14')
+  await say(page, RIGHT[12]!)
   await expect(page.getByTestId('thought')).toHaveText('20')
-  await expect(page.getByTestId('guide')).toContainText('nobody else ever knew it')
+
+  await skip(page)
+  await expect(page.getByTestId('guide')).toContainText('help it remember')
+  await expect(page.getByTestId('takeaway')).toContainText('its type depends on the operation')
   expect(await reprs(page)).toEqual([])
   await expect(page.getByTestId('advance')).toBeVisible()
 })
