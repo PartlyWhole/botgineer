@@ -24,13 +24,16 @@ export type Concept = {
   unit: string
 }
 
-/** The warm-up's skills, taught by lessons and practised by generators. */
+/** The warm-up's skills, taught by lessons and practised by generators.
+ *  `char` is an idea rather than a Python type: Python keeps a character
+ *  as a `str` one long, and its exercises are judged that way. */
 export const SKILLS: Concept[] = [
   { id: 'int', title: 'Whole numbers', can: 'Count with an int', unit: 'thinking' },
   { id: 'float', title: 'Decimals', can: 'Measure with a float', unit: 'thinking' },
+  { id: 'char', title: 'Characters', can: 'Write one letter as a str of length one, in quotes', unit: 'thinking' },
   { id: 'str', title: 'Text', can: 'Write a word as a str, in quotes', unit: 'thinking' },
   { id: 'bool', title: 'True and False', can: 'Answer yes or no with a bool', unit: 'thinking' },
-  { id: 'kind', title: 'Choosing the kind', can: 'Pick bool, int, float or str for the question being asked', unit: 'thinking' },
+  { id: 'kind', title: 'Choosing the kind', can: 'Pick bool, int, float, char or str for the question being asked', unit: 'thinking' },
   { id: 'arith', title: 'Arithmetic', can: 'Add, subtract and multiply', unit: 'thinking' },
   { id: 'divide', title: 'Division', can: 'Share out with /, which always gives a float', unit: 'thinking' },
   { id: 'join', title: 'Joining text', can: 'Stick words together with +', unit: 'thinking' },
