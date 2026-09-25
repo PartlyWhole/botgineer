@@ -110,7 +110,7 @@ const namingThings: Activity = {
   mode: 'console',
   lesson: 'names-point',
   next: 'order',
-  greeting: 'Still nothing kept. Let us fix that.',
+  greeting: 'Nothing kept yet. Let\'s fix that.',
   starter: '',
   options: { max_steps: 3000, wall_clock_s: 15 },
   // The workshop's own geometry, restated rather than shared: this level

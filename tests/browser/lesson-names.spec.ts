@@ -23,6 +23,9 @@ test('the robot has forgotten the crates, and must work them out again', async (
   // Typing the answer from memory is not asking the robot.
   await say(page, '42')
   await expect(page.getByTestId('guide')).toContainText('you remembering')
+  // Nor is dressing the remembered answer up as a sum.
+  await say(page, '21 * 2')
+  await expect(page.getByTestId('guide')).toContainText('not from seven crates of six')
   await say(page, '7 * 6')
   await expect(page.getByTestId('thought')).toHaveText('42')
   await expect(page.getByTestId('guide')).toContainText('because it kept nothing')
@@ -39,6 +42,11 @@ test('a name is an arrow, and the crow points at it as it appears', async ({ pag
   expect((await beat(page)).text).toContain('Look below')
   await expect(page.locator('.memory-view')).toHaveAttribute('data-focus', 'yes')
   await expect(page.locator('.graph .edge')).toHaveCount(1)
+  // The 42 was let go, and the cloud says so.
+  await expect(page.getByTestId('thought')).toHaveCount(0)
+  // The right `x = 10` is not answered as a miss when the ask comes.
+  await page.evaluate(() => window.botgineer.skip())
+  expect((await beat(page)).kind).toBe('ask')
 
   // The bug: typing 10 used to pass "ask for it back".
   await say(page, '10')
@@ -49,6 +57,7 @@ test('a name is an arrow, and the crow points at it as it appears', async ({ pag
   await expect(page.getByTestId('guide')).toContainText('followed the arrow')
 
   await say(page, 'y = x')
+  await expect(page.getByTestId('guide')).toContainText('because y = x points y')
   // One object, two names on it.
   expect(
     await page.evaluate(() => new Set(window.botgineer.snapshot().bindings.map((b) => b.target)).size),
@@ -61,7 +70,7 @@ test('a name is an arrow, and the crow points at it as it appears', async ({ pag
   // if it were read from the current snapshot alone.
   const end = await beat(page)
   expect(end.kind).toBe('outro')
-  expect(end.text).toContain('still points at')
+  expect(end.text).toContain('still points where it did')
   await expect(page.locator('.memory-view')).toHaveAttribute('data-focus', 'yes')
   await page.evaluate(() => window.botgineer.skip())
   await expect(page.getByTestId('takeaway')).toContainText('arrow')

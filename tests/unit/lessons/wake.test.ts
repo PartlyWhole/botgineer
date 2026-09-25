@@ -11,15 +11,20 @@ import { NOTHING, bound, over, snap } from './fixtures'
 const world = (...xs: ReturnType<typeof bound>[]) => snap(xs.map((x) => x.object), xs.map((x) => x.binding))
 
 describe('wake', () => {
-  it('tells four beats before the task: asleep, the editor, Run, the fixtures', () => {
+  it('tells the four things before the task: asleep, the editor, Run, the fixtures', () => {
     const s = script(wake, NOTHING)
     const beats = s.items.filter((i) => i.kind === 'beat')
-    expect(beats).toHaveLength(4)
+    expect(beats).toHaveLength(7)
     expect(beats[0]!.act).toEqual([{ actor: 'robot', do: 'sleep' }])
+    expect(beats[0]!.text).toMatch(/three things at once/)
     expect(beats[1]!.focus).toBe('console')
     expect(beats[1]!.text).toMatch(/whole list of instructions/)
-    expect(beats[2]!.focus).toBe('run')
-    for (const n of ['power', 'name', 'charge']) expect(beats[3]!.text).toContain(`\`${n}\``)
+    expect(beats[2]!.text).toMatch(/does nothing/)
+    expect(beats[3]!.focus).toBe('run')
+    // One fixture a beat, each with the kind of value it needs.
+    expect(beats[4]!.text).toMatch(/lamp.*`power`.*`True`/)
+    expect(beats[5]!.text).toMatch(/sign.*`name`.*words/)
+    expect(beats[6]!.text).toMatch(/battery.*`charge`.*number/)
     expect(s.items[s.rest]).toMatchObject({ kind: 'ask', tag: 'you' })
   })
 

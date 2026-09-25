@@ -1,14 +1,17 @@
 /**
  * Level 7, Wake the robot (`wake`): the editor arrives.
  *
- * R12: one line at a time is slow, and waking the robot takes several. So
- * the lesson opens with the robot asleep (its screen dark, `sleep`) and
- * four beats before the task, one thing each: the editor, which holds a
- * whole list of instructions (focus on the instrument); Run, which is
- * what makes anything happen now — typing no longer does (focus `run`;
- * the button reads “Send to robot”, so that is what the crow calls it);
- * and the three fixtures in the bay, each named with the name it watches.
- * Then the task, and the outro wakes it.
+ * R12: one line at a time is slow, and the robot needs three things at
+ * once to wake. So the lesson opens with the robot asleep (its screen
+ * dark, `sleep`) and the four things PEDAGOGY asks for before the task,
+ * one idea per beat: the editor, which holds a whole list of instructions
+ * (focus on the instrument); that typing alone no longer does anything;
+ * Run, which is what does (focus `run`; the button reads “Send to robot”,
+ * so that is what the crow calls it); and the three fixtures, one beat
+ * each, saying where it is and what kind of value it needs (R5): the lamp
+ * lights for `True`, the sign shows words, the battery reads a number.
+ * Without the kinds, `power = 0` or `charge = "full"` failed for a reason
+ * nobody had said. Then the task, and the outro wakes it.
  *
  * The first lesson judged on a *run* rather than on lines: the robot reads
  * `power`, `name` and `charge` from its memory, and the bay's lamp,
@@ -74,10 +77,13 @@ export const wake: Lesson = {
   steps: [
     {
       beats: [
-        { say: 'The robot has nodded off, and it takes more than one line to wake it.', act: [{ actor: 'robot', do: 'sleep' }] },
-        { say: 'So here\'s an editor. Now you can give it a whole list of instructions.', focus: 'console' },
-        { say: 'Typing alone does nothing now. Press “Send to robot”, and it follows the list from top to bottom.', focus: 'run' },
-        { say: 'It looks for three names: the lamp shows `power`, the sign `name`, the battery `charge`.' },
+        { say: 'The robot has nodded off, and it needs three things at once to wake up.', act: [{ actor: 'robot', do: 'sleep' }] },
+        { say: 'So here\'s an editor: now you can give it a whole list of instructions.', focus: 'console' },
+        { say: 'Typing in it alone does nothing now.', focus: 'console' },
+        { say: 'Press “Send to robot”, and it follows the list, top to bottom.', focus: 'run' },
+        { say: 'The lamp at the top right lights up when `power` is `True`.' },
+        { say: 'The sign above the robot shows `name`, so give it words, in quotes.' },
+        { say: 'And the battery on the left fills to `charge`, a number from 0 to 100.' },
       ],
       say: 'Give `power`, `name` and `charge` values, then send the list to the robot.',
       tag: 'you',

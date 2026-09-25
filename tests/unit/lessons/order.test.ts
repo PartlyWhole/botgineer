@@ -60,12 +60,31 @@ describe('taking an order', () => {
     // The bug this lesson had: `worked(e, '14')` passed on typing `14`.
     const fourteen = asked([said('14', 'int', '14')], line('14', th('int', '14')))
     expect(progress(takeAnOrder, fourteen)).toBe(2)
-    expect(guidance(takeAnOrder, fourteen).text).toMatch(/your sum/)
+    expect(guidance(takeAnOrder, fourteen).text).toMatch(/wrote the answer in yourself/)
     const seven = asked([said('7 * 2', 'int', '14')], line('7 * 2', th('int', '14')))
     expect(progress(takeAnOrder, seven)).toBe(2)
     expect(guidance(takeAnOrder, seven).text).toMatch(/seven you remember/)
     // Both, even: the name and the digit.
     expect(progress(takeAnOrder, asked([said('parcels * 2 + 7 - 7', 'int', '14')]))).toBe(2)
+    // Nor by hiding a typed answer behind the name.
+    const hidden = asked([said('parcels * 0 + 14', 'int', '14')], line('parcels * 0 + 14', th('int', '14')))
+    expect(progress(takeAnOrder, hidden)).toBe(2)
+    expect(guidance(takeAnOrder, hidden).text).toMatch(/wrote the answer in yourself/)
+    expect(progress(takeAnOrder, asked([said('parcels * 2.0', 'float', '14.0')]))).toBe(3)
+  })
+
+  it('answers a weight kept under a new name kindly, and asks for the sum itself', () => {
+    const kept = asked([], line('weight = parcels * 2', null))
+    expect(guidance(takeAnOrder, kept).text).toMatch(/sum on its own/)
+    const back = asked([said('weight', 'int', '14')], line('weight', th('int', '14')))
+    expect(progress(takeAnOrder, back)).toBe(2)
+    expect(guidance(takeAnOrder, back).text).toMatch(/^Right, fourteen!/)
+    expect(guidance(takeAnOrder, back).text).not.toMatch(/your sum|remember/)
+  })
+
+  it('does not call the right `parcels = 7` a miss at the weighing', () => {
+    const s = script(takeAnOrder, asked([], line('parcels = 7', null)))
+    expect(s.items[s.rest]!.kind).toBe('ask')
   })
 
   it('says which mistake a wrong weight is', () => {

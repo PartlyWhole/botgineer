@@ -28,9 +28,16 @@ test('Mira talks, the robot keeps it, and works the weight out from what it kept
 
   // The bug: typing the answer, or the seven, used to pass.
   await say(page, '14')
-  await expect(page.getByTestId('guide')).toContainText('your sum')
+  await expect(page.getByTestId('guide')).toContainText('wrote the answer in yourself')
   await say(page, '7 * 2')
   await expect(page.getByTestId('guide')).toContainText('seven you remember')
+  await expect(page.getByTestId('advance')).toHaveCount(0)
+  // Kept under a name of its own is right, and said to be; the step still
+  // wants the working itself.
+  await say(page, 'weight = parcels * 2')
+  await expect(page.getByTestId('guide')).toContainText('sum on its own')
+  await say(page, 'weight')
+  await expect(page.getByTestId('guide')).toContainText('Right, fourteen!')
   await expect(page.getByTestId('advance')).toHaveCount(0)
 
   // The answer was never stored, and was never said out loud by anyone.
