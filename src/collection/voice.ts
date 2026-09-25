@@ -9,9 +9,13 @@
  * word is *earned*: it is named once, on a beat of its own, in the ideas
  * where it arrives (`ideaBeats`), and only then used.
  *
- * Every line is one sentence or two short ones, at most 20 words
- * (docs/PEDAGOGY.md R2), and says what to do rather than how hard it is.
- * `tests/unit/reading.test.ts` counts them.
+ * Every line is one sentence of at most 20 words (docs/PEDAGOGY.md R2),
+ * and says what to do rather than how hard it is. One kind of line is two:
+ * Stage 6's "You've been saying *…*. The formal word is **…**.", which
+ * is the spec's own wording (§6) — the pause between the idea and its
+ * word is the point. `tests/unit/reading.test.ts` counts words and
+ * sentences, and holds every formal word out of the lines said before
+ * its beat.
  *
  * Three kinds of line:
  *
@@ -32,15 +36,17 @@ import { BRIDGE, STAGE_1_LEAD, openerOf } from '../../content/collection/story'
 
 export type Vocabulary = 'plain' | 'formal'
 
+// `block` has a plain line that says "block": the collection names it at
+// Stage 5.1 (the glossary's "first met"), which is before any block task.
 const TASK: Record<Form, [plain: string, formal: string]> = {
-  predict: ['Read it, and write down what it prints. Nothing runs until you commit.', 'Predict the output. Commit, and then the interpreter runs it.'],
-  compare: ['Two programs, nearly twins. Say what each prints, and the first line where they part ways.', 'Two near-matches. Predict both, and find the first line where the control flow or bindings diverge.'],
-  fix: ['Something here doesn’t do what was meant. First, say what it actually does.', 'There is a defect. Say what the code actually does, then repair it minimally.'],
-  order: ['Number the lines in the order Python reaches them. A line reached twice gets two numbers.', 'Number the control flow: every visit to every line, in order.'],
+  predict: ['Read it and write down what it prints, and I’ll run it once you commit.', 'Predict the output, and the interpreter runs it once you commit.'],
+  compare: ['Say what each of these two prints, and the first line where they part ways.', 'Predict both, and name the first line where their control flow or bindings diverge.'],
+  fix: ['Something here doesn’t do what was meant, so first say what it actually does.', 'There is a defect: say what the code actually does, then repair it minimally.'],
+  order: ['Number the lines in the order Python reaches them, twice for a line it reaches twice.', 'Number the control flow: every visit to every line, in order.'],
   table: ['Fill in the table, one row for each pass through the loop.', 'Build the trace table, one row per iteration.'],
   block: ['Which lines are inside the block, and how many times does each one run?', 'Mark the block by its indentation, and count how many times each line runs.'],
   draw: ['Which picture shows the names, and the objects they point at?', 'Which diagram shows the bindings, and the objects they are bound to?'],
-  write: ['Your turn to write it. The robot will check it does what was asked.', 'Write the program. The robot runs it to check the behaviour asked for.'],
+  write: ['Your turn to write it, and the robot will check it does what was asked.', 'Write the program, and the robot runs it to check the behaviour asked for.'],
   label: ['Say what each piece of the line does.', 'Label each piece of the line with its role.'],
   rule: ['Put the rule in your own words, then check it against the key.', 'State the rule in your own words, then mark yourself against the key.'],
 }
@@ -50,38 +56,43 @@ export const taskLine = (form: Form, v: Vocabulary): string => TASK[form][v === 
 /** Every task line, for the tests that count words. */
 export const TASK_LINES: readonly string[] = Object.values(TASK).flat()
 
-export const CHECKPOINT_LINE = 'Checkpoint. Nothing new here, just what you know. Only first answers count.'
+export const CHECKPOINT_LINE = 'A checkpoint: nothing new, just what you know, and only first answers count.'
 
 /** After committing: right, or which kind of mistake, and where to look. */
 export function verdictLine(right: boolean, err: ErrorType | null, goBack: string[], soft = false): string {
-  if (right) return 'Right. Read the key anyway: the reasoning is the point.'
-  if (soft) return 'The idea is right and the word is not. That’s the cheapest mistake there is.'
+  if (right) return 'Right, and read the key anyway, because the reasoning is the point.'
+  if (soft) return 'The idea is right and only the word is off, which is the cheapest mistake there is.'
   const kind = err ? `${article(ERROR_NAMES[err])} ${ERROR_NAMES[err].toLowerCase()} mistake` : 'a miss'
-  const back = goBack.length ? ` The key sends you back to ${goBack.join(' and ')}.` : ''
-  return `Not quite — ${kind}.${back}`
+  const back = goBack.length ? `, and the key sends you back to ${goBack.join(' and ')}` : ''
+  return `Not quite: that’s ${kind}${back}.`
 }
 
 const article = (w: string) => (/^[AEIOU]/i.test(w) ? 'an' : 'a')
 
-/** Said before a repair or a program is owed, after the predictions. */
-export const ACT_LEAD = { right: 'Right so far. ', wrong: 'Not quite — the key says why. ' } as const
+/** Said before a repair or a program is owed, after the predictions: the
+ *  lead and the line make one sentence (`actLine`). */
+export const ACT_LEAD = { right: 'Right so far, and ', wrong: 'Not quite, and the key says why, but ' } as const
 
 export const ACT_LINE: Record<'fix' | 'write', string> = {
-  fix: 'Now repair it: the smallest change that works. Then send it to the robot.',
-  write: 'Your turn to write it. Send it to the robot when it’s ready.',
+  fix: 'now make the smallest repair that works and send it to the robot.',
+  write: 'now write it, and send it to the robot when it’s ready.',
 }
+
+/** The act line, after a lead or on its own. */
+export const actLine = (kind: 'fix' | 'write', lead: keyof typeof ACT_LEAD | null): string =>
+  lead ? ACT_LEAD[lead] + ACT_LINE[kind] : ACT_LINE[kind][0]!.toUpperCase() + ACT_LINE[kind].slice(1)
 
 export const RULE_LINE = 'Now read the key’s rule, and mark yours honestly.'
 
 export function doneLine(right: number, of: number, kind: 'set' | 'checkpoint' | 'review' | 'capstone' | 'practice', passed?: boolean): string {
   if (kind === 'checkpoint') {
     return passed
-      ? `Checkpoint passed: ${right} of ${of} right first time. The stage is yours.`
-      : `${right} of ${of} right first time, not enough to pass yet. There’s a short review on the map first.`
+      ? `Checkpoint passed with ${right} of ${of} right first time, so the stage is yours.`
+      : `${right} of ${of} right first time isn’t a pass yet, so there’s a short review on the map first.`
   }
-  if (kind === 'review') return 'Review done. The checkpoint is open again.'
-  if (kind === 'capstone') return `Capstone done: ${right} of ${of} right first time. You can read a real program now.`
-  return `Done: ${right} of ${of} right first time. Each one counts towards your concepts.`
+  if (kind === 'review') return 'Review done, and the checkpoint is open again.'
+  if (kind === 'capstone') return `Capstone done with ${right} of ${of} right first time: you can read a real program now.`
+  return `Done: ${right} of ${of} right first time, and each one counts towards your concepts.`
 }
 
 /* -------------------------------- the ideas -------------------------------- */
@@ -117,35 +128,55 @@ const FORMAL_WORDS: Record<string, string> = {
   binding: 'You’ve been saying *a name pointing at an object*. The formal word is **binding**.',
   iterable: 'You’ve been saying *the thing being looped over*. The formal word is **iterable**.',
   'loop variable': 'You’ve been saying *the name the loop rebinds*. The formal word is **loop variable**.',
-  block: 'You’ve been saying *indented lines belonging together*. The formal word is **block**.',
   'control flow': 'You’ve been saying *the order in which lines run*. The formal word is **control flow**.',
   mutable: 'You’ve been saying *changeable* and *unchangeable*. The words are **mutable** and **immutable**.',
   hashable: 'You’ve been saying *may be a dictionary key or set item*. The formal word is **hashable**.',
+}
+
+/**
+ * The table's rows with no "You've been saying" of their own: `block` is
+ * the collection's word from Stage 5.1 on, and the crow has said it all
+ * through Stage 5, so claiming it as new here would be untrue. Its row is
+ * still told on a beat, as the one word already earned.
+ */
+const KNOWN_WORDS: Record<string, string> = {
+  block: 'One you have already: indented lines that belong together are a **block**, as in Stage 5.',
 }
 
 /** Said over the table's first beat, before any word is named. */
 const FORMAL_OPEN = 'Nothing new to learn here: just the formal names for ideas you already have.'
 
 /** Said over the paragraphs after the table. */
-const FORMAL_AFTER = 'Same ideas, new words. You’ll hear me use them from now on.'
+const FORMAL_AFTER = 'Same ideas, new words, and you’ll hear me use them from now on.'
 
 /**
  * Stage 8's two, which have nothing to have been called before: the
  * player has never written a function of their own. So they are shown
  * first, on the idea's own example (`double(x)`), and then named — told
  * after the example's beat, before the paragraph that uses both words.
+ * Each is two beats, the thing and then its word (R2: one idea a beat),
+ * and the idea is introduced without either word (`CALL_INTRO`) while
+ * its heading, which has both, waits for them (`heldTitle`).
  */
-const CALL_WORDS: { term: string; say: string }[] = [
-  { term: 'arguments', say: 'The call sends in the object `x` points at. What a call sends in is an **argument**.' },
-  { term: 'parameters', say: '`n` is the name that receives it. A name in the `def` line’s brackets is a **parameter**.' },
+const CALL_WORDS: { term?: string; say: string }[] = [
+  { say: 'The call `double(x)` sends in the object `x` points at: the number 5.' },
+  { term: 'arguments', say: 'What a call sends in is its **argument**.' },
+  { say: 'Inside, `n` is the name that receives that same object.' },
+  { term: 'parameters', say: 'A name in the brackets of the `def` line is a **parameter**.' },
 ]
+
+/** Stage 8's calling idea, introduced before its two words exist. */
+const CALL_INTRO = 'Next: what happens when you call a function.'
 
 /** Said over the paragraphs after the two words are named. */
 const CALL_AFTER = 'Here is the whole call, step by step, in those two words.'
 
-const EXAMPLE_INVITE = 'Every example can run. Press Run this, and memory draws what it builds.'
+const EXAMPLE_INVITE = 'Every example can run: press Run this, and memory draws what it builds.'
 
-export const IDEAS_CLOSE = 'That’s the idea. Next, you read programs that use it, and say what they do first.'
+export const IDEAS_CLOSE = 'That’s the idea, and next you read programs that use it and say what they do first.'
+
+/** Stage 9's capstone: introduced here, met at the end of the stage. */
+const CAPSTONE_LINE = 'Last, the capstone, which you’ll meet at the end of this stage.'
 
 /** An idea's title as the crow says it: "Next: rebinding moves the label." */
 function introduce(title: string, k: number, of: number): string {
@@ -158,6 +189,9 @@ function introduce(title: string, k: number, of: number): string {
   if (k === of - 1) return `Last one: ${t}.`
   return `Next: ${t}.`
 }
+
+/** Stage 8's calling idea: its title names both of the call's words. */
+const isCallIdea = (title: string) => /\bargument/i.test(title) && /\bparameter/i.test(title)
 
 /** The bolded formal word of a Stage 6 table row, as FORMAL_WORDS keys it. */
 const formalOf = (cell: string): string | null => cell.match(/\*\*([^*]+)\*\*/)?.[1]?.trim() ?? null
@@ -204,13 +238,13 @@ export function ideaBeats(stage: Stage): IdeaBeat[] {
   stage.ideas.forEach((idea, k) => {
     const section = k + 1
     idea.blocks.forEach((b, j) => {
-      const first = j === 0 ? introduce(idea.title, k, stage.ideas.length) : undefined
+      const first = j === 0 ? (isCallIdea(idea.title) ? CALL_INTRO : introduce(idea.title, k, stage.ideas.length)) : undefined
       // Stage 6: the table of formal words, one row a beat.
       if (b.kind === 'table' && b.rows.some((r) => FORMAL_WORDS[formalOf(r[r.length - 1] ?? '') ?? ''])) {
         if (first) beats.push({ say: FORMAL_OPEN, at: { section, block: j, row: -1 } })
         b.rows.forEach((r, row) => {
           const term = formalOf(r[r.length - 1] ?? '')
-          const say = term ? FORMAL_WORDS[term] : undefined
+          const say = term ? (FORMAL_WORDS[term] ?? KNOWN_WORDS[term]) : undefined
           if (say) beats.push({ say, at: { section, block: j, row }, term: term === 'mutable' ? 'mutable · immutable' : term! })
           else block({ section, block: j, row })
         })
@@ -221,8 +255,8 @@ export function ideaBeats(stage: Stage): IdeaBeat[] {
       after = undefined
       afterExample(b)
       // Stage 8: show the call, then name its two halves.
-      if (j === 0 && runnable(b) && /\bargument/i.test(idea.title) && /\bparameter/i.test(idea.title)) {
-        for (const w of CALL_WORDS) beats.push({ say: w.say, at: null, term: w.term })
+      if (j === 0 && runnable(b) && isCallIdea(idea.title)) {
+        for (const w of CALL_WORDS) beats.push({ say: w.say, at: null, ...(w.term ? { term: w.term } : {}) })
         after = CALL_AFTER
       }
     })
@@ -231,12 +265,27 @@ export function ideaBeats(stage: Stage): IdeaBeat[] {
   if (stage.capstone) {
     const section = stage.ideas.length + 1
     stage.capstone.intro.forEach((_, j) => {
-      block({ section, block: j }, j === 0 ? 'Last, the capstone. Read it now if you like, but predict it before it runs.' : undefined)
+      block({ section, block: j }, j === 0 ? CAPSTONE_LINE : undefined)
     })
   }
 
   beats.push({ say: IDEAS_CLOSE, at: null, end: true })
   return beats
+}
+
+/**
+ * Whether an idea's heading must wait: it uses a word this stage names on
+ * a later beat. Stage 8's "Calling: arguments are objects, parameters are
+ * local names" is on the sheet from its example on, and the two words are
+ * named two beats later; the heading appears with the second of them.
+ */
+export function heldTitle(title: string, beats: IdeaBeat[], terms: string[]): boolean {
+  return beats.some(
+    (b) =>
+      b.term !== undefined &&
+      !terms.includes(b.term) &&
+      b.term.split(' · ').some((t) => new RegExp(`\\b${t.replace(/s$/, '')}`, 'i').test(title)),
+  )
 }
 
 /** How many sections the sheet has, the capstone included. */
@@ -352,10 +401,10 @@ export function memoryNote(before: MemorySnapshot, after: MemorySnapshot, v: Voc
 }
 
 /** The crow's line when the example stopped with an exception. */
-export const raisedNote = (error: string): string => `Python stopped with ${article(error)} \`${error}\`. Memory shows everything up to that line.`
+export const raisedNote = (error: string): string => `Python stopped with ${article(error)} \`${error}\`, and memory shows everything up to that line.`
 
 /** The crow's line when an example ran and named nothing. */
-export const NOTHING_NAMED = 'This one names nothing, so memory stays empty. Its output is at the bottom right.'
+export const NOTHING_NAMED = 'This one names nothing, so memory stays empty and its output is at the bottom right.'
 
 /**
  * The note for the moment being shown: walk back from it until memory

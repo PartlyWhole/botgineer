@@ -19,7 +19,7 @@ import { finishedLevels } from '../progress/progress'
 import { itemById, specOf, STAGES, vocabularyOf } from '../collection'
 import { passed, practiceItems, resumeAt, reviewItems } from '../collection/levels'
 import { useReadSession, type ReadEnv } from '../collection/useReadSession'
-import { ACT_LEAD, ACT_LINE, CHECKPOINT_LINE, doneLine, ideaBeats, RULE_LINE, taskLine, verdictLine, type IdeaBeat } from '../collection/voice'
+import { actLine, CHECKPOINT_LINE, doneLine, ideaBeats, RULE_LINE, taskLine, verdictLine, type IdeaBeat } from '../collection/voice'
 import type { ReadLevel } from '../../content/activities/reading'
 
 function idsFor(level: ReadLevel | undefined): string[] {
@@ -64,9 +64,9 @@ export function useReadLevel(activity: Activity, env: ReadEnv) {
     const predictionsRight = graded.every((g) => g!.right || g!.soft)
     if (marking >= 0) return RULE_LINE
     if (acting >= 0) {
-      const lead = graded.length ? (predictionsRight ? ACT_LEAD.right : ACT_LEAD.wrong) : ''
+      const lead = graded.length ? (predictionsRight ? 'right' : 'wrong') : null
       const p = current.spec.parts[acting]!
-      return lead + ACT_LINE[p.kind as 'fix' | 'write']
+      return actLine(p.kind as 'fix' | 'write', lead)
     }
     if (state.outcome) return verdictLine(state.outcome.right, state.outcome.err, session.goBack, state.outcome.soft)
     return undefined

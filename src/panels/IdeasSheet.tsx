@@ -6,7 +6,10 @@
  * each beat puts one more block of the text on the sheet, so the page
  * grows under the player's own Next rather than arriving as a wall
  * (docs/PEDAGOGY.md §6). Back takes the last block away again. The block
- * being read is marked and kept in view.
+ * being read is marked and kept in view — by scrolling the sheet's own
+ * box, never the page: on a phone the page scrolls, and scrolling it to a
+ * block took the stage, the crow's words and Next off the top of the
+ * screen by the third beat.
  *
  * Each Python example has a button that hands it to the robot: the
  * example runs, memory draws what it built, the scrubber walks through it
@@ -15,16 +18,18 @@
  * told.
  *
  * Stage 6's table of formal words is told a row a beat, and each word the
- * crow has named stays on the sheet as a label ("vocabulary is earned").
+ * crow has named stays on the sheet as a label ("vocabulary is earned"),
+ * and a heading that uses a word not named yet waits for it (Stage 8's
+ * "Calling: arguments are objects, parameters are local names").
  *
  * The sheet holds no state: what shows is a function of the beat, which is
  * the workbench's, and the level is finished when the last beat is.
  */
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { Blocks } from '../ui/Blocks'
 import { richText } from '../ui/richText'
 import type { Block, Stage } from '../collection/model'
-import type { Reach } from '../collection/voice'
+import { heldTitle, ideaBeats, type Reach } from '../collection/voice'
 
 export function IdeasSheet({
   stage,
@@ -54,12 +59,24 @@ export function IdeasSheet({
   const nowKey = now ? `${now.section}:${now.block}:${now.row ?? ''}` : end ? 'end' : ''
   useEffect(() => {
     const el = end ? document.querySelector('[data-testid="ideas-end"]') : nowRef.current
-    if (!el || typeof el.scrollIntoView !== 'function') return
+    const box = el?.closest('.sheet-scroll')
+    if (!el || !box) return
+    // "nearest", by hand, in the sheet's box alone: `scrollIntoView` would
+    // scroll every scrolling ancestor, the page included.
+    const at = el.getBoundingClientRect()
+    const frame = box.getBoundingClientRect()
+    const pad = 12
+    let by = 0
+    if (at.bottom > frame.bottom - pad) by = at.bottom - frame.bottom + pad
+    if (at.top - by < frame.top + pad) by = at.top - frame.top - pad
+    if (by === 0) return
     // A beat moves one block, and glides there; a jump to the end, or a
     // player who asked for less motion, goes straight.
     const still = end || (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches)
-    el.scrollIntoView({ block: 'nearest', behavior: still ? 'auto' : 'smooth' })
+    box.scrollBy({ top: by, behavior: still ? 'auto' : 'smooth' })
   }, [nowKey, end])
+
+  const beats = useMemo(() => ideaBeats(stage), [stage])
 
   /**
    * What an example may lean on: the section's earlier examples, and any
@@ -137,7 +154,7 @@ export function IdeasSheet({
       {stage.ideas.map((idea, k) =>
         shows(k + 1, 0) ? (
           <article key={k} className="card idea-card">
-            {idea.title && <h4 className="idea-title">{richText(idea.title)}</h4>}
+            {idea.title && !heldTitle(idea.title, beats, terms) && <h4 className="idea-title">{richText(idea.title)}</h4>}
             {told(k + 1, idea.blocks)}
           </article>
         ) : null,
@@ -146,7 +163,7 @@ export function IdeasSheet({
         <article className="card idea-card">
           <h4 className="idea-title">The capstone program</h4>
           {told(capstone, stage.capstone.intro)}
-          <p className="quiet">You will meet it at the end of this stage. Read it now if you like; run it only after you have predicted it.</p>
+          <p className="quiet">You will meet the program itself at the end of this stage, and predict it before it runs.</p>
         </article>
       )}
       {end && (

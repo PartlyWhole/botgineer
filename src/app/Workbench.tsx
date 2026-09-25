@@ -53,7 +53,7 @@ import { IdeasPanel } from '../panels/IdeasPanel'
 import type { ReadEnv } from '../collection/useReadSession'
 import type { Answer, Stage } from '../collection/model'
 import { modelAnswer } from '../collection/runner'
-import { markDone } from '../progress/progress'
+import { finishedLevels, markDone } from '../progress/progress'
 import { readScene } from '../scene/spec'
 import { ScenePanel, type Telling } from '../panels/ScenePanel'
 import { noteAt, raisedNote, readTo, sectionsOf, type Reach } from '../collection/voice'
@@ -312,8 +312,11 @@ export function Workbench({ activity }: { activity: Activity }) {
       // and the next run would wait for a fresh one to boot.
       const unnamed = async (src: string) => (await quiet(nameProbe(src))).output.endsWith(NAME_PROBE)
       const alone = await unnamed(code)
+      // An example that says which error it raises means to raise it
+      // (`print(hidden)  # NameError`): that is the lesson, not a fragment.
+      const meant = /\bNameError\b/.test(code)
       let source = code
-      if (alone && context.length > 0) {
+      if (alone && !meant && context.length > 0) {
         // The shortest run of what came before that lets it run: the
         // nearest context first, widening until the name is found.
         for (let from = context.length - 1; from >= 0; from--) {
@@ -324,7 +327,7 @@ export function Workbench({ activity }: { activity: Activity }) {
           break
         }
       }
-      if (source === code && alone) {
+      if (source === code && alone && !meant) {
         setIdeasNote('This one is a fragment: it uses a name the text sets up in words, so on its own Python stops with a NameError.')
       }
       setIdeasCode(source)
@@ -336,6 +339,13 @@ export function Workbench({ activity }: { activity: Activity }) {
         const outcome = await execute(source)
         setTranscript((t) => [...t, { kind: outcome.ok ? 'note' : 'err', text: outcomeLine(outcome.threw, outcome.terminal) }])
         setIdeasRan({ beat, raised: outcome.terminal?.exception?.type_name ?? null })
+        // Stacked, memory is a screen below the stage: bring the robot's
+        // pane up, where the example and what it built are, so the crow's
+        // "look at memory" has something in view to point at.
+        if (typeof matchMedia === 'function' && matchMedia('(max-width: 1000px)').matches) {
+          const still = matchMedia('(prefers-reduced-motion: reduce)').matches
+          document.querySelector('.robot-pane')?.scrollIntoView({ block: 'start', behavior: still ? 'auto' : 'smooth' })
+        }
       })
     },
     [quiet, enqueue, execute],
@@ -523,7 +533,12 @@ export function Workbench({ activity }: { activity: Activity }) {
    * derived step and replays its beats.
    */
   const tellKey = told ? `${activity.id}:${told.at}` : practice ? `practice:${practice.meter.at}` : activity.id
-  const [telling, setTelling] = useState<{ key: string; at: number }>({ key: '', at: 0 })
+  // A stage's ideas already read open told to the end, the whole sheet
+  // there to re-read: the beats are for the first reading, not a toll on
+  // every visit. (The same finished set the map reads; nothing new stored.)
+  const [telling, setTelling] = useState<{ key: string; at: number }>(() =>
+    ideas && finishedLevels().has(activity.id) ? { key: tellKey, at: Number.MAX_SAFE_INTEGER } : { key: '', at: 0 },
+  )
   const beatAt = Math.max(0, Math.min(telling.key === tellKey ? telling.at : 0, lines.length - 1))
   ideasBeatRef.current = beatAt
   // The ideas: how far the sheet has got, and the words named so far.
@@ -851,7 +866,7 @@ export function Workbench({ activity }: { activity: Activity }) {
           instrument={
             reading ? (
               ideas ? (
-                <IdeasPanel code={ideasCode} traceLine={traceLine} note={ideasNote} />
+                <IdeasPanel code={ideasCode} traceLine={traceLine} note={ideasNote} said={ideasSaid} />
               ) : (
                 <ReadPanel session={read.session} traceLine={traceLine} onShow={(src) => void show(src)} busy={busy} />
               )
@@ -873,8 +888,11 @@ const nameProbe = (src: string) =>
   [
     'try:',
     `    exec(compile(${JSON.stringify(src)}, "<example>", "exec"), {})`,
-    'except NameError:',
-    `    print(${JSON.stringify(NAME_PROBE.replace(/\n$/, ''))})`,
+    // Exactly NameError: a subclass (UnboundLocalError) is a name the
+    // example does define, just not yet, and is not this question.
+    'except NameError as e:',
+    '    if type(e) is NameError:',
+    `        print(${JSON.stringify(NAME_PROBE.replace(/\n$/, ''))})`,
     'except BaseException:',
     '    pass',
     '',

@@ -13,7 +13,21 @@
   /* Tall enough for the speech band: the tallest actor, a bubble of up to
      three lines and its tail. Shorter, and the bubble slides down past
      the foot of its rail and the tail lands on the words. */
-  height: clamp(200px, 30vh, 240px);
+  height: clamp(214px, calc(30vh + 14px), 254px);
+}
+
+/* The way on stays bottom-right, as everywhere (invariant 10), but on the
+   short stage the robot stands in that corner: so here it is smaller and
+   drops into the strip under the floor, below the cast's feet, where the
+   beat bar ran — the bar has nothing left to say once it is showing. */
+.scene-panel.compact .stage > .advance {
+  bottom: 6px;
+  right: 10px;
+  padding: 5px 14px;
+  font-size: 12.5px;
+}
+.scene-panel.compact .stage:has(> .advance) .beat-bar {
+  display: none;
 }
 
 /* A little wider than a lesson's bubble, since the crow says a whole
@@ -1031,6 +1045,45 @@ a.term {
   .workbench:has(.scene-panel.compact) .robot-pane {
     height: 760px;
   }
+}
+
+/* Except the ideas, which are told a beat at a time from the stage: there
+   the sheet keeps a scroll box of its own under the stage, filling the
+   rest of the screen, so a beat scrolls the text and never the page —
+   the crow, its words and Next stay where the player's thumb is. */
+@media (max-width: 1000px) {
+  .scene-panel.compact .sheet-scroll:has(.ideas-sheet) {
+    overflow-y: auto;
+    height: max(260px, calc(100svh - 380px));
+  }
+  /* A run brings this pane up (Workbench), so it fits one screen: the
+     example, the crow's line about it, and memory, all at once. */
+  .workbench:has(.ideas-sheet) .robot-pane {
+    height: min(760px, calc(100svh - 16px));
+  }
+  .ideas-panel .ideas-said {
+    display: block;
+  }
+}
+
+/* The crow's line about a run, repeated over memory when the stage is a
+   screen away (IdeasPanel). Beside the stage, the bubble is enough. */
+.ideas-said {
+  display: none;
+  margin: 0;
+  padding: 8px 12px;
+  font-size: 13px;
+  line-height: 1.4;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+.ideas-said b {
+  margin-right: 6px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--surface);
+  font-size: 11.5px;
 }
 
 .ideas-note {

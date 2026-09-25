@@ -221,6 +221,14 @@ test('a failed checkpoint sends you to review, and passing it earns the stage', 
   await expect(page.getByTestId('trophy-stage-1')).toHaveClass(/earned/)
 })
 
+/** A screenshot for a person to look at, once the bubble has finished
+ *  typing and the sheet has stopped gliding. Only when SHOTS is set. */
+async function shot(page: Page, name: string) {
+  if (!process.env.SHOTS) return
+  await page.waitForTimeout(1800)
+  await page.screenshot({ path: `${process.env.SHOTS}/${name}.png` })
+}
+
 /** The ideas' beats, walked through the same Next a player presses. */
 const beat = (page: Page) => page.evaluate(() => (window as any).botgineer.beat() as { at: number; of: number; text: string })
 const nextBeat = (page: Page) => page.evaluate(() => (window as any).botgineer.next())
@@ -253,6 +261,7 @@ test('the ideas open on the story, are told a block a beat, and run in place', a
   await toEnd(page)
   await expect(page.getByTestId('ideas-end')).toBeVisible()
   await expect(page.getByTestId('advance')).toBeVisible()
+  await shot(page, 'C5-reading-fixed-5')
 })
 
 test('Stage 1’s ideas say the bridge into reading', async ({ page }) => {
@@ -273,6 +282,56 @@ test('Stage 6 names each formal word on a beat of its own, and keeps it as a lab
   await expect(page.locator('.idea-term')).toHaveCount(2)
   await expect(page.getByTestId('idea-terms')).toContainText('iterable')
   if (process.env.SHOTS) await page.screenshot({ path: `${process.env.SHOTS}/C5-3.png` })
+})
+
+test('on a phone a beat scrolls the text, never the page, and a run brings memory up', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await open(page, 's2-ideas')
+  for (let i = 0; i < 8; i++) {
+    await expect(page.getByTestId('beat-next')).toBeInViewport({ ratio: 1 })
+    await expect(page.getByTestId('guide')).toBeInViewport()
+    expect(await page.evaluate(() => scrollY)).toBe(0)
+    await page.getByTestId('beat-next').click()
+  }
+  await shot(page, 'C5-reading-fixed-1')
+  while ((await page.getByTestId('try-it').count()) === 0) await nextBeat(page)
+  await page.getByTestId('try-it').first().click()
+  await expect(page.getByTestId('memory')).not.toHaveClass(/empty/)
+  // The stage is a screen away now, so the crow's line is over memory too.
+  await expect(page.getByTestId('ideas-said')).toContainText('Look at memory')
+  await expect(page.getByTestId('ideas-said')).toBeInViewport()
+  await expect(page.getByTestId('memory')).toBeInViewport()
+  await shot(page, 'C5-reading-fixed-2')
+})
+
+test('a stage’s ideas already read open with the whole sheet there', async ({ page }) => {
+  await seedProgress(page, ['s4-ideas'])
+  await open(page, 's4-ideas')
+  await expect(page.getByTestId('ideas-end')).toBeVisible()
+  await expect(page.getByTestId('advance')).toBeVisible()
+  // Every one of Stage 4's five ideas is on the sheet.
+  await expect(page.locator('.idea-card')).toHaveCount(5)
+})
+
+test('Stage 8 names the call’s two words before its heading uses them', async ({ page }) => {
+  await open(page, 's8-ideas')
+  while (!(await beat(page)).text.includes('what happens when you call')) await nextBeat(page)
+  const card = page.locator('.idea-card', { hasText: 'def double(n)' })
+  await expect(card).toBeVisible()
+  await expect(card.locator('.idea-title')).toHaveCount(0)
+  while (!(await beat(page)).text.includes('**parameter**')) await nextBeat(page)
+  await expect(card.locator('.idea-title')).toContainText('arguments are objects')
+  await expect(page.getByTestId('idea-terms')).toContainText('parameters')
+  await shot(page, 'C5-reading-fixed-3')
+})
+
+test('an example that raises on purpose is not called a fragment', async ({ page }) => {
+  await open(page, 's8-ideas')
+  await toEnd(page)
+  await page.locator('.block-code', { hasText: 'print(hidden)' }).getByTestId('try-it').click()
+  await expect(page.getByTestId('guide')).toContainText('Python stopped with a `NameError`'.replace(/`/g, ''))
+  await expect(page.getByTestId('ideas-note')).toHaveCount(0)
+  await shot(page, 'C5-reading-fixed-4')
 })
 
 test('the glossary opens at a term, and a bold term in the text links to it', async ({ page }) => {

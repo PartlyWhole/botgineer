@@ -40,8 +40,10 @@ export const STAGE_OPENERS: readonly string[] = [
 /** The bridge into reading, said once, at `s1-ideas` (§3). */
 export const BRIDGE = 'A good engineer knows what the robot will do before it does it.'
 
-/** Stage 1 follows the console lessons on names: the same idea, now written
- *  down. Said after the bridge. */
-export const STAGE_1_LEAD = 'You met names at the console. Here is the same idea, written down.'
+/** Stage 1 follows the console lessons on names, which drew a name as an
+ *  arrow; the collection's text says "label". Said after the bridge, so
+ *  the two pictures are one idea before the text uses its word (§8: the
+ *  metaphor is the arrow, with a bridging line in Stage 1). */
+export const STAGE_1_LEAD = 'At the console a name was an arrow, and the text here calls it a label: same idea.'
 
 export const openerOf = (stage: number): string => STAGE_OPENERS[stage - 1] ?? ''
