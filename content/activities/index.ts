@@ -353,23 +353,35 @@ const practiceRemembering: Activity = {
  *  hash but are not offered anywhere yet — they are what unlocking looks
  *  like, once there is a progression to unlock them from. */
 /**
- * Stage 1's ideas, as a console lesson rather than the collection's page
- * of prose (content/lessons/s1ideas.ts says why). Same id and place on
- * the map as the reading level it replaces, so progress and links hold.
- * The memory graph is the picture, so the stage needs no props slot.
+ * Stages 1–8's ideas, as console lessons rather than the collection's
+ * pages of prose (content/lessons/s1ideas.ts says why). Same ids and
+ * places on the map as the reading levels they replace, so progress and
+ * links hold. Memory is the picture, so the stage needs no props slot.
  */
-const stage1Ideas: Activity = {
-  id: 's1-ideas',
+const stageIdeas = (n: number): Activity => ({
+  id: `s${n}-ideas`,
   title: 'The Ideas',
-  brief: 'Read straight-line code one line at a time: right side first, then see which arrow moves.',
+  brief: STAGE_BRIEFS[n - 1]!,
   mode: 'console',
-  lesson: 's1-ideas',
-  next: 'wake',
+  lesson: `s${n}-ideas`,
+  next: n === 1 ? 'wake' : `s${n}-set-1`,
   greeting: 'Type an instruction and press Enter.',
   starter: '',
   options: { max_steps: 3000, wall_clock_s: 15 },
-  scene: practiceScene('s1-ideas'),
-}
+  scene: practiceScene(`s${n}-ideas`),
+})
+
+const STAGE_BRIEFS = [
+  'Read straight-line code one line at a time: right side first, then see which arrow moves.',
+  'Tell a line that changes an object from one that moves a name.',
+  'Read brackets and keys exactly: which container, which slot.',
+  'Track the outer object and the objects inside it separately.',
+  'Tell the lines a loop repeats from the lines after it.',
+  'Say what each kind of collection hands a for loop.',
+  'Track which loop is running, inside another.',
+  'Follow a call in and back out, and which names belong to it.',
+]
+
 
 export const ACTIVITIES: Activity[] = [
   meetTheRobot,
@@ -380,7 +392,7 @@ export const ACTIVITIES: Activity[] = [
   namingThings,
   takeAnOrder,
   practiceRemembering,
-  stage1Ideas,
+  ...[1, 2, 3, 4, 5, 6, 7, 8].map(stageIdeas),
   wakeTheRobot,
   ...readingActivities(),
 ]

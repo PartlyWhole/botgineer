@@ -19,9 +19,16 @@ import { namesPoint } from './names'
 import { takeAnOrder } from './order'
 import { wake } from './wake'
 import { s1Ideas } from './s1ideas'
+import { s2Ideas } from './s2ideas'
+import { s3Ideas } from './s3ideas'
+import { s4Ideas } from './s4ideas'
+import { s5Ideas } from './s5ideas'
+import { s6Ideas } from './s6ideas'
+import { s7Ideas } from './s7ideas'
+import { s8Ideas } from './s8ideas'
 
 export * from './core'
-export { meet, types, choose, operations, namesPoint, takeAnOrder, wake, s1Ideas }
+export { meet, types, choose, operations, namesPoint, takeAnOrder, wake, s1Ideas, s2Ideas, s3Ideas, s4Ideas, s5Ideas, s6Ideas, s7Ideas, s8Ideas }
 
 export const LESSONS: Record<string, Lesson> = {
   [meet.id]: meet,
@@ -32,4 +39,11 @@ export const LESSONS: Record<string, Lesson> = {
   [takeAnOrder.id]: takeAnOrder,
   [wake.id]: wake,
   [s1Ideas.id]: s1Ideas,
+  [s2Ideas.id]: s2Ideas,
+  [s3Ideas.id]: s3Ideas,
+  [s4Ideas.id]: s4Ideas,
+  [s5Ideas.id]: s5Ideas,
+  [s6Ideas.id]: s6Ideas,
+  [s7Ideas.id]: s7Ideas,
+  [s8Ideas.id]: s8Ideas,
 }
