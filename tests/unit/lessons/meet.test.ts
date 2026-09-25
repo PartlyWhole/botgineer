@@ -2,7 +2,7 @@
  * Meet the robot (`meet`): introductions, then one number, thought of.
  */
 import { describe, expect, it } from 'vitest'
-import { castAt, guidance, meet, progress, script, staging, type Line } from '../../../content/lessons'
+import { castAt, guidance, meet, progress, script, type Line } from '../../../content/lessons'
 import { NOTHING, failed, line, th, typed } from './fixtures'
 
 describe('meet', () => {
@@ -10,11 +10,10 @@ describe('meet', () => {
     const s = script(meet, NOTHING)
     expect(s.items.filter((i) => i.kind === 'beat').length).toBeGreaterThanOrEqual(5)
     expect(s.items[s.rest]).toMatchObject({ kind: 'ask', text: 'Make the robot think of a number.', tag: 'you' })
-    // The console is pointed at, on the screen and on the stage, before
-    // the question; and the robot shows what will happen first.
+    // The console is pointed at (it pulses) before the question, and the
+    // robot shows what will happen first.
     const pointing = s.items.findIndex((i) => i.focus === 'console')
     expect(pointing).toBeGreaterThan(0)
-    expect(staging(meet, NOTHING, pointing).current?.prop).toMatchObject({ kind: 'pointer', to: 'console' })
     expect(s.items.some((i) => i.thought === '7')).toBe(true)
   })
 

@@ -46,9 +46,11 @@ type Props = {
    * answer will go, so the eye knows where to come back to.
    */
   listening?: boolean | undefined
+  /** A question is waiting: the prompt itself says where the answer goes. */
+  asked?: boolean | undefined
 }
 
-export function RobotConsole({ exchanges, onSubmit, busy, disabled, greeting, listening = false }: Props) {
+export function RobotConsole({ exchanges, onSubmit, busy, disabled, greeting, listening = false, asked = false }: Props) {
   const [buffer, setBuffer] = useState('')
   const [recall, setRecall] = useState<number | null>(null)
   const inputRef = useRef<HTMLTextAreaElement | null>(null)
@@ -184,7 +186,7 @@ export function RobotConsole({ exchanges, onSubmit, busy, disabled, greeting, li
             autoCorrect="off"
             disabled={disabled || listening}
             readOnly={busy}
-            placeholder={listening ? 'Listening… press Next' : undefined}
+            placeholder={listening ? 'Listening… press Next' : asked ? 'Type your answer here' : undefined}
             aria-label="Say something to the robot"
             data-testid="console-input"
             onChange={(e) => setBuffer(e.target.value)}

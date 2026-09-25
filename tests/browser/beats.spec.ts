@@ -35,7 +35,6 @@ test('narration closes the console, Next moves it on, and the question opens it'
   await expect(input).toBeDisabled()
   await expect(input).toHaveAttribute('placeholder', /Listening/)
   await expect(page.getByTestId('beat-next')).toBeVisible()
-  await expect(page.getByTestId('ask-pointer')).toHaveCount(0)
   // Who is talking, on a tag in their colour.
   await expect(page.getByTestId('speaker-name')).toHaveText(`${CROW_NAME}:`)
   await expect(page.getByTestId('guide')).toHaveAttribute('data-kind', 'beat')
@@ -75,7 +74,8 @@ test('narration closes the console, Next moves it on, and the question opens it'
   await expect(input).toBeFocused()
   await expect(page.getByTestId('instrument')).toHaveClass(/glow/)
   await expect(page.getByTestId('beat-next')).toHaveCount(0)
-  await expect(page.getByTestId('ask-pointer')).toContainText('Type your answer')
+  // Where the answer goes is said in the console's own prompt.
+  await expect(input).toHaveAttribute('placeholder', 'Type your answer here')
   await expect(page.getByTestId('guide')).toHaveAttribute('data-kind', 'ask')
 
   // And a typed answer answers it.
