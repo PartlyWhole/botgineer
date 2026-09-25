@@ -367,6 +367,33 @@ function answerTo(lesson: Lesson, evidence: Evidence, i: number): Heard | null {
   return end !== undefined && end > 0 ? (evidence.thoughts[end - 1] ?? null) : null
 }
 
+/**
+ * The thoughts that did a step, oldest first: what a picture that
+ * collects answers (the shelf) is handed as `heard`. A miss is not among
+ * them — it is drawn into the picture that asked, once, and then it is
+ * gone — so the shelf only ever holds answers the player got right.
+ *
+ * Derived, like everything here. An ordered lesson knows exactly which
+ * thought finished each step (`walk`); an unordered one counts a thought
+ * when adding it moved the lesson on.
+ */
+function rightAnswers(lesson: Lesson, evidence: Evidence): Thought[] {
+  const all = evidence.thoughts
+  let did: Heard[]
+  if (lesson.ordered) {
+    did = walk(lesson, evidence).ends.map((end) => all[end - 1]!)
+  } else {
+    did = []
+    let at = progress(lesson, { ...evidence, thoughts: [] })
+    for (let k = 1; k <= all.length; k++) {
+      const next = progress(lesson, { ...evidence, thoughts: all.slice(0, k) })
+      if (next > at) did.push(all[k - 1]!)
+      at = next
+    }
+  }
+  return did.map(({ type, repr }) => ({ type, repr }))
+}
+
 /* -------------------------------- script -------------------------------- */
 
 /**
@@ -519,7 +546,7 @@ export function staging(lesson: Lesson, evidence: Evidence, beat?: number): Stag
   const item = s.items[i]!
   const last = evidence.last ?? null
   const answer = last?.ok ? last.thought : null
-  const heardSoFar: Thought[] = evidence.thoughts.map(({ type, repr }) => ({ type, repr }))
+  const heardSoFar: Thought[] = rightAnswers(lesson, evidence)
   const view = (key: string, prop: Prop, extra: Partial<PropView> = {}): Staging['current'] => ({
     key,
     prop,
