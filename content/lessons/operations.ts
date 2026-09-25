@@ -294,7 +294,7 @@ export const operations: Lesson = {
         { say: 'To ask *is it the same?*, Python uses two equals signs: `==`.', show: { kind: 'tiles', parts: ['2', '+', '2', '==', '4'] } },
         {
           say: 'When both sides weigh the same, the balance levels, and the answer is `True`.',
-          show: { kind: 'balance', left: 4, right: 4, op: '==', lamp: true },
+          show: { kind: 'balance', left: 4, right: 4, op: '==', lamp: true, leftLabel: '2 + 2' },
           thought: 'True',
         },
       ],

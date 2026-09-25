@@ -141,7 +141,7 @@ describe('working things out', () => {
     expect(lit).toBeLessThan(s.rest)
     // The lamp is drawn on its beat: the beat before is another picture,
     // so `staging` does not fold it away as the same one.
-    expect(staging(operations, e, lit).current?.prop).toEqual({ kind: 'balance', left: 4, right: 4, op: '==', lamp: true })
+    expect(staging(operations, e, lit).current?.prop).toEqual({ kind: 'balance', left: 4, right: 4, op: '==', lamp: true, leftLabel: '2 + 2' })
     expect(s.items[lit]!.thought).toBe('True')
     // The ask is on another picture, so the lamp's answer is not on it.
     expect(staging(operations, e).current?.prop).toEqual({ kind: 'lamp' })

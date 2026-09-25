@@ -474,6 +474,23 @@ button.route.current {
   color: #5b6784;
 }
 
+/* A fixture's reaction target is its body. The cast's one-shots
+   (`act: [{ actor, do: 'hop' | 'wave' }]` on a lesson beat, console.css)
+   play on a character's `.react` group; a fixture has no face and no
+   such group, so a beat that pointed at the lamp or the battery by
+   hopping it did nothing at all. The body is the one thing a fixture
+   draws, and it has no transform of its own for the one-shot to
+   replace, so it takes the same keyframes. Squashed and swung from its
+   foot, the way the characters are. */
+.stage .actor.act-hop > :is(.bulb, .battery, .sign-body, .crate-body, .plinth-top) {
+  transform-origin: 50% 100%;
+  animation: hop-small 700ms cubic-bezier(0.3, 0.7, 0.4, 1) both;
+}
+.stage .actor.act-wave > :is(.bulb, .battery, .sign-body, .crate-body, .plinth-top) {
+  transform-origin: 50% 90%;
+  animation: wave 1s ease-in-out both;
+}
+
 .sign-body {
   border-radius: 8px;
   background: #16203a;

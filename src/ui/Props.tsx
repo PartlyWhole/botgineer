@@ -21,17 +21,20 @@
  */
 import { useLayoutEffect, useRef, type ReactNode } from 'react'
 import {
+  CHIP_ROWS,
   SLOTS,
-  SLOT_EXAMPLES,
   boolOf,
+  chipLines,
   chipText,
   clamp,
   codeLine,
   kindOf,
   numberOf,
+  shelfRoom,
   shelved,
   slotOf,
   textOf,
+  unworked,
   type ContrastSide,
   type Prop,
   type PropView,
@@ -84,6 +87,7 @@ export function PropLayer({ view, role, beat }: { view: PropView; role: 'current
   }
 
   const said = view.answer
+  const refused = unworked(view)
   return (
     <button
       ref={ref}
@@ -92,6 +96,7 @@ export function PropLayer({ view, role, beat }: { view: PropView; role: 'current
       data-role={role}
       data-prop={view.prop.kind}
       data-verdict={view.verdict ?? 'none'}
+      data-worked={refused ? 'no' : undefined}
       data-testid={role === 'current' ? 'prop' : 'prop-leaving'}
       onClick={replay}
       tabIndex={role === 'current' ? 0 : -1}
@@ -101,22 +106,30 @@ export function PropLayer({ view, role, beat }: { view: PropView; role: 'current
       <svg viewBox="0 0 200 130" className={`prop prop-${view.prop.kind}`} aria-hidden="true">
         {draw(view)}
       </svg>
-      {said && <AnswerTag key={`${said.type}:${said.repr}`} thought={said} right={view.verdict === 'right'} />}
+      {said && <AnswerTag key={`${said.type}:${said.repr}`} thought={said} right={view.verdict === 'right'} refused={refused} />}
     </button>
   )
 }
 
 /** The value, and its kind in words. Coloured by kind, the way every
- *  picture in these lessons colours it, but never only by colour. */
-function AnswerTag({ thought, right }: { thought: Thought; right: boolean }) {
+ *  picture in these lessons colours it, but never only by colour. A
+ *  right number said the wrong way (`unworked`) is still what the robot
+ *  thought, so the tag still shows it — outlined in amber, with a `?`
+ *  where the tick would go: the value, not yet the answer. */
+function AnswerTag({ thought, right, refused }: { thought: Thought; right: boolean; refused: boolean }) {
   const kind = kindOf(thought) ?? 'other'
   return (
-    <span className="answer-tag" data-kind={kind} data-testid="answer-tag">
+    <span className={`answer-tag ${refused ? 'unworked' : ''}`} data-kind={kind} data-testid="answer-tag">
       <span className="answer-value">{short(thought.repr, 14)}</span>
       <span className="answer-kind">{thought.type}</span>
       {right && (
         <span className="answer-right" aria-label="right">
           ✓
+        </span>
+      )}
+      {refused && (
+        <span className="answer-unworked" aria-label="not worked out yet">
+          ?
         </span>
       )}
     </span>
@@ -176,7 +189,7 @@ function draw(view: PropView): ReactNode {
     case 'bolts':
       return <Bolts view={view} have={p.have} use={p.use} />
     case 'balance':
-      return <Balance view={view} left={p.left} right={p.right} op={p.op} lamp={p.lamp === true} />
+      return <Balance view={view} p={p} />
     case 'expr':
       return <Expr view={view} text={p.text} first={p.first} then={p.then} />
     case 'phone':
@@ -219,7 +232,9 @@ const kindWord = (k: TypeSlot): string => (k === 'char' ? 'str · length 1' : k)
 export function describe(view: PropView): string {
   const p = view.prop
   const a = view.answer
-  const n = numberOf(a)
+  // The right number said the wrong way is described as the picture
+  // draws it: still waiting (`unworked`).
+  const n = unworked(view) ? null : numberOf(a)
   const b = boolOf(a)
   const t = textOf(a)
   switch (p.kind) {
@@ -272,17 +287,17 @@ export function describe(view: PropView): string {
           ? `A block of ${a!.repr}.`
           : `Blocks: ${(p.parts ?? ['7', '+', '7']).join(' ')}.${p.demo === 'stamp' ? ' The word stamps itself that many times.' : ''}`
     case 'crates':
-      return `${p.crates} crates with ${p.each} bolts in each.${n !== null ? ` ${a!.repr} bolts lit.` : ''}`
+      return `${p.crates} crates with ${p.each} bolts in each.${n !== null ? ` ${a!.repr} bolts lit.` : waiting(view)}`
     case 'share':
-      return `A jug of ${p.litres} litres and ${p.robots} tanks.${n !== null ? ` Each tank gets ${a!.repr}.` : ''}`
+      return `A jug of ${p.litres} litres and ${p.robots} tanks.${n !== null ? ` Each tank gets ${a!.repr}.` : waiting(view)}`
     case 'bolts':
-      return `${p.have} bolts, ${p.use} of them used.${n !== null ? ` The robot says ${a!.repr} are left.` : ''}`
+      return `${p.have} bolts, ${p.use} of them used.${n !== null ? ` The robot says ${a!.repr} are left.` : waiting(view)}`
     case 'balance':
-      return `A balance: ${p.left} ${p.op} ${p.right}?${p.lamp ? ` A lamp beside it says ${holds(p.left, p.op, p.right) ? 'True' : 'False'}.` : ''}${
+      return `A balance: ${question(p)}?${p.lamp ? ` A lamp beside it says ${holds(p.left, p.op, p.right) ? 'True' : 'False'}.` : ''}${
         b !== null ? ` The robot says ${a!.repr}.` : ''
       }`
     case 'expr':
-      return `${p.text}: ${p.first} first, then ${p.then.join(', then ')}.`
+      return view.verdict === 'right' ? `${p.text}: ${p.first} first, then ${p.then.join(', then ')}.` : `${p.text} = ?${waiting(view)}`
     case 'phone':
       return a ? `A phone showing ${t ?? a.repr}.` : 'A phone, waiting for a number.'
     case 'door':
@@ -290,9 +305,11 @@ export function describe(view: PropView): string {
     case 'card':
       return t !== null ? `A card for Mira that says: ${t}.` : 'A blank card for Mira.'
     case 'letter':
-      return n !== null ? `The letter ${p.char}, turned over: ${a!.repr}.` : `A tile with the letter ${p.char} on it.`
+      return n !== null ? `The letter ${p.char}, turned over: ${a!.repr}.` : `A tile with the letter ${p.char} on it.${waiting(view)}`
     case 'shelf': {
-      const s = shelved(p.filled, view.heard, p.examples ?? {})
+      // The same room the drawing gives each slot, so the sentence lists
+      // exactly the chips on the shelf.
+      const s = shelved(p.filled, view.heard, p.examples ?? {}, shelfRoom(p.filled, p.examples ?? {}))
       const slots = SLOTS.map((k) =>
         p.filled.includes(k) ? `${k}: ${[...s[k].examples.map((e) => e.text), ...s[k].heard].join(', ')}` : `a slot marked ?${s[k].heard.length ? ` holding ${s[k].heard.join(', ')}` : ''}`,
       )
@@ -321,9 +338,18 @@ export function describe(view: PropView): string {
         .map((c) => `${c.char} at ${c.code}`)
         .join(', ')}.`
     case 'scale':
-      return `${p.parcels} parcels of ${p.each} kg and a scale.${n !== null ? ` On the scale, it reads ${a!.repr} kg.` : ''}`
+      return `${p.parcels} parcels of ${p.each} kg and a scale.${n !== null ? ` On the scale, it reads ${a!.repr} kg.` : waiting(view)}`
   }
 }
+
+/** What a picture says of a right number said the wrong way: the robot
+ *  has thought of it, and nobody has worked it out yet. */
+const waiting = (view: PropView): string =>
+  unworked(view) ? ` The robot thought of ${view.answer!.repr}, but it has not been worked out yet.` : ''
+
+/** The balance's question as the pans write it: each side's label, or its
+ *  number. */
+const question = (p: Extract<Prop, { kind: 'balance' }>): string => `${p.leftLabel ?? p.left} ${p.op} ${p.rightLabel ?? p.right}`
 
 /** Whether `left op right` holds: the balance's own truth. */
 const holds = (left: number, op: '>' | '<' | '==', right: number): boolean => (op === '==' ? left === right : op === '>' ? left > right : left < right)
@@ -903,9 +929,20 @@ function Tiles({ view, parts, stamp }: { view: PropView; parts: string[]; stamp:
   )
 }
 
+/** How much a short row of parts may grow. A lone `"Mira"` laid out at
+ *  the row's own size is four 16-unit tiles in a 200-wide picture — on a
+ *  phone, letters a few pixels high, for a question about which letter
+ *  comes first. Grown to fill the width, up to this, it reads. */
+const PARTS_GROW = 2.2
+
+/** The row's vertical middle, which a grown row scales about so it stays
+ *  where the small one stood. */
+const PARTS_MID = 53
+
 /** Python literals and operators laid out in a row: a str as letter
- *  tiles, an int as a block, an operator as itself. Scaled to fit. */
-function Parts({ parts }: { parts: string[] }) {
+ *  tiles, an int as a block, an operator as itself. Scaled to fit the
+ *  width, and scaled *up* to it, as far as `grow`, when the row is short. */
+function Parts({ parts, grow = PARTS_GROW }: { parts: string[]; grow?: number }) {
   const T = 16
   const laid = parts.map((part) => {
     if (/^".*"$/.test(part)) return { part, kind: 'str' as const, chars: [...part.slice(1, -1)], w: [...part.slice(1, -1)].length * T }
@@ -914,10 +951,10 @@ function Parts({ parts }: { parts: string[] }) {
   })
   const gap = 6
   const total = laid.reduce((sum, x) => sum + x.w, 0) + gap * (laid.length - 1)
-  const k = Math.min(1, 190 / total)
+  const k = Math.min(grow, 190 / total)
   let x = 0
   return (
-    <g transform={`translate(${100 - (total * k) / 2},0) scale(${k})`}>
+    <g transform={`translate(${100 - (total * k) / 2},${PARTS_MID * (1 - k)}) scale(${k})`}>
       {laid.map((p, i) => {
         const at = x
         x += p.w + gap
@@ -973,7 +1010,7 @@ function Stamps({ parts }: { parts: string[] }) {
   return (
     <g className="tiles blocks stamping">
       <g transform="translate(0,-22)">
-        <Parts parts={parts} />
+        <Parts parts={parts} grow={1} />
       </g>
       <g transform={`translate(${100 - (total * k) / 2},76) scale(${k})`}>
         {Array.from({ length: count }, (_, i) => (
@@ -999,13 +1036,15 @@ function Stamps({ parts }: { parts: string[] }) {
 /* --- crates: times, as an array --- */
 
 function Crates({ view, crates, each }: { view: PropView; crates: number; each: number }) {
-  const n = numberOf(view.answer)
+  // A refused 42 lights nothing: typed by hand, it has counted no bolts.
+  const waiting = unworked(view)
+  const n = waiting ? null : numberOf(view.answer)
   const lit = n === null ? 0 : clamp(Math.floor(n), 0, crates * each)
   const cw = Math.min(24, 180 / crates)
   const x0 = 100 - (crates * cw) / 2
   const pitch = 78 / each
   return (
-    <g className="crates">
+    <g className={`crates ${waiting ? 'unworked' : ''}`}>
       {Array.from({ length: crates }, (_, c) => (
         <g key={c} className="crate" style={{ ['--i' as string]: c }} transform={`translate(${x0 + c * cw},0)`}>
           <rect x="1" y="34" width={cw - 2} height="86" rx="3" className="crate-box" />
@@ -1025,7 +1064,7 @@ function Crates({ view, crates, each }: { view: PropView; crates: number; each: 
         </g>
       ))}
       <text x="100" y="22" className="crates-label">
-        {n === null ? `${crates} crates × ${each} bolts` : `${view.answer!.repr} bolts`}
+        {n !== null ? `${view.answer!.repr} bolts` : waiting ? `${crates} * ${each} = ?` : `${crates} crates × ${each} bolts`}
       </text>
     </g>
   )
@@ -1034,7 +1073,9 @@ function Crates({ view, crates, each }: { view: PropView; crates: number; each: 
 /* --- share: division, and what is left over --- */
 
 function Share({ view, litres, robots }: { view: PropView; litres: number; robots: number }) {
-  const n = numberOf(view.answer)
+  // A refused share pours nothing: the jug stays full and each tank asks.
+  const waiting = unworked(view)
+  const n = waiting ? null : numberOf(view.answer)
   const each = n === null ? 0 : Math.max(0, n)
   const left = n === null ? litres : Math.max(0, litres - each * robots)
   const scale = 6
@@ -1043,7 +1084,7 @@ function Share({ view, litres, robots }: { view: PropView; litres: number; robot
   const gap = robots > 2 ? 40 : 48
   const tanks = Array.from({ length: robots }, (_, i) => 146 - ((robots - 1) * gap) / 2 + i * gap)
   return (
-    <g className="share">
+    <g className={`share ${waiting ? 'unworked' : ''}`}>
       <g className="jug" transform="translate(40,0)">
         <path d="M -24 40 h 48 v 76 a 6 6 0 0 1 -6 6 h -36 a 6 6 0 0 1 -6 -6 z" className="jug-body" />
         <clipPath id="jug-clip">
@@ -1075,6 +1116,11 @@ function Share({ view, litres, robots }: { view: PropView; litres: number; robot
               {view.answer!.repr}
             </text>
           )}
+          {waiting && (
+            <text y="104" className="tank-label unworked-q">
+              ?
+            </text>
+          )}
         </g>
       ))}
     </g>
@@ -1084,12 +1130,14 @@ function Share({ view, litres, robots }: { view: PropView; litres: number; robot
 /* --- bolts: taking away --- */
 
 function Bolts({ view, have, use }: { view: PropView; have: number; use: number }) {
-  const n = numberOf(view.answer)
+  // A refused 13 rings nothing: nobody has counted what is left.
+  const waiting = unworked(view)
+  const n = waiting ? null : numberOf(view.answer)
   const perRow = 10
   const ringed = n === null ? 0 : clamp(Math.floor(n), 0, have)
   const at = (i: number) => [19 + (i % perRow) * 18, 58 + Math.floor(i / perRow) * 30] as const
   return (
-    <g className="bolts">
+    <g className={`bolts ${waiting ? 'unworked' : ''}`}>
       {Array.from({ length: have }, (_, i) => {
         const [x, y] = at(i)
         const used = i >= have - use
@@ -1104,7 +1152,7 @@ function Bolts({ view, have, use }: { view: PropView; have: number; use: number 
         )
       })}
       <text x="100" y="22" className="bolts-label">
-        {n === null ? `${have} bolts, ${use} used` : `${view.answer!.repr} left?`}
+        {n !== null ? `${view.answer!.repr} left?` : waiting ? `${have} - ${use} = ?` : `${have} bolts, ${use} used`}
       </text>
     </g>
   )
@@ -1112,7 +1160,19 @@ function Bolts({ view, have, use }: { view: PropView; have: number; use: number 
 
 /* --- balance: a question makes a bool --- */
 
-function Balance({ view, left, right, op, lamp }: { view: PropView; left: number; right: number; op: '>' | '<' | '=='; lamp: boolean }) {
+/** Where a pan's blocks split into two colours: after the first part of
+ *  a label that is a sum of two whole numbers adding up to the pan's
+ *  weight (`2 + 2` on a pan of 4). Anything else is one colour. */
+function splitOf(label: string | undefined, weight: number): number | undefined {
+  const m = label === undefined ? null : /^\s*(\d+)\s*\+\s*(\d+)\s*$/.exec(label)
+  if (!m) return undefined
+  const a = Number(m[1])
+  return a > 0 && a + Number(m[2]) === weight ? a : undefined
+}
+
+function Balance({ view, p }: { view: PropView; p: Extract<Prop, { kind: 'balance' }> }) {
+  const { left, right, op } = p
+  const lamp = p.lamp === true
   const truth = holds(left, op, right)
   const b = boolOf(view.answer)
   const tilt = left === right ? 0 : left > right ? -8 : 8
@@ -1128,7 +1188,14 @@ function Balance({ view, left, right, op, lamp }: { view: PropView; left: number
         className={`weight ${split !== undefined && i >= split ? 'other' : ''}`}
       />
     ))
-  const question = op === '==' ? '2 + 2 == 4' : `${left} ${op} ${right}`
+  // What the pans say is what is asked: `2 + 2 == 4` only when the
+  // lesson wrote the left side as `2 + 2`. It was hard-coded once, so
+  // every `==` balance asked about 2 + 2 whatever it weighed.
+  const asked = question(p)
+  const said = b !== null && view.verdict === 'right' ? `${asked} → ${view.answer!.repr}` : null
+  // As wide as what it says (9px mono is about 5.5 a character), so a
+  // longer question never runs out of its pill; kept clear of the lamp.
+  const pill = clamp([...(said ?? `${asked} ?`)].length * 5.6 + 16, 88, lamp ? 130 : 190)
   return (
     <g className="balance">
       <path d="M 100 70 l -14 50 h 28 z" className="stand" />
@@ -1136,25 +1203,25 @@ function Balance({ view, left, right, op, lamp }: { view: PropView; left: number
         <rect x="30" y="66" width="140" height="6" rx="3" className="beam-bar" />
         <g transform="translate(46,66)">
           <path d="M -18 0 h 36 l -4 6 h -28 z" className="pan" />
-          {stack(left, 0, op === '==' ? 2 : undefined)}
+          {stack(left, 0, splitOf(p.leftLabel, left))}
         </g>
         <g transform="translate(154,66)">
           <path d="M -18 0 h 36 l -4 6 h -28 z" className="pan" />
-          {stack(right, 0)}
+          {stack(right, 0, splitOf(p.rightLabel, right))}
         </g>
       </g>
       <circle cx="100" cy="69" r="4" className="pivot" />
       <text x="46" y="94" className="pan-label">
-        {op === '==' ? '2 + 2' : left}
+        {p.leftLabel ?? left}
       </text>
       <text x="154" y="94" className="pan-label">
-        {right}
+        {p.rightLabel ?? right}
       </text>
       {/* The answer joins the question only when it answers *this*
           question: `5 > 3` is True, and "3 > 5 → True" would be a lie. */}
-      <g className={`question ${b !== null && view.verdict === 'right' ? 'answered' : ''}`} transform="translate(100,22)">
-        <rect x="-44" y="-11" width="88" height="20" rx="10" />
-        <text y="3.5">{b !== null && view.verdict === 'right' ? `${question} → ${view.answer!.repr}` : `${question} ?`}</text>
+      <g className={`question ${said ? 'answered' : ''}`} transform="translate(100,22)">
+        <rect x={-pill / 2} y="-11" width={pill} height="20" rx="10" />
+        <text y="3.5">{said ?? `${asked} ?`}</text>
       </g>
       {lamp && (
         // The comparison's answer, as the thing it is: a lamp, on or off.
@@ -1178,11 +1245,14 @@ function Expr({ view, text, first, then }: { view: PropView; text: string; first
   // The working is the payoff, so it waits for the robot to have worked it
   // out: shown on a miss, it would hand over the answer to the question.
   const shown = view.verdict === 'right'
+  // The right number typed by hand shows no working either — and says so
+  // in amber: that is the number, and it is still `?` how it was made.
+  const waiting = unworked(view)
   const cw = 9.6
   const x0 = 100 - (text.length * cw) / 2
   const at = text.indexOf(first)
   return (
-    <g className={`expr ${shown ? 'shown' : ''}`}>
+    <g className={`expr ${shown ? 'shown' : ''} ${waiting ? 'unworked' : ''}`}>
       {at >= 0 && shown && <rect x={x0 + at * cw - 2} y="14" width={first.length * cw + 4} height="24" rx="5" className="first" />}
       <text x="100" y="31" className="expr-text">
         {text}
@@ -1319,9 +1389,11 @@ function Card({ view }: { view: PropView }) {
 /* --- letter: every character is a number --- */
 
 function Letter({ view, char }: { view: PropView; char: string }) {
-  const n = view.answer?.type === 'int' ? view.answer.repr : null
+  // Its code typed from memory does not turn the tile: only `ord` looks.
+  const waiting = unworked(view)
+  const n = view.answer?.type === 'int' && !waiting ? view.answer.repr : null
   return (
-    <g className={`letter ${n !== null ? 'turned' : ''}`}>
+    <g className={`letter ${n !== null ? 'turned' : ''} ${waiting ? 'unworked' : ''}`}>
       <g className="letter-wiggle">
         <g className="face front">
           <rect x="66" y="12" width="68" height="78" rx="8" />
@@ -1337,7 +1409,7 @@ function Letter({ view, char }: { view: PropView; char: string }) {
         </g>
       </g>
       <text x="100" y="114" className="letter-caption">
-        {n === null ? `"${char}"` : `"${char}"  →  ${n}`}
+        {n !== null ? `"${char}"  →  ${n}` : waiting ? `"${char}"  →  ?` : `"${char}"`}
       </text>
     </g>
   )
@@ -1350,19 +1422,21 @@ const CUBBY_PITCH = 40.75
 /** The first chip's top, inside its slot, and the distance between. */
 const CHIP_TOP = 20
 const CHIP_PITCH = 13
-/** How many rows a slot has under its label. */
-const CHIP_ROWS = 5
+const CHIP_H = 11
+/** A chip's inset from its slot's sides: as narrow as reads, because a
+ *  row of `CHIP_CHARS` (8) has to fit across it. */
+const CHIP_X = 2
 
 type ShelfRow = { key: string; text: string; cls: string; tag?: boolean }
 
 function Shelf({ view, p }: { view: PropView; p: Extract<Prop, { kind: 'shelf' }> }) {
   const examples = p.examples ?? {}
   const named = (k: TypeSlot) => p.filled.includes(k)
-  // The char slot's tag (`str · length 1`) takes two rows of its own.
+  // The char slot's tag (`str · length 1`) takes two rows of its own,
+  // and a chip too long for one row takes two (`chipLines`); what is
+  // left for heard values is `shelfRoom`'s, which the sentence uses too.
   const tagRows = (k: TypeSlot) => (k === 'char' && named(k) ? 2 : 0)
-  const room: Partial<Record<TypeSlot, number>> = {}
-  for (const k of SLOTS) room[k] = Math.max(0, CHIP_ROWS - (named(k) ? (examples[k] ?? SLOT_EXAMPLES[k]).length : 0) - tagRows(k))
-  const s = shelved(p.filled, view.heard, examples, room)
+  const s = shelved(p.filled, view.heard, examples, shelfRoom(p.filled, examples))
   // Only the newcomer flies in. A shelf drawn again from nothing — a
   // new element, a remount — shows the others already standing.
   const newest = p.filled[p.filled.length - 1]
@@ -1408,7 +1482,9 @@ function Shelf({ view, p }: { view: PropView; p: Extract<Prop, { kind: 'shelf' }
             )}
             {list.map((r) => {
               const at = row
-              row += r.tag ? tagRows(k) : 1
+              const lines = r.tag ? [] : chipLines(r.text)
+              row += r.tag ? tagRows(k) : lines.length
+              if (row > CHIP_ROWS) return null
               const y = CHIP_TOP + at * CHIP_PITCH
               return r.tag ? (
                 <g key={r.key} className="char-tag" transform={`translate(${CUBBY_W / 2},${y})`} style={{ ['--j' as string]: at }}>
@@ -1420,13 +1496,15 @@ function Shelf({ view, p }: { view: PropView; p: Extract<Prop, { kind: 'shelf' }
                   key={r.key}
                   className={`chip ${r.cls} ${isLatest(k, r.text) ? 'latest' : ''}`}
                   data-kind={k}
-                  transform={`translate(3,${y})`}
+                  transform={`translate(${CHIP_X},${y})`}
                   style={{ ['--j' as string]: at }}
                 >
-                  <rect width={CUBBY_W - 6} height="11" rx="5.5" />
-                  <text x={(CUBBY_W - 6) / 2} y="8">
-                    {short(r.text, 8)}
-                  </text>
+                  <rect width={CUBBY_W - 2 * CHIP_X} height={CHIP_H + (lines.length - 1) * CHIP_PITCH} rx="5.5" />
+                  {lines.map((l, j) => (
+                    <text key={j} x={CUBBY_W / 2 - CHIP_X} y={8 + j * CHIP_PITCH}>
+                      {l}
+                    </text>
+                  ))}
                 </g>
               )
             })}
@@ -1793,28 +1871,47 @@ function Codes({ chars }: { chars: string }) {
 
 /* --- scale: the robot's answer, weighed --- */
 
+/** A parcel's size, and the gap between two. */
+const PW = 32
+const PH = 20
+const PGAP = 1.5
+/** The platform's middle: the parcels stack over it, the readout under. */
+const SCALE_X = 135
+
+/**
+ * The scale fills the picture: it stands between the robot and Mira in
+ * a slot a third of the stage wide, so drawn small in one corner of it
+ * (as it was once, a readout 15 units tall) its `kg` could not be read.
+ * Now the platform and base take the right three quarters, the readout
+ * is the widest thing in the picture, and the parcels wait on the floor
+ * to its left, two abreast.
+ */
 function Scale({ view, parcels, each }: { view: PropView; parcels: number; each: number }) {
-  const n = numberOf(view.answer)
+  // The right weight said the wrong way is not a weighing: the parcels
+  // stay on the floor and the readout asks, in amber, what the reply
+  // asks — for the robot to work it out.
+  const waiting = unworked(view)
+  const n = waiting ? null : numberOf(view.answer)
   const count = clamp(Math.round(parcels), 1, 12)
-  const cols = Math.min(count, 4)
+  // Three abreast on the platform, so each parcel is big enough to read;
+  // a fourth column only when three would stack past the picture's top.
+  const cols = Math.min(count, count > 9 ? 4 : 3)
   const on = n !== null
   const off = on && Math.abs(n - count * each) > 1e-9
-  const PW = 22
-  const PH = 14
-  // Where each parcel stands: on the scale once weighed, waiting on the
-  // floor beside it before.
+  // Where each parcel stands: on the platform once weighed, stacked in
+  // rows of four; waiting on the floor beside it before, two abreast.
   const place = (i: number) =>
     on
-      ? ([122 - (cols * (PW + 1)) / 2 + (i % cols) * (PW + 1), 81.5 - Math.floor(i / cols) * (PH + 1)] as const)
-      : ([6 + (i % 2) * (PW + 1), 110 - Math.floor(i / 2) * (PH + 1)] as const)
+      ? ([SCALE_X - (cols * (PW + PGAP)) / 2 + (i % cols) * (PW + PGAP), 74 - PH - Math.floor(i / cols) * (PH + PGAP)] as const)
+      : ([1 + (i % 2) * (PW + PGAP), 125 - PH - Math.floor(i / 2) * (PH + PGAP)] as const)
   return (
-    <g className={`scale ${on ? 'weighed' : ''} ${off ? 'off' : ''}`} style={{ ['--n' as string]: count }}>
-      <line x1="0" x2="200" y1="125" y2="125" className="floor" />
-      <rect x="112" y="100" width="20" height="6" className="post" />
-      <rect x="66" y="96" width="112" height="5" rx="2" className="platform" />
-      <rect x="76" y="104" width="92" height="21" rx="4" className="base" />
-      <rect x="96" y="107" width="52" height="15" rx="2.5" className="readout" />
-      <text x="122" y="118" className="reading" key={on ? view.answer!.repr : 'none'}>
+    <g className={`scale ${on ? 'weighed' : ''} ${off ? 'off' : ''} ${waiting ? 'unworked' : ''}`} style={{ ['--n' as string]: count }}>
+      <line x1="0" x2="200" y1="126" y2="126" className="floor" />
+      <rect x={SCALE_X - 10} y="78" width="20" height="10" className="post" />
+      <rect x={SCALE_X - 65} y="74" width="130" height="6" rx="3" className="platform" />
+      <rect x={SCALE_X - 57} y="86" width="114" height="40" rx="6" className="base" />
+      <rect x={SCALE_X - 49} y="93" width="98" height="26" rx="4" className="readout" />
+      <text x={SCALE_X} y="112.5" className="reading" key={on ? view.answer!.repr : 'none'}>
         {on ? `${short(view.answer!.repr, 6)} kg` : '? kg'}
       </text>
       {Array.from({ length: count }, (_, i) => {
@@ -1822,8 +1919,8 @@ function Scale({ view, parcels, each }: { view: PropView; parcels: number; each:
         return (
           <g key={`${on ? 'on' : 'wait'}:${i}`} transform={`translate(${px},${py})`}>
             <g className="parcel" style={{ ['--i' as string]: i }}>
-              <rect width={PW} height={PH} rx="1.5" />
-              <text x={PW / 2} y="9.5">
+              <rect width={PW} height={PH} rx="2" />
+              <text x={PW / 2} y={PH / 2 + 3}>
                 {each} kg
               </text>
             </g>

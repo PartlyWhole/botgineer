@@ -86,8 +86,23 @@ export type Prop =
    *  `lamp` stands a small lamp beside it that settles with the beam and
    *  lights with the comparison's truth — the answer to a comparison is a
    *  bool. For the narration beat before the ask: on the ask itself it
-   *  would be the answer, so leave it off there. */
-  | { kind: 'balance'; left: number; right: number; op: '>' | '<' | '=='; lamp?: boolean }
+   *  would be the answer, so leave it off there.
+   *
+   *  `leftLabel` and `rightLabel` are what each pan says, and so what the
+   *  question says, when a side is written as more than its number:
+   *  `2 + 2` on the left of `2 + 2 == 4`. Without them each side is its
+   *  number. A label that is a sum of whole numbers (`2 + 2`) splits its
+   *  pan's blocks into its parts, in two colours, so the sum is seen to
+   *  weigh what its total does. */
+  | {
+      kind: 'balance'
+      left: number
+      right: number
+      op: '>' | '<' | '=='
+      lamp?: boolean
+      leftLabel?: string
+      rightLabel?: string
+    }
   /** An expression worked one operation at a time: `first` is done
    *  first, then each of `then`. The working shows once answered. */
   | { kind: 'expr'; text: string; first: string; then: string[] }
@@ -283,6 +298,55 @@ export function textOf(t: Thought | null): string | null {
 /** Keeps a number on a scale, so an answer of a million still draws. */
 export const clamp = (n: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, n))
 
+/* ------------------------- right, but not worked out ------------------------- */
+
+/**
+ * The number a picture that asks for one is asking for: what the crates
+ * hold, what is left of the bolts, what each tank gets, what the parcels
+ * weigh, where the working ends, the letter's code. Null for a picture
+ * that does not draw a number as its answer (the lamps and the codes
+ * narrate; they draw no answer at all).
+ */
+export function rightNumber(p: Prop): number | null {
+  switch (p.kind) {
+    case 'crates':
+      return p.crates * p.each
+    case 'bolts':
+      return p.have - p.use
+    case 'share':
+      return p.robots > 0 ? p.litres / p.robots : null
+    case 'scale':
+      return p.parcels * p.each
+    case 'expr': {
+      const last = Number(p.then[p.then.length - 1])
+      return p.then.length > 0 && Number.isFinite(last) ? last : null
+    }
+    case 'letter':
+      return p.char.codePointAt(0) ?? null
+    default:
+      return null
+  }
+}
+
+/**
+ * The right number, said the wrong way: the step refused it (`miss`) and
+ * yet it is the number the picture asks for — typed by hand, or worked
+ * out from the wrong thing. The crow's reply says *not like that*, so
+ * the picture must not say *yes*: drawn as an answer it would fill the
+ * crates, weigh the parcels and tick the reading while the words refuse
+ * it. Such a picture is drawn as not worked out yet: waiting, in amber,
+ * with a `?` where the working would go.
+ *
+ * Compared by value, so a typed `4` for `8 / 2`'s `4.0` counts: the right
+ * amount, and still not what the robot was asked to work out.
+ */
+export function unworked(view: PropView): boolean {
+  if (view.verdict !== 'miss') return false
+  const n = numberOf(view.answer)
+  const want = rightNumber(view.prop)
+  return n !== null && want !== null && Math.abs(n - want) < 1e-9
+}
+
 /** The kinds, in the order the first level builds them. */
 export type Kind = 'bool' | 'int' | 'float' | 'str'
 
@@ -334,10 +398,73 @@ export function chipText(t: Thought): string {
 
 export type ShelfSlot = { examples: { text: string; said: boolean }[]; heard: string[] }
 
+/** How many rows a slot has under its label, and how many characters a
+ *  chip's row holds at the shelf's size. */
+export const CHIP_ROWS = 5
+export const CHIP_CHARS = 8
+
+/**
+ * A chip's text as the shelf writes it: one row when it fits, else two,
+ * broken at a space where there is one (`"0412` / `555 019"`, `"Yeah it`
+ * / `is"`), and cut short only past two full rows. A phone number and a
+ * short sentence are what the choose lesson files under str, and a chip
+ * that reads `"0412 5…` hides the very thing the lesson is about — that
+ * it is text, spaces and all.
+ */
+export function chipLines(text: string, width = CHIP_CHARS): string[] {
+  if ([...text].length <= width) return [text]
+  const out: string[] = []
+  let line = ''
+  const push = (w: string) => {
+    // A word too long for a row is broken inside it: a phone number with
+    // no spaces is still read whole, over two rows.
+    let rest = [...w]
+    while (rest.length > width) {
+      out.push(rest.slice(0, width).join(''))
+      rest = rest.slice(width)
+    }
+    line = rest.join('')
+  }
+  for (const w of text.split(' ')) {
+    const next = line ? `${line} ${w}` : w
+    if ([...next].length <= width) line = next
+    else {
+      if (line) out.push(line)
+      push(w)
+    }
+  }
+  if (line) out.push(line)
+  if (out.length <= 2) return out
+  const second = [...out[1]!]
+  return [out[0]!, `${second.slice(0, width - 1).join('')}…`]
+}
+
+/** The rows a chip takes: one per line of its text. */
+export const chipRows = (text: string): number => chipLines(text).length
+
+/**
+ * The rows each slot has left for heard values, once its examples (and
+ * the char slot's two-row tag) are drawn. The drawing and the sentence a
+ * screen reader hears both take it from here, so they list the same
+ * values: they disagreed once, the sentence listing two a slot while the
+ * picture showed five.
+ */
+export function shelfRoom(filled: readonly TypeSlot[], examples: Partial<Record<TypeSlot, string[]>> = {}): Record<TypeSlot, number> {
+  const out = {} as Record<TypeSlot, number>
+  for (const k of SLOTS) {
+    const named = filled.includes(k)
+    const shown = named ? (examples[k] ?? SLOT_EXAMPLES[k]) : []
+    const tag = k === 'char' && named ? 2 : 0
+    out[k] = Math.max(0, CHIP_ROWS - shown.reduce((sum, e) => sum + chipRows(e), 0) - tag)
+  }
+  return out
+}
+
 /**
  * What each slot holds: its examples once named, then the values heard of
- * that slot that are not already examples, newest last, at most `room`
- * of them (2 unless said). An example the player has said is `said`.
+ * that slot that are not already examples, newest last, as many as fit
+ * in `room` rows (2 unless said; a chip that wraps takes two, `chipRows`).
+ * An example the player has said is `said`.
  * Heard values go in whether or not their slot is named yet: a value has
  * its type before anyone has told the player the word. Pure, so the
  * sorting is tested without drawing it.
@@ -361,10 +488,19 @@ export function shelved(
       said.push(text)
     }
     const extra = said.filter((s) => !shown.includes(s))
-    const keep = room[slot] ?? 2
+    // The newest that fit, counted in rows from the newest back: an older
+    // one-row value never pushes out a newer one that wraps.
+    let rows = room[slot] ?? 2
+    const kept: string[] = []
+    for (let i = extra.length - 1; i >= 0; i--) {
+      const need = chipRows(extra[i]!)
+      if (need > rows) break
+      rows -= need
+      kept.unshift(extra[i]!)
+    }
     out[slot] = {
       examples: shown.map((text) => ({ text, said: said.includes(text) })),
-      heard: keep > 0 ? extra.slice(-keep) : [],
+      heard: kept,
     }
   }
   return out
