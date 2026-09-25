@@ -14,7 +14,9 @@ import { bareWord, errorType, heard, stopped, type Heard, type Lesson, type Line
  * The rule is said once, before the first question, and every ask wears
  * the *Robot works it out* tag: **don't tell me the answer, give the
  * robot the sum.** So every `done` reads the line's source as well as its
- * value, and the right answer typed by hand gets a reply, never a pass.
+ * value — the step's own numbers (or words), and its sign — and the right
+ * answer typed by hand, or dressed up as `42 * 1`, gets a reply, never a
+ * pass.
  *
  * Underneath every step is one question from Lesson 1 — *what type comes
  * back?* — and the answer tag on each picture wears the type. An `int`
@@ -25,22 +27,22 @@ import { bareWord, errorType, heard, stopped, type Heard, type Lesson, type Line
  * something else, then the two secrets that every character and every
  * `True` is a number, and last the order the robot does things in.
  *
- * | #  | Beats (who says it; what is on the stage)                          | Ask (tag: robot)                          | Right         |
- * |----|---------------------------------------------------------------------|-------------------------------------------|---------------|
- * | 1  | Mira enters: 7 crates of 6; robot thinks `?`; the rule; `*` named     | How many bolts are in the crates?         | `7 * 6` → 42  |
- * | 2  | `+` and `-` named; Mira used 7 of her 20 bolts (bolts)                | How many bolts are left?                  | `20 - 7` → 13 |
- * | 3  | 9 litres for 2 tanks; `/` named (jug and tanks)                       | How much oil does each tank get?          | `9 / 2` → 4.5 |
- * | 4  | what if it shares exactly? (8 litres)                                 | How much … from 8 litres?                 | `8 / 2` → 4.0 |
- * | 5  | a counted `2` beside a measured `0.5` (contrast); let the robot add   | What type comes back from `2 + 0.5`?      | 2.5, a float  |
- * | 6  | the robot answers questions; `>` named (balance, 3 against 5)         | Is 3 more than 5?                         | `3 > 5` False |
- * | 7  | `==` named; the balance levels and its lamp lights `True`             | Is 2 + 2 the same as 4?                   | `2 + 2 == 4`  |
- * | 8  | Mira: words too? (`7` ≠ `"7"`); `7 + 7` → 14 beside `"7" + "7"` → "77" | What does `"bot" + "gineer"` make?        | 'botgineer'   |
- * | 9  | `*` on text: `"ha" * 3` stamps itself three times (tiles)             | Make the robot say `"ha"` five times.     | `"ha" * 5`    |
- * | 10 | a secret: A, B, C slide onto 65, 66, 67 (codes); `ord` named, thinks 65| What is the code for Mira's `"M"`?        | `ord("M")` 77 |
- * | 11 | another: `True` counts as `1`, two lamps make `2` (lamps)              | What is `True + True + True`?             | 3, an int     |
- * | 12 | a puzzle: which first, `+` or `*`? (expr, working hidden)            | What is `2 + 3 * 4`?                      | 14            |
- * | 13 | brackets go first of all (expr)                                       | Make the robot add `2 + 3` first, …       | `(2 + 3) * 4` |
- * |    | outro: Mira thanks the robot · it can make new values from old ones · it worked out twenty, and forgot it (memory pulses, empty) · next, remembering |||
+ * | #  | Beats (who says it; what is on the stage)                            | Ask (tag: robot)                        | Right              |
+ * |----|-----------------------------------------------------------------------|-----------------------------------------|--------------------|
+ * | 1  | Mira enters: 7 crates of 6; robot thinks `?`; the rule; `*` named      | How many bolts are in the crates?       | `7 * 6` → 42       |
+ * | 2  | `+` and `-` named; Mira used 7 of her 20 bolts (bolts)                 | How many bolts are left?                | `20 - 7` → 13      |
+ * | 3  | *operations* named; 9 litres for 2 tanks; `/` named (jug and tanks)    | How much oil does each tank get?        | `9 / 2` → 4.5      |
+ * | 4  | what if it shares exactly? (8 litres)                                  | How much … from 8 litres?               | `8 / 2` → 4.0      |
+ * | 5  | a counted `2` beside a measured `0.5` (contrast); what type comes back? | Let the robot add `2 + 0.5`.            | 2.5, a float       |
+ * | 6  | *comparison* named; `>` named (balance, 3 against 5)                   | Is 3 more than 5?                       | `3 > 5` False      |
+ * | 7  | `==` named (`2 + 2 == 4` as blocks); the balance levels, lamp: `True`  | Is `7 * 6` the same as `42`?            | `7 * 6 == 42` True |
+ * | 8  | Mira: words too? (`7` ≠ `"7"`); `7 + 7` → 14 beside `"7" + "7"` → "77"  | What does `"bot" + "gineer"` make?      | 'botgineer'        |
+ * | 9  | `*` on text: `"ha" * 3` stamps itself three times (tiles)              | Make the robot say `"ha"` five times.   | `"ha" * 5`         |
+ * | 10 | a secret: A, B, C slide onto 65, 66, 67 (codes); `ord` named, thinks 65 | What is the code for Mira's `"M"`?      | `ord("M")` 77      |
+ * | 11 | another: `True` counts as `1`, two lamps make `2` (lamps)               | What is `True + True + True`? (expr)    | 3, an int          |
+ * | 12 | a puzzle: which first, `+` or `*`? (expr, working hidden)             | What is `2 + 3 * 4`?                    | 14                 |
+ * | 13 | brackets go first of all (expr)                                        | Make the robot add `2 + 3` first, …     | `(2 + 3) * 4`      |
+ * |    | outro: Mira thanks the robot · it can make new values from old ones · it worked out twenty, and forgot it (the cloud empties, memory pulses) · next, remembering |||
  *
  * Choices worth keeping:
  *
@@ -49,15 +51,30 @@ import { bareWord, errorType, heard, stopped, type Heard, type Lesson, type Line
  *   point of each other: `9 / 2` makes `/` a float, `8 / 2` makes the
  *   rule a rule; `2 + 3 * 4` shows the order, `(2 + 3) * 4` hands it to
  *   the player.
+ * - "Typed by hand" means the answer itself is in the line: `42`, or
+ *   `42 * 1`. Six sevens added up is the robot's working by another
+ *   route, and is told so honestly — then pointed at the sign the step is
+ *   about. `-7 + 20` takes 7 from 20 and passes.
  * - `7 + 7` against `"7" + "7"` is *shown* (R7), not asked: asked first,
  *   it is a guess about a sign nobody has explained. The ask then uses
  *   the idea on new words. `"ha" * 3` is likewise the demonstration, and
  *   five is the ask.
- * - The `==` balance lights its lamp on the narration beat only; on the
- *   ask it would be the answer. One `=` still gets the reply that it
- *   means *give it a name*, coming soon, because that confusion lasts.
- * - `True + True` is demonstrated, and the ask is three of them: the rule
- *   (each `True` is a `1`) is what it tests, not the picture.
+ * - The `==` balance can only draw `2 + 2 == 4`, so its lamp answers that
+ *   question on a narration beat and the ask moves to Mira's crates:
+ *   `7 * 6 == 42`, on Lesson 1's lamp, which lights for `True`. The ask
+ *   needs a picture of another kind anyway: `staging` keeps the picture
+ *   of the same kind across a narration change, so a balance on the ask
+ *   would keep the lamp lit and give the answer away. For the same reason
+ *   the naming beat before it lays `2 + 2 == 4` out as blocks, not on the
+ *   balance. One `=` still gets the reply that it means *give it a
+ *   name*, coming soon, because that confusion lasts.
+ * - `True + True` is demonstrated with two lamps, and the ask is three of
+ *   them, drawn as the sum and not as lamps: the lamps picture always
+ *   adds up to its own count, so it would pre-draw the answer and then
+ *   contradict any other. Answered, the sum shows its working to `3`.
+ * - A beat's `thought` covers the cloud where the last real thought would
+ *   contradict the line: `True` as the lamp lights, `'hahaha'` as it
+ *   stamps, and nothing at all once the robot has forgotten twenty.
  * - `ord` is Mira's own letter, on the card that turns over to its code.
  * - `//` is only ever met in a reply, and the reply names it as a new sign
  *   (R5).
@@ -66,22 +83,41 @@ import { bareWord, errorType, heard, stopped, type Heard, type Lesson, type Line
  *   on the comma in the source, so it says the same thing either way.
  */
 const BRACKETS: Prop = { kind: 'expr', text: '(2 + 3) * 4', first: '(2 + 3)', then: ['5 * 4', '20'] }
+const PUZZLE: Prop = { kind: 'expr', text: '2 + 3 * 4', first: '3 * 4', then: ['2 + 12', '14'] }
 
-/** The line used these signs, so the robot did the working. */
-const uses = (t: Heard | Line, sign: RegExp): boolean => sign.test(t.source ?? '')
+type Said = Heard | Line
+const src = (t: Said): string => t.source ?? ''
 
-/** The answer, typed by hand: right, but not the robot's working. */
-const byHand = (l: Line, repr: string, sign: RegExp): boolean => l.thought?.repr === repr && !sign.test(l.source)
+/** The line with its quoted words blanked, so `"7"` is not a number. */
+const unquoted = (s: string) => s.replace(/"[^"]*"|'[^']*'/g, '""')
+
+/** The numbers written in a line, outside quotes, smallest first. */
+const numbers = (s: string): number[] => (unquoted(s).match(/\d*\.\d+|\d+/g) ?? []).map(Number).sort((a, b) => a - b)
+
+/** The quoted words in a line, in order. */
+const words = (s: string): string[] => [...s.matchAll(/"([^"]*)"|'([^']*)'/g)].map((m) => m[1] ?? m[2] ?? '')
+
+/** The line, without spaces or brackets. */
+const bare = (s: string) => s.replace(/[\s()]/g, '')
+
+/** The line is written with exactly these numbers, in any order. */
+const just = (t: Said, ...ns: number[]): boolean => {
+  const got = numbers(src(t))
+  const want = [...ns].sort((a, b) => a - b)
+  return got.length === want.length && got.every((n, i) => n === want[i])
+}
+
+/** The answer is in the line itself — `42`, or `42 * 1` — so the robot
+ *  did none of the working, whatever the line looks like. */
+const byHand = (l: Line, answer: number): boolean => numbers(l.source).includes(answer)
 
 const yours = (sum: string) => `That's the answer, but you worked it out. Give the robot the sum: \`${sum}\`.`
+const route = (sum: string) => `The robot got there, but another way. Give it these numbers: \`${sum}\`.`
 
 const TIMES = /\*/
-const MINUS = /\d\s*-\s*\d/
-const SLASH = /[^/]\/[^/]/
+const SLASH = /(^|[^/])\/([^/]|$)/
 const PLUS = /\+/
-const MORE = /[<>]/
 const SAME = /==/
-const ORD = /ord\s*\(/
 
 export const operations: Lesson = {
   id: 'operations',
@@ -111,11 +147,13 @@ export const operations: Lesson = {
       ask: '7 crates of 6 bolts',
       tag: 'robot',
       show: { kind: 'crates', crates: 7, each: 6 },
-      done: (e) => heard(e, (t) => t.type === 'int' && t.repr === '42' && uses(t, TIMES)),
+      done: (e) => heard(e, (t) => t.type === 'int' && t.repr === '42' && TIMES.test(src(t)) && just(t, 7, 6)),
       praise: '`42`, an `int`: an `int` times an `int` always makes an `int`.',
       nudge: (l) => {
         const t = l.thought
-        if (byHand(l, '42', TIMES)) return yours('7 * 6')
+        if (t?.repr === '42' && byHand(l, 42)) return yours('7 * 6')
+        if (t?.repr === '42' && /^[\d\s+]+$/.test(l.source)) return 'That\'s 42, and the robot added it up! Seven lots of six is quicker with a star: `7 * 6`.'
+        if (t?.repr === '42') return route('7 * 6')
         if (t?.repr === '13') return 'That\'s `7 + 6`: one of each. Seven lots of six is times: `7 * 6`.'
         if (errorType(l) === 'SyntaxError' && /x/i.test(l.source)) return 'The robot\'s times sign is a star, not an x: `7 * 6`.'
         if (t?.type === 'int') return `That comes to ${t.repr}. Seven crates of six: \`7 * 6\`.`
@@ -131,11 +169,13 @@ export const operations: Lesson = {
       ask: '20 bolts, 7 used',
       tag: 'robot',
       show: { kind: 'bolts', have: 20, use: 7 },
-      done: (e) => heard(e, (t) => t.type === 'int' && t.repr === '13' && uses(t, MINUS)),
+      // `-7 + 20` takes the 7 from the 20 as well, so it passes.
+      done: (e) => heard(e, (t) => t.type === 'int' && t.repr === '13' && /-/.test(src(t)) && just(t, 20, 7)),
       praise: '`13`: an `int` take away an `int` is an `int`, too.',
       nudge: (l) => {
         const t = l.thought
-        if (byHand(l, '13', MINUS)) return yours('20 - 7')
+        if (t?.repr === '13' && byHand(l, 13)) return yours('20 - 7')
+        if (t?.repr === '13') return route('20 - 7')
         if (t?.repr === '27') return 'That added them. Using bolts up takes them away: `-`.'
         if (t?.repr === '140') return 'That multiplied them. Using bolts up takes them away: `-`.'
         if (t?.repr === '-13') return 'That took 20 from 7. Start with the 20 she had: `20 - 7`.'
@@ -145,6 +185,7 @@ export const operations: Lesson = {
     },
     {
       beats: [
+        { say: '`*`, `+` and `-` are called operations: each one makes a new value.' },
         { say: 'Now some oil: 9 litres, shared between 2 tanks.', show: { kind: 'share', litres: 9, robots: 2 } },
         { say: 'Sharing out is dividing, and Python\'s divide sign is a slash: `/`.' },
       ],
@@ -152,12 +193,13 @@ export const operations: Lesson = {
       ask: '9 litres, 2 tanks',
       tag: 'robot',
       show: { kind: 'share', litres: 9, robots: 2 },
-      done: (e) => heard(e, (t) => t.type === 'float' && t.repr === '4.5' && uses(t, SLASH)),
+      done: (e) => heard(e, (t) => t.type === 'float' && t.repr === '4.5' && SLASH.test(src(t)) && just(t, 9, 2)),
       praise: '`4.5`, a `float`: a share can land between whole numbers, so `/` measures.',
       nudge: (l) => {
         const t = l.thought
         if (/\/\//.test(l.source) && t?.type === 'int') return '`//` is a different sign: it shares whole litres only, and one is left in the jug. Use `/`.'
-        if (byHand(l, '4.5', SLASH)) return yours('9 / 2')
+        if (t?.repr === '4.5' && byHand(l, 4.5)) return yours('9 / 2')
+        if (t?.repr === '4.5') return route('9 / 2')
         if (t?.repr === '4') return 'Four each leaves a litre in the jug. Let the robot share it all: `9 / 2`.'
         if (t?.repr === '18') return 'That doubled it. Sharing between two is dividing: `9 / 2`.'
         return stopped(l, 'Share with a slash: `9 / 2`.') ?? 'Share with a slash: `9 / 2`.'
@@ -169,13 +211,14 @@ export const operations: Lesson = {
       ask: '8 litres, 2 tanks',
       tag: 'robot',
       show: { kind: 'share', litres: 8, robots: 2 },
-      done: (e) => heard(e, (t) => t.type === 'float' && t.repr === '4.0' && uses(t, SLASH)),
+      done: (e) => heard(e, (t) => t.type === 'float' && t.repr === '4.0' && SLASH.test(src(t)) && just(t, 8, 2)),
       praise: '`4.0`, not `4`: `/` always makes a `float`, even when nothing is left over.',
       nudge: (l) => {
         const t = l.thought
         if (t?.type === 'int' && t.repr === '4' && /\/\//.test(l.source)) return '`//` is a different sign, for whole litres. Share with one slash: `8 / 2`.'
         if (t?.type === 'int' && t.repr === '4') return '`4` is an `int`, and you worked it out. Let the robot share with `/`, and see what comes back.'
-        if (byHand(l, '4.0', SLASH)) return yours('8 / 2')
+        if (t?.repr === '4.0' && byHand(l, 4)) return yours('8 / 2')
+        if (t?.repr === '4.0') return route('8 / 2')
         return stopped(l, 'Share with a slash: `8 / 2`.') ?? 'Share with a slash: `8 / 2`.'
       },
     },
@@ -189,21 +232,33 @@ export const operations: Lesson = {
             right: { text: '0.5', kind: 'float', label: 'measured' },
           },
         },
-        { say: 'Don\'t add them in your head; let the robot add them, and look at the type.' },
+        { say: 'What type comes back when you add them? Don\'t work it out: let the robot, and look.' },
       ],
-      say: 'What type comes back from `2 + 0.5`?',
+      say: 'Let the robot add `2 + 0.5`.',
       ask: '2 + 0.5',
       tag: 'robot',
       show: { kind: 'numberline', from: 0, to: 3 },
-      // `type(2 + 0.5)` answers the question as asked, and the robot still
+      // `type(2 + 0.5)` answers the beat's question, and the robot still
       // did the adding.
       done: (e) =>
-        heard(e, (t) => ((t.type === 'float' && t.repr === '2.5') || (t.type === 'type' && t.repr === "<class 'float'>")) && uses(t, PLUS)),
-      praise: '`2.5`, a `float`: mixing an `int` with a `float` makes a `float`, so the half is kept.',
+        heard(
+          e,
+          (t) =>
+            ((t.type === 'float' && t.repr === '2.5') || (t.type === 'type' && t.repr === "<class 'float'>")) &&
+            PLUS.test(src(t)) &&
+            just(t, 2, 0.5),
+        ),
+      praise: (a) =>
+        a?.type === 'type'
+          ? '`float`: mixing an `int` with a `float` makes a `float`, so the half is kept.'
+          : '`2.5`, a `float`: mixing an `int` with a `float` makes a `float`, so the half is kept.',
       nudge: (l) => {
         const t = l.thought
-        if (byHand(l, '2.5', PLUS)) return yours('2 + 0.5')
-        if (t?.type === 'type') return 'That names a type, but it asks nothing. Let the robot add them, and look: `2 + 0.5`.'
+        if (t?.type === 'type' && /^\s*\w+\s*$/.test(l.source)) {
+          return `\`${l.source.trim()}\` is a type's name. Let the robot add them, and it will show you the type.`
+        }
+        if (t?.repr === '2.5' && byHand(l, 2.5)) return yours('2 + 0.5')
+        if (t?.repr === '2.5') return route('2 + 0.5')
         // A comma makes two things: typed alone that is a pair, and handed
         // to the robot's describing it is two arguments, so a TypeError.
         if (/\d\s*,\s*\d/.test(l.source)) return 'A comma makes two things. Python writes a half with a dot: `2 + 0.5`.'
@@ -214,40 +269,50 @@ export const operations: Lesson = {
     },
     {
       beats: [
-        { say: 'The robot can answer questions, too.', show: { kind: 'balance', left: 3, right: 5, op: '>' } },
+        { say: 'The robot can answer questions, too, and a question like that is called a comparison.', show: { kind: 'balance', left: 3, right: 5, op: '>' } },
         { say: '`>` asks *is it more than?*, so `3 > 5` asks if 3 is more than 5.' },
       ],
       say: 'Is 3 more than 5?',
       ask: '3 against 5',
       tag: 'robot',
       show: { kind: 'balance', left: 3, right: 5, op: '>' },
-      done: (e) => heard(e, (t) => t.type === 'bool' && t.repr === 'False' && uses(t, MORE)),
+      // `5 < 3` asks the same question from the other side.
+      done: (e) => heard(e, (t) => t.type === 'bool' && t.repr === 'False' && ['3>5', '5<3'].includes(bare(src(t)))),
       praise: '`False`: a question has a yes-or-no answer, so a comparison makes a `bool`.',
       nudge: (l) => {
         const t = l.thought
-        if (byHand(l, 'False', MORE)) return 'That\'s right, but you answered it. Ask the robot: `3 > 5`.'
-        if (t?.repr === 'True' && MORE.test(l.source)) return 'That asks it the other way round. *More than* is `>`, with 3 first: `3 > 5`.'
+        const b = bare(l.source)
+        if (t?.type === 'bool' && /^(True|False)$/.test(l.source.trim())) return 'That\'s right, but you answered it. Ask the robot: `3 > 5`.'
+        if (b === '5>3' || b === '3<5') return 'That asks it the other way round. *More than* is `>`, with 3 first: `3 > 5`.'
+        if (t?.type === 'bool') return 'Ask it just the one question: `3 > 5`.'
         if (bareWord(l)) return 'Let the robot answer, with `>`: `3 > 5`.'
         return stopped(l, 'Ask it with `>`: `3 > 5`.') ?? 'Ask it with `>`: `3 > 5`.'
       },
     },
     {
       beats: [
-        { say: 'To ask *is it the same?*, Python uses two equals signs: `==`.', show: { kind: 'balance', left: 4, right: 4, op: '==' } },
-        { say: 'When both sides weigh the same, the balance levels, and the answer is `True`.', show: { kind: 'balance', left: 4, right: 4, op: '==', lamp: true } },
+        { say: 'To ask *is it the same?*, Python uses two equals signs: `==`.', show: { kind: 'tiles', parts: ['2', '+', '2', '==', '4'] } },
+        {
+          say: 'When both sides weigh the same, the balance levels, and the answer is `True`.',
+          show: { kind: 'balance', left: 4, right: 4, op: '==', lamp: true },
+          thought: 'True',
+        },
       ],
-      say: 'Is 2 + 2 the same as 4?',
-      ask: '2 + 2 against 4',
+      say: 'Is `7 * 6` the same as `42`?',
+      ask: '7 * 6 == 42 ?',
       tag: 'robot',
-      show: { kind: 'balance', left: 4, right: 4, op: '==' },
-      done: (e) => heard(e, (t) => t.type === 'bool' && t.repr === 'True' && uses(t, SAME)),
+      show: { kind: 'lamp' },
+      done: (e) =>
+        heard(e, (t) => t.type === 'bool' && t.repr === 'True' && SAME.test(src(t)) && TIMES.test(src(t)) && just(t, 7, 6, 42)),
       praise: '`True`: `==` asks a question, so it makes a `bool`, and it changes nothing.',
       nudge: (l) => {
+        const t = l.thought
         if (errorType(l) === 'SyntaxError' && /[^=!<>]=[^=]/.test(l.source)) {
           return 'One `=` means *give it a name*, which is coming soon. To ask *the same?*, use two: `==`.'
         }
-        if (byHand(l, 'True', SAME)) return 'That\'s right, but you answered it. Ask the robot: `2 + 2 == 4`.'
-        return stopped(l, 'Ask with two equals signs: `2 + 2 == 4`.') ?? 'Ask with two equals signs: `2 + 2 == 4`.'
+        if (t?.type === 'bool' && /^(True|False)$/.test(l.source.trim())) return 'That\'s right, but you answered it. Ask the robot: `7 * 6 == 42`.'
+        if (t?.type === 'bool' && SAME.test(l.source)) return 'Let the robot do the times as well: `7 * 6 == 42`.'
+        return stopped(l, 'Ask with two equals signs: `7 * 6 == 42`.') ?? 'Ask with two equals signs: `7 * 6 == 42`.'
       },
     },
     {
@@ -275,11 +340,12 @@ export const operations: Lesson = {
       ask: 'glue two words',
       tag: 'robot',
       show: { kind: 'tiles', parts: ['"bot"', '+', '"gineer"'] },
-      done: (e) => heard(e, (t) => textOf(t) === 'botgineer' && uses(t, PLUS)),
+      done: (e) => heard(e, (t) => textOf(t) === 'botgineer' && PLUS.test(src(t)) && words(src(t)).join('|') === 'bot|gineer'),
       praise: '`"botgineer"`: `+` glues two `str`s into one longer `str`, and adds no space.',
       nudge: (l) => {
         const text = textOf(l.thought)
-        if (text === 'botgineer') return yours('"bot" + "gineer"')
+        if (text === 'botgineer' && words(l.source).includes('botgineer')) return yours('"bot" + "gineer"')
+        if (text === 'botgineer') return 'The robot glued it, but from other pieces. Glue these two: `"bot" + "gineer"`.'
         if (text === 'bot gineer') return 'You added a space: `+` glues exactly what it is given. Try `"bot" + "gineer"`.'
         if (bareWord(l) || errorType(l) === 'NameError') return 'Each word needs its own quotes: `"bot" + "gineer"`.'
         if (errorType(l) === 'TypeError') return 'Glue text to text: both need quotes. `"bot" + "gineer"`.'
@@ -288,17 +354,22 @@ export const operations: Lesson = {
     },
     {
       beats: [
-        { say: 'And on text, `*` repeats it: `"ha" * 3` is `"ha"`, three times.', show: { kind: 'tiles', parts: ['"ha"', '*', '3'], demo: 'stamp' } },
+        {
+          say: 'And on text, `*` repeats it: `"ha" * 3` is `"ha"`, three times.',
+          show: { kind: 'tiles', parts: ['"ha"', '*', '3'], demo: 'stamp' },
+          thought: "'hahaha'",
+        },
       ],
       say: 'Make the robot say `"ha"` five times.',
       ask: '"ha", five times',
       tag: 'robot',
       show: { kind: 'tiles', parts: ['"ha"', '*', '5'] },
-      done: (e) => heard(e, (t) => textOf(t) === 'hahahahaha' && uses(t, TIMES)),
+      done: (e) => heard(e, (t) => textOf(t) === 'hahahahaha' && TIMES.test(src(t)) && words(src(t)).join('|') === 'ha' && just(t, 5)),
       praise: '`"hahahahaha"`: a `str` times an `int` is that `str`, repeated.',
       nudge: (l) => {
         const text = textOf(l.thought)
-        if (text === 'hahahahaha') return 'You typed every one! Let the robot repeat it: `"ha" * 5`.'
+        if (text === 'hahahahaha' && words(l.source).includes('hahahahaha')) return 'You typed every one! Let the robot repeat it: `"ha" * 5`.'
+        if (text === 'hahahahaha') return 'The robot got there, but another way. Repeat just the one `"ha"`: `"ha" * 5`.'
         if (text !== null && /^(ha)+$/.test(text)) return `That's "ha" ${text.length / 2} times. Five, please: \`"ha" * 5\`.`
         if (errorType(l) === 'TypeError') return 'Repeat by a whole number, with no quotes on it: `"ha" * 5`.'
         if (errorType(l) === 'NameError') return '`ha` is a word, so it needs quotes: `"ha" * 5`.'
@@ -315,11 +386,12 @@ export const operations: Lesson = {
       ask: 'the code for "M"',
       tag: 'robot',
       show: { kind: 'letter', char: 'M' },
-      done: (e) => heard(e, (t) => t.type === 'int' && t.repr === '77' && uses(t, ORD)),
+      done: (e) => heard(e, (t) => t.type === 'int' && t.repr === '77' && /^ord(["'])M\1$/.test(bare(src(t)))),
       praise: '`77`: `ord` turns a character into its code, and a code is an `int`.',
       nudge: (l) => {
         const t = l.thought
-        if (byHand(l, '77', ORD)) return 'Right! But let the robot look it up: `ord("M")`.'
+        if (t?.repr === '77' && byHand(l, 77)) return 'Right! But let the robot look it up: `ord("M")`.'
+        if (t?.repr === '77') return 'The robot got 77 another way. Ask it for Mira\'s letter itself: `ord("M")`.'
         if (t?.repr === '109') return 'That\'s a small `m`, which has its own code. Mira\'s is a capital: `ord("M")`.'
         if (errorType(l) === 'NameError') return 'The letter needs its quotes, or the robot takes it for a name: `ord("M")`.'
         if (errorType(l) === 'TypeError') return '`ord` takes one character, not a whole word: `ord("M")`.'
@@ -333,31 +405,39 @@ export const operations: Lesson = {
         { say: 'So two lit lamps, added up, make `2`.' },
       ],
       say: 'What is `True + True + True`?',
-      ask: 'lamps, added up',
+      ask: 'three Trues, added up',
       tag: 'robot',
-      show: { kind: 'lamps', on: 2 },
-      done: (e) => heard(e, (t) => t.type === 'int' && t.repr === '3' && /True/.test(t.source ?? '') && uses(t, PLUS)),
+      // The sum, not lamps: the lamps picture adds up to its own count, so
+      // it would draw the answer before it was given. The working (two
+      // `True`s make `2`, and one more makes `3`) waits for the robot.
+      show: { kind: 'expr', text: 'True + True + True', first: 'True + True', then: ['2 + True', '3'] },
+      done: (e) => heard(e, (t) => t.type === 'int' && t.repr === '3' && bare(src(t)) === 'True+True+True'),
       praise: '`3`, an `int`: each `True` counts as `1`, so adding them counts them.',
       nudge: (l) => {
         const t = l.thought
-        if (t?.repr === '3' && !/True/.test(l.source)) return yours('True + True + True')
-        if (t?.type === 'int' && /True/.test(l.source)) return `That's ${t.repr} of them. Three lamps: \`True + True + True\`.`
+        const trues = /True/.test(l.source)
+        if (t?.repr === '3' && !trues) return yours('True + True + True')
+        if (t?.type === 'int' && trues && /\d/.test(l.source)) return 'That mixes a number in. Add up just the `True`s: `True + True + True`.'
+        if (t?.repr === '3' && trues) return 'That\'s 3, but add up just three of them: `True + True + True`.'
+        if (t?.type === 'int' && trues) return `That's ${t.repr} of them. Three lamps: \`True + True + True\`.`
         if (errorType(l) === 'NameError') return 'It needs a capital T: `True + True + True`.'
         return stopped(l, 'Type `True + True + True`.') ?? 'Add three of them: `True + True + True`.'
       },
     },
     {
-      beats: [{ say: 'Here\'s a puzzle: which does the robot do first, the `+` or the `*`?', show: { kind: 'expr', text: '2 + 3 * 4', first: '3 * 4', then: ['2 + 12', '14'] } }],
+      beats: [{ say: 'Here\'s a puzzle: which does the robot do first, the `+` or the `*`?', show: PUZZLE }],
       say: 'What is `2 + 3 * 4`?',
       ask: 'which goes first?',
       tag: 'robot',
-      show: { kind: 'expr', text: '2 + 3 * 4', first: '3 * 4', then: ['2 + 12', '14'] },
-      done: (e) => heard(e, (t) => t.type === 'int' && t.repr === '14' && uses(t, TIMES) && uses(t, PLUS)),
+      show: PUZZLE,
+      done: (e) => heard(e, (t) => t.type === 'int' && t.repr === '14' && bare(src(t)) === '2+3*4' && !/\(/.test(src(t))),
       praise: '`14`, not 20: `*` goes before `+`, the same as in maths.',
       nudge: (l) => {
         const t = l.thought
+        if (/\(/.test(l.source)) return 'Brackets choose the order for the robot. Leave them off, and see what it does: `2 + 3 * 4`.'
         if (t?.repr === '20') return 'That\'s working left to right. Ask the robot, and see what it does: `2 + 3 * 4`.'
-        if (byHand(l, '14', /\*/)) return 'A good guess! Now check it with the robot: `2 + 3 * 4`.'
+        if (t?.repr === '14' && byHand(l, 14)) return 'A good guess! Now check it with the robot: `2 + 3 * 4`.'
+        if (t?.repr === '14') return 'The robot got 14, but ask it this one exactly: `2 + 3 * 4`.'
         return stopped(l, 'Ask the robot: `2 + 3 * 4`.') ?? 'Ask the robot: `2 + 3 * 4`.'
       },
     },
@@ -367,12 +447,15 @@ export const operations: Lesson = {
       ask: 'add first',
       tag: 'robot',
       show: BRACKETS,
-      done: (e) => heard(e, (t) => t.type === 'int' && t.repr === '20' && /\(/.test(t.source ?? '') && uses(t, TIMES)),
+      done: (e) =>
+        heard(e, (t) => t.type === 'int' && t.repr === '20' && /\([^)]*\+[^)]*\)/.test(src(t)) && TIMES.test(src(t)) && just(t, 2, 3, 4)),
       praise: '`20`: the brackets went first, so `2 + 3` was done before the `* 4`.',
       nudge: (l) => {
         const t = l.thought
         if (t?.repr === '14') return 'The `*` went first again. Put brackets round the part to do first: `(2 + 3) * 4`.'
-        if (t?.repr === '20' && !/\(/.test(l.source)) return yours('(2 + 3) * 4')
+        if (t?.repr === '20' && byHand(l, 20)) return yours('(2 + 3) * 4')
+        if (t?.repr === '20' && /\(/.test(l.source)) return 'Those brackets hold no adding. Put them round the `2 + 3`: `(2 + 3) * 4`.'
+        if (t?.repr === '20') return route('(2 + 3) * 4')
         if (errorType(l) === 'SyntaxError') return 'Every bracket that opens needs one that closes: `(2 + 3) * 4`.'
         return stopped(l, 'Type it with brackets: `(2 + 3) * 4`.') ?? 'Brackets round the adding: `(2 + 3) * 4`.'
       },
@@ -381,8 +464,9 @@ export const operations: Lesson = {
   outro: [
     { say: 'Thanks, robot, that\'s just what I needed.', speaker: 'courier', act: [{ actor: 'courier', do: 'wave' }] },
     { say: 'Now the robot can make new values out of old ones.' },
-    { say: 'The robot worked out twenty, and then forgot it.', focus: 'memory' },
-    { say: 'Next, we\'ll help it remember.' },
+    // The cloud empties as it is said: the thought was let go (invariant 8).
+    { say: 'The robot worked out twenty, and then forgot it.', focus: 'memory', thought: '' },
+    { say: 'Next, we\'ll help it remember.', thought: '' },
   ],
-  takeaway: 'An operation makes a new value, and its type depends on the operation.',
+  takeaway: 'An operation makes a new value. Its type depends on the operation, and on what you give it.',
 }

@@ -14,7 +14,7 @@ const RIGHT = [
   '8 / 2',
   '2 + 0.5',
   '3 > 5',
-  '2 + 2 == 4',
+  '7 * 6 == 42',
   '"bot" + "gineer"',
   '"ha" * 5',
   'ord("M")',
@@ -79,7 +79,13 @@ test('the robot works out every operation, drawn, and keeps none of them', async
 
   // One equals sign is not a question, and real Python says so.
   await say(page, RIGHT[5]!)
-  await say(page, '2 + 2 = 4')
+  // `==` on the balance: it levels, and its lamp lights True as it is said.
+  for (let i = 0; i < 6 && !(await beat(page)).text.includes('balance levels'); i++) await next(page)
+  expect((await beat(page)).text).toContain('balance levels')
+  await expect(page.getByTestId('prop')).toHaveAttribute('data-prop', 'balance')
+  await expect(page.locator('.verdict-lamp.on')).toBeVisible()
+  await expect(page.getByTestId('thought')).toHaveText('True')
+  await say(page, '7 * 6 = 42')
   await expect(page.getByTestId('console-error').last()).toContainText('SyntaxError')
   await expect(page.getByTestId('guide')).toContainText('give it a name')
   await say(page, RIGHT[6]!)
@@ -98,6 +104,9 @@ test('the robot works out every operation, drawn, and keeps none of them', async
 
   await say(page, RIGHT[10]!)
   await expect(page.getByTestId('thought')).toHaveText('3')
+  // Three Trues answered show their working to 3, not two lamps.
+  await expect(page.getByTestId('prop')).toHaveAttribute('data-prop', 'expr')
+  await expect(page.locator('[data-testid="prop"] .expr.shown')).toBeVisible()
 
   await say(page, RIGHT[11]!)
   await expect(page.getByTestId('thought')).toHaveText('14')
@@ -106,7 +115,9 @@ test('the robot works out every operation, drawn, and keeps none of them', async
 
   await skip(page)
   await expect(page.getByTestId('guide')).toContainText('help it remember')
-  await expect(page.getByTestId('takeaway')).toContainText('its type depends on the operation')
+  await expect(page.getByTestId('takeaway')).toContainText('Its type depends on the operation')
+  // It forgot twenty: the cloud is empty.
+  await expect(page.getByTestId('thought')).toHaveCount(0)
   expect(await reprs(page)).toEqual([])
   await expect(page.getByTestId('advance')).toBeVisible()
 })

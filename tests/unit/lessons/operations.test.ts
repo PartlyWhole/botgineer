@@ -13,7 +13,7 @@ const OPS_RIGHT: Line[] = [
   line('8 / 2', th('float', '4.0')),
   line('2 + 0.5', th('float', '2.5')),
   line('3 > 5', th('bool', 'False')),
-  line('2 + 2 == 4', th('bool', 'True')),
+  line('7 * 6 == 42', th('bool', 'True')),
   line('"bot" + "gineer"', th('str', "'botgineer'")),
   line('"ha" * 5', th('str', "'hahahahaha'")),
   line('ord("M")', th('int', '77')),
@@ -37,6 +37,24 @@ const BY_HAND: Line[] = [
   line('3', th('int', '3')),
   line('14', th('int', '14')),
   line('20', th('int', '20')),
+]
+
+/** The answer, or the step's point, dressed up as the robot's working:
+ *  each line is right in value, and each is refused. */
+const DISGUISED: Line[][] = [
+  [line('42 * 1', th('int', '42'))],
+  [line('13 - 0', th('int', '13')), line('42 - 29', th('int', '13'))],
+  [line('4.5 / 1', th('float', '4.5'))],
+  [line('4 / 1', th('float', '4.0'))],
+  [line('2.5 + 0', th('float', '2.5'))],
+  [line('(3 > 5) == True', th('bool', 'False'))],
+  [line('42 == 42', th('bool', 'True'))],
+  [line('"botgineer" + ""', th('str', "'botgineer'"))],
+  [line('"hahahahaha" * 1', th('str', "'hahahahaha'"))],
+  [line('ord("A") + 12', th('int', '77'))],
+  [line('True + 2', th('int', '3')), line('3 * True', th('int', '3'))],
+  [line('14 + 0 * 1', th('int', '14')), line('2 + (3 * 4)', th('int', '14'))],
+  [line('(5) * 4', th('int', '20')), line('(20) * 1', th('int', '20'))],
 ]
 
 const reply = (...lines: Line[]) => {
@@ -83,6 +101,25 @@ describe('working things out', () => {
     }
   })
 
+  it('refuses the answer dressed up as a sum, and names what the step wants', () => {
+    for (let i = 0; i < DISGUISED.length; i++) {
+      for (const miss of DISGUISED[i]!) {
+        const e = typed(...at(i), miss)
+        expect(progress(operations, e), miss.source).toBe(i)
+        expect(script(operations, e).items.at(-1)!.kind, miss.source).toBe('reply')
+      }
+    }
+  })
+
+  it('tells the robot\'s own other route honestly, and passes taking 7 from 20 either way round', () => {
+    const sevens = reply(line('7 + 7 + 7 + 7 + 7 + 7', th('int', '42')))
+    expect(sevens).toMatch(/robot added it up/)
+    expect(sevens).not.toMatch(/you worked it out/)
+    expect(progress(operations, typed(...at(1), line('-7 + 20', th('int', '13'))))).toBe(2)
+    expect(progress(operations, typed(...at(1), line('6 * 7', th('int', '42'))))).toBe(1)
+    expect(progress(operations, typed(...at(5), line('5 < 3', th('bool', 'False'))))).toBe(6)
+  })
+
   it('wants a float from sharing, even when it shares exactly', () => {
     expect(progress(operations, typed(...at(3), line('8 // 2', th('int', '4'))))).toBe(3)
     expect(progress(operations, typed(...at(3), line('8 / 2', th('float', '4.0'))))).toBe(4)
@@ -91,6 +128,9 @@ describe('working things out', () => {
   it('takes `type(2 + 0.5)` as an answer to what type comes back', () => {
     expect(progress(operations, typed(...at(4), line('type(2 + 0.5)', th('type', "<class 'float'>"))))).toBe(5)
     expect(progress(operations, typed(...at(4), line('float', th('type', "<class 'float'>"))))).toBe(4)
+    // The praise talks about what was typed.
+    expect(script(operations, typed(...at(4), line('type(2 + 0.5)', th('type', "<class 'float'>")))).items[0]!.text).toMatch(/^`float`/)
+    expect(script(operations, typed(...at(5))).items[0]!.text).toMatch(/^`2\.5`/)
   })
 
   it('shows the lamp\'s answer to `==` while it is told, never on the ask', () => {
@@ -99,11 +139,27 @@ describe('working things out', () => {
     const lit = s.items.findIndex((i) => i.show?.kind === 'balance' && i.show.lamp)
     expect(lit).toBeGreaterThan(0)
     expect(lit).toBeLessThan(s.rest)
-    // (Drawing it is `staging`'s: a narration-only change to the same
-    // picture must reach the layer. Today `staging` skips a `show` that is
-    // `sameProp` as the one before it, so the lamp is not drawn; that is
-    // core.ts's to fix, and not asserted here.)
-    expect(staging(operations, e).current?.prop).toEqual({ kind: 'balance', left: 4, right: 4, op: '==' })
+    // The lamp is drawn on its beat: the beat before is another picture,
+    // so `staging` does not fold it away as the same one.
+    expect(staging(operations, e, lit).current?.prop).toEqual({ kind: 'balance', left: 4, right: 4, op: '==', lamp: true })
+    expect(s.items[lit]!.thought).toBe('True')
+    // The ask is on another picture, so the lamp's answer is not on it.
+    expect(staging(operations, e).current?.prop).toEqual({ kind: 'lamp' })
+  })
+
+  it('draws the working to 3 once the robot adds three `True`s, and no total before', () => {
+    expect(staging(operations, typed(...at(10))).current?.prop).toMatchObject({ kind: 'expr', text: 'True + True + True' })
+    expect(staging(operations, typed(...at(10))).current?.verdict).toBe(null)
+    const s = staging(operations, typed(...at(11)), 0)
+    expect(s.current?.prop).toMatchObject({ kind: 'expr', then: ['2 + True', '3'] })
+    expect(s.current?.answer).toEqual(th('int', '3'))
+    expect(s.current?.verdict).toBe('right')
+  })
+
+  it('names the ideas before the takeaway uses them', () => {
+    const told = (i: number) => script(operations, typed(...at(i))).items.map((x) => x.text).join(' ')
+    expect(told(2)).toMatch(/called operations/)
+    expect(told(5)).toMatch(/called a comparison/)
   })
 
   it('shows `7 + 7` beside `"7" + "7"` before asking about text', () => {
@@ -126,7 +182,11 @@ describe('working things out', () => {
     expect(s.finished).toBe(true)
     expect(s.items.map((i) => i.text)).toContain('The robot worked out twenty, and then forgot it.')
     expect(guidance(operations, e).text).toBe('Next, we\'ll help it remember.')
-    expect(operations.takeaway).toBe('An operation makes a new value, and its type depends on the operation.')
+    expect(operations.takeaway).toBe('An operation makes a new value. Its type depends on the operation, and on what you give it.')
+    // The cloud empties on the line that says it forgot.
+    const forgot = s.items.findIndex((i) => /forgot it/.test(i.text))
+    expect(s.items[forgot]!.thought).toBe('')
+    expect(s.items[s.rest]!.thought).toBe('')
     expect(Object.keys(e.snapshot.objects)).toEqual([])
   })
 
@@ -150,15 +210,16 @@ describe('working things out', () => {
       expect(reply(...at(4), line('2 + 0,5', th('tuple', '(2, 5)')))).toMatch(/dot/)
       // What the console really gets: describing it passes two arguments.
       expect(reply(...at(4), failed('2 + 0,5', 'TypeError'))).toMatch(/dot/)
-      expect(reply(...at(4), line('float', th('type', "<class 'float'>")))).toMatch(/names a type/)
+      expect(reply(...at(4), line('float', th('type', "<class 'float'>")))).toMatch(/`float` is a type's name/)
     })
 
     it('on asking the question the wrong way round', () => {
       expect(reply(...at(5), line('5 > 3', th('bool', 'True')))).toMatch(/other way round/)
+      expect(reply(...at(5), line('False == (3 > 5)', th('bool', 'True')))).not.toMatch(/other way round/)
     })
 
     it('on one equals sign where two ask', () => {
-      expect(reply(...at(6), failed('2 + 2 = 4', 'SyntaxError'))).toMatch(/give it a name/)
+      expect(reply(...at(6), failed('7 * 6 = 42', 'SyntaxError'))).toMatch(/give it a name/)
     })
 
     it('on text', () => {
@@ -177,10 +238,13 @@ describe('working things out', () => {
     it('on counting lamps', () => {
       expect(reply(...at(10), line('True + True', th('int', '2')))).toMatch(/Three lamps/)
       expect(reply(...at(10), failed('true + true + true', 'NameError'))).toMatch(/capital T/)
+      expect(reply(...at(10), line('3 * True', th('int', '3')))).toMatch(/mixes a number in/)
+      expect(reply(...at(10), line('3 * True', th('int', '3')))).not.toMatch(/That's 3 of them/)
     })
 
     it('on working left to right, and on forgetting the brackets', () => {
       expect(reply(...at(11), line('20', th('int', '20')))).toMatch(/left to right/)
+      expect(reply(...at(11), line('(2 + 3) * 4', th('int', '20')))).toMatch(/Brackets choose the order/)
       expect(reply(...at(12), line('2 + 3 * 4', th('int', '14')))).toMatch(/brackets/)
     })
   })
