@@ -105,7 +105,7 @@ function letterMiss(l: Line): string | undefined {
 
 export const types: Lesson = {
   id: 'types',
-  teaches: ['bool', 'int', 'float', 'str'],
+  teaches: ['bool', 'int', 'float', 'char', 'str'],
   ordered: true,
   steps: [
     {
