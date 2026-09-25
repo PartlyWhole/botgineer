@@ -51,11 +51,12 @@ import { ReadSheet } from '../panels/ReadSheet'
 import { IdeasSheet } from '../panels/IdeasSheet'
 import { IdeasPanel } from '../panels/IdeasPanel'
 import type { ReadEnv } from '../collection/useReadSession'
-import type { Answer } from '../collection/model'
+import type { Answer, Stage } from '../collection/model'
 import { modelAnswer } from '../collection/runner'
 import { markDone } from '../progress/progress'
 import { readScene } from '../scene/spec'
 import { ScenePanel, type Telling } from '../panels/ScenePanel'
+import { noteAt, raisedNote, readTo, sectionsOf, type Reach } from '../collection/voice'
 import { MemoryPanel } from '../panels/MemoryPanel'
 import { RobotPanel, type Transcript } from '../panels/RobotPanel'
 import type { Exchange } from '../ui/RobotConsole'
@@ -287,8 +288,11 @@ export function Workbench({ activity }: { activity: Activity }) {
   const readEnv = useMemo<ReadEnv>(() => ({ evaluate: quiet, show, ready: boot.state === 'ready' }), [quiet, show, boot.state])
   const read = useReadLevel(activity, readEnv)
   const [ideasCode, setIdeasCode] = useState<string | null>(null)
-  const [ideasRead, setIdeasRead] = useState(false)
   const [ideasNote, setIdeasNote] = useState<string | null>(null)
+  /** The beat an example was run on, and what it stopped with. The crow
+   *  points at what it changed for as long as that beat shows. */
+  const [ideasRan, setIdeasRan] = useState<{ beat: number; raised: string | null } | null>(null)
+  const ideasBeatRef = useRef(0)
   /** The example whose button was pressed, as written in the text. */
   const [ideasPicked, setIdeasPicked] = useState<string | null>(null)
   /**
@@ -303,27 +307,38 @@ export function Workbench({ activity }: { activity: Activity }) {
     async (code: string, context: string[]) => {
       setIdeasNote(null)
       setIdeasPicked(code.replace(/\n$/, ''))
-      const alone = await quiet(code)
+      // Asked inside Python, so a fragment's NameError is caught there: a
+      // run that ends on an uncaught exception costs the engine its worker,
+      // and the next run would wait for a fresh one to boot.
+      const unnamed = async (src: string) => (await quiet(nameProbe(src))).output.endsWith(NAME_PROBE)
+      const alone = await unnamed(code)
       let source = code
-      if (alone.raised === 'NameError' && context.length > 0) {
+      if (alone && context.length > 0) {
         // The shortest run of what came before that lets it run: the
         // nearest context first, widening until the name is found.
         for (let from = context.length - 1; from >= 0; from--) {
           const joined = [...context.slice(from), code.replace(/\n$/, '')].join('\n') + '\n'
-          const withContext = await quiet(joined)
-          if (withContext.raised === 'NameError') continue
+          if (await unnamed(joined)) continue
           source = joined
           setIdeasNote('This example continues what the section set up before it, so that runs first.')
           break
         }
       }
-      if (source === code && alone.raised === 'NameError') {
+      if (source === code && alone) {
         setIdeasNote('This one is a fragment: it uses a name the text sets up in words, so on its own Python stops with a NameError.')
       }
       setIdeasCode(source)
-      void show(source)
+      const beat = ideasBeatRef.current
+      setIdeasRan(null)
+      // `show`, keeping what the example stopped with for the crow.
+      void enqueue(async () => {
+        setTranscript([])
+        const outcome = await execute(source)
+        setTranscript((t) => [...t, { kind: outcome.ok ? 'note' : 'err', text: outcomeLine(outcome.threw, outcome.terminal) }])
+        setIdeasRan({ beat, raised: outcome.terminal?.exception?.type_name ?? null })
+      })
     },
-    [quiet, show],
+    [quiet, enqueue, execute],
   )
 
   /** The editor's instrument: hand over the whole program. */
@@ -475,9 +490,19 @@ export function Workbench({ activity }: { activity: Activity }) {
   const told = useMemo(() => (lesson && !reading ? script(lesson, evidence) : null), [lesson, reading, evidence])
   // Everyone else says one line at a time, and may hand over a script of
   // their own once they have beats to tell.
+  //
+  // A stage's ideas are a script too: the crow's beats, one block of the
+  // text a beat (`voice.ideaBeats`), ending on the close.
   const spoken: Spoken | undefined = reading
     ? ideas
-      ? { text: ideasRead ? 'That is the idea. The exercises are next — back to the map.' : 'Read it through. Every example can be run — watch what it builds.' }
+      ? {
+          text: read.ideas[read.ideas.length - 1]?.say ?? '',
+          script: read.ideas.map((b, i) => ({
+            kind: i === read.ideas.length - 1 ? ('outro' as const) : ('beat' as const),
+            asking: false,
+            text: b.say,
+          })),
+        }
       : read.guide
         ? { text: read.guide }
         : undefined
@@ -500,14 +525,33 @@ export function Workbench({ activity }: { activity: Activity }) {
   const tellKey = told ? `${activity.id}:${told.at}` : practice ? `practice:${practice.meter.at}` : activity.id
   const [telling, setTelling] = useState<{ key: string; at: number }>({ key: '', at: 0 })
   const beatAt = Math.max(0, Math.min(telling.key === tellKey ? telling.at : 0, lines.length - 1))
-  const current = lines[beatAt]
+  ideasBeatRef.current = beatAt
+  // The ideas: how far the sheet has got, and the words named so far.
+  const ideasAt = ideas ? readTo(read.ideas, beatAt) : null
+  // When an example has run on this beat, the crow points at what it
+  // changed, read from the same steps memory draws (invariant 2), at the
+  // scrubber. Stage 6 turns formal the moment `binding` has been named.
+  const ideasVocab = read.stage?.stage === 6 ? (ideasAt?.terms.includes('binding') ? 'formal' : 'plain') : read.vocab
+  const ranHere = ideas && ideasRan !== null && ideasRan.beat === beatAt && !busy && steps.length > 0
+  const ideasSaid = useMemo(() => {
+    if (!ranHere) return null
+    if (ideasRan!.raised && shown === steps.length - 1) return raisedNote(ideasRan!.raised)
+    return noteAt((i) => extractMemory(steps[i]), shown, ideasVocab)
+    // `steps` is mutated in place; its length and the index are what change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ranHere, ideasRan, shown, steps.length, ideasVocab])
+  const current: ScriptItem | undefined =
+    ideasSaid && lines[beatAt] ? { ...lines[beatAt]!, text: ideasSaid, focus: 'memory' } : lines[beatAt]
   // Narration closes the console; the question opens it. A finished
   // lesson comes to rest on its last line, where the console is open
   // again for anything the player likes.
   const listening = lines.length > 0 && beatAt < rest
   const moveTo = useCallback((at: number) => setTelling({ key: tellKey, at }), [tellKey])
+  // The ideas read several blocks under one line; the bubble stays put for
+  // them rather than typing the same words again.
+  const sayKey = ideas && !ideasSaid ? read.ideas.findIndex((b, i) => i <= beatAt && read.ideas.slice(i, beatAt + 1).every((x) => x.say === b.say)) : beatAt
   const guide = current
-    ? { text: current.text, speaker: current.speaker, kind: current.kind, tag: current.tag, key: `${tellKey}:${beatAt}` }
+    ? { text: current.text, speaker: current.speaker, kind: current.kind, tag: current.tag, key: `${tellKey}:${sayKey}` }
     : undefined
   // Tells the director someone spoke, so the cast turns to listen. Emitted
   // only: nothing reads it back to decide anything.
@@ -532,7 +576,7 @@ export function Workbench({ activity }: { activity: Activity }) {
   // thing written down: the map derives everything else from it.
   const complete = reading
     ? ideas
-      ? ideasRead
+      ? ideasAt?.end === true
       : read.complete
     : practice
       ? practice.done
@@ -659,7 +703,22 @@ export function Workbench({ activity }: { activity: Activity }) {
         onBack: () => moveTo(Math.max(0, beatAt - 1)),
         onReplay: () => moveTo(Math.max(0, firstOutro)),
       }
-    : practice
+    : ideas && read.stage && ideasAt
+      ? {
+          // The ideas, told: Next and Back through the text, and the bar
+          // along the top a segment per section of the sheet.
+          listening,
+          back: beatAt > 0,
+          steps: sectionsOf(read.stage),
+          step: ideasAt.end ? sectionsOf(read.stage) : (ideasAt.reach?.section ?? 0),
+          through: ideasThrough(read.stage, ideasAt.reach),
+          prompt: '',
+          resting: ideasAt.end,
+          onNext: () => moveTo(Math.min(beatAt + 1, rest)),
+          onBack: () => moveTo(Math.max(0, beatAt - 1)),
+          onReplay: () => moveTo(0),
+        }
+      : practice
       ? {
           // Practice has no beats yet, so nothing to step through: only
           // the pointer at the console while a question waits.
@@ -712,8 +771,10 @@ export function Workbench({ activity }: { activity: Activity }) {
               stage={read.stage}
               running={ideasPicked}
               onTry={(code, context) => void tryIdea(code, context)}
-              onEnd={() => setIdeasRead(true)}
-              {...(read.stage.stage === 1 ? { lead: 'The console lessons on names came first; this is the same idea, written down.' } : {})}
+              reach={ideasAt?.reach ?? null}
+              now={ideasAt?.now ?? null}
+              terms={ideasAt?.terms ?? []}
+              end={ideasAt?.end === true}
             />
           ) : reading ? (
             <>
@@ -800,6 +861,30 @@ export function Workbench({ activity }: { activity: Activity }) {
       </section>
     </main>
   )
+}
+
+/** Printed by `nameProbe` when the example stopped on a name it never saw. */
+const NAME_PROBE = '__botgineer_NameError__\n'
+
+/** Runs an example to ask one thing: does it stop on a name it never saw?
+ *  Any other ending is not this question's business. JSON's string
+ *  escapes are Python's, so the source goes in as a literal. */
+const nameProbe = (src: string) =>
+  [
+    'try:',
+    `    exec(compile(${JSON.stringify(src)}, "<example>", "exec"), {})`,
+    'except NameError:',
+    `    print(${JSON.stringify(NAME_PROBE.replace(/\n$/, ''))})`,
+    'except BaseException:',
+    '    pass',
+    '',
+  ].join('\n')
+
+/** How far through its section the sheet is, 0..1, for the beat bar. */
+function ideasThrough(stage: Stage, reach: Reach | null): number {
+  if (!reach) return 0
+  const blocks = reach.section === 0 ? stage.adds : (stage.ideas[reach.section - 1]?.blocks ?? stage.capstone?.intro ?? [])
+  return blocks.length > 0 ? (reach.block + 1) / blocks.length : 1
 }
 
 function outcomeLine(threw: string | null, terminal: TerminalRecord | null): string {

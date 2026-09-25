@@ -221,18 +221,63 @@ test('a failed checkpoint sends you to review, and passing it earns the stage', 
   await expect(page.getByTestId('trophy-stage-1')).toHaveClass(/earned/)
 })
 
-test('the ideas run in place, and reading to the end finishes them', async ({ page }) => {
+/** The ideas' beats, walked through the same Next a player presses. */
+const beat = (page: Page) => page.evaluate(() => (window as any).botgineer.beat() as { at: number; of: number; text: string })
+const nextBeat = (page: Page) => page.evaluate(() => (window as any).botgineer.next())
+const toEnd = (page: Page) => page.evaluate(() => (window as any).botgineer.skip())
+
+test('the ideas open on the story, are told a block a beat, and run in place', async ({ page }) => {
   await open(page, 's2-ideas')
+  await expect(page.getByTestId('guide')).toContainText('she swears she didn’t touch it')
+  await expect(page.getByTestId('beat-next')).toBeVisible()
   await expect(page.getByTestId('memory')).toHaveClass(/empty/)
+  // One block on the sheet, and it is the one being read.
+  const blocks = page.locator('.idea-block')
+  const shown = await blocks.count()
+  await expect(page.getByTestId('idea-now')).toHaveCount(1)
+  await page.getByTestId('beat-next').click()
+  await page.getByTestId('beat-next').click()
+  await expect.poll(() => blocks.count()).toBeGreaterThan(shown)
+  // Back takes it away again.
+  const more = await blocks.count()
+  await page.getByTestId('beat-back').click()
+  await expect.poll(() => blocks.count()).toBeLessThan(more)
+  // Walk on to the first example and run it: memory draws it, and the crow
+  // points at what changed.
+  while ((await page.getByTestId('try-it').count()) === 0) await nextBeat(page)
   await page.getByTestId('try-it').first().click()
   await expect(page.getByTestId('memory')).not.toHaveClass(/empty/)
+  await expect(page.getByTestId('guide')).toContainText('Look at memory')
+  if (process.env.SHOTS) await page.screenshot({ path: `${process.env.SHOTS}/C5-2.png` })
   await expect(page.getByTestId('advance')).toHaveCount(0)
-  await page.getByTestId('ideas-end').scrollIntoViewIfNeeded()
+  await toEnd(page)
+  await expect(page.getByTestId('ideas-end')).toBeVisible()
   await expect(page.getByTestId('advance')).toBeVisible()
+})
+
+test('Stage 1’s ideas say the bridge into reading', async ({ page }) => {
+  await open(page, 's1-ideas')
+  await expect(page.getByTestId('guide')).toContainText('Mira has written the robot a program')
+  if (process.env.SHOTS) await page.screenshot({ path: `${process.env.SHOTS}/C5-1.png` })
+  await nextBeat(page)
+  await expect(page.getByTestId('guide')).toContainText('A good engineer knows what the robot will do before it does it.')
+})
+
+test('Stage 6 names each formal word on a beat of its own, and keeps it as a label', async ({ page }) => {
+  await open(page, 's6-ideas')
+  while (!(await beat(page)).text.includes('**binding**')) await nextBeat(page)
+  await expect(page.getByTestId('guide')).toContainText('The formal word is binding.')
+  await expect(page.getByTestId('idea-terms')).toContainText('binding')
+  await expect(page.locator('.idea-term')).toHaveCount(1)
+  await nextBeat(page)
+  await expect(page.locator('.idea-term')).toHaveCount(2)
+  await expect(page.getByTestId('idea-terms')).toContainText('iterable')
+  if (process.env.SHOTS) await page.screenshot({ path: `${process.env.SHOTS}/C5-3.png` })
 })
 
 test('the glossary opens at a term, and a bold term in the text links to it', async ({ page }) => {
   await open(page, 's6-ideas')
+  await toEnd(page)
   const term = page.locator('a.term').first()
   await expect(term).toBeVisible()
   const href = await term.getAttribute('href')
@@ -285,6 +330,7 @@ test('an example that leans on the text before it runs with what the text set up
   // "Given `original = [[1, 2], [3, 4]]`:" is prose, and the examples after
   // it use `original` without defining it.
   await open(page, 's4-ideas')
+  await toEnd(page)
   await page.locator('.block-code', { hasText: 'shallow = original[:]' }).getByTestId('try-it').click()
   await expect(page.getByTestId('ideas-note')).toContainText('continues what the section set up')
   await expect(page.getByTestId('node-shallow')).toBeVisible()

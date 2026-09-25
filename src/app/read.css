@@ -24,6 +24,31 @@
   font-size: 13.5px;
 }
 
+/* The ideas' beat bar. At the top of the short stage it would run through
+   the crow's name pill, so here it runs along the foot, under Next. */
+.scene-panel.compact .beat-bar {
+  top: auto;
+  bottom: 5px;
+}
+.scene-panel.compact .beat-seg {
+  height: 4px;
+}
+/* The short stage puts the cast close together; a smaller Next, set a
+   little right of centre, stays in the gap between the crow and the
+   robot rather than on the crow. */
+.scene-panel.compact .beat-controls {
+  left: 55%;
+  bottom: 16px;
+}
+.scene-panel.compact .beat-next {
+  padding: 8px 20px;
+  font-size: 15px;
+}
+.scene-panel.compact .beat-back {
+  width: 32px;
+  height: 32px;
+}
+
 .sheet-scroll {
   position: relative;
   flex: 1 1 auto;
@@ -272,6 +297,58 @@ a.term {
   padding: 8px 4px;
   color: var(--ink-soft);
   font-size: 13px;
+}
+
+/* The ideas, told a block a beat. The block the crow is on carries a
+   brand rule down its left edge, so the eye can find its place after
+   looking at memory; the rest of the sheet is what has been read. */
+.idea-block {
+  position: relative;
+  border-radius: 6px;
+  transition: background-color 200ms ease;
+}
+.idea-block > :last-child {
+  margin-bottom: 0;
+}
+.idea-block + .idea-block {
+  margin-top: 10px;
+}
+.idea-block.now {
+  background: var(--brand-soft);
+  box-shadow: -8px 0 0 var(--brand-soft), 8px 0 0 var(--brand-soft), -11px 0 0 var(--brand-line);
+  animation: idea-arrive 260ms ease-out backwards;
+}
+@keyframes idea-arrive {
+  from {
+    opacity: 0;
+    translate: 0 6px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .idea-block.now {
+    animation: none;
+  }
+}
+
+/* The formal words named so far: each one a label from the beat that
+   names it, and for the rest of the stage. */
+.idea-terms {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0 10px;
+}
+.idea-term {
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--brand-line);
+  background: var(--brand-soft);
+  color: var(--brand-deep);
+  font-size: 12px;
+  font-weight: 700;
+}
+.idea-term:last-child {
+  animation: idea-arrive 260ms ease-out backwards;
 }
 
 /* ------------------------------ code view ------------------------------ */

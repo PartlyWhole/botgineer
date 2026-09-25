@@ -116,12 +116,18 @@ export type IdeaBeat = {
 const FORMAL_WORDS: Record<string, string> = {
   binding: 'You’ve been saying *a name pointing at an object*. The formal word is **binding**.',
   iterable: 'You’ve been saying *the thing being looped over*. The formal word is **iterable**.',
-  'loop variable': 'You’ve been saying *the name the `for` line rebinds*. That’s the **loop variable**.',
-  block: 'You’ve been saying *the indented lines that belong together*. That’s a **block**.',
-  'control flow': 'You’ve been saying *the order the lines run in*. The formal word is **control flow**.',
+  'loop variable': 'You’ve been saying *the name the loop rebinds*. The formal word is **loop variable**.',
+  block: 'You’ve been saying *indented lines belonging together*. The formal word is **block**.',
+  'control flow': 'You’ve been saying *the order in which lines run*. The formal word is **control flow**.',
   mutable: 'You’ve been saying *changeable* and *unchangeable*. The words are **mutable** and **immutable**.',
-  hashable: 'You’ve been saying *allowed as a dictionary key*. The formal word is **hashable**.',
+  hashable: 'You’ve been saying *may be a dictionary key or set item*. The formal word is **hashable**.',
 }
+
+/** Said over the table's first beat, before any word is named. */
+const FORMAL_OPEN = 'Nothing new to learn here: just the formal names for ideas you already have.'
+
+/** Said over the paragraphs after the table. */
+const FORMAL_AFTER = 'Same ideas, new words. You’ll hear me use them from now on.'
 
 /**
  * Stage 8's two, which have nothing to have been called before: the
@@ -133,6 +139,9 @@ const CALL_WORDS: { term: string; say: string }[] = [
   { term: 'arguments', say: 'The call sends in the object `x` points at. What a call sends in is an **argument**.' },
   { term: 'parameters', say: '`n` is the name that receives it. A name in the `def` line’s brackets is a **parameter**.' },
 ]
+
+/** Said over the paragraphs after the two words are named. */
+const CALL_AFTER = 'Here is the whole call, step by step, in those two words.'
 
 const EXAMPLE_INVITE = 'Every example can run. Press Run this, and memory draws what it builds.'
 
@@ -164,6 +173,8 @@ const runnable = (b: Block): boolean => b.kind === 'code' && b.lang === 'python'
 export function ideaBeats(stage: Stage): IdeaBeat[] {
   const beats: IdeaBeat[] = []
   let invited = false
+  // The line for the first block after a run of named words, if any.
+  let after: string | undefined
   // A block with no line of its own is read under the last one said.
   const said = () => beats[beats.length - 1]?.say ?? ''
   const block = (at: Reach, say?: string) => beats.push({ say: say ?? said(), at })
@@ -196,20 +207,23 @@ export function ideaBeats(stage: Stage): IdeaBeat[] {
       const first = j === 0 ? introduce(idea.title, k, stage.ideas.length) : undefined
       // Stage 6: the table of formal words, one row a beat.
       if (b.kind === 'table' && b.rows.some((r) => FORMAL_WORDS[formalOf(r[r.length - 1] ?? '') ?? ''])) {
-        if (first) beats.push({ say: first, at: { section, block: j, row: -1 } })
+        if (first) beats.push({ say: FORMAL_OPEN, at: { section, block: j, row: -1 } })
         b.rows.forEach((r, row) => {
           const term = formalOf(r[r.length - 1] ?? '')
           const say = term ? FORMAL_WORDS[term] : undefined
           if (say) beats.push({ say, at: { section, block: j, row }, term: term === 'mutable' ? 'mutable · immutable' : term! })
           else block({ section, block: j, row })
         })
+        after = FORMAL_AFTER
         return
       }
-      block({ section, block: j }, first)
+      block({ section, block: j }, first ?? after)
+      after = undefined
       afterExample(b)
       // Stage 8: show the call, then name its two halves.
       if (j === 0 && runnable(b) && /\bargument/i.test(idea.title) && /\bparameter/i.test(idea.title)) {
         for (const w of CALL_WORDS) beats.push({ say: w.say, at: null, term: w.term })
+        after = CALL_AFTER
       }
     })
   })
