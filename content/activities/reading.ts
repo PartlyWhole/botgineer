@@ -26,11 +26,14 @@ export type ReadLevel =
   | { kind: 'capstone'; stage: number; items: string[] }
   | { kind: 'single'; stage: number; items: string[] }
 
-/** The reading room: the crow and the robot, and room for the sheet. */
+/** The reading room: the crow and the robot, and room for the sheet. The
+ *  floor stands a little high, so the strip under the cast is free for the
+ *  beat bar and the way on (`read.css`): at 90, Continue stood on the
+ *  robot's feet. */
 export const readingScene = (id: string): SceneSpec => ({
   id,
   title: 'Reading room',
-  floor: { at: 90 },
+  floor: { at: 84 },
   actors: [
     { id: 'crow', kind: 'crow', x: 30, y: 0, w: 16, stand: true },
     { id: 'robot', kind: 'robot', x: 80, y: 0, w: 14, stand: true },
