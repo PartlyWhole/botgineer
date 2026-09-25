@@ -1,6 +1,8 @@
 /**
  * A reading level, played: which items, where to start, what the crow
- * says, and whether it is finished.
+ * says, and whether it is finished. An ideas level has no items: it is
+ * the stage's reading, told in beats (`ideas`), and the workbench walks
+ * them like a lesson's.
  *
  * The workbench owns the runs; the session (`collection/useReadSession`)
  * owns the answers; this decides what the level *is*. A set is its
@@ -17,7 +19,7 @@ import { finishedLevels } from '../progress/progress'
 import { itemById, specOf, STAGES, vocabularyOf } from '../collection'
 import { passed, practiceItems, resumeAt, reviewItems } from '../collection/levels'
 import { useReadSession, type ReadEnv } from '../collection/useReadSession'
-import { ACT_LINE, CHECKPOINT_LINE, doneLine, RULE_LINE, taskLine, verdictLine } from '../collection/voice'
+import { ACT_LEAD, ACT_LINE, CHECKPOINT_LINE, doneLine, ideaBeats, RULE_LINE, taskLine, verdictLine, type IdeaBeat } from '../collection/voice'
 import type { ReadLevel } from '../../content/activities/reading'
 
 function idsFor(level: ReadLevel | undefined): string[] {
@@ -62,7 +64,7 @@ export function useReadLevel(activity: Activity, env: ReadEnv) {
     const predictionsRight = graded.every((g) => g!.right || g!.soft)
     if (marking >= 0) return RULE_LINE
     if (acting >= 0) {
-      const lead = graded.length ? (predictionsRight ? 'Right so far. ' : 'Not quite — the key says why. ') : ''
+      const lead = graded.length ? (predictionsRight ? ACT_LEAD.right : ACT_LEAD.wrong) : ''
       const p = current.spec.parts[acting]!
       return lead + ACT_LINE[p.kind as 'fix' | 'write']
     }
@@ -70,7 +72,11 @@ export function useReadLevel(activity: Activity, env: ReadEnv) {
     return undefined
   }, [didPass, doneKind, firstTime, ids.length, kind, level, session, start, vocab])
 
-  return { level, session, stage, vocab, guide, complete, didPass, ids }
+  // A stage's ideas are told, not asked: the crow's beats, one paragraph
+  // a beat, derived from the stage alone (`voice.ideaBeats`).
+  const ideas = useMemo((): IdeaBeat[] => (level?.kind === 'ideas' && stage ? ideaBeats(stage) : []), [level?.kind, stage])
+
+  return { level, session, stage, vocab, guide, complete, didPass, ids, ideas }
 }
 
 /** A checkpoint question's form, from what it asks. */
