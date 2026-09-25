@@ -1,46 +1,70 @@
 /**
- * The names lesson (`names`), played: a name is an arrow, and finishing it
- * is the way back to the map. It has no beats yet, so it plays exactly as
- * before them — and the journeys type through `say`, which skips any
- * narration a rewrite adds.
+ * The names lesson (`names`), played: the robot has forgotten, a name is
+ * the fix, and a name is an arrow. Finishing it is the way back to the map.
  */
 import { expect, test } from '@playwright/test'
-import { WARM_UP, open, say, seedProgress } from './helpers'
+import { WARM_UP, beat, open, say, seedProgress } from './helpers'
 
-test('the naming lesson teaches that a name is an arrow', async ({ page }) => {
+/** What each name points at, by value. */
+const bound = (page: import('@playwright/test').Page) =>
+  page.evaluate(() => {
+    const s = window.botgineer.snapshot()
+    return Object.fromEntries(s.bindings.map((b) => [b.name, s.objects[b.target]?.repr]))
+  })
+
+test('the robot has forgotten the crates, and must work them out again', async ({ page }) => {
   await open(page, 'names')
-  await expect(page.getByTestId('guide')).toContainText('x = 10')
+  expect((await beat(page)).text).toContain('seven crates')
+  await expect(page.getByTestId('prop')).toHaveAttribute('data-prop', 'crates')
+  // The forgetting, demonstrated: a question mark in the cloud.
+  await page.evaluate(() => window.botgineer.next())
+  await expect(page.getByTestId('thought')).toHaveText('?')
 
+  // Typing the answer from memory is not asking the robot.
+  await say(page, '42')
+  await expect(page.getByTestId('guide')).toContainText('you remembering')
+  await say(page, '7 * 6')
+  await expect(page.getByTestId('thought')).toHaveText('42')
+  await expect(page.getByTestId('guide')).toContainText('because it kept nothing')
+  expect(await bound(page)).toEqual({})
+})
+
+test('a name is an arrow, and the crow points at it as it appears', async ({ page }) => {
+  await open(page, 'names')
+  await say(page, '7 * 6')
   await say(page, 'x = 10')
-  // Reading it back is a step of its own: the point is that it was simply
-  // there, where the previous lesson would have had to recompute it.
-  // Backticks in a lesson render as a code chip, so they are not in the text.
-  await expect(page.getByTestId('guide')).toContainText('pointing at')
+  // Praise first, then the pointing — at the memory pane, which pulses.
+  expect((await beat(page)).kind).toBe('praise')
+  await page.evaluate(() => window.botgineer.next())
+  expect((await beat(page)).text).toContain('Look below')
+  await expect(page.locator('.memory-view')).toHaveAttribute('data-focus', 'yes')
+  await expect(page.locator('.graph .edge')).toHaveCount(1)
+
+  // The bug: typing 10 used to pass "ask for it back".
+  await say(page, '10')
+  await expect(page.getByTestId('guide')).toContainText('you remembering')
+  expect((await beat(page)).kind).toBe('reply')
   await say(page, 'x')
   await expect(page.getByTestId('thought')).toHaveText('10')
+  await expect(page.getByTestId('guide')).toContainText('followed the arrow')
+
   await say(page, 'y = x')
   // One object, two names on it.
   expect(
-    await page.evaluate(() => {
-      const s = window.botgineer.snapshot()
-      return new Set(s.bindings.map((b) => b.target)).size
-    }),
+    await page.evaluate(() => new Set(window.botgineer.snapshot().bindings.map((b) => b.target)).size),
   ).toBe(1)
-
   await say(page, 'x = 99')
-  const bound = await page.evaluate(() =>
-    Object.fromEntries(
-      window.botgineer
-        .snapshot()
-        .bindings.map((b) => [b.name, window.botgineer.snapshot().objects[b.target]?.repr]),
-    ),
-  )
   // x moved; y did not.
-  expect(bound).toEqual({ x: '99', y: '10' })
+  expect(await bound(page)).toEqual({ x: '99', y: '10' })
 
-  // Rebinding x makes step one false again, so progress would slide back
-  // to the start if it were read from the current snapshot alone.
-  await expect(page.getByTestId('guide')).toContainText('it never held it')
+  // Rebinding x makes step two false again, so progress would slide back
+  // if it were read from the current snapshot alone.
+  const end = await beat(page)
+  expect(end.kind).toBe('outro')
+  expect(end.text).toContain('still points at')
+  await expect(page.locator('.memory-view')).toHaveAttribute('data-focus', 'yes')
+  await page.evaluate(() => window.botgineer.skip())
+  await expect(page.getByTestId('takeaway')).toContainText('arrow')
 })
 
 test('finishing a lesson offers the way back to the map, and only then', async ({ page }) => {
@@ -48,6 +72,7 @@ test('finishing a lesson offers the way back to the map, and only then', async (
   await open(page, 'names')
   await expect(page.getByTestId('advance')).toHaveCount(0)
 
+  await say(page, '7 * 6')
   await say(page, 'x = 10')
   await expect(page.getByTestId('advance')).toHaveCount(0)
   await say(page, 'x')

@@ -41,8 +41,9 @@ Python does three things, in this order:
 3. Points `count` at that object.
 
 The name is a **label stuck onto an object**. It is not a container that the
-number was poured into. This distinction looks like hair-splitting now. By
-Stage 4 it is the whole game.
+number was poured into. The screen draws that label as an arrow, from the name
+to its object. This distinction looks like hair-splitting now. By Stage 4 it is
+the whole game.
 
 ### Rebinding moves the label
 
