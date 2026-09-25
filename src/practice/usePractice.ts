@@ -27,11 +27,25 @@
  * timed. A miss replaces the ask with the reason, in the same place, and
  * the second miss adds a line that works.
  *
- * The answered picture stays on stage as the *leaving* one, with its tick,
- * while the next question's picture waits its turn — the right answer's
- * effect plays on the element that asked, as in a lesson. Once the session
- * is done the shelf from the first level stands there, every right answer
- * filed by its data type.
+ * ## The praise is read over the answer
+ *
+ * Praise names the reason (R9), and the reason is on screen: the line the
+ * player typed, what the robot thought, the picture with the answer drawn
+ * in and its tick. So the next exercise does not *start* — its console is
+ * not cleared, its setup not run, its question not put in the meter —
+ * until the player has passed the praise. The workbench says which line
+ * it is telling through `told(beat)`; once it has said so at all, the
+ * session is **paced** by it, and an exercise after the first starts only
+ * when a line past its praise is told. A workbench that never calls
+ * `told` gets the old behaviour, each exercise starting the moment the
+ * last was answered, so wiring it is a change on one side only.
+ *
+ * While the praise is read, the picture just answered stays on the stage
+ * with its tick and no question under it; from the next line on it leaves
+ * and the next one arrives — the right answer's effect plays on the
+ * element that asked, as in a lesson. Once the session is done the shelf
+ * from the first level stands there, every right answer filed by its data
+ * type, `heard` as the session heard them.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { recordTry, currentMastery } from '../mastery/mastery'
@@ -70,8 +84,19 @@ export type PracticeState = {
    * `staging(lesson, e, beat)` is: while the praise is read, the picture
    * just answered stays on the stage with its tick and no question under
    * it; from the next line on, it leaves and this exercise's arrives.
+   * Once paced, `staging` is already this at the line last told.
    */
   stagingAt: (beat: number) => Staging
+  /**
+   * The workbench saying which line of `guide.script` it is telling —
+   * called in an effect whenever that changes, and keyed like its beat
+   * index, so each call is about the exercise `meter.at` names. It is
+   * what lets an exercise wait until its praise has been read.
+   */
+  told: (beat: number) => void
+  /** The praise for the last answer is showing, and the next exercise
+   *  has not started: its console and memory are still the last one's. */
+  praising: boolean
 }
 
 const PRAISE = ['Right!', 'Spot on.', 'That’s it.', 'Nicely done.', 'Exactly.', 'Yes!']
@@ -128,6 +153,13 @@ export function scriptOf(
 
 type Answered = PropView & { key: string }
 
+/**
+ * Whether exercise `at` may start: the first at once; any other when
+ * nobody is pacing the session (`beat` null), or once a line past its
+ * praise — line 0 — has been told. Pure, so the rule is tested alone.
+ */
+export const mayStart = (at: number, beat: number | null): boolean => at === 0 || beat === null || beat > 0
+
 export function usePractice(
   pool: string[] | null,
   restart: (setup: string[]) => Promise<void>,
@@ -149,19 +181,35 @@ export function usePractice(
    *  out while the praise is read. */
   const [answered, setAnswered] = useState<Answered | null>(null)
   const started = useRef(-1)
+  /** The line the workbench last said it was telling, for which exercise;
+   *  null until it says anything, which is what leaves a session unpaced. */
+  const [heard, setHeard] = useState<{ at: number; beat: number } | null>(null)
+  const told = useCallback((beat: number) => {
+    setHeard((h) => (h && h.at === at && h.beat === beat ? h : { at, beat }))
+  }, [at])
+  /** The line being told of this exercise's script: null when unpaced. A
+   *  report about the exercise before is a report of its first line. */
+  const beat = heard === null ? null : heard.at === at ? heard.beat : 0
 
   const current = exercises[at] ?? null
+  const open = mayStart(at, beat)
+  // Reading the praise: only when paced, and only for the moment the next
+  // exercise waits for (at the end too, where the tally waits).
+  const praising = at > 0 && beat === 0
 
-  // Each exercise starts on a clean memory, with its setup already run.
+  // Each exercise starts on a clean memory, with its setup already run —
+  // once the praise for the last one has been read.
   useEffect(() => {
-    if (!pool || !ready || !current || started.current === at) return
+    if (!pool || !ready || !current || started.current === at || !open) return
     started.current = at
     void restart(current.setup)
-  }, [pool, ready, current, at, restart])
+  }, [pool, ready, current, at, restart, open])
 
   const onAttempt = useCallback(
     (a: Attempt) => {
-      if (!current) return
+      // A line typed before this exercise started was typed at the last
+      // one's memory, and is no answer to this one.
+      if (!current || started.current !== at) return
       const { verdict, why } = current.judge(a)
       if (verdict === 'ignore') return
       const thought = a.ok ? a.thought : null
@@ -206,7 +254,7 @@ export function usePractice(
   // The answered picture leaves only until the next one is tried: after
   // that it has long gone, and a miss is drawn into the one asking.
   const leaving = said === null && reply === null ? answered : null
-  const staging: Staging = done
+  const settled: Staging = done
     ? shelf
       ? {
           current: { key: 'practice:done', prop: { kind: 'shelf', filled: [...SLOTS], cheer: true }, answer: null, verdict: null, heard: rights },
@@ -228,22 +276,30 @@ export function usePractice(
       : leaving
         ? { current: null, leaving }
         : NO_STAGING
+  // While the praise is read, the answered picture is the one on stage,
+  // and nothing of the next exercise has arrived yet.
+  const onPraise: Staging = leaving ? { current: { ...leaving, ask: undefined }, leaving: null } : NO_STAGING
+  const stagingAt = (b: number) => (b === 0 && at > 0 ? onPraise : settled)
+  const staging = beat === null ? settled : stagingAt(beat)
+  const rest = script.length - 1
 
   return {
     guide: { text: script[script.length - 1]!.text, script },
     done,
     // The question stays in the meter only when there is no picture to
-    // carry it; with one, it sits under the picture instead.
+    // carry it; with one, it sits under the picture instead. Paced, it
+    // arrives with the question, not while the praise or a lead is told.
     meter: {
       at: Math.min(at, exercises.length),
       of: exercises.length,
       results,
-      task: done || current!.show ? null : current!.say,
+      task: done || current!.show || (beat !== null && beat < rest) ? null : current!.say,
     },
     current: done ? null : current,
     onAttempt,
     staging,
-    stagingAt: (beat: number) =>
-      beat === 0 && at > 0 && leaving ? { current: { ...leaving, ask: undefined }, leaving: null } : staging,
+    stagingAt,
+    told,
+    praising,
   }
 }

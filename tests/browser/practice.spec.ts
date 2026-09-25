@@ -11,6 +11,16 @@ const exercise = (page: Page) =>
 
 const idle = (page: Page) => expect.poll(() => page.evaluate(() => window.botgineer.state().busy)).toBe(false)
 
+/** Passes the praise for the last answer, as a player pressing Next would:
+ *  the next exercise starts (its setup runs) only once that is read. */
+async function pastPraise(page: Page) {
+  if (!(await exercise(page))) return
+  await expect(page.getByTestId('guide')).toHaveAttribute('data-kind', 'praise')
+  await page.evaluate(() => window.botgineer.next())
+  await expect(page.getByTestId('guide')).not.toHaveAttribute('data-kind', 'praise')
+  await idle(page)
+}
+
 /** Answers every exercise with the line its generator says works, and
  *  returns which skills were asked. The judge sees what *real Python* made
  *  of that line — so a session that finishes is the Python subset agreeing
@@ -26,6 +36,7 @@ async function playSession(page: Page): Promise<string[]> {
     // A right answer moves on to the next exercise, whose first beat is
     // the praise for this one.
     await expect.poll(async () => (await exercise(page))?.at ?? 99).toBeGreaterThan(ex.at)
+    await pastPraise(page)
   }
   return asked
 }
@@ -118,6 +129,7 @@ test('a char question names the whole word as the mistake', async ({ page }) => 
       if (ex.skill !== 'char') {
         await say(page, ex.answer)
         await expect.poll(async () => (await exercise(page))?.at ?? 99).toBeGreaterThan(ex.at)
+        await pastPraise(page)
         continue
       }
       const say_ = await page.evaluate(() => (window.botgineer as unknown as { exercise: () => { say: string } }).exercise().say)

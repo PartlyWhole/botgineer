@@ -12,7 +12,7 @@ import { bin, evaluate, float, int, name, render, repr, str } from '../../src/pr
 import { GENERATORS, generate, rng, type Attempt } from '../../src/practice/exercises'
 import { holdDays, level, record, strength, due, type Mastery } from '../../src/mastery/mastery'
 import { planSession, SESSION_LENGTH } from '../../src/practice/session'
-import { OPENING, SHELVED, WHO_WORKS, closingOf, replyOf, scriptOf } from '../../src/practice/usePractice'
+import { OPENING, SHELVED, WHO_WORKS, closingOf, mayStart, replyOf, scriptOf } from '../../src/practice/usePractice'
 import { EMPTY, type MemorySnapshot } from '../../src/memory/model'
 
 const v = (e: Parameters<typeof evaluate>[0], env = {}) => repr(evaluate(e, env))
@@ -237,6 +237,64 @@ describe('what an exercise says', () => {
     }
   })
 
+  it('refuses the answer plus a no-op on a robot question: the working must be the question’s own', () => {
+    // A probe found `6 + 0`, `3.0/1` and `'sunflower' + ""` passing: the
+    // judges looked for *some* operator, not this question's working.
+    const noOps = (ans: string) => [`${ans} + 0`, `${ans}*1`, `${ans} - 0`, `${ans}/1`, `(${ans}) * 1`, `${ans} + ""`]
+    let checked = 0
+    for (const s of SKILLS) {
+      for (const ex of spread(s.id)) {
+        if (ex.tag !== 'robot' || !ex.expect) continue
+        for (const source of noOps(ex.expect.repr)) {
+          const j = ex.judge(attempt({ source, thought: ex.expect, snapshot: bound([]) }))
+          expect(j.verdict, `${ex.key}: ${source}`).toBe('wrong')
+          expect(j.why, `${ex.key}: ${source}`).toBeTruthy()
+          checked++
+        }
+      }
+    }
+    expect(checked).toBeGreaterThan(100)
+  })
+
+  it('refuses robot work on every question that is yours, the same way everywhere (R4)', () => {
+    // `3 > 5` on the balance was refused by one skill and accepted by
+    // another: a `you` question now wants the answer typed as itself.
+    for (const s of SKILLS) {
+      for (const ex of spread(s.id)) {
+        if (ex.tag !== 'you' || !ex.expect) continue
+        const source = `${ex.answer} if True else 0`
+        const j = ex.judge(attempt({ source, thought: ex.expect, snapshot: bound([]) }))
+        expect(j.verdict, `${ex.key}: ${source}`).toBe('wrong')
+      }
+    }
+    const bool = spread('bool').find((e) => e.key === 'bool:3:5')!
+    const kind = spread('kind', 2000).find((e) => e.key === 'kind:Is 3 more than 5?')!
+    for (const ex of [bool, kind]) {
+      expect(ex.judge(attempt({ source: '3 > 5', thought: { type: 'bool', repr: 'False' } })).verdict, ex.key).toBe('wrong')
+      expect(ex.judge(attempt({ source: 'False', thought: { type: 'bool', repr: 'False' } })).verdict, ex.key).toBe('correct')
+    }
+  })
+
+  it('names the likeliest bool miss, a bare yes, without a word it has not taught', () => {
+    const ex = spread('bool').find((e) => e.key.startsWith('bool:') && !e.key.includes('lamp'))!
+    const j = ex.judge(attempt({ source: 'yes', ok: false, error: 'NameError — the robot stopped there.' }))
+    expect(j.verdict).toBe('wrong')
+    expect(j.why).toMatch(/`True` or `False`/)
+    expect(j.why).not.toMatch(/NameError/)
+  })
+
+  it('tells the answer typed from the kept number typed, when asked to work from a name', () => {
+    const ex = spread('recall')[0]!
+    const [, n, k, each] = ex.key.split(':')
+    const product = String(Number(k) * Number(each))
+    const typed = ex.judge(attempt({ source: product, thought: { type: 'int', repr: product } }))
+    expect(typed.why).toMatch(/let the robot work it out from/)
+    expect(typed.why).not.toContain(`from ${k}`)
+    const fromK = ex.judge(attempt({ source: `${k} * ${each}`, thought: { type: 'int', repr: product } }))
+    expect(fromK.why).toContain(`not from ${k}`)
+    expect(ex.judge(attempt({ source: `${n} * ${each}`, thought: { type: 'int', repr: product } })).verdict).toBe('correct')
+  })
+
   it('names a reason whenever it says no (R10)', () => {
     for (const s of SKILLS) {
       for (const ex of spread(s.id, 100)) {
@@ -300,6 +358,18 @@ describe('the char exercises', () => {
       const whole = ex.judge(attempt({ source: '"gear"', thought: { type: 'str', repr: "'gear'" } }))
       expect(whole.verdict).toBe('wrong')
     }
+  })
+})
+
+describe('when the next exercise starts', () => {
+  it('starts the first at once, and any other once its praise is read', () => {
+    expect(mayStart(0, null)).toBe(true)
+    expect(mayStart(0, 0)).toBe(true)
+    // Unpaced: nobody says which line is told, so it starts at once.
+    expect(mayStart(3, null)).toBe(true)
+    // Paced: line 0 is the praise, read over the last answer's evidence.
+    expect(mayStart(3, 0)).toBe(false)
+    expect(mayStart(3, 1)).toBe(true)
   })
 })
 
