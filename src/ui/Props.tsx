@@ -20,7 +20,23 @@
  * thing carrying it.
  */
 import { useLayoutEffect, useRef, type ReactNode } from 'react'
-import { boolOf, clamp, kindOf, numberOf, textOf, type PropView } from '../scene/props'
+import {
+  SLOTS,
+  SLOT_EXAMPLES,
+  boolOf,
+  chipText,
+  clamp,
+  codeLine,
+  kindOf,
+  numberOf,
+  shelved,
+  slotOf,
+  textOf,
+  type ContrastSide,
+  type Prop,
+  type PropView,
+  type TypeSlot,
+} from '../scene/props'
 import type { Thought } from '../memory/extract'
 
 /** How long a right answer's picture stays before the next one arrives.
@@ -36,6 +52,26 @@ export function PropLayer({ view, role, beat }: { view: PropView; role: 'current
     ref.current?.style.setProperty('--beat', beat ? BEAT : '0s')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // A narration beat that changes the picture in place (`sameProp`: the
+  // lamp switched on, one more slot on the shelf) is a new moment, not a
+  // late arrival: whatever it sets off plays now, not after the payoff
+  // this layer once waited for. And from then on the layer has been
+  // *told* — its arrival demonstration is spent, so a demonstration that
+  // a narration field had replaced must not come back when the ask
+  // clears that field (the lamp's flicking, restarting under the
+  // question). Written straight to the element, like `--beat`, and keyed
+  // on the prop's text so React's double-invoked effects are idempotent.
+  const sig = JSON.stringify(view.prop)
+  const seen = useRef(sig)
+  useLayoutEffect(() => {
+    if (seen.current === sig) return
+    seen.current = sig
+    const el = ref.current
+    if (!el) return
+    el.style.setProperty('--beat', '0s')
+    el.dataset['told'] = ''
+  }, [sig])
 
   const replay = () => {
     const el = ref.current
@@ -112,15 +148,15 @@ function draw(view: PropView): ReactNode {
   const p = view.prop
   switch (p.kind) {
     case 'lamp':
-      return <Lamp view={view} />
+      return <Lamp view={view} demo={p.demo} />
     case 'fish':
       return <Fish view={view} />
     case 'basket':
-      return <Basket view={view} apples={p.apples} />
+      return <Basket view={view} apples={p.apples} demo={p.demo} />
     case 'lift':
-      return <Lift view={view} lowest={p.lowest} highest={p.highest} />
+      return <Lift view={view} lowest={p.lowest} highest={p.highest} demo={p.demo} />
     case 'glass':
-      return <Glasses view={view} level={p.level} />
+      return p.demo === 'fill' ? <Filling level={p.level} /> : <Glasses view={view} level={p.level} />
     case 'height':
       return <Height view={view} />
     case 'carton':
@@ -132,7 +168,7 @@ function draw(view: PropView): ReactNode {
     case 'kinds':
       return <Kinds view={view} />
     case 'tiles':
-      return <Tiles view={view} parts={p.parts ?? ['7', '+', '7']} />
+      return <Tiles view={view} parts={p.parts ?? ['7', '+', '7']} stamp={p.demo === 'stamp'} />
     case 'crates':
       return <Crates view={view} crates={p.crates} each={p.each} />
     case 'share':
@@ -140,7 +176,7 @@ function draw(view: PropView): ReactNode {
     case 'bolts':
       return <Bolts view={view} have={p.have} use={p.use} />
     case 'balance':
-      return <Balance view={view} left={p.left} right={p.right} op={p.op} />
+      return <Balance view={view} left={p.left} right={p.right} op={p.op} lamp={p.lamp === true} />
     case 'expr':
       return <Expr view={view} text={p.text} first={p.first} then={p.then} />
     case 'phone':
@@ -151,8 +187,33 @@ function draw(view: PropView): ReactNode {
       return <Card view={view} />
     case 'letter':
       return <Letter view={view} char={p.char} />
+    case 'shelf':
+      return <Shelf view={view} p={p} />
+    case 'numberline':
+      return <NumberLine view={view} p={p} />
+    case 'letters':
+      return <Letters chars={p.chars} />
+    case 'char':
+      return <Char char={p.char} clasps={p.clasps === true} />
+    case 'contrast':
+      return <Contrast left={p.left} right={p.right} />
+    case 'beads':
+      return <Beads text={p.text} glow={p.glow === true} />
+    case 'pointer':
+      return <Pointer label={p.label} />
+    case 'lamps':
+      return <Lamps on={p.on} />
+    case 'codes':
+      return <Codes chars={p.chars} />
+    case 'scale':
+      return <Scale view={view} parcels={p.parcels} each={p.each} />
   }
 }
+
+/** The word for a slot's kind, as the picture writes it under a value. A
+ *  char is Python's str one character long, and says so: the shelf shows
+ *  five ideas, but Python has four types (R8). */
+const kindWord = (k: TypeSlot): string => (k === 'char' ? 'str · length 1' : k)
 
 /** One sentence a screen reader can say for the picture as it stands. */
 export function describe(view: PropView): string {
@@ -163,19 +224,37 @@ export function describe(view: PropView): string {
   const t = textOf(a)
   switch (p.kind) {
     case 'lamp':
-      return b === true ? 'A lamp, lit.' : t !== null ? `A lamp, dark, with a note on it that says ${t}.` : 'A lamp on a switch, dark.'
+      return b === true || (a === null && p.demo === 'on')
+        ? `A lamp, lit${a === null ? ': the switch says True' : ''}.`
+        : t !== null
+          ? `A lamp, dark, with a note on it that says ${t}.`
+          : p.demo === 'off'
+            ? 'A lamp, dark: the switch says False.'
+            : 'A lamp on a switch, dark.'
     case 'fish':
-      return b === null ? 'A fish and a bird: are they the same?' : b ? 'A fish with wings drawn on: the robot said True.' : 'A fish, not a bird: the robot said False.'
+      return t !== null
+        ? `A fish with a note stuck on it that says ${t}. Nothing happens.`
+        : b === null
+          ? 'A fish and a bird: are they the same?'
+          : b
+            ? 'A fish with wings drawn on: the robot said True.'
+            : 'A fish, not a bird: the robot said False.'
     case 'basket':
-      return `A basket with ${p.apples} apples.${n !== null ? ` The robot counted ${a!.repr}.` : ''}`
+      return `A basket with ${p.apples} apples.${
+        p.demo === 'count' ? ` Counted in one at a time: ${p.apples}.` : p.demo === 'half' ? ` Half an apple bounces off; the count stays ${p.apples}.` : ''
+      }${n !== null ? ` The robot counted ${a!.repr}.` : ''}`
     case 'lift':
       return n === null
-        ? `A building with floors ${p.lowest} to ${p.highest}. Floor 0 is the ground.`
+        ? p.demo !== undefined
+          ? `The lift goes to floor ${p.demo}.`
+          : `A building with floors ${p.lowest} to ${p.highest}. Floor 0 is the ground.`
         : Number.isInteger(n)
           ? `The lift is at floor ${n}.`
           : `The lift is stuck between floors at ${a!.repr}.`
     case 'glass':
-      return `A glass filled halfway.${n !== null ? ` The other glass is filled to ${a!.repr}.` : ''}`
+      return p.demo === 'fill'
+        ? 'A glass filling smoothly, with no steps on the way.'
+        : `A glass filled halfway.${n !== null ? ` The other glass is filled to ${a!.repr}.` : ''}`
     case 'height':
       return n === null ? 'A height chart in metres.' : `A person ${a!.repr} metres tall on a height chart.`
     case 'carton':
@@ -187,7 +266,11 @@ export function describe(view: PropView): string {
     case 'kinds':
       return 'Three boxes, one inside the next: bool inside int inside float, with every value said so far in its box.'
     case 'tiles':
-      return t !== null ? `Letter tiles: ${[...t].join(', ')}.` : n !== null ? `A block of ${a!.repr}.` : `Blocks: ${(p.parts ?? ['7', '+', '7']).join(' ')}.`
+      return t !== null
+        ? `Letter tiles: ${[...t].join(', ')}.`
+        : n !== null
+          ? `A block of ${a!.repr}.`
+          : `Blocks: ${(p.parts ?? ['7', '+', '7']).join(' ')}.${p.demo === 'stamp' ? ' The word stamps itself that many times.' : ''}`
     case 'crates':
       return `${p.crates} crates with ${p.each} bolts in each.${n !== null ? ` ${a!.repr} bolts lit.` : ''}`
     case 'share':
@@ -195,7 +278,9 @@ export function describe(view: PropView): string {
     case 'bolts':
       return `${p.have} bolts, ${p.use} of them used.${n !== null ? ` The robot says ${a!.repr} are left.` : ''}`
     case 'balance':
-      return `A balance: ${p.left} ${p.op} ${p.right}?${b !== null ? ` The robot says ${a!.repr}.` : ''}`
+      return `A balance: ${p.left} ${p.op} ${p.right}?${p.lamp ? ` A lamp beside it says ${holds(p.left, p.op, p.right) ? 'True' : 'False'}.` : ''}${
+        b !== null ? ` The robot says ${a!.repr}.` : ''
+      }`
     case 'expr':
       return `${p.text}: ${p.first} first, then ${p.then.join(', then ')}.`
     case 'phone':
@@ -206,16 +291,54 @@ export function describe(view: PropView): string {
       return t !== null ? `A card for Mira that says: ${t}.` : 'A blank card for Mira.'
     case 'letter':
       return n !== null ? `The letter ${p.char}, turned over: ${a!.repr}.` : `A tile with the letter ${p.char} on it.`
+    case 'shelf': {
+      const s = shelved(p.filled, view.heard, p.examples ?? {})
+      const slots = SLOTS.map((k) =>
+        p.filled.includes(k) ? `${k}: ${[...s[k].examples.map((e) => e.text), ...s[k].heard].join(', ')}` : `a slot marked ?${s[k].heard.length ? ` holding ${s[k].heard.join(', ')}` : ''}`,
+      )
+      return `A shelf of five slots${p.title ? ', labelled Data types' : ''}. ${slots.join('; ')}.${p.later ? ' Beside it, empty chips in square brackets, for later.' : ''}`
+    }
+    case 'numberline': {
+      const at = n ?? p.mark
+      return `A number line from ${p.from} to ${p.to}.${at !== undefined ? ` A marker stops at ${p.unnamed && n === null ? 'a point between the ticks' : at}.` : ''}`
+    }
+    case 'letters':
+      return `Letters floating up: ${p.chars.join(', ')}.`
+    case 'char':
+      return `One character, ${p.char}${p.clasps ? ', held by its quotes like clasps' : ''}.`
+    case 'contrast': {
+      const side = (s: ContrastSide) => `${s.text}${s.result !== undefined ? ` makes ${s.result}` : ''}, ${kindWord(s.resultKind ?? s.kind)}`
+      return `Side by side: ${side(p.left)}; and ${side(p.right)}.`
+    }
+    case 'beads':
+      return `The characters of ${p.text} as beads on a thread, a quote at each end${p.glow ? ', glowing: where it starts and stops' : ''}.`
+    case 'pointer':
+      return `An arrow to the console: ${p.label}.`
+    case 'lamps':
+      return `${p.on} lit lamps, each True, each a 1: added up, ${p.on}.`
+    case 'codes':
+      return `Letters on a number line at their codes: ${codeLine(p.chars)
+        .map((c) => `${c.char} at ${c.code}`)
+        .join(', ')}.`
+    case 'scale':
+      return `${p.parcels} parcels of ${p.each} kg and a scale.${n !== null ? ` On the scale, it reads ${a!.repr} kg.` : ''}`
   }
 }
 
+/** Whether `left op right` holds: the balance's own truth. */
+const holds = (left: number, op: '>' | '<' | '==', right: number): boolean => (op === '==' ? left === right : op === '>' ? left > right : left < right)
+
 /* --- lamp: a switch is a bool --- */
 
-function Lamp({ view }: { view: PropView }) {
-  const on = boolOf(view.answer) === true
+function Lamp({ view, demo }: { view: PropView; demo: 'on' | 'off' | undefined }) {
+  // The narration's switch holds only while nothing has been answered:
+  // an answer is always drawn as itself. The demo's class stays either
+  // way, because taking it away would change which animation the lamp
+  // runs, and a changed animation starts again.
+  const on = view.answer ? boolOf(view.answer) === true : demo === 'on'
   const note = textOf(view.answer)
   return (
-    <g className={`lamp ${on ? 'on' : ''}`}>
+    <g className={`lamp ${on ? 'on' : ''} ${demo ? `demo-${demo}` : ''}`}>
       <circle cx="92" cy="50" r="40" className="lamp-glow" />
       <line x1="92" y1="46" x2="92" y2="126" className="pole" />
       <ellipse cx="92" cy="126" rx="18" ry="4" className="lamp-base" />
@@ -252,6 +375,9 @@ function Lamp({ view }: { view: PropView }) {
 
 function Fish({ view }: { view: PropView }) {
   const b = boolOf(view.answer)
+  // A word is for people: stuck on the fish, it grows no wings and
+  // settles nothing — the sign still asks.
+  const note = textOf(view.answer)
   return (
     <g className={`fishbowl ${b === true ? 'said-true' : b === false ? 'said-false' : ''}`}>
       <rect x="0" y="92" width="200" height="38" className="water" />
@@ -281,6 +407,14 @@ function Fish({ view }: { view: PropView }) {
         </g>
         <path d="M -3 12 v 10 M 5 12 v 10" className="legs" />
       </g>
+      {note !== null && (
+        <g className="note" transform="translate(30,84) rotate(-7)">
+          <rect x="0" y="0" width="46" height="22" rx="2" />
+          <text x="23" y="14.5">
+            {short(note, 8)}
+          </text>
+        </g>
+      )}
     </g>
   )
 }
@@ -296,14 +430,36 @@ const APPLE_AT: [number, number][] = [
   [100, 48],
 ]
 
-function Basket({ view, apples }: { view: PropView; apples: number }) {
+function Basket({ view, apples, demo }: { view: PropView; apples: number; demo: 'count' | 'half' | undefined }) {
   const n = numberOf(view.answer)
   const whole = n === null ? 0 : clamp(Math.floor(Math.max(n, 0)), 0, 10)
   const part = n !== null && n > 0 && !Number.isInteger(n) && whole < 10
   const count = whole + (part ? 1 : 0)
   const x0 = 100 - ((count - 1) * 17) / 2
+  const shown = Math.min(apples, APPLE_AT.length)
   return (
-    <g className="basket">
+    <g className={`basket ${demo ? `demo-${demo}` : ''}`}>
+      {demo && (
+        // The counter. Its digits are a column behind a window, rolled
+        // one step as each apple lands (`steps()` in the CSS), so it can
+        // only ever show a whole number: there is no frame at 2½. At rest
+        // it shows the last.
+        <g className="counter" transform="translate(170,98)">
+          <clipPath id="basket-counter">
+            <rect x="-12" y="-11" width="24" height="22" rx="6" />
+          </clipPath>
+          <rect x="-14" y="-13" width="28" height="26" rx="8" className="counter-face" />
+          <g clipPath="url(#basket-counter)">
+            <g className="counter-roll" style={{ ['--n' as string]: shown }}>
+              {Array.from({ length: shown + 1 }, (_, k) => (
+                <text key={k} y={5.5 + (k - shown) * 22} className="counter-num">
+                  {k === 0 ? '' : k}
+                </text>
+              ))}
+            </g>
+          </g>
+        </g>
+      )}
       {APPLE_AT.slice(0, apples).map(([x, y], i) => (
         <g key={i} className="apple" style={{ ['--i' as string]: i }} transform={`translate(${x},${y})`}>
           <g className="apple-drop">
@@ -313,6 +469,17 @@ function Basket({ view, apples }: { view: PropView; apples: number }) {
           </g>
         </g>
       ))}
+      {demo === 'half' && (
+        // Half an apple comes down on the rim beside the others and
+        // bounces off. At rest it is gone; the whole of its visit is the
+        // demonstration.
+        <g className="half-apple" transform="translate(146,69)">
+          <g className="half-apple-fly">
+            <path d="M 0 -11 a 11 11 0 0 0 0 22 z" className="apple-skin" />
+            <path d="M 0 -11 v 22" className="apple-cut" />
+          </g>
+        </g>
+      )}
       <path d="M 56 80 h 88 l -10 40 h -68 z" className="basket-body" />
       <path d="M 60 92 h 80 M 63 104 h 74" className="weave" />
       {Array.from({ length: count }, (_, i) => {
@@ -336,16 +503,19 @@ function Basket({ view, apples }: { view: PropView; apples: number }) {
 
 /* --- lift: whole floors, below zero too --- */
 
-function Lift({ view, lowest, highest }: { view: PropView; lowest: number; highest: number }) {
+function Lift({ view, lowest, highest, demo }: { view: PropView; lowest: number; highest: number; demo: number | undefined }) {
   const floors = highest - lowest + 1
   const h = 118 / floors
   /** The top edge of a floor's storey, in SVG units. */
   const top = (f: number) => 6 + (highest - f) * h
   const ground = top(0) + h
-  const n = numberOf(view.answer)
+  // An answer is drawn as itself; the narration's floor only stands in
+  // for one, and it is always a whole floor.
+  const answered = numberOf(view.answer)
+  const n = answered ?? (view.answer === null && demo !== undefined ? Math.round(demo) : null)
   const at = n === null ? 0 : clamp(n, lowest, highest)
   const stuck = n !== null && !Number.isInteger(n) && n >= lowest && n <= highest
-  const outside = n !== null && (n < lowest || n > highest)
+  const outside = answered !== null && (answered < lowest || answered > highest)
   const list = Array.from({ length: floors }, (_, i) => highest - i)
   return (
     <g className="lift">
@@ -383,7 +553,7 @@ function Lift({ view, lowest, highest }: { view: PropView; lowest: number; highe
         </g>
       )}
       {outside && (
-        <text x="172" y={n! > highest ? 16 : 122} className="no-floor">
+        <text x="172" y={answered! > highest ? 16 : 122} className="no-floor">
           no {view.answer!.repr}
         </text>
       )}
@@ -395,7 +565,7 @@ function Lift({ view, lowest, highest }: { view: PropView; lowest: number; highe
 
 function Glass({ x, level, className, children }: { x: number; level: number; className?: string; children?: ReactNode }) {
   // Interior: 38 units wide at the top, 30 at the bottom, 76 tall.
-  const clip = `glass-${className ?? 'g'}-${x}`
+  const clip = `glass-${(className ?? 'g').replace(/\s+/g, '-')}-${x}`
   const shown = clamp(level, 0, 1)
   return (
     <g className={`glass ${className ?? ''}`} transform={`translate(${x},0)`}>
@@ -436,6 +606,20 @@ function Glasses({ view, level }: { view: PropView; level: number }) {
       <text x="150" y="128" className="glass-caption">
         {n === null ? 'your answer' : view.answer!.repr}
       </text>
+    </g>
+  )
+}
+
+/** One glass filling, slowly and smoothly: a measurement has no steps
+ *  to stop on, which is the whole difference from counting. No scale is
+ *  drawn, because a scale's marks would be steps. */
+function Filling({ level }: { level: number }) {
+  return (
+    <g className="glasses filling">
+      <g transform="translate(100,126) scale(1.25) translate(-100,-118)">
+        <line x1="100" x2="100" y1="16" y2="116" className="pour slow" />
+        <Glass x={100} level={level} className="given slow" />
+      </g>
     </g>
   )
 }
@@ -664,9 +848,10 @@ function Kinds({ view }: { view: PropView }) {
 
 /* --- tiles: numbers add, text sticks together --- */
 
-function Tiles({ view, parts }: { view: PropView; parts: string[] }) {
+function Tiles({ view, parts, stamp }: { view: PropView; parts: string[]; stamp: boolean }) {
   const t = textOf(view.answer)
   const n = numberOf(view.answer)
+  if (stamp && t === null && n === null) return <Stamps parts={parts} />
   if (t !== null) {
     const chars = [...t].slice(0, 10)
     // As big as they fit: two tiles are the point of `"7" + "7"`, and
@@ -765,6 +950,48 @@ function Parts({ parts }: { parts: string[] }) {
           </g>
         )
       })}
+    </g>
+  )
+}
+
+/**
+ * A str times an int, done where it can be seen: the sum on top, and
+ * under it the word stamping itself down, once per count, side by side.
+ * Only the first str and the first int of `parts` are read; anything
+ * else in the sum is drawn, not stamped.
+ */
+function Stamps({ parts }: { parts: string[] }) {
+  const word = parts.find((x) => /^".*"$/.test(x))
+  const times = Number(parts.find((x) => /^\d+$/.test(x)) ?? 0)
+  const chars = word ? [...word.slice(1, -1)] : []
+  const count = clamp(times, 0, 6)
+  const T = 16
+  const gap = 5
+  const one = chars.length * T
+  const total = count * one + Math.max(0, count - 1) * gap
+  const k = Math.min(1, 186 / Math.max(total, 1))
+  return (
+    <g className="tiles blocks stamping">
+      <g transform="translate(0,-22)">
+        <Parts parts={parts} />
+      </g>
+      <g transform={`translate(${100 - (total * k) / 2},76) scale(${k})`}>
+        {Array.from({ length: count }, (_, i) => (
+          <g key={i} className="stamp" style={{ ['--i' as string]: i }} transform={`translate(${i * (one + gap)},0)`}>
+            {chars.map((c, j) => (
+              <g key={j} className="stamp-tile" transform={`translate(${j * T},0)`}>
+                <rect width={T - 1.5} height="26" rx="3" />
+                <text x={(T - 1.5) / 2} y="18.5" style={{ fontSize: '14px' }}>
+                  {c}
+                </text>
+              </g>
+            ))}
+          </g>
+        ))}
+      </g>
+      <text x="100" y="122" className="tiles-caption stamp-caption">
+        {word ?? '""'}, {count} time{count === 1 ? '' : 's'}
+      </text>
     </g>
   )
 }
@@ -885,7 +1112,8 @@ function Bolts({ view, have, use }: { view: PropView; have: number; use: number 
 
 /* --- balance: a question makes a bool --- */
 
-function Balance({ view, left, right, op }: { view: PropView; left: number; right: number; op: '>' | '<' | '==' }) {
+function Balance({ view, left, right, op, lamp }: { view: PropView; left: number; right: number; op: '>' | '<' | '=='; lamp: boolean }) {
+  const truth = holds(left, op, right)
   const b = boolOf(view.answer)
   const tilt = left === right ? 0 : left > right ? -8 : 8
   const stack = (count: number, x: number, split?: number) =>
@@ -928,6 +1156,18 @@ function Balance({ view, left, right, op }: { view: PropView; left: number; righ
         <rect x="-44" y="-11" width="88" height="20" rx="10" />
         <text y="3.5">{b !== null && view.verdict === 'right' ? `${question} → ${view.answer!.repr}` : `${question} ?`}</text>
       </g>
+      {lamp && (
+        // The comparison's answer, as the thing it is: a lamp, on or off.
+        // It lights once the beam has settled, because the answer is
+        // what the weighing *found*.
+        <g className={`verdict-lamp ${truth ? 'on' : ''}`} transform="translate(180,12)">
+          <circle r="13" className="lamp-glow" />
+          <path d="M -7 -10 h 14 l 4 8 h -22 z" className="shade" />
+          <circle cy="2" r="5" className="bulb-glass" />
+          <rect x="-15" y="10" width="30" height="12" rx="6" className="verdict-pill" />
+          <text y="19">{truth ? 'True' : 'False'}</text>
+        </g>
+      )}
     </g>
   )
 }
@@ -1099,6 +1339,497 @@ function Letter({ view, char }: { view: PropView; char: string }) {
       <text x="100" y="114" className="letter-caption">
         {n === null ? `"${char}"` : `"${char}"  →  ${n}`}
       </text>
+    </g>
+  )
+}
+
+/* --- shelf: five data types, each in its slot --- */
+
+const CUBBY_W = 37
+const CUBBY_PITCH = 40.75
+/** The first chip's top, inside its slot, and the distance between. */
+const CHIP_TOP = 20
+const CHIP_PITCH = 13
+/** How many rows a slot has under its label. */
+const CHIP_ROWS = 5
+
+type ShelfRow = { key: string; text: string; cls: string; tag?: boolean }
+
+function Shelf({ view, p }: { view: PropView; p: Extract<Prop, { kind: 'shelf' }> }) {
+  const examples = p.examples ?? {}
+  const named = (k: TypeSlot) => p.filled.includes(k)
+  // The char slot's tag (`str · length 1`) takes two rows of its own.
+  const tagRows = (k: TypeSlot) => (k === 'char' && named(k) ? 2 : 0)
+  const room: Partial<Record<TypeSlot, number>> = {}
+  for (const k of SLOTS) room[k] = Math.max(0, CHIP_ROWS - (named(k) ? (examples[k] ?? SLOT_EXAMPLES[k]).length : 0) - tagRows(k))
+  const s = shelved(p.filled, view.heard, examples, room)
+  // Only the newcomer flies in. A shelf drawn again from nothing — a
+  // new element, a remount — shows the others already standing.
+  const newest = p.filled[p.filled.length - 1]
+  const latest = view.answer ? { slot: slotOf(view.answer), text: chipText(view.answer) } : null
+  const isLatest = (slot: TypeSlot, text: string) => latest !== null && latest.slot === slot && latest.text === text
+  const rows = (k: TypeSlot): ShelfRow[] => [
+    ...s[k].examples.map((e) => ({ key: `x:${e.text}`, text: e.text, cls: `example ${e.said ? 'said' : ''}` })),
+    ...(tagRows(k) ? [{ key: 'tag', text: '', cls: '', tag: true }] : []),
+    ...s[k].heard.map((h) => ({ key: `h:${h}`, text: h, cls: 'heard' })),
+  ]
+  return (
+    <g className={`shelf ${p.pulse ? 'pulse' : ''} ${p.cheer ? 'cheer' : ''}`}>
+      {p.title && (
+        <g className="shelf-title">
+          <path d="M 34 7 h 30 M 136 7 h 30" />
+          <text x="100" y="10.5">
+            Data types
+          </text>
+        </g>
+      )}
+      <rect x="-2" y="104" width="204" height="5" rx="2" className="plank" />
+      {SLOTS.map((k, i) => {
+        const list = rows(k)
+        const empty = !named(k) && list.length === 0
+        let row = 0
+        return (
+          <g
+            key={k}
+            className={`cubby ${named(k) ? 'named' : ''} ${k === newest ? 'fresh' : ''}`}
+            data-kind={k}
+            transform={`translate(${0.5 + i * CUBBY_PITCH},16)`}
+            style={{ ['--i' as string]: i }}
+          >
+            <rect width={CUBBY_W} height="88" rx="4" className="cubby-box" />
+            {empty ? (
+              <text x={CUBBY_W / 2} y="54" className="q">
+                ?
+              </text>
+            ) : (
+              <text x={CUBBY_W / 2} y="13" className={named(k) ? 'slot-label' : 'q small'}>
+                {named(k) ? k : '?'}
+              </text>
+            )}
+            {list.map((r) => {
+              const at = row
+              row += r.tag ? tagRows(k) : 1
+              const y = CHIP_TOP + at * CHIP_PITCH
+              return r.tag ? (
+                <g key={r.key} className="char-tag" transform={`translate(${CUBBY_W / 2},${y})`} style={{ ['--j' as string]: at }}>
+                  <text y="8">str ·</text>
+                  <text y="17">length 1</text>
+                </g>
+              ) : (
+                <g
+                  key={r.key}
+                  className={`chip ${r.cls} ${isLatest(k, r.text) ? 'latest' : ''}`}
+                  data-kind={k}
+                  transform={`translate(3,${y})`}
+                  style={{ ['--j' as string]: at }}
+                >
+                  <rect width={CUBBY_W - 6} height="11" rx="5.5" />
+                  <text x={(CUBBY_W - 6) / 2} y="8">
+                    {short(r.text, 8)}
+                  </text>
+                </g>
+              )
+            })}
+          </g>
+        )
+      })}
+      {p.later && (
+        <g className="later">
+          <text x="60" y="122" className="bracket">
+            [
+          </text>
+          {[0, 1, 2].map((j) => (
+            <rect key={j} x={68 + j * 22} y="113" width="18" height="10" rx="5" className="ghost" style={{ ['--j' as string]: j }} />
+          ))}
+          <text x="136" y="122" className="bracket">
+            ]
+          </text>
+          <g transform="translate(160,118)" className="later-tag">
+            <rect x="-17" y="-6.5" width="34" height="13" rx="6.5" />
+            <text y="3">later</text>
+          </g>
+        </g>
+      )}
+    </g>
+  )
+}
+
+/* --- numberline: a measurement lands between the whole numbers --- */
+
+function NumberLine({ view, p }: { view: PropView; p: Extract<Prop, { kind: 'numberline' }> }) {
+  const span = Math.max(p.to - p.from, 1e-9)
+  const x = (v: number) => 20 + ((v - p.from) / span) * 160
+  const n = numberOf(view.answer)
+  const value = n ?? p.mark
+  const at = value === undefined ? null : clamp(value, p.from, p.to)
+  const whole: number[] = []
+  const step = span > 20 ? Math.ceil(span / 10) : 1
+  for (let v = Math.ceil(p.from); v <= p.to; v += step) whole.push(v)
+  const tenths: number[] = []
+  if (span <= 2) for (let v = Math.ceil(p.from * 10); v <= p.to * 10; v++) if (v % 10 !== 0) tenths.push(v / 10)
+  const written = n !== null ? view.answer!.repr : p.unnamed || p.mark === undefined ? null : String(p.mark)
+  const fraction = at === null ? 0 : (at - p.from) / span
+  return (
+    <g className="numberline">
+      <rect x="20" y="72" width="160" height="10" rx="5" className="track" />
+      {/* The measured stretch: grows smoothly with the marker, never in steps. */}
+      <rect x="20" y="72" width="160" height="10" rx="5" className="measured" style={{ transform: `scaleX(${fraction})` }} />
+      {tenths.map((v) => (
+        <line key={v} x1={x(v)} x2={x(v)} y1="84" y2="89" className="tick minor" />
+      ))}
+      {whole.map((v) => (
+        <g key={v}>
+          <line x1={x(v)} x2={x(v)} y1="84" y2="94" className="tick" />
+          <text x={x(v)} y="108" className="whole-label">
+            {v}
+          </text>
+        </g>
+      ))}
+      {at !== null && (
+        <g className="marker" style={{ translate: `${x(at)}px 0`, ['--from-x' as string]: `${x(p.from)}px` }}>
+          <path d="M 0 70 l -7 -12 h 14 z" />
+          {written !== null && (
+            <text y="50" className="mark-value">
+              {written}
+            </text>
+          )}
+        </g>
+      )}
+    </g>
+  )
+}
+
+/* --- letters: what a person reads --- */
+
+/** Where each letter comes to rest: spread across the slot in a loose
+ *  wave, a little tilted, the same every time. */
+const LETTER_Y = [34, 56, 40, 62, 30, 52, 44]
+const LETTER_TILT = [-8, 5, -3, 9, -6, 3, -10]
+
+function Letters({ chars }: { chars: string[] }) {
+  const shown = chars.slice(0, 10)
+  const pitch = Math.min(30, 180 / Math.max(shown.length, 1))
+  const x0 = 100 - ((shown.length - 1) * pitch) / 2
+  const size = Math.min(24, pitch - 3)
+  return (
+    <g className="letters">
+      {shown.map((c, i) => (
+        <g key={i} transform={`translate(${x0 + i * pitch},${LETTER_Y[i % LETTER_Y.length]}) rotate(${LETTER_TILT[i % LETTER_TILT.length]})`}>
+          <g className="letter-float" style={{ ['--i' as string]: i }}>
+            <rect x={-size / 2} y={-size * 0.6} width={size} height={size * 1.2} rx="4" />
+            <text y={size * 0.3} style={{ fontSize: `${size * 0.72}px` }}>
+              {c === ' ' ? '␣' : c}
+            </text>
+          </g>
+        </g>
+      ))}
+    </g>
+  )
+}
+
+/* --- char: one character, held by its quotes --- */
+
+function Char({ char, clasps }: { char: string; clasps: boolean }) {
+  return (
+    <g className={`char-prop ${clasps ? 'clasped' : ''}`}>
+      <g className="char-tile">
+        <rect x="74" y="20" width="52" height="64" rx="8" />
+        <text x="100" y="67">
+          {char}
+        </text>
+      </g>
+      {clasps ? (
+        <>
+          {/* The quotes themselves as the clasps: Python's straight
+              quotes, grown thick and closed over the tile's top corners.
+              Not brackets round it — brackets are a list's. */}
+          {[
+            { side: 'left', x: 74 },
+            { side: 'right', x: 126 },
+          ].map((c) => (
+            <g key={c.side} className={`clasp ${c.side}`}>
+              <rect x={c.x - 9} y="12" width="7" height="22" rx="3.5" />
+              <rect x={c.x + 2} y="12" width="7" height="22" rx="3.5" />
+            </g>
+          ))}
+        </>
+      ) : (
+        <>
+          <text x="62" y="46" className="plain-quote">
+            "
+          </text>
+          <text x="138" y="46" className="plain-quote">
+            "
+          </text>
+        </>
+      )}
+      <text x="100" y="112" className="char-caption">
+        one character
+      </text>
+    </g>
+  )
+}
+
+/* --- contrast: two things, one difference --- */
+
+function Contrast({ left, right }: { left: ContrastSide; right: ContrastSide }) {
+  return (
+    <g className="contrast">
+      <Side side={left} x={50} i={0} />
+      <text x="100" y="58" className="versus">
+        ≠
+      </text>
+      <Side side={right} x={150} i={1} />
+    </g>
+  )
+}
+
+function Side({ side, x, i }: { side: ContrastSide; x: number; i: number }) {
+  const W = 84
+  // As large as fits: the one difference should read from across the room.
+  const fit = (text: string, max: number, width: number) => Math.min(max, width / Math.max([...text].length * 0.62, 1))
+  const shownKind = side.resultKind ?? side.kind
+  return (
+    <g className="side" transform={`translate(${x},0)`}>
+      {side.result === undefined ? (
+        <g className="side-card" style={{ ['--i' as string]: i }} data-kind={side.kind}>
+          <rect x={-W / 2} y="14" width={W} height="66" rx="10" />
+          <text y={47 + fit(side.text, 34, W - 12) * 0.36} style={{ fontSize: `${fit(side.text, 34, W - 12)}px` }}>
+            {side.text}
+          </text>
+        </g>
+      ) : (
+        <>
+          <g className="side-card expr" style={{ ['--i' as string]: i }} data-kind={side.kind}>
+            <rect x={-W / 2} y="8" width={W} height="30" rx="8" />
+            <text y={23 + fit(side.text, 15, W - 8) * 0.36} style={{ fontSize: `${fit(side.text, 15, W - 8)}px` }}>
+              {side.text}
+            </text>
+          </g>
+          <path d="M 0 42 v 10 m -4 -4 l 4 4 l 4 -4" className="makes" />
+          <g className="side-card result" style={{ ['--i' as string]: i }} data-kind={shownKind}>
+            <rect x={-W / 2 + 10} y="58" width={W - 20} height="32" rx="8" />
+            <text y={74 + fit(side.result, 20, W - 28) * 0.36} style={{ fontSize: `${fit(side.result, 20, W - 28)}px` }}>
+              {side.result}
+            </text>
+          </g>
+        </>
+      )}
+      <text y={side.result === undefined ? 95 : 104} className="side-kind" data-kind={shownKind}>
+        {kindWord(shownKind)}
+      </text>
+      {side.label && (
+        <text y={side.result === undefined ? 109 : 118} className="side-label">
+          {short(side.label, 20)}
+        </text>
+      )}
+    </g>
+  )
+}
+
+/* --- beads: a string is characters in a row, clasped by its quotes --- */
+
+function Beads({ text, glow }: { text: string; glow: boolean }) {
+  const chars = [...text].slice(0, 12)
+  const pitch = Math.min(24, 136 / Math.max(chars.length, 1))
+  const r = Math.min(10.5, pitch / 2 - 0.5)
+  const x0 = 100 - ((chars.length - 1) * pitch) / 2
+  const first = x0 - r - 11
+  const last = x0 + (chars.length - 1) * pitch + r + 11
+  return (
+    <g className={`beads ${glow ? 'glow' : ''}`}>
+      <path d={`M 8 58 Q 100 ${chars.length ? 66 : 62} 192 58`} className="thread" />
+      {chars.map((c, i) => {
+        const x = x0 + i * pitch
+        return (
+          <g key={i} transform={`translate(${x},62)`}>
+            <g className="bead" style={{ ['--i' as string]: i, ['--dx' as string]: `${8 - x}px` }}>
+              <circle r={r} />
+              <text y={r * 0.38} style={{ fontSize: `${r * 1.15}px` }}>
+                {c === ' ' ? '␣' : c}
+              </text>
+            </g>
+          </g>
+        )
+      })}
+      {[
+        { x: first, word: 'starts', side: 'left' },
+        { x: last, word: 'stops', side: 'right' },
+      ].map((c) => (
+        <g key={c.side} transform={`translate(${c.x},62)`}>
+          {/* A quote, as Python writes it — two straight strokes — made
+              into a clasp that closes the thread. */}
+          <g className={`clasp ${c.side}`} style={{ ['--n' as string]: chars.length }}>
+            <circle r="14" className="halo" />
+            <rect x="-6" y="-13" width="4.5" height="26" rx="2.25" />
+            <rect x="1.5" y="-13" width="4.5" height="26" rx="2.25" />
+          </g>
+          {glow && (
+            <text y="36" className="clasp-word">
+              {c.word}
+            </text>
+          )}
+        </g>
+      ))}
+      <text x="100" y="118" className="beads-caption">
+        "{short(text, 16)}"
+      </text>
+    </g>
+  )
+}
+
+/* --- pointer: your instructions go over there --- */
+
+function Pointer({ label }: { label: string }) {
+  const lines = wrap(label, 18, 3)
+  const w = Math.max(...lines.map((l) => l.length)) * 6.4 + 22
+  const h = lines.length * 14 + 12
+  // The chevrons run on past the picture's own box, off the stage's edge
+  // (which clips them) towards the console beside it; however wide the
+  // stage is, they read as a direction.
+  const from = 100 + w / 2 + 8
+  const chevrons = Array.from({ length: 40 }, (_, i) => from + i * 14)
+  return (
+    <g className="pointer">
+      <g className="pointer-tag">
+        <rect x={100 - w / 2} y={62 - h / 2} width={w} height={h} rx={h / 2 > 14 ? 12 : h / 2} />
+        {lines.map((l, i) => (
+          <text key={i} x="100" y={62 - (lines.length - 1) * 7 + i * 14 + 4}>
+            {l}
+          </text>
+        ))}
+      </g>
+      {chevrons.map((cx, i) => (
+        <path key={i} d={`M ${cx} 55 l 7 7 l -7 7`} className="chevron" style={{ ['--i' as string]: i }} />
+      ))}
+    </g>
+  )
+}
+
+/* --- lamps: True is 1 --- */
+
+function Lamps({ on }: { on: number }) {
+  const n = clamp(Math.round(on), 1, 4)
+  const LW = 30
+  const OW = 22
+  const RW = 36
+  const total = n * LW + (n - 1) * OW + OW + RW
+  const x0 = 100 - total / 2
+  const lampX = (i: number) => x0 + i * (LW + OW) + LW / 2
+  const plusX = (i: number) => lampX(i) + LW / 2 + OW / 2
+  const arrowX = lampX(n - 1) + LW / 2 + OW / 2
+  const resultX = arrowX + OW / 2 + RW / 2
+  return (
+    <g className="lamps">
+      {Array.from({ length: n }, (_, i) => (
+        <g key={i} transform={`translate(${lampX(i)},0)`} className="one-lamp" style={{ ['--i' as string]: i }}>
+          <circle cy="30" r="17" className="lamp-glow" />
+          <path d="M -9 12 h 18 l 5 11 h -28 z" className="shade" />
+          <circle cy="30" r="7" className="bulb-glass" />
+          <rect x="-15" y="46" width="30" height="13" rx="6.5" className="true-pill" />
+          <text y="55.5" className="true-text">
+            True
+          </text>
+          <g className="as-one">
+            <rect x="-11" y="74" width="22" height="22" rx="5" className="one-block" />
+            <text y="89.5" className="one-text">
+              1
+            </text>
+          </g>
+        </g>
+      ))}
+      {Array.from({ length: n - 1 }, (_, i) => (
+        <g key={i}>
+          <text x={plusX(i)} y="57" className="op">
+            +
+          </text>
+          <text x={plusX(i)} y="90" className="op as-one-op" style={{ ['--n' as string]: n }}>
+            +
+          </text>
+        </g>
+      ))}
+      <text x={arrowX} y="90" className="op as-one-op" style={{ ['--n' as string]: n }}>
+        =
+      </text>
+      <g className="sum" style={{ ['--n' as string]: n }}>
+        <rect x={resultX - RW / 2} y="70" width={RW} height="30" rx="7" className="one-block" />
+        <text x={resultX} y="91" className="sum-text">
+          {n}
+        </text>
+        <text x={resultX} y="113" className="sum-kind">
+          int
+        </text>
+      </g>
+    </g>
+  )
+}
+
+/* --- codes: every character is secretly a number --- */
+
+function Codes({ chars }: { chars: string }) {
+  const placed = codeLine(chars).slice(0, 8)
+  const x = (at: number) => 16 + at * 168
+  return (
+    <g className="codes">
+      <line x1="12" x2="188" y1="88" y2="88" className="axis" />
+      {placed.map((c, i) => (
+        <g key={c.char}>
+          <line x1={x(c.at)} x2={x(c.at)} y1="84" y2="94" className="tick" />
+          <text x={x(c.at)} y="108" className="code-num" style={{ ['--i' as string]: i }}>
+            {c.code}
+          </text>
+          <g transform={`translate(${x(c.at)},0)`}>
+            <g className="code-tile" style={{ ['--i' as string]: i, ['--dx' as string]: `${-x(c.at) - 20}px` }}>
+              <path d="M 0 74 v 8" className="drop" />
+              <rect x="-12" y="40" width="24" height="30" rx="5" />
+              <text y="62">{c.char === ' ' ? '␣' : c.char}</text>
+            </g>
+          </g>
+        </g>
+      ))}
+    </g>
+  )
+}
+
+/* --- scale: the robot's answer, weighed --- */
+
+function Scale({ view, parcels, each }: { view: PropView; parcels: number; each: number }) {
+  const n = numberOf(view.answer)
+  const count = clamp(Math.round(parcels), 1, 12)
+  const cols = Math.min(count, 4)
+  const on = n !== null
+  const off = on && Math.abs(n - count * each) > 1e-9
+  const PW = 22
+  const PH = 14
+  // Where each parcel stands: on the scale once weighed, waiting on the
+  // floor beside it before.
+  const place = (i: number) =>
+    on
+      ? ([122 - (cols * (PW + 1)) / 2 + (i % cols) * (PW + 1), 81.5 - Math.floor(i / cols) * (PH + 1)] as const)
+      : ([6 + (i % 2) * (PW + 1), 110 - Math.floor(i / 2) * (PH + 1)] as const)
+  return (
+    <g className={`scale ${on ? 'weighed' : ''} ${off ? 'off' : ''}`} style={{ ['--n' as string]: count }}>
+      <line x1="0" x2="200" y1="125" y2="125" className="floor" />
+      <rect x="112" y="100" width="20" height="6" className="post" />
+      <rect x="66" y="96" width="112" height="5" rx="2" className="platform" />
+      <rect x="76" y="104" width="92" height="21" rx="4" className="base" />
+      <rect x="96" y="107" width="52" height="15" rx="2.5" className="readout" />
+      <text x="122" y="118" className="reading" key={on ? view.answer!.repr : 'none'}>
+        {on ? `${short(view.answer!.repr, 6)} kg` : '? kg'}
+      </text>
+      {Array.from({ length: count }, (_, i) => {
+        const [px, py] = place(i)
+        return (
+          <g key={`${on ? 'on' : 'wait'}:${i}`} transform={`translate(${px},${py})`}>
+            <g className="parcel" style={{ ['--i' as string]: i }}>
+              <rect width={PW} height={PH} rx="1.5" />
+              <text x={PW / 2} y="9.5">
+                {each} kg
+              </text>
+            </g>
+          </g>
+        )
+      })}
     </g>
   )
 }

@@ -15,12 +15,29 @@
  * word, `*` before `+`, a copied name expected to follow the original —
  * the judge says *which* mistake, because "wrong" teaches nothing.
  *
+ * How an exercise talks follows the lessons' rubric (docs/PEDAGOGY.md §2):
+ *
+ * - `say` is the question and nothing else (R3). Anything the player needs
+ *   to know first — what the setup did, a fact from the story — is a
+ *   `lead` beat before it, one sentence each (R2).
+ * - `tag` says who does the work (R4), and the bubble wears it as a pill.
+ *   The test is the rubric's: if a right answer typed by hand is refused,
+ *   the robot does the work. Every `robot` judge checks the *source* as
+ *   well as the value, so the answer the question forbids cannot pass it:
+ *   the working must be the question's own (its numbers or words, and its
+ *   operator), so the answer plus a no-op (`6 + 0`) is refused too. Every
+ *   `you` judge wants the answer typed as itself (`literal`), so the same
+ *   question on the same picture is never accepted by one skill and
+ *   refused by another.
+ * - `praise` names the reason it was right (R9), and every `why` names
+ *   the mistake (R10), in a sentence short enough to read at a glance.
+ *
  * Every generator is deterministic in its seed: the same seed is the same
  * question, which is what makes a session reproducible in a test.
  */
 import type { Thought } from '../memory/extract'
 import type { MemorySnapshot } from '../memory/model'
-import type { Prop } from '../scene/props'
+import { textOf, type Prop } from '../scene/props'
 import { bin, evaluate, int, render, repr, str, type BinOp, type Expr } from './python'
 
 /* ------------------------------ randomness ------------------------------ */
@@ -62,12 +79,25 @@ export type Verdict = 'correct' | 'wrong' | 'ignore'
 
 export type Judgement = { verdict: Verdict; why?: string | undefined }
 
+/** Who does the work: the player, from their own head, or the robot,
+ *  from a line the player gives it (R4). */
+export type Worker = 'you' | 'robot'
+
 export type Exercise = {
   /** Identifies the question, so a session does not ask it twice. */
   key: string
   skill: string
-  /** What the crow asks. Backticks render as code. */
+  /** The question, and only the question (R3). Backticks render as code. */
   say: string
+  /** Who does the work, worn by the question as a pill. */
+  tag: Worker
+  /** Said before the question when the worker changes, in place of the
+   *  usual line for its tag — for a question where "the answer" is not
+   *  quite what the player gives (a name to keep, an arrow to follow). */
+  who?: string | undefined
+  /** Told before the question, one line a beat: what the setup did, or
+   *  a fact the question stands on. */
+  lead?: string[] | undefined
   /** Lines run before the player starts, and shown as given. */
   setup: string[]
   /** The picture the question is about, drawn on the stage with the
@@ -78,8 +108,8 @@ export type Exercise = {
   /** One line that answers it — shown after two misses, and what the
    *  browser suite types to check the judge against real Python. */
   answer: string
-  /** Said when it is right, after the general praise. */
-  praise?: string | undefined
+  /** Why it was right, said after a word of praise, as its own beat. */
+  praise: string
   /** What `answer` makes the robot think, for an answer that is a bare
    *  expression. Lets a unit test judge each generator's own answer over
    *  thousands of seeds without a Python runtime — which is how a judge
@@ -104,14 +134,33 @@ const failed = (a: Attempt, hints: Record<string, string> = {}): Judgement => ({
   why: hints[errorType(a)] ?? `That stopped with ${article(errorType(a))} ${errorType(a)}.`,
 })
 
-const article = (w: string) => (/^[AEIOU]/.test(w) ? 'an' : 'a')
+const article = (w: string) => (/^[aeiou]/i.test(w) ? 'an' : 'a')
 
 const INT_LITERAL = /^-?\d+$/
-const COMPARISON = /[<>]=?|==|!=/
+/** A sum for the robot: an operator between two things, not just a
+ *  number with a sign in front. */
+const WORKING = /[\w)]\s*(\*\*|\/\/|[-+*/%])\s*[-\w(]/
 /** A number written as itself in the source, not as part of a longer one. */
 const mentions = (source: string, n: number) => new RegExp(`(^|[^\\d.])${n}([^\\d.]|$)`).test(source)
+/** A word written in the source in quotes of either kind. */
+const quotes = (source: string, w: string) => source.includes(`"${w}"`) || source.includes(`'${w}'`)
+/** The operator itself, written between two things. */
+const uses = (source: string, op: string) => source.includes(op)
+/**
+ * The answer typed as itself: one literal and nothing to work out. A
+ * `you` question wants this, because the robot working it out would
+ * answer it for the player; every `you` judge holds to it, so the same
+ * question on the same picture is never judged two ways.
+ */
+const LITERAL = /^(-?(\d+\.?\d*|\.\d+)|True|False|"[^"]*"|'[^']*')$/
+const literal = (source: string) => LITERAL.test(source.trim())
+/** Said when a `you` question was handed to the robot. */
+const YOURS = 'This one is yours: type the answer itself, not a sum for the robot.'
+/** `true` → `True`: the lower-case miss, answered with the right spelling. */
+const lowerBool = (said: string) => (said === 'true' || said === 'false' ? `${said[0]!.toUpperCase()}${said.slice(1)}` : null)
 
 const value = (e: Expr, env = {}) => repr(evaluate(e, env))
+const strRepr = (v: string) => repr({ t: 'str', v })
 
 const OPS_WORD: Partial<Record<BinOp, string>> = { '+': 'plus', '-': 'minus', '*': 'times' }
 
@@ -129,35 +178,81 @@ const PAIRS = [
   ['foot', 'print'],
   ['moon', 'light'],
 ] as const
+/** People in the story, whose names start with a capital. */
+const NAMES = ['Mira'] as const
 const THINGS = ['bolts', 'gears', 'sparks', 'crates', 'wheels', 'wires'] as const
+
+/** The five ideas of data the first level names. A char is an idea, not a
+ *  Python type: Python keeps it as a `str` one character long (R8). */
+type Kind = 'bool' | 'int' | 'float' | 'char' | 'str'
+const PY_TYPE: Record<Kind, string> = { bool: 'bool', int: 'int', float: 'float', char: 'str', str: 'str' }
 
 /** Questions whose kind is decided by what they ask, each about a
  *  picture from the first level, and their answers as Python writes them. */
-const SITUATIONS: { say: string; ask: string; show: Prop; type: 'bool' | 'int' | 'float' | 'str'; value: string; hint: string }[] = [
+const SITUATIONS: { say: string; lead?: string; ask: string; show: Prop; type: Kind; value: string; hint: string; word?: string }[] = [
   { say: 'How many hollows does this egg box have?', ask: 'How many hollows?', show: { kind: 'carton', slots: 6 }, type: 'int', value: '6', hint: 'count the hollows again.' },
   { say: 'How many apples are in the basket?', ask: 'How many apples?', show: { kind: 'basket', apples: 4 }, type: 'int', value: '4', hint: 'count the apples again.' },
   { say: 'Which floor is the car park, one under the ground?', ask: 'Which floor is the car park?', show: { kind: 'lift', lowest: -2, highest: 3 }, type: 'int', value: '-1', hint: 'under the ground needs a minus sign.' },
-  { say: 'How full is the glass? Empty is 0 and full is 1.', ask: 'How full is the glass?', show: { kind: 'glass', level: 0.5 }, type: 'float', value: '0.5', hint: 'the water is exactly halfway.' },
-  { say: 'A football match is two halves of 45 minutes. How long is it, in hours?', ask: 'How many hours is 90 minutes?', show: { kind: 'match' }, type: 'float', value: '1.5', hint: 'halfway between one hour and two.' },
-  { say: 'Is the lamp on?', ask: 'Is the lamp on?', show: { kind: 'lamp' }, type: 'bool', value: 'False', hint: 'but look at the lamp.' },
-  { say: 'Is 3 more than 5? Just answer.', ask: 'Is 3 more than 5?', show: { kind: 'balance', left: 3, right: 5, op: '>' }, type: 'bool', value: 'False', hint: 'but which side of the balance is lower?' },
+  { say: 'How full is the glass, if empty is 0 and full is 1?', ask: 'How full is the glass?', show: { kind: 'glass', level: 0.5 }, type: 'float', value: '0.5', hint: 'the water is exactly halfway.' },
+  { lead: 'A football match is two halves of 45 minutes.', say: 'How long is a match, in hours?', ask: 'How many hours is 90 minutes?', show: { kind: 'match' }, type: 'float', value: '1.5', hint: 'it is halfway between one hour and two.' },
+  { say: 'Is the lamp on?', ask: 'Is the lamp on?', show: { kind: 'lamp' }, type: 'bool', value: 'False', hint: 'look at the lamp again.' },
+  { say: 'Is 3 more than 5?', ask: 'Is 3 more than 5?', show: { kind: 'balance', left: 3, right: 5, op: '>' }, type: 'bool', value: 'False', hint: 'the heavier side of the balance sits lower.' },
   { say: 'Write the name Mira on the card, for Mira to read.', ask: 'Write "Mira" on the card.', show: { kind: 'card' }, type: 'str', value: 'Mira', hint: 'spell it exactly: Mira.' },
   { say: 'Write the word hello on the card, for a person to read.', ask: 'Write "hello" on the card.', show: { kind: 'card' }, type: 'str', value: 'hello', hint: 'spell it exactly: hello.' },
+  { say: 'What letter does the word gear start with?', ask: 'The first letter of "gear"?', show: { kind: 'tiles', parts: ['"gear"'] }, type: 'char', value: 'g', word: 'gear', hint: 'which tile comes first?' },
+  { say: 'What letter does Mira’s name start with?', ask: 'The first letter of "Mira"?', show: { kind: 'tiles', parts: ['"Mira"'] }, type: 'char', value: 'M', word: 'Mira', hint: 'which tile comes first?' },
 ]
 
 /** Why a question wants its kind, said when the kind was wrong. */
-const KIND_WHY: Record<'bool' | 'int' | 'float' | 'str', string> = {
+const KIND_WHY: Record<Kind, string> = {
   bool: 'A yes-or-no question is answered `True` or `False`.',
-  int: 'Things you count are whole numbers — no dot.',
-  float: 'Something measured, between whole numbers, needs a dot.',
+  int: 'Things you count are whole numbers, with no dot.',
+  float: 'A measurement can land between whole numbers, so it needs a dot.',
+  char: 'One letter goes in quotes too, as a `str` one character long.',
   str: 'Words for people go in quotes.',
 }
 
-const KIND_PRAISE: Record<'bool' | 'int' | 'float' | 'str', string> = {
+/** Why a bare word stopped the robot, for each kind a question wants. */
+const NAME_ERROR: Record<Kind, string> = {
+  bool: 'The robot read that as a name, and found none. A yes or no is `True` or `False`.',
+  int: 'The robot read that as a name, and found none. Write the number in digits.',
+  float: 'The robot read that as a name, and found none. Write the number in digits, with a dot.',
+  char: 'Without quotes, the robot looked for a name and found none. A letter goes in quotes.',
+  str: 'Without quotes, the robot looked for a name. Words go in quotes.',
+}
+
+const KIND_PRAISE: Record<Kind, string> = {
   bool: 'Yes or no, so a `bool`.',
   int: 'Counted, so an `int`.',
   float: 'Measured, so a `float`.',
+  char: 'One letter, so a char, which Python keeps as a `str` of length one.',
   str: 'Words for a person, so a `str`.',
+}
+
+/**
+ * Judges a single character the player wrote in quotes: the right letter
+ * of `word`, which the question named. Shared by the char skill and the
+ * char situations of the kind skill, so the two cannot disagree about
+ * what a miss was.
+ */
+function judgeChar(a: Attempt, want: string, word: string, hint: string): Judgement {
+  if (!a.ok) {
+    return failed(a, {
+      NameError: 'Without quotes, the robot looked for a name and found none. A letter goes in quotes.',
+    })
+  }
+  const t = a.thought
+  if (!t) return { verdict: 'ignore' }
+  if (t.type !== 'str') return { verdict: 'wrong', why: `That is ${article(t.type)} \`${t.type}\`. A letter goes in quotes.` }
+  const got = textOf(t) ?? ''
+  const n = [...got].length
+  if (!literal(a.source)) return { verdict: 'wrong', why: YOURS }
+  if (got === want) return { verdict: 'correct' }
+  if (n === 0) return { verdict: 'wrong', why: 'Those quotes hold nothing. Put one letter between them.' }
+  if (got.toLowerCase() === word.toLowerCase()) return { verdict: 'wrong', why: 'That is the whole word. The question wants one letter of it.' }
+  if (n > 1) return { verdict: 'wrong', why: `That is ${n} characters. A character is just one.` }
+  if (got.toLowerCase() === want.toLowerCase()) return { verdict: 'wrong', why: `Nearly: ${word} has ${want === want.toUpperCase() ? 'a capital' : 'a small'} ${want}.` }
+  return { verdict: 'wrong', why: `One letter, but not that one: ${hint}` }
 }
 
 export const GENERATORS: Record<string, Generator> = {
@@ -172,6 +267,7 @@ export const GENERATORS: Record<string, Generator> = {
       return {
         key: `int:apples:${n}`,
         skill: 'int',
+        tag: 'you',
         say: 'How many apples are in the basket?',
         ask: 'How many apples?',
         show: { kind: 'basket', apples: n },
@@ -180,42 +276,43 @@ export const GENERATORS: Record<string, Generator> = {
         expect: { type: 'int', repr: String(n) },
         praise: 'Counted, so an `int`.',
         judge(a) {
-          if (!a.ok) return failed(a, { NameError: 'Write the number with digits, like `3`.' })
+          if (!a.ok) return failed(a, { NameError: 'Write the number in digits, like `3`.' })
           const t = a.thought
           if (!t) return { verdict: 'ignore' }
-          if (t.type === 'float') return { verdict: 'wrong', why: 'The dot means measured. Apples are counted — no dot.' }
-          if (t.type !== 'int') return { verdict: 'wrong', why: `That is a \`${t.type}\`. How many is a whole number.` }
-          if (t.repr !== String(n)) return { verdict: 'wrong', why: 'Count the apples again — your count is drawn above the basket.' }
-          return { verdict: 'correct' }
+          if (t.type === 'float') return { verdict: 'wrong', why: 'The dot means measured, but apples are counted.' }
+          if (t.type !== 'int') return { verdict: 'wrong', why: `That is ${article(t.type)} \`${t.type}\`. A count is a whole number.` }
+          if (t.repr !== String(n)) return { verdict: 'wrong', why: 'Count again: your number is drawn above the basket.' }
+          return literal(a.source) ? { verdict: 'correct' } : { verdict: 'wrong', why: YOURS }
         },
       }
     }
-    const [where, floor] = pick(r, [
-      ['the car park, one floor under the ground', -1],
-      ['the cellar, two floors under the ground', -2],
-      ['the ground floor', 0],
-      ['the top floor', 3],
-      ['two floors up from the ground', 2],
+    const [question, short, floor] = pick(r, [
+      ['Which floor is the car park, one under the ground?', 'Down to the car park.', -1],
+      ['Which floor is the cellar, two under the ground?', 'Down to the cellar.', -2],
+      ['Which floor is the ground floor?', 'To the ground floor.', 0],
+      ['Which floor is the top floor?', 'Up to the top floor.', 3],
+      ['Which floor is two up from the ground?', 'Two floors up.', 2],
     ] as const)
     return {
       key: `int:lift:${floor}`,
       skill: 'int',
-      say: `Send the lift to ${where}. Which floor is that?`,
-      ask: `Which floor is ${where.split(',')[0]}?`,
+      tag: 'you',
+      say: question,
+      ask: short,
       show: { kind: 'lift', lowest: -2, highest: 3 },
       setup: [],
       answer: String(floor),
       expect: { type: 'int', repr: String(floor) },
-      praise: 'Floors are counted, below zero too.',
+      praise: 'Floors are counted, below zero too, so an `int`.',
       judge(a) {
-        if (!a.ok) return failed(a)
+        if (!a.ok) return failed(a, { NameError: 'Write the floor in digits, like `2`.' })
         const t = a.thought
         if (!t) return { verdict: 'ignore' }
-        if (t.type === 'float') return { verdict: 'wrong', why: 'Stuck between floors! A lift stops at whole floors — no dot.' }
-        if (t.type !== 'int') return { verdict: 'wrong', why: `That is a \`${t.type}\`. A floor is a whole number.` }
-        if (floor < 0 && t.repr === String(-floor)) return { verdict: 'wrong', why: 'That is *up*. Under the ground needs a minus sign.' }
-        if (t.repr !== String(floor)) return { verdict: 'wrong', why: `The lift went to floor ${t.repr}. Floor 0 is the ground.` }
-        return { verdict: 'correct' }
+        if (t.type === 'float') return { verdict: 'wrong', why: 'Stuck between floors! A lift stops at whole floors, so no dot.' }
+        if (t.type !== 'int') return { verdict: 'wrong', why: `That is ${article(t.type)} \`${t.type}\`. A floor is a whole number.` }
+        if (floor < 0 && t.repr === String(-floor)) return { verdict: 'wrong', why: 'That sent it up. Under the ground needs a minus sign.' }
+        if (t.repr !== String(floor)) return { verdict: 'wrong', why: `The lift went to floor ${t.repr}, and floor 0 is the ground.` }
+        return literal(a.source) ? { verdict: 'correct' } : { verdict: 'wrong', why: YOURS }
       },
     }
   },
@@ -227,7 +324,8 @@ export const GENERATORS: Record<string, Generator> = {
     return {
       key: `float:glass:${level}`,
       skill: 'float',
-      say: 'How full is the glass? Empty is `0` and full is `1` — measure it.',
+      tag: 'you',
+      say: 'How full is the glass, if empty is `0` and full is `1`?',
       ask: 'How full is the glass?',
       show: { kind: 'glass', level },
       setup: [],
@@ -235,27 +333,28 @@ export const GENERATORS: Record<string, Generator> = {
       expect: { type: 'float', repr: want },
       praise: 'Measured, so a `float`.',
       judge(x) {
-        if (!x.ok) return failed(x)
+        if (!x.ok) return failed(x, { NameError: 'Write the amount in digits, with a dot.' })
         const t = x.thought
         if (!t) return { verdict: 'ignore' }
-        if (t.type === 'tuple' && /,/.test(x.source)) return { verdict: 'wrong', why: 'Python writes the dot as a full stop, not a comma.' }
-        if (t.type === 'int') return { verdict: 'wrong', why: 'No whole number fits — it is between `0` and `1`. Use a dot.' }
-        if (t.type !== 'float') return { verdict: 'wrong', why: `That is a \`${t.type}\`. A measurement is a number with a dot.` }
+        if (t.type === 'tuple' && /,/.test(x.source)) return { verdict: 'wrong', why: 'Python writes the point as a dot, not a comma.' }
+        if (t.type === 'int') return { verdict: 'wrong', why: 'No whole number fits: it is between `0` and `1`, so use a dot.' }
+        if (t.type !== 'float') return { verdict: 'wrong', why: `That is ${article(t.type)} \`${t.type}\`. A measurement is a number with a dot.` }
         const n = Number(t.repr)
         // A picture is read by eye, so close is right.
-        if (Math.abs(n - level) > 0.051) return { verdict: 'wrong', why: `I filled the other glass to ${t.repr} — compare them.` }
-        return { verdict: 'correct' }
+        if (Math.abs(n - level) > 0.051) return { verdict: 'wrong', why: `The robot filled the other glass to ${t.repr}. Compare the two.` }
+        return literal(x.source) ? { verdict: 'correct' } : { verdict: 'wrong', why: YOURS }
       },
     }
   },
 
   str(r) {
     const w = pick(r, WORDS)
-    const want = repr({ t: 'str', v: w })
+    const want = strRepr(w)
     return {
       key: `str:${w}`,
       skill: 'str',
-      say: `Write the word ${w} on the card, so a person can read it.`,
+      tag: 'you',
+      say: `Write the word ${w} on the card, for a person to read.`,
       ask: `Write "${w}" on the card.`,
       show: { kind: 'card' },
       setup: [],
@@ -263,13 +362,54 @@ export const GENERATORS: Record<string, Generator> = {
       expect: { type: 'str', repr: want },
       praise: 'Words for people, so a `str`.',
       judge(a) {
-        if (!a.ok) return failed(a, { NameError: `Without quotes, the robot looked for a name called \`${w}\`. Text goes in quotes.` })
+        if (!a.ok) return failed(a, { NameError: `Without quotes, the robot looked for a name called \`${w}\` and found none.` })
         const t = a.thought
         if (!t) return { verdict: 'ignore' }
-        if (t.type !== 'str') return { verdict: 'wrong', why: `That is a \`${t.type}\`. Text goes in quotes.` }
-        if (t.repr !== want) return { verdict: 'wrong', why: `Close — spell it exactly: ${w}.` }
-        return { verdict: 'correct' }
+        if (t.type !== 'str') return { verdict: 'wrong', why: `That is ${article(t.type)} \`${t.type}\`. Words go in quotes.` }
+        if (t.repr !== want) return { verdict: 'wrong', why: `Words go in quotes, yes, but spell it exactly: ${w}.` }
+        return literal(a.source) ? { verdict: 'correct' } : { verdict: 'wrong', why: YOURS }
       },
+    }
+  },
+
+  char(r) {
+    // One letter of a word the picture spells out. The word's tiles are
+    // the question; the answer's tiles replace them, and say how many
+    // characters there are, so `"gear"` for `"g"` is drawn as four.
+    // Sometimes it is a name, whose first letter is a capital, because a
+    // character is not only a small letter.
+    if (r() < 0.25) {
+      const who = pick(r, NAMES)
+      const want = who[0]!
+      return {
+        key: `char:name:${who}`,
+        skill: 'char',
+        tag: 'you',
+        say: `What letter does ${who}’s name start with?`,
+        ask: `The first letter of "${who}"?`,
+        show: { kind: 'tiles', parts: [`"${who}"`] },
+        setup: [],
+        answer: `"${want}"`,
+        expect: { type: 'str', repr: strRepr(want) },
+        praise: 'One letter in quotes, capital and all, so a `str` of length one.',
+        judge: (a) => judgeChar(a, want, who, 'which tile comes first?'),
+      }
+    }
+    const w = pick(r, WORDS)
+    const end = r() < 0.35
+    const want = end ? w[w.length - 1]! : w[0]!
+    return {
+      key: `char:${end ? 'last' : 'first'}:${w}`,
+      skill: 'char',
+      tag: 'you',
+      say: `What letter does the word ${w} ${end ? 'end' : 'start'} with?`,
+      ask: `The ${end ? 'last' : 'first'} letter of "${w}"?`,
+      show: { kind: 'tiles', parts: [`"${w}"`] },
+      setup: [],
+      answer: `"${want}"`,
+      expect: { type: 'str', repr: strRepr(want) },
+      praise: 'One letter in quotes, so a `str` of length one.',
+      judge: (a) => judgeChar(a, want, w, `which tile comes ${end ? 'last' : 'first'}?`),
     }
   },
 
@@ -280,21 +420,23 @@ export const GENERATORS: Record<string, Generator> = {
       return {
         key: `bool:lamp:${word}`,
         skill: 'bool',
-        say: `Turn the lamp ${on ? 'on' : 'off'}. The switch only knows \`True\` and \`False\`.`,
+        tag: 'you',
+        say: `Turn the lamp ${on ? 'on' : 'off'}.`,
         ask: `Turn the lamp ${on ? 'on' : 'off'}.`,
         show: { kind: 'lamp' },
         setup: [],
         answer: word,
         expect: { type: 'bool', repr: word },
-        praise: 'A switch is a `bool`.',
+        praise: on ? 'A switch is on or off, so a `bool`, and on is `True`.' : 'A switch is on or off, so a `bool`, and off is `False`.',
         judge(a) {
-          const said = a.source.trim()
-          if (said === 'true' || said === 'false') return { verdict: 'wrong', why: 'Capital letter: `True` or `False`.' }
-          if (!a.ok) return failed(a, { NameError: 'The robot\'s on is `True` and its off is `False`.' })
+          const lower = lowerBool(a.source.trim())
+          if (lower) return { verdict: 'wrong', why: `Nearly: it needs a capital letter, \`${lower}\`.` }
+          if (!a.ok) return failed(a, { NameError: 'The robot says on as `True` and off as `False`.' })
           const t = a.thought
           if (!t) return { verdict: 'ignore' }
-          if (t.type === 'str') return { verdict: 'wrong', why: 'A word on a note lights nothing. No quotes.' }
+          if (t.type === 'str') return { verdict: 'wrong', why: 'That is a word on a note, and a note works no switch. No quotes.' }
           if (t.type !== 'bool') return { verdict: 'wrong', why: 'A switch has only two answers: `True` or `False`.' }
+          if (!literal(a.source)) return { verdict: 'wrong', why: 'This one is yours: just `True` or `False`.' }
           return t.repr === word ? { verdict: 'correct' } : { verdict: 'wrong', why: `That turned it ${on ? 'off' : 'on'}.` }
         },
       }
@@ -307,21 +449,23 @@ export const GENERATORS: Record<string, Generator> = {
     return {
       key: `bool:${x}:${y}`,
       skill: 'bool',
-      say: `Look at the balance. Is ${x} more than ${y}? Answer with just \`True\` or \`False\` — no working out.`,
+      tag: 'you',
+      say: `Is ${x} more than ${y}?`,
       ask: `Is ${x} more than ${y}?`,
       show: { kind: 'balance', left: x, right: y, op: '>' },
       setup: [],
       answer: word,
       expect: { type: 'bool', repr: word },
-      praise: `${x} ${truth ? 'is' : 'is not'} more than ${y}.`,
+      praise: truth ? `${x} is more than ${y}, so the answer is yes: \`True\`.` : `${x} is less than ${y}, so the answer is no: \`False\`.`,
       judge(a) {
         const said = a.source.trim()
-        if (said === 'true' || said === 'false') return { verdict: 'wrong', why: 'Capital letter: `True` or `False`.' }
-        if (!a.ok) return failed(a)
+        const lower = lowerBool(said)
+        if (lower) return { verdict: 'wrong', why: `Nearly: it needs a capital letter, \`${lower}\`.` }
+        if (!a.ok) return failed(a, { NameError: NAME_ERROR.bool })
         const t = a.thought
         if (!t) return { verdict: 'ignore' }
-        if (said !== 'True' && said !== 'False') return { verdict: 'wrong', why: 'Say it yourself — just `True` or `False`.' }
-        return t.repr === word ? { verdict: 'correct' } : { verdict: 'wrong', why: 'Look again: which side of the balance is lower?' }
+        if (said !== 'True' && said !== 'False') return { verdict: 'wrong', why: 'This one is yours: just `True` or `False`.' }
+        return t.repr === word ? { verdict: 'correct' } : { verdict: 'wrong', why: 'Look again: the bigger number sits lower on the balance.' }
       },
     }
   },
@@ -330,29 +474,39 @@ export const GENERATORS: Record<string, Generator> = {
     // The question decides the kind: the first level's lesson, asked with
     // no hint about which kind to use.
     const s = pick(r, SITUATIONS)
-    const want = s.type === 'str' ? repr({ t: 'str', v: s.value }) : s.value
+    const type = PY_TYPE[s.type]
+    const quoted = s.type === 'str' || s.type === 'char'
+    const want = quoted ? strRepr(s.value) : s.value
     return {
       key: `kind:${s.say}`,
       skill: 'kind',
-      say: `${s.say} You choose the kind.`,
+      tag: 'you',
+      say: s.say,
+      lead: s.lead ? [s.lead] : undefined,
       ask: s.ask,
       show: s.show,
       setup: [],
-      answer: s.type === 'str' ? `"${s.value}"` : s.value,
-      expect: { type: s.type, repr: want },
+      answer: quoted ? `"${s.value}"` : s.value,
+      expect: { type, repr: want },
       praise: KIND_PRAISE[s.type],
       judge(a) {
         const said = a.source.trim()
-        if (said === 'true' || said === 'false') return { verdict: 'wrong', why: 'Capital letter: `True` or `False`.' }
-        if (!a.ok) {
-          return failed(a, {
-            NameError: s.type === 'str' ? 'Words for people go in quotes.' : KIND_WHY[s.type],
-          })
+        const lower = lowerBool(said)
+        if (lower) return { verdict: 'wrong', why: `Nearly: it needs a capital letter, \`${lower}\`.` }
+        if (s.type === 'char') {
+          // A str that is not one letter is the right Python type and the
+          // wrong idea, which only the char judge can tell apart.
+          if (a.ok && a.thought && a.thought.type !== 'str') {
+            return { verdict: 'wrong', why: `That is ${article(a.thought.type)} \`${a.thought.type}\`. ${KIND_WHY.char}` }
+          }
+          return judgeChar(a, s.value, s.word ?? s.value, s.hint)
         }
+        if (!a.ok) return failed(a, { NameError: NAME_ERROR[s.type] })
         const t = a.thought
         if (!t) return { verdict: 'ignore' }
-        if (t.type !== s.type) return { verdict: 'wrong', why: `That is a \`${t.type}\`. ${KIND_WHY[s.type]}` }
-        if (t.repr !== want) return { verdict: 'wrong', why: `Right kind — ${s.hint}` }
+        if (t.type !== type) return { verdict: 'wrong', why: `That is ${article(t.type)} \`${t.type}\`. ${KIND_WHY[s.type]}` }
+        if (!literal(a.source)) return { verdict: 'wrong', why: YOURS }
+        if (t.repr !== want) return { verdict: 'wrong', why: `Right kind, but ${s.hint}` }
         return { verdict: 'correct' }
       },
     }
@@ -363,45 +517,54 @@ export const GENERATORS: Record<string, Generator> = {
     let x: number
     let y: number
     let show: Prop
-    let story: string
+    let say: string
     let ask: string
+    let praise: string
     if (kind === '*') {
       x = between(r, 2, 7)
       y = between(r, 2, 6)
       show = { kind: 'crates', crates: x, each: y }
-      story = `${x} crates with ${y} bolts in each. How many bolts?`
+      say = `How many bolts are in ${x} crates of ${y}?`
       ask = `${x} crates of ${y} bolts.`
+      praise = `${x} crates of ${y} is ${x} times ${y}, and the robot writes times as \`*\`.`
     } else if (kind === '-') {
       x = between(r, 8, 20)
       y = between(r, 2, x - 2)
       show = { kind: 'bolts', have: x, use: y }
-      story = `The robot has ${x} bolts and uses ${y}. How many are left?`
+      say = `How many bolts are left, if the robot has ${x} and uses ${y}?`
       ask = `${x} bolts, ${y} used.`
+      praise = 'Using some up takes them away, so a minus: `-`.'
     } else {
       x = between(r, 3, 12)
       y = between(r, 2, 9)
       show = { kind: 'tiles', parts: [String(x), '+', String(y)] }
-      story = `${x} bolts in one box and ${y} in another. How many altogether?`
+      say = `How many bolts are in a box of ${x} and a box of ${y}, together?`
       ask = `${x} bolts and ${y} bolts.`
+      praise = 'Putting two boxes together adds them, so a plus: `+`.'
     }
     const e = bin(kind, int(x), int(y))
     const want = value(e)
     return {
       key: `arith:${kind}:${x}:${y}`,
       skill: 'arith',
-      say: `${story} Ask the robot.`,
+      tag: 'robot',
+      say,
       ask,
       show,
       setup: [],
       answer: render(e),
       expect: { type: 'int', repr: want },
+      praise,
       judge(a) {
-        if (!a.ok) return failed(a, { SyntaxError: 'Times is a star, `*`.' })
+        if (!a.ok) return failed(a, /[x×]/.test(a.source) ? { SyntaxError: 'The robot writes times as a star: `*`.', NameError: 'The robot writes times as a star: `*`.' } : {})
         const t = a.thought
         if (!t) return { verdict: 'ignore' }
-        if (t.repr === want && !/[-+*]/.test(a.source)) return { verdict: 'wrong', why: 'Right number — now let the robot work it out.' }
+        // The working is this question's own: both numbers, and the
+        // operation the picture asks for. The answer plus a no-op is not it.
+        const worked = mentions(a.source, x) && mentions(a.source, y) && uses(a.source, kind)
+        if (t.repr === want && !worked) return { verdict: 'wrong', why: `That is the answer, but this one is the robot’s: give it ${x} ${OPS_WORD[kind]} ${y}.` }
         if (t.repr === want) return { verdict: 'correct' }
-        return { verdict: 'wrong', why: `That comes to ${t.repr}. It is ${x} ${OPS_WORD[kind]} ${y}.` }
+        return { verdict: 'wrong', why: `That comes to ${t.repr}, but this is ${x} ${OPS_WORD[kind]} ${y}.` }
       },
     }
   },
@@ -413,25 +576,30 @@ export const GENERATORS: Record<string, Generator> = {
     const a = r() < 0.4 ? b * between(r, 2, 6) : between(r, b + 1, 6 * b)
     const e = bin('/', int(a), int(b))
     const want = value(e)
+    const exact = Number.isInteger(a / b)
     return {
       key: `divide:${a}:${b}`,
       skill: 'divide',
-      say: `Share ${a} litres of oil between ${b} robots. How much does each get?`,
+      tag: 'robot',
+      say: `How much does each robot get, if ${a} litres of oil are shared between ${b}?`,
       ask: `Share ${a} litres between ${b}.`,
       show: { kind: 'share', litres: a, robots: b },
       setup: [],
       answer: render(e),
       expect: { type: 'float', repr: want },
-      praise: Number.isInteger(a / b) ? `Even when it shares out exactly, \`/\` gives a \`float\`: ${want}.` : undefined,
+      praise: exact
+        ? `\`/\` always gives a \`float\`, even when it shares out exactly: \`${want}\`.`
+        : 'Sharing out is `/`, and it can land between whole litres, so a `float`.',
       judge(x) {
         if (!x.ok) return failed(x)
         const t = x.thought
         if (!t) return { verdict: 'ignore' }
-        if (t.repr === want && !/\//.test(x.source)) return { verdict: 'wrong', why: 'Right amount — now let the robot share it, with `/`.' }
+        const worked = mentions(x.source, a) && mentions(x.source, b) && /(^|[^/])\/([^/]|$)/.test(x.source)
+        if (t.repr === want && !worked) return { verdict: 'wrong', why: `That is the amount, but let the robot share ${a} between ${b}, with \`/\`.` }
         if (t.repr === want) return { verdict: 'correct' }
-        if (t.type === 'int' && /\/\//.test(x.source)) return { verdict: 'wrong', why: '`//` shares whole litres only — look what is left in the jug. Use `/`.' }
-        if (t.type === 'int') return { verdict: 'wrong', why: 'Sharing out is a measurement: divide with `/`, which gives a `float`.' }
-        return { verdict: 'wrong', why: `That comes to ${t.repr}. Share ${a} between ${b}.` }
+        if (t.type === 'int' && /\/\//.test(x.source)) return { verdict: 'wrong', why: '`//` keeps whole litres only, and leaves some in the jug. Use `/`.' }
+        if (t.type === 'int') return { verdict: 'wrong', why: 'Sharing out can land between whole litres, so divide with `/`.' }
+        return { verdict: 'wrong', why: `That comes to ${t.repr}. Share ${a} between ${b}, with \`/\`.` }
       },
     }
   },
@@ -440,23 +608,27 @@ export const GENERATORS: Record<string, Generator> = {
     const [x, y] = pick(r, PAIRS)
     const e = bin('+', str(x), str(y))
     const want = value(e)
-    const spaced = repr({ t: 'str', v: `${x} ${y}` })
+    const spaced = strRepr(`${x} ${y}`)
     return {
       key: `join:${x}${y}`,
       skill: 'join',
-      say: `Join "${x}" and "${y}" into one word.`,
-      ask: `Glue "${x}" and "${y}".`,
+      tag: 'robot',
+      say: `Have the robot join "${x}" and "${y}" into one word.`,
+      ask: `Join "${x}" and "${y}".`,
       show: { kind: 'tiles', parts: [`"${x}"`, '+', `"${y}"`] },
       setup: [],
       answer: render(e),
       expect: { type: 'str', repr: want },
+      praise: '`+` on two strings puts them end to end, so one word.',
       judge(a) {
         if (!a.ok) return failed(a, { NameError: 'Each word needs its own quotes.' })
         const t = a.thought
         if (!t) return { verdict: 'ignore' }
+        const worked = quotes(a.source, x) && quotes(a.source, y) && uses(a.source, '+')
+        if (t.repr === want && !worked) return { verdict: 'wrong', why: `That is the word, but let the robot join "${x}" and "${y}", with \`+\`.` }
         if (t.repr === want) return { verdict: 'correct' }
-        if (t.repr === spaced) return { verdict: 'wrong', why: 'One word — no space in between.' }
-        return { verdict: 'wrong', why: `That made ${t.repr}. Stick "${x}" and "${y}" together with \`+\`.` }
+        if (t.repr === spaced) return { verdict: 'wrong', why: 'One word, so no space in between.' }
+        return { verdict: 'wrong', why: `That made ${t.repr}. Join "${x}" and "${y}" with \`+\`.` }
       },
     }
   },
@@ -468,22 +640,26 @@ export const GENERATORS: Record<string, Generator> = {
     const op = pick(r, ['>', '<'] as const)
     const e = bin(op, int(x), int(y))
     const want = value(e)
+    const words = op === '>' ? 'more' : 'less'
     return {
       key: `compare:${x}${op}${y}`,
       skill: 'compare',
-      say: `Ask the robot whether ${x} is ${op === '>' ? 'more' : 'less'} than ${y}.`,
-      ask: `Is ${x} ${op === '>' ? 'more' : 'less'} than ${y}?`,
+      tag: 'robot',
+      say: `Ask the robot: is ${x} ${words} than ${y}?`,
+      ask: `Ask the robot: is ${x} ${words} than ${y}?`,
       show: { kind: 'balance', left: x, right: y, op },
       setup: [],
       answer: render(e),
       expect: { type: 'bool', repr: want },
+      praise: `\`${op}\` asks the robot a yes-or-no question, so it answers with a \`bool\`: \`${want}\`.`,
       judge(a) {
         if (!a.ok) return failed(a)
         const t = a.thought
         if (!t) return { verdict: 'ignore' }
-        if (!COMPARISON.test(a.source)) return { verdict: 'wrong', why: 'Ask it — use `>` or `<`, and let the robot answer.' }
+        if (!/[<>]/.test(a.source)) return { verdict: 'wrong', why: 'Ask the robot, with `>` or `<`, and let it answer.' }
+        if (!mentions(a.source, x) || !mentions(a.source, y)) return { verdict: 'wrong', why: `Ask about ${x} and ${y} themselves.` }
         if (t.repr === want) return { verdict: 'correct' }
-        return { verdict: 'wrong', why: `That asks it the other way round. ${op === '>' ? 'More' : 'Less'} than is \`${op}\`.` }
+        return { verdict: 'wrong', why: `That asks it the other way round: ${words} than is \`${op}\`.` }
       },
     }
   },
@@ -501,19 +677,20 @@ export const GENERATORS: Record<string, Generator> = {
       return {
         key: `order:predict:${x}:${y}:${z}`,
         skill: 'order',
-        say: `No robot this time: what does \`${render(e)}\` come to? Type just the number.`,
+        tag: 'you',
+        say: `What does \`${render(e)}\` come to?`,
         ask: `What is ${render(e)}?`,
         show: { kind: 'expr', text: render(e), first: `${y} * ${z}`, then: [`${x} + ${y * z}`, want] },
         setup: [],
         answer: want,
         expect: { type: 'int', repr: want },
-        praise: `\`*\` goes before \`+\`: ${y} × ${z} first, then add ${x}.`,
+        praise: `\`*\` goes before \`+\`, so \`${y} * ${z}\` first, then add ${x}.`,
         judge(a) {
           const said = a.source.trim()
-          if (!INT_LITERAL.test(said)) return { verdict: 'wrong', why: 'Work it out yourself, and type just the number.' }
+          if (!INT_LITERAL.test(said)) return { verdict: 'wrong', why: 'This one is yours to work out: type just the number.' }
           if (said === want) return { verdict: 'correct' }
-          if (said === leftToRight) return { verdict: 'wrong', why: 'That is working left to right. `*` goes before `+`.' }
-          return { verdict: 'wrong', why: `Not quite. Do ${y} × ${z} first.` }
+          if (said === leftToRight) return { verdict: 'wrong', why: 'That is working left to right, but `*` goes before `+`.' }
+          return { verdict: 'wrong', why: `Not quite. Do \`${y} * ${z}\` first.` }
         },
       }
     }
@@ -523,19 +700,24 @@ export const GENERATORS: Record<string, Generator> = {
     return {
       key: `order:brackets:${x}:${y}:${z}`,
       skill: 'order',
-      say: `Add ${x} and ${y} first, then multiply by ${z} — all in one line.`,
-      ask: `${x} + ${y} first, then × ${z}.`,
+      tag: 'robot',
+      say: `Give the robot one line that adds ${x} and ${y} first, then times by ${z}.`,
+      ask: `${x} + ${y} first, then times ${z}.`,
       show: { kind: 'expr', text: render(e), first: `(${x} + ${y})`, then: [`${x + y} * ${z}`, want] },
       setup: [],
       answer: render(e),
       expect: { type: 'int', repr: want },
+      praise: 'Brackets are worked out first, so the robot added before it multiplied.',
       judge(a) {
         if (!a.ok) return failed(a)
         const t = a.thought
         if (!t) return { verdict: 'ignore' }
+        if (!WORKING.test(a.source)) return { verdict: 'wrong', why: 'This one is the robot’s: give it the sum, not the answer.' }
+        const worked = [x, y, z].every((n) => mentions(a.source, n)) && uses(a.source, '(') && uses(a.source, '+') && uses(a.source, '*')
+        if (t.repr === want && !worked) return { verdict: 'wrong', why: `Right number, but give the robot the working: ${x} + ${y} in brackets, times ${z}.` }
         if (t.repr === want) return { verdict: 'correct' }
         if (t.repr === unbracketed) return { verdict: 'wrong', why: 'Without brackets `*` goes first. Put `( )` round the part to do first.' }
-        return { verdict: 'wrong', why: `That comes to ${t.repr}. (${x} + ${y}) first, then × ${z}.` }
+        return { verdict: 'wrong', why: `That comes to ${t.repr}. Add ${x} and ${y} first, then times by ${z}.` }
       },
     }
   },
@@ -546,9 +728,12 @@ export const GENERATORS: Record<string, Generator> = {
     return {
       key: `bind:${n}:${k}`,
       skill: 'bind',
-      say: `Keep ${k} ${n} under a name called \`${n}\`.`,
+      tag: 'you',
+      who: 'This one is yours: tell the robot what to keep, and under which name.',
+      say: `Keep ${k} ${n} under the name \`${n}\`.`,
       setup: [],
       answer: `${n} = ${k}`,
+      praise: `\`${n}\` is an arrow to ${k} now, so the robot can find it again.`,
       judge(a) {
         if (!a.ok) {
           return failed(a, {
@@ -558,10 +743,10 @@ export const GENERATORS: Record<string, Generator> = {
         }
         const got = reprOf(a.snapshot, n)
         if (got === String(k)) return { verdict: 'correct' }
-        if (got !== null) return { verdict: 'wrong', why: `\`${n}\` points at ${got} — it should be ${k}.` }
+        if (got !== null) return { verdict: 'wrong', why: `\`${n}\` points at ${got}, but it should be ${k}.` }
         if (a.thought) return { verdict: 'wrong', why: 'That was thought of and let go. Give it a name with `=`.' }
         // Something was named, just not this.
-        if (a.snapshot.bindings.length > 0) return { verdict: 'wrong', why: `The name should be \`${n}\`.` }
+        if (a.snapshot.bindings.length > 0) return { verdict: 'wrong', why: `That named something else. The name should be \`${n}\`.` }
         return { verdict: 'ignore' }
       },
     }
@@ -579,17 +764,20 @@ export const GENERATORS: Record<string, Generator> = {
     return {
       key: `alias:${a}:${b}:${v}`,
       skill: 'alias',
-      say: `\`${a}\` points at ${v}. Point \`${b}\` at the same thing — without typing ${v}.`,
+      tag: 'robot',
+      who: 'This one is the robot’s: don’t type the number, let it follow the arrow.',
+      lead: [`\`${a}\` points at ${v}: look for its arrow in memory.`],
+      say: `Point \`${b}\` at the same object, without typing ${v}.`,
       setup: [`${a} = ${v}`],
       answer: `${b} = ${a}`,
-      praise: 'Two names, one object — look at the arrows.',
+      praise: `\`${b} = ${a}\` follows \`${a}\`’s arrow, so both names point at one object.`,
       judge(x) {
         if (!x.ok) return failed(x, { SyntaxError: `The new name goes on the left: \`${b} = ${a}\`.` })
         const ta = targetOf(x.snapshot, a)
         const tb = targetOf(x.snapshot, b)
         if (tb === null) return x.thought ? { verdict: 'wrong', why: `Give \`${b}\` something to point at, with \`=\`.` } : { verdict: 'ignore' }
-        if (tb !== ta) return { verdict: 'wrong', why: `\`${b}\` points somewhere else. Use \`${a}\` itself.` }
-        if (mentions(x.source, v)) return { verdict: 'wrong', why: `Right thing, but you typed ${v} again. Use the name: \`${b} = ${a}\`.` }
+        if (tb !== ta) return { verdict: 'wrong', why: `\`${b}\` points at a different object. Use \`${a}\` itself.` }
+        if (mentions(x.source, v)) return { verdict: 'wrong', why: `Right object, but you typed ${v} again. Use the name \`${a}\`.` }
         return { verdict: 'correct' }
       },
     }
@@ -609,14 +797,16 @@ export const GENERATORS: Record<string, Generator> = {
     return {
       key: `rebind:${x}:${v1}:${v2}`,
       skill: 'rebind',
-      say: `\`${y}\` was pointed at \`${x}\`'s object, then \`${x}\` moved to ${v2}. What does \`${y}\` point at now? Type just the number.`,
+      tag: 'you',
+      lead: [`\`${y} = ${x}\` pointed \`${y}\` at \`${x}\`’s object.`, `Then \`${x}\` moved to ${v2}.`],
+      say: `What number does \`${y}\` point at now?`,
       setup: [`${x} = ${v1}`, `${y} = ${x}`, `${x} = ${v2}`],
       answer: String(v1),
       expect: { type: 'int', repr: String(v1) },
-      praise: `\`${y}\` never followed \`${x}\`. It points at the object, and that did not move.`,
+      praise: `\`${y}\` got \`${x}\`’s object, not \`${x}\` itself, so moving \`${x}\` left it alone.`,
       judge(a) {
         const said = a.source.trim()
-        if (said === y) return { verdict: 'wrong', why: 'Say it yourself — type the number you think it is.' }
+        if (said === y) return { verdict: 'wrong', why: 'This one is yours: type the number you think it is.' }
         if (!INT_LITERAL.test(said)) return { verdict: 'wrong', why: 'Type just the number.' }
         if (said === String(v1)) return { verdict: 'correct' }
         if (said === String(v2)) return { verdict: 'wrong', why: `\`${y}\` does not follow \`${x}\`. It points at the object it was given.` }
@@ -637,18 +827,22 @@ export const GENERATORS: Record<string, Generator> = {
     return {
       key: `recall:${n}:${k}:${each}`,
       skill: 'recall',
-      say: `The robot kept \`${n}\`. Each one holds ${each} bolts — how many bolts in all? Work it out from \`${n}\`, without typing ${k}.`,
+      tag: 'robot',
+      lead: [`The robot kept \`${n}\`, and each one holds ${each} bolts.`],
+      say: `Work out the bolts in all from \`${n}\`, without typing ${k}.`,
       setup: [`${n} = ${k}`],
       answer: `${n} * ${each}`,
       expect: { type: 'int', repr: want },
-      praise: `It never stored ${want}. It kept ${k}, and worked the rest out.`,
+      praise: `It kept only ${k}, so it worked ${want} out from \`${n}\` when asked.`,
       judge(a) {
         if (!a.ok) return failed(a, { NameError: `Use the name it kept: \`${n}\`.` })
         const t = a.thought
         if (!t) return { verdict: 'ignore' }
-        if (t.repr !== want) return { verdict: 'wrong', why: `That comes to ${t.repr}. It is ${n} times ${each}.` }
-        if (!new RegExp(`\\b${n}\\b`).test(a.source) || mentions(a.source, k))
-          return { verdict: 'wrong', why: `Right number — now get it from \`${n}\`, not from ${k}.` }
+        if (t.repr !== want) return { verdict: 'wrong', why: `That comes to ${t.repr}, but this is ${n} times ${each}.` }
+        // Two different misses: typing the kept number, or the answer.
+        if (mentions(a.source, k)) return { verdict: 'wrong', why: `Right number, but work it out from \`${n}\`, not from ${k}.` }
+        if (!new RegExp(`\\b${n}\\b`).test(a.source))
+          return { verdict: 'wrong', why: `That is the answer; let the robot work it out from \`${n}\`.` }
         return { verdict: 'correct' }
       },
     }

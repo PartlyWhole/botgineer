@@ -22,6 +22,15 @@
   --k-float-bg: #e3f4ed;
   --k-str: #8f4700;
   --k-str-bg: #fff0e0;
+  --k-str-soft: #ffdcb5;
+  /* A character: the idea gets its own colour, though Python keeps it as
+     a str — which every char picture also says in words. 5.3:1 on its
+     tint. */
+  --k-char: #b0306a;
+  --k-char-bg: #fdeaf3;
+  --k-char-soft: #f8cfe2;
+  --k-int-soft: #cbd7ff;
+  --k-float-soft: #bfe6d6;
   --beat-len: 1.7s;
 }
 
@@ -170,6 +179,10 @@
   color: var(--k-str);
   background: var(--k-str-bg);
 }
+.answer-tag[data-kind='char'] {
+  color: var(--k-char);
+  background: var(--k-char-bg);
+}
 .answer-tag[data-kind='other'] {
   color: var(--ink-soft);
 }
@@ -219,7 +232,23 @@
 .prop .card-flip,
 .prop .face,
 .prop .letter-wiggle,
-.prop .liquid {
+.prop .liquid,
+.prop .stamp,
+.prop .counter-roll,
+.prop .half-apple-fly,
+.prop .cubby,
+.prop .chip,
+.prop .q,
+.prop .measured,
+.prop .letter-float,
+.prop .char-tile,
+.prop .clasp,
+.prop .side-card,
+.prop .bead,
+.prop .one-lamp .as-one,
+.prop .sum,
+.prop .code-tile,
+.prop .parcel {
   transform-box: fill-box;
 }
 
@@ -289,32 +318,92 @@
 .lamp.on .lever {
   transform: translateY(-12px);
 }
-.lamp .note rect {
+.lamp .note rect,
+.fishbowl .note rect {
   fill: #fff6b8;
   stroke: #e0cf6a;
 }
-.lamp .note text {
+.lamp .note text,
+.fishbowl .note text {
   font-family: var(--mono);
   font-size: 9px;
   font-weight: 800;
   fill: var(--k-str);
 }
-.lamp .note {
+.lamp .note,
+.fishbowl .note {
   animation: note-stick 320ms cubic-bezier(0.2, 0.9, 0.3, 1.3) backwards;
 }
 
-/* The demonstration: on, off, on, off — then as the answer leaves it. */
-.lamp .lamp-glow {
+/* The demonstration: on, off, on, off — then as the answer leaves it.
+   Not when a narration beat has the switch (`demo`), which plays its own
+   single flip instead; and not once the layer has been told
+   (`data-told`, set by the layer when a beat changes its picture), so
+   the flicking never starts over under the question that follows. */
+.prop-layer:not([data-told]) .lamp:not(.demo-on):not(.demo-off) .lamp-glow {
   animation: flick-glow 2.6s linear calc(var(--beat, 0s) + 0.5s) backwards;
 }
-.lamp .lever {
+.prop-layer:not([data-told]) .lamp:not(.demo-on):not(.demo-off) .lever {
   animation: flick-lever 2.6s linear calc(var(--beat, 0s) + 0.5s) backwards;
 }
-.lamp .pill-true {
+.prop-layer:not([data-told]) .lamp:not(.demo-on):not(.demo-off) .pill-true {
   animation: flick-on 2.6s linear calc(var(--beat, 0s) + 0.5s) backwards;
 }
-.lamp .pill-false {
+.prop-layer:not([data-told]) .lamp:not(.demo-on):not(.demo-off) .pill-false {
   animation: flick-off 2.6s linear calc(var(--beat, 0s) + 0.5s) backwards;
+}
+
+/* The narration's switch: one flip, from the other side to the side the
+   beat says. Plays when the lamp arrives this way, and again when a beat
+   changes it in place, because changing the class changes the animation. */
+.lamp.demo-on .lamp-glow {
+  animation: from-dark 450ms ease-out calc(var(--beat, 0s) + 0.55s) backwards;
+}
+.lamp.demo-on .lever {
+  animation: from-down 300ms cubic-bezier(0.3, 1.4, 0.6, 1) calc(var(--beat, 0s) + 0.4s) backwards;
+}
+.lamp.demo-on .pill-true {
+  animation: from-dark 250ms linear calc(var(--beat, 0s) + 0.45s) backwards;
+}
+.lamp.demo-on .pill-false {
+  animation: from-lit 250ms linear calc(var(--beat, 0s) + 0.45s) backwards;
+}
+.lamp.demo-off .lamp-glow {
+  animation: from-glow 450ms ease-in calc(var(--beat, 0s) + 0.45s) backwards;
+}
+.lamp.demo-off .lever {
+  animation: from-up 300ms cubic-bezier(0.3, 1.4, 0.6, 1) calc(var(--beat, 0s) + 0.4s) backwards;
+}
+.lamp.demo-off .pill-true {
+  animation: from-lit 250ms linear calc(var(--beat, 0s) + 0.45s) backwards;
+}
+.lamp.demo-off .pill-false {
+  animation: from-dark 250ms linear calc(var(--beat, 0s) + 0.45s) backwards;
+}
+@keyframes from-dark {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes from-lit {
+  from {
+    opacity: 1;
+  }
+}
+@keyframes from-glow {
+  from {
+    opacity: 0.55;
+  }
+}
+@keyframes from-down {
+  from {
+    transform: translateY(4px);
+  }
+}
+@keyframes from-up {
+  from {
+    transform: translateY(-12px);
+  }
 }
 @keyframes flick-glow {
   0%, 12% { opacity: 0; }
@@ -1452,6 +1541,788 @@
     opacity: 0;
     transform: translateY(-6px);
   }
+}
+
+/* ------------------------- basket: counting ------------------------- */
+
+.basket .counter-face {
+  fill: var(--k-int-bg);
+  stroke: var(--k-int);
+  stroke-width: 2;
+}
+.basket .counter-num {
+  font-family: var(--mono);
+  font-size: 16px;
+  font-weight: 800;
+  fill: var(--k-int);
+}
+/* One step as each apple lands (they drop 0.32s apart): the column rolls
+   in whole numbers only, from blank to the count, and rests there. */
+.basket.demo-count .counter-roll {
+  animation: count-up calc(var(--n) * 0.32s) steps(var(--n), jump-start) calc(var(--beat, 0s) + 0.72s) backwards;
+}
+@keyframes count-up {
+  from {
+    translate: 0 calc(var(--n) * 22px);
+  }
+}
+/* The half apple is about the apples already in: they are simply there,
+   so it is the only thing moving. */
+.basket.demo-half .apple-drop {
+  animation: none;
+}
+.basket .apple-cut {
+  stroke: #fff3e8;
+  stroke-width: 2;
+}
+/* The half apple's whole visit: down onto the rim, off it, and away. At
+   rest it is gone, so the resting picture is the whole basket. */
+.basket .half-apple-fly {
+  opacity: 0;
+  animation: bounce-off 1.9s cubic-bezier(0.3, 0.6, 0.5, 1) calc(var(--beat, 0s) + 0.5s) backwards;
+}
+@keyframes bounce-off {
+  0% {
+    opacity: 0;
+    translate: 0 -64px;
+    rotate: 0deg;
+  }
+  8% {
+    opacity: 1;
+  }
+  34% {
+    opacity: 1;
+    translate: 0 0;
+    rotate: 0deg;
+  }
+  52% {
+    opacity: 1;
+    translate: 34px -26px;
+    rotate: 70deg;
+  }
+  82% {
+    opacity: 1;
+    translate: 70px 36px;
+    rotate: 160deg;
+  }
+  100% {
+    opacity: 0;
+    translate: 80px 52px;
+    rotate: 190deg;
+  }
+}
+/* The counter refuses it: a shake, as the half apple hits the rim. */
+.basket.demo-half .counter {
+  animation: refuse 380ms ease-in-out calc(var(--beat, 0s) + 1.15s) backwards;
+}
+@keyframes refuse {
+  25% {
+    translate: -3px 0;
+  }
+  75% {
+    translate: 3px 0;
+  }
+}
+
+/* ------------------------- glass: filling ------------------------- */
+
+.glasses .given.slow .liquid {
+  animation: fill-up 3s cubic-bezier(0.45, 0, 0.55, 1) calc(var(--beat, 0s) + 0.5s) backwards;
+}
+.glasses .pour.slow {
+  animation-duration: 3.4s;
+}
+
+/* ------------------------- tiles: stamping ------------------------- */
+
+.tiles .stamp-tile rect {
+  fill: var(--k-str-bg);
+  stroke: var(--k-str);
+  stroke-width: 1.5;
+}
+.tiles .stamp-tile text {
+  font-family: var(--mono);
+  font-weight: 800;
+  fill: var(--k-str);
+}
+.tiles .stamp {
+  transform-origin: 50% 50%;
+  animation: stamp-down 360ms cubic-bezier(0.5, 0, 0.7, 1.3) calc(var(--beat, 0s) + 1.1s + var(--i) * 0.5s) backwards;
+}
+@keyframes stamp-down {
+  from {
+    opacity: 0;
+    scale: 1.6;
+    translate: 0 -30px;
+  }
+  70% {
+    opacity: 1;
+    scale: 0.94;
+  }
+}
+.tiles .stamp-caption {
+  font-family: var(--mono);
+  fill: var(--k-str);
+}
+
+/* ------------------------- balance: the lamp ------------------------- */
+
+.balance .verdict-lamp .lamp-glow {
+  fill: #ffd84a;
+  opacity: 0;
+}
+.balance .verdict-lamp.on .lamp-glow {
+  opacity: 0.55;
+}
+.balance .verdict-lamp .shade {
+  fill: var(--brand);
+}
+.balance .verdict-lamp .bulb-glass {
+  fill: #e7eaf3;
+  stroke: #9aa4bf;
+  stroke-width: 1.2;
+}
+.balance .verdict-lamp.on .bulb-glass {
+  fill: #ffe066;
+}
+.balance .verdict-pill {
+  fill: var(--k-bool-bg);
+  stroke: var(--k-bool);
+}
+.balance .verdict-lamp text {
+  font-family: var(--mono);
+  font-size: 8px;
+  font-weight: 800;
+  fill: var(--k-bool);
+}
+/* It lights once the beam has settled: the answer is what weighing found. */
+.balance .verdict-lamp.on .lamp-glow,
+.balance .verdict-lamp.on .bulb-glass {
+  animation: from-dark 400ms ease-out calc(var(--beat, 0s) + 1.6s) backwards;
+}
+.balance .verdict-lamp .verdict-pill,
+.balance .verdict-lamp text {
+  animation: from-dark 300ms ease-out calc(var(--beat, 0s) + 1.7s) backwards;
+}
+
+/* ------------------------------ shelf ------------------------------ */
+
+.shelf .plank {
+  fill: #c98b4b;
+}
+.shelf .cubby-box {
+  fill: #f5f7fc;
+  stroke: #c4cbe0;
+  stroke-width: 1.2;
+  stroke-dasharray: 3 2;
+  transition:
+    fill 400ms,
+    stroke 400ms;
+}
+.shelf .q,
+.shelf .chip {
+  transform-origin: 50% 50%;
+}
+.shelf .q {
+  font-size: 22px;
+  font-weight: 900;
+  fill: #b3bbd3;
+}
+.shelf .q.small {
+  font-size: 10px;
+}
+.shelf .slot-label {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  font-weight: 800;
+}
+.shelf .chip rect {
+  fill: #fff;
+  stroke-width: 1.1;
+}
+.shelf .chip text {
+  font-family: var(--mono);
+  font-size: 6.6px;
+  font-weight: 800;
+}
+.shelf .chip.said rect,
+.shelf .chip.heard rect {
+  stroke-width: 1.6;
+}
+.shelf .chip.latest rect {
+  stroke-width: 2.4;
+}
+.shelf .char-tag text {
+  font-family: var(--mono);
+  font-size: 6.4px;
+  font-weight: 800;
+  fill: var(--k-str);
+}
+.shelf .shelf-title text {
+  font-size: 10px;
+  font-weight: 900;
+  fill: var(--ink);
+  letter-spacing: 0.02em;
+}
+.shelf .shelf-title path {
+  stroke: #9aa4bf;
+  stroke-width: 1.2;
+}
+.shelf .shelf-title {
+  animation: settle 600ms cubic-bezier(0.3, 1.3, 0.5, 1) calc(var(--beat, 0s) + 0.2s) backwards;
+}
+/* A named slot takes its kind's colour; its label and examples fly in
+   only if it is the newcomer. */
+.shelf .cubby.named .cubby-box {
+  stroke-dasharray: none;
+  stroke-width: 1.6;
+}
+.shelf .cubby.fresh .slot-label,
+.shelf .cubby.fresh .chip.example,
+.shelf .cubby.fresh .char-tag,
+.shelf .chip.latest {
+  animation: fly-in 520ms cubic-bezier(0.3, 1.3, 0.5, 1) calc(var(--beat, 0s) + 0.25s + var(--j, 0) * 0.14s) backwards;
+}
+.shelf .cubby.fresh .slot-label {
+  animation-delay: calc(var(--beat, 0s) + 0.1s);
+}
+.shelf .cubby.fresh .cubby-box {
+  animation: from-plain 500ms ease-out calc(var(--beat, 0s) + 0.1s) backwards;
+}
+.shelf.pulse .q {
+  animation: q-pulse 520ms ease-in-out calc(var(--beat, 0s) + 0.3s + var(--i) * 0.4s) 2 backwards;
+}
+.shelf.cheer .cubby.named {
+  animation: hop 460ms cubic-bezier(0.3, 1.5, 0.6, 1) calc(var(--beat, 0s) + 0.2s + var(--i) * 0.16s) backwards;
+}
+.shelf .later .bracket {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 800;
+  fill: #9aa4bf;
+}
+.shelf .later .ghost {
+  fill: none;
+  stroke: #9aa4bf;
+  stroke-width: 1.2;
+  stroke-dasharray: 2.5 2;
+  animation: fly-in 420ms ease-out calc(var(--beat, 0s) + 0.3s + var(--j) * 0.18s) backwards;
+}
+.shelf .later-tag rect {
+  fill: #f1f3f9;
+  stroke: #c4cbe0;
+}
+.shelf .later-tag text {
+  font-size: 7.5px;
+  font-weight: 800;
+  fill: var(--ink-soft);
+  font-style: italic;
+}
+.shelf .later .bracket,
+.shelf .later-tag {
+  animation: from-dark 300ms ease-out calc(var(--beat, 0s) + 0.2s) backwards;
+}
+@keyframes settle {
+  from {
+    opacity: 0;
+    translate: 0 -12px;
+  }
+}
+@keyframes fly-in {
+  from {
+    opacity: 0;
+    translate: 0 -34px;
+    scale: 0.7;
+  }
+}
+@keyframes from-plain {
+  from {
+    fill: #f5f7fc;
+    stroke: #c4cbe0;
+  }
+}
+@keyframes q-pulse {
+  50% {
+    scale: 1.35;
+    fill: var(--brand);
+  }
+}
+@keyframes hop {
+  40% {
+    translate: 0 -8px;
+  }
+}
+
+/* One colour per kind, on everything that belongs to one: slots, chips,
+   cards, and the kind's word. */
+.prop [data-kind='bool'] {
+  --kc: var(--k-bool);
+  --kb: var(--k-bool-bg);
+}
+.prop [data-kind='int'] {
+  --kc: var(--k-int);
+  --kb: var(--k-int-bg);
+}
+.prop [data-kind='float'] {
+  --kc: var(--k-float);
+  --kb: var(--k-float-bg);
+}
+.prop [data-kind='char'] {
+  --kc: var(--k-char);
+  --kb: var(--k-char-bg);
+}
+.prop [data-kind='str'] {
+  --kc: var(--k-str);
+  --kb: var(--k-str-bg);
+}
+.shelf .cubby.named .cubby-box {
+  fill: var(--kb);
+  stroke: var(--kc);
+}
+.shelf .slot-label,
+.shelf .chip text {
+  fill: var(--kc);
+}
+.shelf .chip rect {
+  stroke: var(--kc);
+}
+.shelf .chip.said rect,
+.shelf .chip.heard rect {
+  fill: var(--kb);
+}
+
+/* ------------------------------ numberline ------------------------------ */
+
+.numberline .track {
+  fill: #eef1f8;
+  stroke: #c4cbe0;
+}
+.numberline .measured {
+  fill: var(--k-float-soft);
+  transform-origin: 0% 50%;
+  transition: transform 1s cubic-bezier(0.45, 0, 0.2, 1);
+  animation: grow-x 1.4s cubic-bezier(0.45, 0, 0.2, 1) calc(var(--beat, 0s) + 0.4s) backwards;
+}
+.numberline .whole-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 800;
+  fill: var(--ink);
+}
+.numberline .marker path {
+  fill: var(--k-float);
+}
+.numberline .marker {
+  transition: translate 1s cubic-bezier(0.45, 0, 0.2, 1);
+  animation: slide-from 1.4s cubic-bezier(0.45, 0, 0.2, 1) calc(var(--beat, 0s) + 0.4s) backwards;
+}
+.numberline .mark-value {
+  font-family: var(--mono);
+  font-size: 15px;
+  font-weight: 800;
+  fill: var(--k-float);
+  animation: from-dark 300ms ease-out calc(var(--beat, 0s) + 0.2s) backwards;
+}
+@keyframes slide-from {
+  from {
+    translate: var(--from-x) 0;
+  }
+}
+
+/* ------------------------------ letters ------------------------------ */
+
+.letters rect {
+  fill: var(--k-char-bg);
+  stroke: var(--k-char);
+  stroke-width: 1.5;
+}
+.letters text {
+  font-family: var(--mono);
+  font-weight: 800;
+  fill: var(--k-char);
+}
+.letters .letter-float {
+  animation: float-up 1.3s cubic-bezier(0.2, 0.7, 0.3, 1) calc(var(--beat, 0s) + 0.2s + var(--i) * 0.22s) backwards;
+}
+@keyframes float-up {
+  from {
+    opacity: 0;
+    translate: 0 80px;
+    rotate: 12deg;
+  }
+  60% {
+    opacity: 1;
+  }
+}
+
+/* ------------------------------ char ------------------------------ */
+
+.char-prop .char-tile rect {
+  fill: var(--k-char-bg);
+  stroke: var(--k-char);
+  stroke-width: 2;
+}
+.char-prop .char-tile text {
+  font-family: var(--mono);
+  font-size: 40px;
+  font-weight: 800;
+  fill: var(--k-char);
+}
+.char-prop .char-tile {
+  transform-origin: 50% 50%;
+  animation: pop-in 380ms cubic-bezier(0.3, 1.5, 0.6, 1) calc(var(--beat, 0s) + 0.2s) backwards;
+}
+.char-prop .plain-quote {
+  font-family: var(--mono);
+  font-size: 30px;
+  font-weight: 800;
+  fill: #9aa4bf;
+}
+.char-prop .clasp rect {
+  fill: var(--k-char);
+  stroke: #fff;
+  stroke-width: 1.5;
+}
+.char-prop .clasp.left {
+  animation: clasp-left 420ms cubic-bezier(0.5, 0, 0.6, 1.5) calc(var(--beat, 0s) + 0.35s) backwards;
+}
+.char-prop .clasp.right {
+  animation: clasp-right 420ms cubic-bezier(0.5, 0, 0.6, 1.5) calc(var(--beat, 0s) + 0.35s) backwards;
+}
+.char-prop .char-caption {
+  font-size: 10px;
+  font-weight: 800;
+  fill: var(--k-char);
+}
+@keyframes clasp-left {
+  from {
+    opacity: 0;
+    translate: -18px 0;
+  }
+}
+@keyframes clasp-right {
+  from {
+    opacity: 0;
+    translate: 18px 0;
+  }
+}
+
+/* ------------------------------ contrast ------------------------------ */
+
+.contrast .side-card rect {
+  fill: var(--kb);
+  stroke: var(--kc);
+  stroke-width: 2;
+}
+.contrast .side-card text {
+  font-family: var(--mono);
+  font-weight: 800;
+  fill: var(--kc);
+}
+.contrast .side-card {
+  transform-origin: 50% 50%;
+  animation: pop-in 420ms cubic-bezier(0.3, 1.5, 0.6, 1) calc(var(--beat, 0s) + 0.25s + var(--i) * 0.5s) backwards;
+}
+.contrast .side-card.result {
+  animation: drop-in 420ms cubic-bezier(0.3, 1.4, 0.6, 1) calc(var(--beat, 0s) + 1.4s + var(--i) * 0.5s) backwards;
+}
+.contrast .makes {
+  fill: none;
+  stroke: #9aa4bf;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.contrast .versus {
+  font-size: 18px;
+  font-weight: 800;
+  fill: #9aa4bf;
+}
+.contrast .side-kind {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  font-weight: 800;
+  fill: var(--kc);
+}
+.contrast .side-label {
+  font-size: 9px;
+  font-weight: 700;
+}
+@keyframes drop-in {
+  from {
+    opacity: 0;
+    translate: 0 -16px;
+  }
+}
+
+/* ------------------------------ beads ------------------------------ */
+
+.beads .thread {
+  fill: none;
+  stroke: #9aa4bf;
+  stroke-width: 1.6;
+}
+.beads .bead circle {
+  fill: var(--k-char-bg);
+  stroke: var(--k-char);
+  stroke-width: 1.6;
+}
+.beads .bead text {
+  font-family: var(--mono);
+  font-weight: 800;
+  fill: var(--k-char);
+}
+/* Each bead comes on at the thread's left end and slides to its place. */
+.beads .bead {
+  animation: bead-on 700ms cubic-bezier(0.3, 0.8, 0.4, 1) calc(var(--beat, 0s) + 0.3s + var(--i) * 0.3s) backwards;
+}
+@keyframes bead-on {
+  from {
+    opacity: 0;
+    translate: var(--dx) -4px;
+  }
+  20% {
+    opacity: 1;
+  }
+}
+.beads .clasp rect {
+  fill: var(--k-str);
+  stroke: #fff;
+  stroke-width: 1;
+}
+.beads .clasp .halo {
+  fill: #ffd84a;
+  opacity: 0;
+  transition: opacity 400ms;
+}
+.beads.glow .clasp .halo {
+  opacity: 0.5;
+}
+/* The clasps clip on once every bead is on. */
+.beads .clasp {
+  animation: clip-on 360ms cubic-bezier(0.5, 0, 0.6, 1.5) calc(var(--beat, 0s) + 0.6s + var(--n) * 0.3s) backwards;
+}
+.beads.glow .clasp .halo {
+  animation: glow-pulse 700ms ease-in-out calc(var(--beat, 0s) + 0.2s) 2 backwards;
+}
+.beads .clasp-word {
+  font-size: 8.5px;
+  font-weight: 800;
+  fill: var(--k-str);
+  animation: from-dark 300ms ease-out calc(var(--beat, 0s) + 0.3s) backwards;
+}
+.beads .beads-caption {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 800;
+  fill: var(--k-str);
+}
+@keyframes clip-on {
+  from {
+    opacity: 0;
+    translate: 0 -22px;
+  }
+}
+@keyframes glow-pulse {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 0.95;
+  }
+}
+
+/* ------------------------------ pointer ------------------------------ */
+
+.pointer .pointer-tag rect {
+  fill: #fff;
+  stroke: var(--brand);
+  stroke-width: 2;
+}
+.pointer .pointer-tag text {
+  font-size: 11px;
+  font-weight: 800;
+  fill: var(--ink);
+}
+.pointer .pointer-tag {
+  animation: from-dark 300ms ease-out calc(var(--beat, 0s) + 0.2s) backwards;
+}
+.pointer .chevron {
+  fill: none;
+  stroke: var(--brand);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.7;
+  /* A wave running towards the console, three times, then still. */
+  animation: chevron-run 1.1s ease-in-out calc(var(--beat, 0s) + 0.4s + var(--i) * 0.05s) 3 backwards;
+}
+@keyframes chevron-run {
+  0%,
+  100% {
+    opacity: 0.7;
+  }
+  30% {
+    opacity: 0.15;
+  }
+}
+
+/* ------------------------------ lamps ------------------------------ */
+
+.lamps .lamp-glow {
+  fill: #ffd84a;
+  opacity: 0.55;
+}
+.lamps .shade {
+  fill: var(--brand);
+}
+.lamps .bulb-glass {
+  fill: #ffe066;
+  stroke: #9aa4bf;
+  stroke-width: 1.5;
+}
+.lamps .true-pill {
+  fill: var(--k-bool-bg);
+  stroke: var(--k-bool);
+}
+.lamps .true-text {
+  font-family: var(--mono);
+  font-size: 8.5px;
+  font-weight: 800;
+  fill: var(--k-bool);
+}
+.lamps .one-block {
+  fill: var(--k-int-bg);
+  stroke: var(--k-int);
+  stroke-width: 1.8;
+}
+.lamps .one-text,
+.lamps .sum-text {
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 800;
+  fill: var(--k-int);
+}
+.lamps .sum-text {
+  font-size: 17px;
+}
+.lamps .sum-kind {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 800;
+  fill: var(--k-int);
+}
+.lamps .op {
+  font-size: 16px;
+  font-weight: 800;
+}
+/* Each lamp lights in turn; each True drops down as a 1; then the sum. */
+.lamps .one-lamp .lamp-glow,
+.lamps .one-lamp .bulb-glass {
+  animation: from-dark 380ms ease-out calc(var(--beat, 0s) + 0.3s + var(--i) * 0.45s) backwards;
+}
+.lamps .one-lamp .as-one {
+  animation: drop-in 420ms cubic-bezier(0.3, 1.4, 0.6, 1) calc(var(--beat, 0s) + 1.4s + var(--i) * 0.35s) backwards;
+}
+.lamps .as-one-op {
+  animation: from-dark 300ms ease-out calc(var(--beat, 0s) + 1.5s + var(--n) * 0.35s) backwards;
+}
+.lamps .sum {
+  transform-origin: 50% 50%;
+  animation: pop-in 420ms cubic-bezier(0.3, 1.5, 0.6, 1) calc(var(--beat, 0s) + 1.8s + var(--n) * 0.35s) backwards;
+}
+
+/* ------------------------------ codes ------------------------------ */
+
+.codes .axis {
+  stroke: #5b6784;
+  stroke-width: 2;
+}
+.codes .code-num {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 800;
+  fill: var(--k-int);
+  animation: from-dark 300ms ease-out calc(var(--beat, 0s) + 1s + var(--i) * 0.55s) backwards;
+}
+.codes .code-tile rect {
+  fill: var(--k-char-bg);
+  stroke: var(--k-char);
+  stroke-width: 1.6;
+}
+.codes .code-tile text {
+  font-family: var(--mono);
+  font-size: 17px;
+  font-weight: 800;
+  fill: var(--k-char);
+}
+.codes .code-tile .drop {
+  stroke: var(--k-char);
+  stroke-width: 1.2;
+  stroke-dasharray: 2 2;
+}
+/* In from the left along the line, one after another, to its code. */
+.codes .code-tile {
+  animation: slide-on 800ms cubic-bezier(0.3, 0.8, 0.4, 1) calc(var(--beat, 0s) + 0.3s + var(--i) * 0.55s) backwards;
+}
+@keyframes slide-on {
+  from {
+    opacity: 0;
+    translate: var(--dx) 0;
+  }
+  30% {
+    opacity: 1;
+  }
+}
+
+/* ------------------------------ scale ------------------------------ */
+
+.scale .floor {
+  stroke: #b39469;
+  stroke-width: 2;
+}
+.scale .post,
+.scale .platform {
+  fill: #7c87a6;
+}
+.scale .base {
+  fill: #4a5578;
+}
+.scale .readout {
+  fill: #dff3e6;
+}
+.scale .reading {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  font-weight: 800;
+  fill: #5b6784;
+}
+.scale.weighed .reading {
+  fill: var(--k-int);
+  /* Once the last parcel is on: the reading is what they weigh together. */
+  animation: from-dark 300ms ease-out calc(var(--beat, 0s) + 0.6s + var(--n) * 0.14s) backwards;
+}
+.scale.off .readout {
+  fill: #ffe9c2;
+}
+.scale.off .reading {
+  fill: #8a4b00;
+}
+.scale .parcel rect {
+  fill: #e2b77a;
+  stroke: #9c6630;
+  stroke-width: 1.2;
+}
+.scale .parcel text {
+  font-family: var(--mono);
+  font-size: 6px;
+  font-weight: 800;
+  fill: #5a3a10;
+}
+/* Weighed: the parcels go on one by one as the answer arrives. */
+.scale.weighed .parcel {
+  animation: drop-in 380ms cubic-bezier(0.3, 1.4, 0.6, 1) calc(var(--beat, 0s) + 0.2s + var(--i) * 0.14s) backwards;
 }
 
 /* ------------------------------ calm ------------------------------ */

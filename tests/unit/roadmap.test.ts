@@ -28,6 +28,14 @@ describe('the roadmap content', () => {
     }
   })
 
+  it('opens the warm-up on meeting the robot, then its data types (docs/PEDAGOGY.md §3)', () => {
+    // `words` folded into the types levels and left the path, and the
+    // map with it.
+    expect(ROADMAP[0]!.levels).toEqual(['sandbox', 'types', 'choose', 'operations', 'practice-thinking'])
+    expect(LEVEL_ORDER).not.toContain('words')
+    expect(levelActivity('sandbox').lesson).toBe('meet')
+  })
+
   it('gives every unit a level, and adjacent units different colours', () => {
     for (const u of ROADMAP) expect(u.levels.length).toBeGreaterThan(0)
     for (let i = 1; i < ROADMAP.length; i++) expect(ROADMAP[i]!.theme).not.toBe(ROADMAP[i - 1]!.theme)

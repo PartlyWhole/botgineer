@@ -8,6 +8,7 @@
  */
 import type { SceneSpec } from '../../src/scene/spec'
 import type { RobotMode } from '../../src/panels/RobotPanel'
+import { BAY } from '../lessons/wake'
 import { readingActivities, reviewActivity, singleActivity, type ReadLevel } from './reading'
 
 export type Activity = {
@@ -28,7 +29,8 @@ export type Activity = {
   read?: ReadLevel
   /** Console only: what the robot says before the first prompt. */
   greeting?: string
-  /** Console only: the guide's lesson, by id in `content/lessons`. */
+  /** The guide's lesson, by id in `content/lessons`. A console lesson is
+   *  judged on lines; an editor one (`wake`) on what a run left in memory. */
   lesson?: string
   /** Console only: a practice session instead of a lesson — generated
    *  exercises on the skills of this roadmap unit. */
@@ -46,7 +48,7 @@ export type Activity = {
 /* ---------------------------------------------------------------- */
 
 /**
- * The workshop the first and third levels share: the crow and the robot
+ * The workshop the first level and `operations` share: the crow and the robot
  * with room between them for the lesson's pictures (`props`), which stand
  * no taller than the robot and so stay under the speech band.
  *
@@ -67,34 +69,71 @@ const WORKSHOP: SceneSpec = {
 }
 
 /**
- * The third level: working things out.
+ * The first level's workshop: the robot nearer the middle and the
+ * picture on its far side, because the one picture here is the pointer,
+ * whose chevrons run off the stage's right edge towards the console. In
+ * `WORKSHOP` they would run across the robot's face, and they stay up
+ * through the ask.
+ */
+const MEET_WORKSHOP: SceneSpec = {
+  ...WORKSHOP,
+  actors: [
+    { id: 'crow', kind: 'crow', x: 12, y: 0, w: 16, stand: true },
+    { id: 'robot', kind: 'robot', x: 42, y: 0, w: 22, stand: true },
+  ],
+  props: { x: 77, w: 34 },
+}
+
+/**
+ * Level 2: working things out.
  *
- * Same room, same empty memory. The robot computes and reports, each
- * question drawn on the stage, and the lesson ends on the fact that the
- * answer went nowhere — which is the
- * itch the naming lesson scratches. That ordering is the whole reason
- * this activity exists between them.
+ * Same room, same empty memory, and Mira back with a sum: seven crates
+ * of six bolts, which the robot cannot know and can work out. Each
+ * question is drawn on the stage, and the lesson ends on the fact that
+ * every answer went nowhere — the itch the naming lesson scratches. That
+ * ordering is the whole reason this activity sits between them.
+ *
+ * Mira stands where she does in the Lesson 1 workshop, and the lesson's
+ * first beat is her `enter`, so she arrives rather than waits (`castAt`).
+ * The scene is its own, not `WORKSHOP_WITH_MIRA`, which is declared
+ * further down and is Lesson 1's to change.
  */
 const workingOut: Activity = {
   id: 'operations',
   title: 'Working Things Out',
-  brief: 'Arithmetic, comparisons and joining words — none of it kept.',
+  brief: 'Give the robot the sum and let it work it out: numbers, questions and words, and what type comes back.',
   mode: 'console',
   lesson: 'operations',
   next: 'practice-thinking',
-  greeting: 'Give me something to work out.',
+  greeting: 'Give me a sum. I will work it out.',
   starter: '',
   options: { max_steps: 3000, wall_clock_s: 15 },
-  scene: WORKSHOP,
+  scene: {
+    id: 'workshop',
+    title: 'Workshop',
+    floor: { at: 76 },
+    actors: [
+      { id: 'crow', kind: 'crow', x: 10, y: 0, w: 14, stand: true },
+      { id: 'robot', kind: 'robot', x: 64, y: 0, w: 19, stand: true },
+      { id: 'courier', kind: 'courier', x: 87, y: 0, w: 15, stand: true },
+    ],
+    props: { x: 36.5, w: 32 },
+    watches: [],
+  },
 }
 
 /**
- * The third lesson: names.
+ * Level 4: names.
  *
  * A fresh session on purpose. Starting from an empty memory is what makes
  * the first binding legible — one name, one arrow, one object — where
- * continuing from the first lesson's four loose objects would open on a
- * field that already looks busy.
+ * continuing from an earlier level would open on a field that already
+ * looks busy.
+ *
+ * The same workshop as `operations`, because the lesson opens on that
+ * level's first picture (the crates of bolts) to show the robot has
+ * forgotten it. After that the picture is the memory graph, which the
+ * crow points at.
  */
 const namingThings: Activity = {
   id: 'names',
@@ -103,19 +142,21 @@ const namingThings: Activity = {
   mode: 'console',
   lesson: 'names-point',
   next: 'order',
-  greeting: 'Still nothing kept. Let us fix that.',
+  greeting: 'Nothing kept yet. Let\'s fix that.',
   starter: '',
   options: { max_steps: 3000, wall_clock_s: 15 },
+  // The workshop's own geometry, restated rather than shared: this level
+  // stands one picture, at its start, and should not move when another
+  // level's cast does.
   scene: {
     id: 'workshop',
     title: 'Workshop',
-    // The bench is gone: it was a floating pill that nobody stood on.
-    // The floor is the thing they stand on now.
-    floor: { at: 78 },
+    floor: { at: 76 },
     actors: [
-      { id: 'crow', kind: 'crow', x: 32, y: 0, w: 17, stand: true },
-      { id: 'robot', kind: 'robot', x: 66, y: 0, w: 24, stand: true },
+      { id: 'crow', kind: 'crow', x: 12, y: 0, w: 16, stand: true },
+      { id: 'robot', kind: 'robot', x: 74, y: 0, w: 22, stand: true },
     ],
+    props: { x: 41.5, w: 40 },
     watches: [],
   },
 }
@@ -147,9 +188,9 @@ const takeAnOrder: Activity = {
     title: 'The counter',
     floor: { at: 82 },
     actors: [
-      { id: 'crow', kind: 'crow', x: 13, y: 0, w: 13, stand: true },
-      { id: 'robot', kind: 'robot', x: 38, y: 0, w: 23, stand: true },
-      { id: 'courier', kind: 'courier', x: 72, y: 0, w: 21, stand: true },
+      { id: 'crow', kind: 'crow', x: 9, y: 0, w: 12, stand: true },
+      { id: 'robot', kind: 'robot', x: 28, y: 0, w: 21, stand: true },
+      { id: 'courier', kind: 'courier', x: 79, y: 0, w: 19, stand: true },
       // A board over the counter, not a plaque on the floor: it is the
       // one thing here that is genuinely mounted rather than standing,
       // and putting it at the robot's feet had it overlapping them.
@@ -162,6 +203,9 @@ const takeAnOrder: Activity = {
       // the default shapes and the stacked layout down to 900px wide.
       { id: 'ticket', kind: 'sign', x: 62, y: 9, w: 26, label: 'no customer' },
     ],
+    // The scale stands between the robot and Mira: her parcels, weighed
+    // by what the robot works out.
+    props: { x: 54, w: 30 },
     watches: [
       {
         name: 'customer',
@@ -180,99 +224,94 @@ const wakeTheRobot: Activity = {
   id: 'wake',
   title: 'Wake the Robot',
   mode: 'editor',
+  lesson: 'wake',
   next: 's1-set-1',
   brief:
     'The robot is asleep. It reads three things out of its own memory: whether it has power, what it should call itself, and how charged it is. Give those names values.',
   starter: '# Give the robot what it needs.\n# power, name, charge\n\n',
   options: { max_steps: 2000, wall_clock_s: 15 },
-  scene: {
-    id: 'bay',
-    title: 'Charging bay',
-    floor: { at: 80 },
-    actors: [
-      { id: 'robot', kind: 'robot', x: 50, y: 0, w: 27, stand: true },
-      // Fixtures, not cast: a lamp and a gauge are mounted on the wall
-      // and a nameplate hangs above the bay. None of them stands.
-      { id: 'lamp', kind: 'lamp', x: 78, y: 20, w: 9 },
-      { id: 'battery', kind: 'gauge', x: 20, y: 26, w: 17 },
-      { id: 'nameplate', kind: 'sign', x: 50, y: 14, w: 38, label: 'unnamed' },
-    ],
-    watches: [
-      {
-        name: 'power',
-        effect: { kind: 'lit', actor: 'lamp' },
-        hint: 'the lamp is waiting for `power`',
-      },
-      {
-        name: 'name',
-        effect: { kind: 'caption', actor: 'nameplate' },
-        hint: 'the nameplate is waiting for `name`',
-      },
-      {
-        name: 'charge',
-        effect: { kind: 'level', actor: 'battery', max: 100 },
-        hint: 'the battery is waiting for `charge` (0 to 100)',
-      },
-    ],
-  },
+  // The lesson's own bay (`content/lessons/wake`), so that finishing the
+  // lesson and satisfying these watches are one test, not two that agree.
+  scene: BAY,
 }
 
 /**
- * The starting point: yes, how many, how much.
+ * The starting point: meet the robot.
  *
- * No program, no Run button: the crow asks about a situation on the
- * stage, the player answers in one line, and the answer is drawn into the
- * picture — `True` lights the lamp, `-1` sends the lift down. Nothing is
- * named, so nothing reaches memory; that memory stays empty here is the
- * point, not an omission.
+ * No program, no Run button: the crow introduces the robot, and the player
+ * makes it think of something in one line. Nothing is named, so nothing
+ * reaches memory; that memory stays empty here is the point, not an
+ * omission.
  *
- * The picture for each question stands between the crow and the robot
- * (`WORKSHOP`).
+ * The pictures stand between the crow and the robot (`WORKSHOP`).
  */
-const firstThoughts: Activity = {
+const meetTheRobot: Activity = {
   id: 'sandbox',
-  title: 'Yes, How Many, How Much',
+  title: 'Meet the Robot',
   /** Kept as data, rendered nowhere: the starting point does not need to
    *  be introduced. Activities with something to solve will want it. */
-  brief: 'True and False, counting numbers and measurements: which kind of value answers which kind of question.',
+  brief: 'The robot does nothing until you give it an instruction. Then it thinks of whatever you write.',
   mode: 'console',
-  lesson: 'kinds',
-  next: 'words',
-  greeting: 'Type an answer and press Enter. I will think of it.',
+  lesson: 'meet',
+  next: 'types',
+  greeting: 'Ready. One instruction per line.',
   starter: '',
   options: { max_steps: 3000, wall_clock_s: 15 },
-  scene: WORKSHOP,
+  scene: MEET_WORKSHOP,
 }
 
 /**
- * Talking to humans: text.
+ * The workshop with Mira in it: the crow, the pictures, the robot, and
+ * Mira at the far end, who gives the words (`str`) somebody to be for.
  *
- * Mira is a person, so words have someone to be for. The robot stands
- * between the crow and her, and what it says to her appears between the
- * robot and her — on a card, a phone, a note on a door.
+ * She is in the scene from the start, but a lesson whose first action for
+ * her is `enter` keeps her off stage until that beat (`castAt` in
+ * `content/lessons`) — so she can arrive part-way through without the
+ * scene holding any state about it. Everyone is pulled in a little to make
+ * room: the robot at 64% keeps its thought cloud inside the 31–69 clamp,
+ * and the pictures narrow to fit between the crow and the robot.
  */
-const talkingToHumans: Activity = {
-  id: 'words',
-  title: 'Talking to Humans',
-  brief: 'Text is for people: words in quotes, and why a phone number is text, not a number.',
+const WORKSHOP_WITH_MIRA: SceneSpec = {
+  id: 'workshop',
+  title: 'Workshop',
+  floor: { at: 76 },
+  actors: [
+    { id: 'crow', kind: 'crow', x: 10, y: 0, w: 14, stand: true },
+    { id: 'robot', kind: 'robot', x: 64, y: 0, w: 19, stand: true },
+    { id: 'courier', kind: 'courier', x: 87, y: 0, w: 15, stand: true },
+  ],
+  props: { x: 36.5, w: 32 },
+  watches: [],
+}
+
+/** Level 1b: the five basic data types, met one at a time, each named
+ *  into its slot on the shelf. Mira arrives part-way, with the letters. */
+const fiveDataTypes: Activity = {
+  id: 'types',
+  title: 'Five Data Types',
+  brief: 'Yes or no, how many, how much, one character, and words: the five basic data types.',
   mode: 'console',
-  lesson: 'talking',
-  next: 'operations',
-  greeting: 'I think in True, 12 and 0.5. Mira thinks in words.',
+  lesson: 'types',
+  next: 'choose',
+  greeting: 'Ready. One instruction per line.',
   starter: '',
   options: { max_steps: 3000, wall_clock_s: 15 },
-  scene: {
-    id: 'porch',
-    title: 'The porch',
-    floor: { at: 76 },
-    actors: [
-      { id: 'crow', kind: 'crow', x: 9, y: 0, w: 16, stand: true },
-      { id: 'robot', kind: 'robot', x: 30, y: 0, w: 17, stand: true },
-      { id: 'courier', kind: 'courier', x: 88.5, y: 0, w: 17, stand: true },
-    ],
-    props: { x: 59, w: 34 },
-    watches: [],
-  },
+  scene: WORKSHOP_WITH_MIRA,
+}
+
+/** Level 1c: twelve questions, each answered with the right data type
+ *  and no hint about which. Mira is on stage from the start. */
+const chooseTheType: Activity = {
+  id: 'choose',
+  title: 'Choose the Type',
+  brief: 'Each question decides its own data type. Answer it with the right one.',
+  mode: 'console',
+  lesson: 'choose',
+  next: 'operations',
+  greeting: 'Ready. One instruction per line.',
+  starter: '',
+  options: { max_steps: 3000, wall_clock_s: 15 },
+  scene: WORKSHOP_WITH_MIRA,
 }
 
 /**
@@ -330,8 +369,9 @@ const practiceRemembering: Activity = {
  *  hash but are not offered anywhere yet — they are what unlocking looks
  *  like, once there is a progression to unlock them from. */
 export const ACTIVITIES: Activity[] = [
-  firstThoughts,
-  talkingToHumans,
+  meetTheRobot,
+  fiveDataTypes,
+  chooseTheType,
   workingOut,
   practiceThinking,
   namingThings,
