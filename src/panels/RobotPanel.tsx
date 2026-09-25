@@ -52,6 +52,13 @@ type Props = {
   memory: ReactNode
   /** Read mode: the reading instrument, in place of the console or editor. */
   instrument?: ReactNode
+  /** A lesson's narration is showing: the console is closed until the
+   *  question. The editor stays open — a program is written at leisure. */
+  listening?: boolean | undefined
+  /** A question is waiting for a typed answer: the instrument glows. */
+  asked?: boolean | undefined
+  /** A beat points at part of this panel, which pulses while it shows. */
+  focus?: 'console' | 'memory' | 'run' | undefined
 }
 
 export function RobotPanel({
@@ -73,6 +80,9 @@ export function RobotPanel({
   traceLine,
   memory,
   instrument,
+  listening = false,
+  asked = false,
+  focus,
 }: Props) {
   const talking = mode === 'console'
   const reading = mode === 'read'
@@ -98,7 +108,11 @@ export function RobotPanel({
           attempt; the real view, resizable, is better than an abridgement
           of it, and it is the same snapshot either way. */}
       <div className="views">
-        <div className="view instrument">
+        <div
+          className={`view instrument ${focus === 'console' ? 'pulse' : ''} ${asked ? 'glow' : ''}`}
+          data-testid="instrument"
+          data-focus={focus === 'console' ? 'yes' : 'no'}
+        >
           {reading ? (
             instrument
           ) : talking ? (
@@ -108,6 +122,7 @@ export function RobotPanel({
               busy={busy}
               disabled={disabled}
               greeting={greeting}
+              listening={listening}
             />
           ) : (
             <CodeEditor
@@ -130,7 +145,9 @@ export function RobotPanel({
           label="Resize memory"
         />
 
-        <div className="view memory-view">{memory}</div>
+        <div className={`view memory-view ${focus === 'memory' ? 'pulse' : ''}`} data-focus={focus === 'memory' ? 'yes' : 'no'}>
+          {memory}
+        </div>
       </div>
 
       {/* The console answers inline, so it needs no Run button and no step
@@ -176,7 +193,7 @@ export function RobotPanel({
       <div className="transport">
         <button
           type="button"
-          className="primary"
+          className={`primary ${focus === 'run' ? 'pulse' : ''}`}
           onClick={onRun}
           disabled={busy || disabled}
           data-testid="run"

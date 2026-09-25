@@ -16,6 +16,10 @@
      colour, which is the text the lesson is asking to be typed. */
   --brand-deep: #3453cc;
   --brand-ink: #ffffff;
+  /* Mira's colour, for her name on a speech bubble: white 12px bold text
+     on it, so dark enough for that (5.2:1), and orange rather than the
+     amber of a reference so the two never read as one idea. */
+  --mira: #b84c0f;
   --good: #1f9d55;
   /* Dark enough for 12.5px text on white: #b26a00 measured 4.24:1 and
      4.24 is not 4.5. The `.waiting` hints are the smallest text in the

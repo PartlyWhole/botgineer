@@ -5,8 +5,36 @@
  * the scene's declared watches. The scene holds no state of its own and
  * takes no commands, so it cannot show something the program did not do —
  * and scrubbing the trace rewinds the picture for free.
+ *
+ * ## Telling
+ *
+ * A lesson now talks in beats (docs/PEDAGOGY.md §4): short lines the
+ * player advances with Next, ending on a question that opens the console.
+ * The scene draws that — the bubble, Next and Back, the bar of steps
+ * along the top, the takeaway at the end — from what the workbench hands
+ * it (`telling`). Which beat is showing is the workbench's one piece of
+ * view state; the buttons here only *ask* it to move, the way Continue
+ * asks the router, and neither can start a run or change what memory
+ * says (invariant 12).
+ *
+ * The line types itself on, and that is drawing too: every character is
+ * its own span with a CSS delay, so the text is laid out whole from the
+ * first frame (nothing measured here ever changes size), a screen reader
+ * gets all of it at once, and reduced motion — which drops every
+ * animation — simply shows it whole. No timer decides when the typing
+ * ends; Next asks the element's own animations whether they have.
  */
-import { useLayoutEffect, useRef, type ReactNode } from 'react'
+import {
+  Children,
+  cloneElement,
+  isValidElement,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  type CSSProperties,
+  type ReactElement,
+  type ReactNode,
+} from 'react'
 import {
   placement,
   readScene,
@@ -25,6 +53,50 @@ import type { Cast, Mood } from '../game/director'
 import type { PracticeMeter } from '../practice/usePractice'
 import type { Staging } from '../scene/props'
 import { PropLayer } from '../ui/Props'
+import { speakerOf } from '../../content/cast'
+import type { CastView, ScriptItem } from '../../content/lessons'
+
+/** What the guide is saying, and what kind of line it is. */
+export type GuideLine = {
+  text: string
+  /** An actor id, or the crow when it is not given. */
+  speaker?: string | undefined
+  /** Narration (`beat`, `praise`, `outro`), a question (`ask`), or the
+   *  answer to a miss (`reply`). A bare line is drawn as an ask. */
+  kind?: ScriptItem['kind'] | undefined
+  /** Who does the work, on an ask (R4). */
+  tag?: 'you' | 'robot' | undefined
+  /** Identity of this line in the script, so the same words said again
+   *  as a new beat still type on again. */
+  key?: string | undefined
+}
+
+/**
+ * The beat controls, while a lesson is telling its script. Handed down,
+ * like the guide's text; the buttons call back and hold nothing.
+ */
+export type Telling = {
+  /** Narration is showing: Next is offered and the console is closed. */
+  listening: boolean
+  /** There is a beat before this one to go back to. */
+  back: boolean
+  /** The lesson's steps, for the bar along the top: how many, which one
+   *  is current (`steps` once finished), and how far through the current
+   *  one's script, 0..1. */
+  steps: number
+  step: number
+  through: number
+  /** Where the answer goes, said by the pointer at the ask; empty for no
+   *  pointer. */
+  prompt: string
+  /** Shown once the lesson is finished and its last line said. */
+  takeaway?: string | undefined
+  /** Finished and resting: the takeaway bar, and Replay. */
+  resting: boolean
+  onNext: () => void
+  onBack: () => void
+  onReplay: () => void
+}
 
 export function ScenePanel({
   spec,
@@ -38,6 +110,8 @@ export function ScenePanel({
   meter,
   staging,
   compact,
+  telling,
+  cast,
   children,
 }: {
   spec: SceneSpec
@@ -49,7 +123,7 @@ export function ScenePanel({
    *  is not given. Derived by the workbench and handed down as text: the
    *  scene still causes nothing and decides nothing, it just draws the
    *  sentence it was given, next to whoever is saying it. */
-  guide?: { text: string; speaker?: string | undefined } | undefined
+  guide?: GuideLine | undefined
   /** Offered once the lesson is finished. Navigation only: it starts no
    *  run and holds no state, so the scene still causes nothing that could
    *  change what memory says. */
@@ -88,6 +162,11 @@ export function ScenePanel({
    * The sheet is drawn from what it is handed, like everything else here.
    */
   compact?: boolean
+  /** The beat controls, when a lesson is telling a script. */
+  telling?: Telling | undefined
+  /** Who is off stage, asleep or waving at this beat. Cosmetic: derived
+   *  from the lesson's beats, never from memory, and changes nothing. */
+  cast?: CastView | undefined
   children?: ReactNode
 }) {
   const view = readScene(spec, snapshot)
@@ -116,13 +195,76 @@ export function ScenePanel({
   // A new line pops the bubble in again, and a new value pops the cloud.
   // Played straight on the element, never through a `key`: remounting
   // either would replace a live region, and a screen reader does not
-  // reliably announce one that has only just appeared.
+  // reliably announce one that has only just appeared. A new *speaker*
+  // does not pop: the bubble slides across to them instead (its `left`
+  // is transitioned), which reads as the same conversation moving on.
   const speechRef = useRef<HTMLDivElement | null>(null)
   const tailRef = useRef<HTMLSpanElement | null>(null)
   const thoughtRef = useRef<HTMLDivElement | null>(null)
-  usePop(speechRef, guideShown ? guide.text : null, BUBBLE_POP)
-  usePop(tailRef, guideShown ? guide.text : null, TAIL_FADE)
+  const nextRef = useRef<HTMLButtonElement | null>(null)
+  const line = guideShown ? `${guide.key ?? ''}\u0000${guide.text}` : null
+  const who = guideShown ? speaker.actor.id : null
+  useSpeechPop(speechRef, tailRef, line, who)
   usePop(thoughtRef, thoughtShown ? (thinking ? '\u2026' : (thought ?? '')) : null, THOUGHT_POP)
+
+  // The line, typed on: one span per character, each with its delay, and
+  // how long the whole takes — which is also how long the speaker's mouth
+  // moves and when the continue cue appears.
+  const typed = guideShown ? typeOn(richText(guide.text)) : null
+  const voice = speakerOf(guideShown ? speaker.actor.id : undefined)
+  const kind = guide?.kind ?? 'ask'
+  const asking = kind === 'ask' || kind === 'reply'
+  const listening = telling?.listening === true
+  // Next stays dim while the line types, then comes up: drawn on the
+  // element, keyed on the line, like the pops.
+  usePop(nextRef, listening ? line : null, {
+    frames: [{ opacity: 0.55 }, { opacity: 0.55, offset: 0.92 }, { opacity: 1 }],
+    calm: [{ opacity: 1 }, { opacity: 1 }],
+    options: { duration: (typed?.ms ?? 0) + 120, easing: 'linear' },
+  })
+
+  /**
+   * Next: the first press finishes the line if it is still typing, the
+   * second moves on. Whether it is typing is asked of the bubble's own
+   * animations, so nothing here keeps count.
+   */
+  const next = () => {
+    const bubble = speechRef.current
+    const stage = bubble?.closest('.stage')
+    const typing =
+      bubble && typeof bubble.getAnimations === 'function'
+        ? bubble.getAnimations({ subtree: true }).filter((a) => a.playState === 'running' && isTyping(a))
+        : []
+    if (typing.length > 0) {
+      for (const a of typing) a.finish()
+      // The mouth stops with the words.
+      for (const el of stage?.querySelectorAll('.talking') ?? []) for (const a of el.getAnimations()) a.finish()
+      for (const a of nextRef.current?.getAnimations() ?? []) a.finish()
+      return
+    }
+    telling?.onNext()
+  }
+  // Enter or Space anywhere moves narration on — anywhere that is not
+  // itself something those keys work (a button presses itself; the
+  // console is closed while this listens).
+  const nextKey = useRef(next)
+  nextKey.current = next
+  useEffect(() => {
+    if (!listening) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || e.isComposing || e.altKey || e.ctrlKey || e.metaKey) return
+      if (e.key !== 'Enter' && e.key !== ' ') return
+      if (e.target instanceof Element && e.target.closest(INTERACTIVE)) return
+      e.preventDefault()
+      nextKey.current()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [listening])
+
+  const hidden = new Set(cast?.hidden ?? [])
+  const asleep = new Set(cast?.asleep ?? [])
+  const acting = new Map((cast?.acting ?? []).map((a) => [a.actor, a.do]))
 
   return (
     <div className={`scene-panel ${compact ? 'compact' : ''}`} data-testid="scene">
@@ -164,6 +306,63 @@ export function ScenePanel({
                 {richText(meter.task)}
               </p>
             )}
+          </div>
+        )}
+
+        {telling && telling.steps > 0 && (
+          // Thin, along the top: one segment per step, the current one
+          // filling as its beats are told. Where the lesson is, at a
+          // glance, without a number to read.
+          <div
+            className="beat-bar"
+            data-testid="beat-bar"
+            role="progressbar"
+            aria-label="Lesson progress"
+            aria-valuemin={0}
+            aria-valuemax={telling.steps}
+            aria-valuenow={Math.min(telling.step, telling.steps)}
+          >
+            {Array.from({ length: telling.steps }, (_, i) => (
+              <span
+                key={i}
+                className={`beat-seg ${i < telling.step ? 'done' : i === telling.step ? 'now' : ''}`}
+                style={{ ['--fill' as string]: String(i < telling.step ? 1 : i === telling.step ? telling.through : 0) }}
+              />
+            ))}
+          </div>
+        )}
+
+        {telling?.listening && (
+          // Bottom-centre, where the eye goes after the line: Next, and a
+          // small Back beside it. Only while narration shows — at the ask
+          // the keyboard belongs to the console, and this gives way to the
+          // pointer at it.
+          <div className="beat-controls" data-testid="beat-controls">
+            {telling.back && (
+              <button type="button" className="beat-back" onClick={telling.onBack} data-testid="beat-back" aria-label="Back">
+                ◂
+              </button>
+            )}
+            <button ref={nextRef} type="button" className="beat-next" onClick={next} data-testid="beat-next">
+              Next
+            </button>
+          </div>
+        )}
+
+        {telling && telling.prompt !== '' && !telling.listening && !telling.resting && asking && (
+          <p className="ask-pointer" data-testid="ask-pointer" aria-hidden="true">
+            <span className="ask-pointer-text">{telling.prompt}</span>
+          </p>
+        )}
+
+        {telling?.resting && telling.takeaway && (
+          // The lesson in a sentence or two (R11), kept on screen once
+          // everything has been said. Replay tells the closing lines again.
+          <div className="takeaway" data-testid="takeaway">
+            <p>{richText(telling.takeaway)}</p>
+            <button type="button" className="takeaway-replay" onClick={telling.onReplay} data-testid="replay">
+              Replay
+            </button>
           </div>
         )}
 
@@ -223,7 +422,19 @@ export function ScenePanel({
             mood={a.actor.kind === 'robot' ? moods.robot : done ? 'pleased' : moods.npc}
             floor={spec.floor}
             pleased={done}
-            talk={guideShown && speaker.actor.id === a.actor.id ? guide.text : undefined}
+            talk={guideShown && speaker.actor.id === a.actor.id ? line ?? undefined : undefined}
+            talkFor={typed?.ms ?? 0}
+            // Everyone else looks at whoever is talking.
+            look={
+              guideShown && speaker.actor.id !== a.actor.id
+                ? speaker.actor.x < a.actor.x
+                  ? 'left'
+                  : 'right'
+                : undefined
+            }
+            offstage={hidden.has(a.actor.id)}
+            asleep={asleep.has(a.actor.id)}
+            acting={acting.get(a.actor.id)}
           />
         ))}
 
@@ -249,6 +460,7 @@ export function ScenePanel({
           <div
             ref={railRef}
             className={`bubble-rail ${guideShown ? 'with-speech' : ''}`}
+            data-kind={guideShown ? kind : undefined}
             style={railAnchor(anchor.actor, spec.floor, lift)}
           >
             {thoughtShown && (
@@ -275,18 +487,45 @@ export function ScenePanel({
             {guideShown && (
               <div
                 ref={speechRef}
-                className="bubble"
+                className={`bubble ${asking ? 'asking' : 'telling'} ${kind === 'reply' ? 'reply' : ''}`}
                 data-testid="guide"
                 data-speaker={speaker.actor.id}
+                data-kind={kind}
                 // Kept inside the stage: a character near an edge would
                 // otherwise push half the sentence out of the panel, and
                 // the guide is the one thing that has to be readable. The
                 // body moves; the tail does not, so the clamp cannot make
                 // the bubble point at the wrong character.
-                style={{ left: `${bubbleX(speaker.actor.x) - 50}%` }}
+                style={{
+                  left: `${bubbleX(speaker.actor.x) - 50}%`,
+                  ['--speaker' as string]: `var(${voice.colour})`,
+                  ['--type-ms' as string]: `${typed?.ms ?? 0}ms`,
+                }}
                 aria-live="polite"
               >
-                {richText(guide.text)}
+                {/* Who is talking, in their colour, on the top edge. Part
+                    of the live region on purpose: "Mira: …" is how a
+                    screen reader should hear a change of speaker. */}
+                <span className="bubble-name" data-testid="speaker-name">
+                  {voice.name}
+                  <span className="sr-only">:</span>
+                </span>
+                {asking && guide.tag && (
+                  <span className="bubble-who" data-testid="ask-tag" data-tag={guide.tag}>
+                    {guide.tag === 'robot' ? 'Robot works it out' : 'You answer'}
+                  </span>
+                )}
+                {/* Keyed on the line, so a new line's characters are new
+                    elements and type on afresh. The live region itself is
+                    the same element throughout. */}
+                <span key={line ?? ''} className="bubble-text">
+                  {typed?.nodes}
+                </span>
+                {listening && (
+                  <span className="bubble-cue" aria-hidden="true">
+                    ▸
+                  </span>
+                )}
               </div>
             )}
             {guideShown && (
@@ -294,18 +533,25 @@ export function ScenePanel({
               // speaker is some way below it. The tail reaches down that
               // far (`--drop`, in the same width units as the band), or
               // the bubble would point at the air above the crow.
+              //
+              // Short and curved, and it leans: its root is pulled towards
+              // the bubble's body, so when the clamp has slid the body away
+              // from a speaker near the edge the tail still grows out of
+              // the bubble rather than beside it. Its `left` is
+              // transitioned, so a change of speaker swings it across.
               <span
                 ref={tailRef}
                 className="bubble-tail"
                 aria-hidden="true"
+                data-lean={lean(speaker.actor.x)}
                 style={{
                   left: `${speaker.actor.x}%`,
                   ['--drop' as string]: `${speechDrop(speaker.actor, spec.floor, lift)}%`,
                 }}
               >
-                <svg viewBox="0 0 16 10" preserveAspectRatio="none">
-                  <polygon points="0,0 16,0 8,10" />
-                  <polyline points="0,0 8,10 16,0" />
+                <svg viewBox="0 0 32 10" preserveAspectRatio="none">
+                  <path className="tail-fill" d={TAIL[lean(speaker.actor.x)].fill} />
+                  <path className="tail-edge" d={TAIL[lean(speaker.actor.x)].edge} />
                 </svg>
               </span>
             )}
@@ -390,22 +636,152 @@ const box = (el: HTMLElement) => ({
 
 type Pop = { frames: Keyframe[]; calm: Keyframe[]; options: KeyframeAnimationOptions }
 
-/** Ease-out on the way in, scaled from the foot so the box only ever
- *  grows into the one it settles at — it never covers what the settled
- *  bubble would not. */
+/** Ease-out on the way in, scaled from where the tail meets it, so the
+ *  box only ever grows into the one it settles at — it never covers what
+ *  the settled bubble would not. Small (.96) and quick (~180ms): a line
+ *  arriving, not a window opening. */
 const BUBBLE_POP: Pop = {
   frames: [
-    { opacity: 0, transform: 'scale(0.86)' },
+    { opacity: 0, transform: 'scale(0.96)' },
     { opacity: 1, transform: 'none' },
   ],
   calm: [{ opacity: 0 }, { opacity: 1 }],
-  options: { duration: 220, easing: 'cubic-bezier(0.2, 0.8, 0.3, 1)' },
+  options: { duration: 180, easing: 'cubic-bezier(0.2, 0.8, 0.3, 1)' },
 }
 
 const TAIL_FADE: Pop = {
   frames: [{ opacity: 0 }, { opacity: 0, offset: 0.35 }, { opacity: 1 }],
   calm: [{ opacity: 0 }, { opacity: 1 }],
-  options: { duration: 220, easing: 'ease-out' },
+  options: { duration: 180, easing: 'ease-out' },
+}
+
+/**
+ * The bubble's pop, played for a new line from the same speaker. A new
+ * speaker gets no pop — the bubble's `left` and the tail's are
+ * transitioned in CSS, so it slides across to them instead of blinking
+ * out and back.
+ *
+ * The previous speaker is kept in a ref: drawing memory, like an
+ * animation's own progress, never read by anything that decides what is
+ * shown.
+ */
+function useSpeechPop(
+  bubble: { current: HTMLElement | null },
+  tail: { current: HTMLElement | null },
+  line: string | null,
+  who: string | null,
+) {
+  const said = useRef<string | null>(null)
+  useLayoutEffect(() => {
+    const was = said.current
+    said.current = who
+    const el = bubble.current
+    if (line === null || !el || typeof el.animate !== 'function') return
+    if (was !== null && who !== was) return
+    const calm = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
+    // From the tail: where it meets the bubble, as an origin in the
+    // bubble's own box. Layout offsets, which ignore the transform about
+    // to be played.
+    const t = tail.current
+    if (t && t.offsetParent === el.offsetParent) {
+      const x = t.offsetLeft + t.offsetWidth / 2 - el.offsetLeft
+      el.style.transformOrigin = `${Math.max(0, Math.min(el.offsetWidth, x))}px 100%`
+    }
+    const runs = [el.animate(calm ? BUBBLE_POP.calm : BUBBLE_POP.frames, BUBBLE_POP.options)]
+    if (t && typeof t.animate === 'function') runs.push(t.animate(calm ? TAIL_FADE.calm : TAIL_FADE.frames, TAIL_FADE.options))
+    return () => runs.forEach((r) => r.cancel())
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [line])
+}
+
+/* ------------------------------ typing on ------------------------------ */
+
+/** About 45 characters a second, with a breath at a comma and a longer
+ *  one at the end of a sentence. */
+const CHAR_MS = 22
+const PAUSE_MS: Record<string, number> = { ',': 160, ';': 160, ':': 160, '.': 300, '!': 300, '?': 300, '…': 300 }
+/** A code chip is one thing, and arrives whole. */
+const CHIP_MS = 90
+
+/** The keyframe name the characters type on with (`console.css`). */
+const TYPE_IN = 'type-in'
+
+const isTyping = (a: Animation): boolean =>
+  a instanceof CSSAnimation ? a.animationName === TYPE_IN || a.animationName === 'cue-in' : false
+
+/**
+ * Types a line on: the output of `richText`, with every character of its
+ * prose in a span that appears at its own moment, and every code chip in
+ * one span that appears whole. `ms` is when the last one does.
+ *
+ * Emphasis and strong words are walked into, so they type on with the
+ * rest; only `code` is kept whole, because a half-typed `True` is a
+ * different token, and chips are what the lesson asks the player to type.
+ */
+export function typeOn(nodes: ReactNode): { nodes: ReactNode; ms: number } {
+  let t = 0
+  const at = (d: number): CSSProperties => ({ ['--d' as string]: `${d}ms` })
+  const walk = (n: ReactNode): ReactNode =>
+    Children.map(n, (child) => {
+      if (typeof child === 'string' || typeof child === 'number') {
+        return [...String(child)].map((ch, i) => {
+          const d = t
+          t += PAUSE_MS[ch] ?? CHAR_MS
+          return (
+            <span key={i} className="tw" style={at(d)}>
+              {ch}
+            </span>
+          )
+        })
+      }
+      if (!isValidElement(child)) return child
+      const el = child as ReactElement<{ children?: ReactNode }>
+      if (el.type === 'code') {
+        const d = t
+        t += CHIP_MS
+        return (
+          <span className="tw chip" style={at(d)}>
+            {el}
+          </span>
+        )
+      }
+      return el.props.children === undefined ? el : cloneElement(el, undefined, walk(el.props.children))
+    })
+  const out = walk(nodes)
+  return { nodes: out, ms: t }
+}
+
+/** Keys the player uses on these elements, so Enter and Space there are
+ *  theirs and not Next's. */
+const INTERACTIVE = 'button, a[href], input, textarea, select, [contenteditable], [role="slider"], .graph, .cm-editor'
+
+/**
+ * Which way the tail leans: towards the bubble's body, when the clamp has
+ * slid it away from the speaker; straight down when it has not.
+ */
+const lean = (x: number): 'left' | 'none' | 'right' => {
+  const off = bubbleX(x) - x
+  return off > 6 ? 'right' : off < -6 ? 'left' : 'none'
+}
+
+/**
+ * The tail, in a 32 × 10 box whose centre bottom is the speaker's head:
+ * its root is 16 wide, under the body, and it curves down to a rounded
+ * tip. `edge` is the two sides only — the top is inside the bubble.
+ */
+const TAIL: Record<'left' | 'none' | 'right', { fill: string; edge: string }> = {
+  none: {
+    fill: 'M 8 0 Q 13 5 15 9.2 Q 16 10.4 17 9.2 Q 19 5 24 0 Z',
+    edge: 'M 8 0 Q 13 5 15 9.2 Q 16 10.4 17 9.2 Q 19 5 24 0',
+  },
+  right: {
+    fill: 'M 16 0 Q 17 5 15.4 9 Q 15.8 10.6 17.2 9.4 Q 25 5 32 0 Z',
+    edge: 'M 16 0 Q 17 5 15.4 9 Q 15.8 10.6 17.2 9.4 Q 25 5 32 0',
+  },
+  left: {
+    fill: 'M 0 0 Q 7 5 14.8 9.4 Q 16.2 10.6 16.6 9 Q 15 5 16 0 Z',
+    edge: 'M 0 0 Q 7 5 14.8 9.4 Q 16.2 10.6 16.6 9 Q 15 5 16 0',
+  },
 }
 
 /** A cloud puffs rather than slides: a small scale from its trail. */
@@ -551,6 +927,11 @@ function ActorNode({
   floor,
   pleased,
   talk,
+  talkFor = 0,
+  look,
+  offstage = false,
+  asleep = false,
+  acting,
 }: {
   view: ActorView
   /** Where it comes in the cast, for the step-in on arrival. */
@@ -558,29 +939,47 @@ function ActorNode({
   mood: Mood
   /** What it is saying, while it is its turn. */
   talk?: string | undefined
+  /** How long the line takes to type on, so the mouth moves for as long
+   *  as the words arrive — a finite flap, counted, not timed. */
+  talkFor?: number
+  /** Which way to look: at whoever is talking. */
+  look?: 'left' | 'right' | undefined
   floor: Floor | undefined
   /** The scene as a whole is satisfied — the only thing that earns a
    *  celebration. Per-actor `lit` is not enough: one lamp on out of
    *  three watches is a third of the way there. */
   pleased: boolean
+  /** Not on stage yet (or any more): a lesson beat brings them on. */
+  offstage?: boolean
+  /** The robot's screen is dark. */
+  asleep?: boolean
+  /** A one-shot a beat asked for. */
+  acting?: 'wave' | 'hop' | undefined
 }) {
   const { actor } = view
   const standing = actor.stand === true && floor !== undefined
   // Only the cast has a face to celebrate with.
   const cast = actor.kind === 'robot' || actor.kind === 'crow' || actor.kind === 'courier'
+  // An even number of alternating runs ends with the mouth shut.
+  const flaps = (period: number) => String(Math.max(2, 2 * Math.ceil(talkFor / period / 2)))
 
   return (
     <div
-      className={`actor ${actor.kind} ${standing ? 'standing' : ''} ${view.lit ? 'lit' : ''} ${view.picked ? 'picked' : ''} ${cast && pleased ? 'cheer' : ''}`}
+      className={`actor ${actor.kind} ${standing ? 'standing' : ''} ${view.lit ? 'lit' : ''} ${view.picked ? 'picked' : ''} ${cast && pleased ? 'cheer' : ''} ${offstage ? 'offstage' : ''} ${asleep ? 'asleep' : ''} ${acting ? `act-${acting}` : ''}`}
       style={{
         ...placement(actor, floor),
         ...(cast ? idleTiming(actor.id) : {}),
         ['--order' as string]: String(order),
+        ...(talk !== undefined && talkFor > 0 ? { ['--talk-jaw' as string]: flaps(170), ['--talk-peck' as string]: flaps(150) } : {}),
       }}
       data-stand={standing ? 'yes' : 'no'}
       data-testid={`actor-${actor.id}`}
       data-lit={view.lit ? 'yes' : 'no'}
       data-picked={view.picked ? 'yes' : 'no'}
+      data-look={look}
+      data-offstage={offstage ? 'yes' : 'no'}
+      data-asleep={asleep ? 'yes' : 'no'}
+      aria-hidden={offstage ? true : undefined}
     >
       {actor.kind === 'robot' && <Robot mood={pleased ? 'celebrate' : mood} talk={talk} />}
       {actor.kind === 'crow' && <Crow mood={mood} talk={talk} />}
