@@ -4,7 +4,7 @@
  * the editor, Run, and the three fixtures one at a time.
  */
 import { expect, test } from '@playwright/test'
-import { beat, open, send } from './helpers'
+import { beat, open, send, skip } from './helpers'
 
 test('the editor arrives, Run is shown, then the task', async ({ page }) => {
   await open(page, 'wake')
@@ -34,9 +34,11 @@ test('the lesson finishes on the run that wakes the robot, and not before', asyn
   await expect(page.getByTestId('advance')).toHaveCount(0)
   await expect(page.getByTestId('actor-robot')).toHaveAttribute('data-asleep', 'yes')
   await send(page, 'power = True\nname = "Bolt"\ncharge = 72\n')
-  await expect(page.getByTestId('advance')).toBeVisible()
   await expect(page.getByTestId('guide')).toContainText('Awake')
   await expect(page.getByTestId('actor-robot')).toHaveAttribute('data-asleep', 'no')
-  await page.evaluate(() => window.botgineer.skip())
+  // Continue waits for the closing lines.
+  await expect(page.getByTestId('advance')).toHaveCount(0)
+  await skip(page)
   await expect(page.getByTestId('takeaway')).toContainText('program')
+  await expect(page.getByTestId('advance')).toBeVisible()
 })

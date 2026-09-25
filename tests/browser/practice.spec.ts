@@ -54,6 +54,7 @@ for (const unit of ['thinking', 'remembering']) {
       await expect(page.getByTestId('guide')).toHaveAttribute('data-kind', 'praise')
       await skip(page)
       await expect(page.getByTestId('guide')).toContainText('5 of 5 right first time')
+      await skip(page) // Continue waits for the closing lines
       await expect(page.getByTestId('advance')).toBeVisible()
       // Thinking ends on the shelf, every right answer beside its type.
       if (unit === 'thinking') await expect(page.getByTestId('prop')).toHaveAttribute('data-prop', 'shelf')
@@ -170,6 +171,7 @@ test('an exercise with setup starts from it, shown as given', async ({ page }) =
 test('the skills screen shows what practice recorded', async ({ page }) => {
   await open(page, 'practice-thinking')
   await playSession(page)
+  await skip(page) // Continue waits for the closing lines
   await page.getByTestId('advance').click()
   await page.getByTestId('nav-skills').click()
   await expect(page.getByTestId('skills')).toBeVisible()

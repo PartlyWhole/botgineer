@@ -688,6 +688,7 @@ test('a finished scene gets one celebration, from the whole cast', async ({ page
   await say(page, 'customer = "Mira"')
   await say(page, 'parcels = 7')
   await say(page, 'parcels * 2')
+  await skip(page) // Continue waits for the closing lines
   await expect(page.getByTestId('advance')).toBeVisible()
   expect(await moodOf(page, 'robot')).toBe('mood-celebrate')
   expect(await moodOf(page, 'crow')).toBe('mood-pleased')
@@ -924,6 +925,7 @@ test('finishing a level marks it done on the map and unlocks the next', async ({
   await expect(page.locator('.app')).toHaveAttribute('data-boot', 'ready', { timeout: 60_000 })
   // Whatever the first level asks, a number answers it.
   await say(page, '7')
+  await skip(page) // Continue waits for the closing lines
   await expect(page.getByTestId('advance')).toBeVisible()
 
   await page.getByTestId('to-map').click()
@@ -954,6 +956,7 @@ test('the last level celebrates, and still has somewhere to send you', async ({ 
   // Satisfied, so the robot is pleased…
   expect(await robotMood(page)).toBe('mood-celebrate')
   // …and the way on is the map, which the last level has as much as any.
+  await skip(page) // Continue waits for the closing lines
   await page.getByTestId('advance').click()
   expect(page.url()).toContain('#/map')
   await expect(page.locator('[data-cheer="done"] [data-testid="level-wake"]')).toHaveCount(1)
