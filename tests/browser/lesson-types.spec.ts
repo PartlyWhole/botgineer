@@ -50,6 +50,15 @@ test('five data types, each shown, named and used, with the misses drawn', async
   await expect(prop(page)).toHaveAttribute('aria-label', /Counted in one at a time: 3/)
   await readTo(page, 'below zero')
   await expect(prop(page)).toHaveAttribute('aria-label', /lift goes to floor -1/)
+  // The ask puts the lift back: the stage does not answer its question.
+  await page.evaluate(() => window.botgineer.next())
+  expect(await beat(page)).toMatchObject({ kind: 'ask' })
+  await expect(prop(page)).not.toHaveAttribute('aria-label', /goes to floor -1/)
+  // A whole floor with a dot is parked on its floor, and the reply says
+  // the dot is the trouble, not that the lift is stuck.
+  await say(page, '-1.0')
+  await expect(prop(page)).toHaveAttribute('aria-label', /lift is at floor -1\./)
+  await expect(page.getByTestId('guide')).toContainText("has a dot, so it's measured")
   await say(page, '1.5')
   await expect(prop(page)).toHaveAttribute('aria-label', /stuck between floors at 1.5/)
   await expect(page.getByTestId('guide')).toContainText('Stuck between floors')
@@ -121,13 +130,11 @@ test('five data types, each shown, named and used, with the misses drawn', async
 /**
  * The demonstrations told across several beats of one picture: the lamp
  * flipped on and then off, the half apple, the dot written in on the
- * number line, the clasps lit, and the shelf's title, pulse, cheer and
- * ghost list. Each is a narration field on a picture the beat before
- * already shows, and `staging` keeps the earlier prop when the next is
- * `sameProp` to it, so the new field never reaches the view. Needs that
- * fix in content/lessons/core.ts (not this workstream's file).
+ * number line, the clasps lit, and the shelf's title and ghost list. Each
+ * is a narration field on a picture the beat before already shows, so it
+ * plays on the element that is standing (`staging` keeps its key).
  */
-test.fixme('narration on the same picture reaches the stage', async ({ page }) => {
+test('narration on the same picture reaches the stage', async ({ page }) => {
   await open(page, 'types')
   await readTo(page, 'data type')
   await expect(prop(page)).toHaveAttribute('aria-label', /labelled Data types/)

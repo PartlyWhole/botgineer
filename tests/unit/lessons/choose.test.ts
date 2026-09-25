@@ -54,7 +54,7 @@ describe('choose', () => {
   })
 
   it('gives the reason in every praise (R9)', () => {
-    const reasons = [/Yes or no/, /Counted/, /Measured/, /Words for people/, /counted, below zero/, /One letter/, /measured/, /yes-or-no/, /Nobody adds up/, /Between one hour and two/, /robot's yes is `True`/, /Mira reads words/]
+    const reasons = [/Yes or no/, /Counted/, /Measured/, /Words for people/, /counted, below zero/, /One letter/, /measured/, /yes-or-no/, /Nobody adds up/, /Between one hour and two/, /A yes for the robot, so a `bool`/, /Mira reads words/]
     for (let i = 1; i <= 12; i++) {
       const s = script(choose, typed(...upTo(i)))
       expect(s.items[0]!.kind).toBe('praise')
@@ -111,6 +111,33 @@ describe('choose', () => {
       })
       expect(reply(11, line('True', th('bool', 'True'))).text).toMatch(/robot for yes/)
     })
+
+    it('a floor with a dot is measured, not stuck', () => {
+      const text = reply(4, line('-1.0', th('float', '-1.0'))).text
+      expect(text).toMatch(/`-1.0` has a dot, so it's measured/)
+      expect(reply(4, line('0.5', th('float', '0.5'))).text).toMatch(/Stuck between floors/)
+    })
+
+    it('a no for Mira, when her door is locked', () => {
+      for (const no of ['not locked', 'It is not locked', 'unlocked', 'no', "It isn't"]) {
+        const miss = line(JSON.stringify(no), th('str', `'${no.replace(/'/g, "\\'")}'`))
+        expect(progress(choose, typed(...upTo(11), miss))).toBe(11)
+        expect(reply(11, miss).text).toMatch(/It \*is\* locked/)
+      }
+    })
+  })
+
+  it('reads a yes for Mira in the words people use', () => {
+    for (const yes of ['Yes', 'Yeah it is', 'Yep', 'It is', "It's locked", 'locked']) {
+      const right = line(JSON.stringify(yes), th('str', `'${yes.replace(/'/g, "\\'")}'`))
+      expect(progress(choose, typed(...upTo(11), right))).toBe(12)
+    }
+  })
+
+  it('names the type in the lamp\'s praise too (R9)', () => {
+    const s = script(choose, typed(...upTo(11)))
+    expect(s.items[0]).toMatchObject({ kind: 'praise' })
+    expect(s.items[0]!.text).toMatch(/`bool`/)
   })
 
   it('collects only the right answers on the shelf at the close', () => {
@@ -120,6 +147,9 @@ describe('choose', () => {
     expect(s.finished).toBe(true)
     const heard = staging(choose, e, 1).current!.heard.map((t) => t.repr)
     expect(heard).toEqual(CHOOSE_RIGHT.map((l) => l.thought!.repr))
+    // The closing shelf has no stock examples: it holds what was said.
+    const shelf = staging(choose, e, 1).current!.prop
+    expect(shelf).toMatchObject({ kind: 'shelf', cheer: true, examples: { bool: [], int: [], float: [], char: [], str: [] } })
     expect(guidance(choose, e).text).toMatch(/works things out for itself/)
     expect(choose.takeaway).toMatch(/the question you are answering decides/)
   })

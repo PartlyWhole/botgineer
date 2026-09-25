@@ -582,7 +582,15 @@ export function staging(lesson: Lesson, evidence: Evidence, beat?: number): Stag
   let key = baseKey
   for (let j = 0; j <= i; j++) {
     const show = s.items[j]!.show
-    if (!show || (prop && sameProp(show, prop))) continue
+    if (!show) continue
+    // The same picture with its narration changed: the change plays on the
+    // element already standing (its key is kept), and an ask that reuses
+    // the picture puts the narration back, so a demonstration never
+    // answers the question that follows it.
+    if (prop && sameProp(show, prop)) {
+      prop = show
+      continue
+    }
     prop = show
     key = base && sameProp(show, base) ? baseKey : `${lesson.id}:${at}:b${s.items[j]!.beat ?? j}`
   }

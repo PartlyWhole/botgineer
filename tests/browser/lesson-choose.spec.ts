@@ -89,22 +89,32 @@ test('twelve questions, each miss drawn and named, each praise giving the reason
   await say(page, '"yes"')
   await expect(prop(page)).toHaveAttribute('aria-label', /dark, with a note on it that says yes/)
   await expect(guide(page)).toContainText("That's Mira's word")
-  await right(page, 'True', /The robot's yes is True/)
+  await right(page, 'True', /A yes for the robot, so a bool/)
 
   // 12. Tell Mira: the robot's yes leaves her note blank.
   await say(page, 'True')
   await expect(guide(page)).toContainText('robot for yes')
-  await right(page, '"Yes, it is locked."', /Mira reads words, so a str/)
+  // A no in words is the type right and the answer wrong: it is locked.
+  await say(page, '"It is not locked"')
+  expect(await beat(page)).toMatchObject({ kind: 'reply' })
+  await expect(prop(page)).toHaveAttribute('aria-label', /note for Mira says: It is not locked/)
+  await expect(guide(page)).toContainText('It is locked, I checked')
+  await right(page, '"Yeah it is"', /Mira reads words, so a str/)
   await expect(page.getByTestId('advance')).toBeVisible()
 
   // The close: the shelf, holding what was said right and no miss.
   await page.evaluate(() => window.botgineer.next())
   expect((await beat(page)).kind).toBe('outro')
-  const shelf = await prop(page).getAttribute('aria-label')
-  for (const slot of ['bool: True, False;', 'int: 3, 12, -1, 6;', 'float: 0.5, 1.4, 0.25, 1.5;', 'char: "A", "M";']) {
-    expect(shelf).toContain(slot)
+  // No stock examples: every chip on it is one the player said, right.
+  const chips = await page.locator('[data-testid="prop"] .heard').allTextContents()
+  // A long str is shortened on its chip (`"0412 5…`), so a chip matches
+  // what was said, or the start of it.
+  const said = ['False', 'True', '6', '-1', '0.25', '1.4', '1.5', '"M"', '"Mira"', '"0412 555 019"', '"Yeah it is"']
+  expect(chips).toHaveLength(said.length)
+  for (const text of said) {
+    expect(chips.some((c) => c === text || (c.endsWith('…') && text.startsWith(c.slice(0, -1))))).toBe(true)
   }
-  for (const missed of ['6.0', '140', '412555019', '1.3', '"no"']) expect(shelf).not.toContain(missed)
+  await expect(page.locator('[data-testid="prop"] .example')).toHaveCount(0)
   await page.evaluate(() => window.botgineer.next())
   await page.evaluate(() => window.botgineer.next())
   await expect(guide(page)).toContainText('works things out for itself')

@@ -11,6 +11,8 @@
  * The shelf opens the level as the reference it was left as, and closes
  * it holding the player's right answers, each in its slot (`staging`
  * hands a picture only the answers that did a step, never the misses).
+ * The closing shelf drops the stock examples, so it holds only what the
+ * player said and has room for all of it.
  *
  * Mira is here from the start, and brings the questions a person has:
  * a sign with her name, the letter her name starts with, a phone number
@@ -28,12 +30,28 @@
  * so it is said. Mira speaks her own question and its replies; the
  * crow asks the rest, since its replies talk about the robot.
  *
+ * The note for Mira is read for its meaning, as far as a pattern can: a
+ * yes in words (`"yes"`, `"Yeah it is"`, `"Yep"`, `"It's locked"`) does
+ * it, and a no (`"not locked"`, `"unlocked"`, `"no"`) is refused with a
+ * reply of its own, because it is locked. Any `str` would be the type
+ * right and the answer wrong.
+ *
+ * A whole-valued float for the car park (`-1.0`) parks the lift on its
+ * floor, so its reply is about the dot, not a stuck lift.
+ *
  * Ordered, so an answer counts only for the question that asked it.
  */
 import { numberOf, textOf, type Prop } from '../../src/scene/props'
-import { bareWord, boolMiss, commaDecimal, countMiss, digits, errorType, measureMiss, stopped, was, wordsMiss, type Lesson, type Line } from './core'
+import { bareWord, boolMiss, commaDecimal, countMiss, digits, errorType, measureMiss, stopped, was, wordsMiss, type Beat, type Lesson, type Line } from './core'
 
 const SHELF: Prop = { kind: 'shelf', filled: ['bool', 'int', 'float', 'char', 'str'], title: true }
+/** The close: the same shelf with no stock examples, so every slot has
+ *  room for what the player said and holds only that. */
+const FINALE: Prop = { ...SHELF, examples: { bool: [], int: [], float: [], char: [], str: [] } }
+
+/** A question's narration clears the robot's cloud: the last answer has
+ *  been let go, and is not still thought over the next picture. */
+const letGo = (beats: Beat[]): Beat[] => beats.map((b) => ({ thought: '', ...b }))
 
 const PHONE = '0412555019'
 
@@ -78,6 +96,7 @@ function signMiss(l: Line): string | undefined {
 function floorMiss(l: Line): string | undefined {
   const t = l.thought
   const n = numberOf(t)
+  if (t?.type === 'float' && n !== null && Number.isInteger(n)) return `\`${t.repr}\` has a dot, so it's measured. Floors are counted.`
   if (t?.type === 'float' && n !== null) return 'Stuck between floors! A lift stops at whole floors.'
   if (t?.type === 'int' && n === 1) return 'That sent the lift *up*. Under the ground is below zero.'
   if (t?.type === 'int' && n === 0) return 'Floor `0` is the ground. The car park is one below it.'
@@ -141,10 +160,16 @@ function lockedMiss(l: Line): string | undefined {
   return boolMiss(l)
 }
 
+/** A no, in words: `"not locked"`, `"unlocked"`, `"no"`, `"It isn't"`. */
+const saysNo = (text: string) => /\b(not|no|nope|nah)\b|n't\b|\bunlock/i.test(text)
+/** A yes, in words: `"yes"`, `"Yeah it is"`, `"Yep"`, `"It is"`, `"locked"`. */
+const saysYes = (text: string) => !saysNo(text) && /\b(yes|yeah|yep|yup|it is|it's|locked)\b/i.test(text)
+
 function tellMiraMiss(l: Line): string | undefined {
   const t = l.thought
   if (t?.type === 'bool') return 'That\'s robot for yes, and it leaves Mira\'s note blank. Mira reads words.'
-  if (textOf(t) !== null && textOf(t)!.trim() !== '') return 'Mira wants to know one thing: is it locked? Tell her in words.'
+  if (textOf(t) !== null && saysNo(textOf(t)!)) return 'It *is* locked, I checked. Tell her yes, in words.'
+  if (textOf(t) !== null && textOf(t)!.trim() !== '') return 'Mira asked if her door is locked. Answer her: yes, in words.'
   return wordsMiss(l, '"Yes, it\'s locked"')
 }
 
@@ -152,7 +177,7 @@ export const choose: Lesson = {
   id: 'choose',
   teaches: ['kind'],
   ordered: true,
-  finale: SHELF,
+  finale: FINALE,
   steps: [
     {
       beats: [
@@ -186,7 +211,7 @@ export const choose: Lesson = {
       nudge: quarterMiss,
     },
     {
-      beats: [{ speaker: 'courier', say: 'I need a sign for my door, with my name on it.' }],
+      beats: letGo([{ speaker: 'courier', say: 'I need a sign for my door, with my name on it.' }]),
       say: 'What should the sign say?',
       ask: 'What should the sign say?',
       show: { kind: 'card' },
@@ -233,7 +258,7 @@ export const choose: Lesson = {
       nudge: breakfastMiss,
     },
     {
-      beats: [{ speaker: 'courier', say: 'Can the robot keep my phone number, 0412 555 019?' }],
+      beats: letGo([{ speaker: 'courier', say: 'Can the robot keep my phone number, 0412 555 019?' }]),
       say: 'Type Mira\'s number.',
       ask: 'Mira\'s number.',
       show: { kind: 'phone', number: PHONE },
@@ -243,7 +268,7 @@ export const choose: Lesson = {
       nudge: phoneMiss,
     },
     {
-      beats: [{ say: 'A football match is two halves of 45 minutes.' }],
+      beats: letGo([{ say: 'A football match is two halves of 45 minutes.' }]),
       say: 'How long is it, in hours?',
       ask: 'How many hours is the match?',
       show: { kind: 'match' },
@@ -253,31 +278,31 @@ export const choose: Lesson = {
       nudge: matchMiss,
     },
     {
-      beats: [
+      beats: letGo([
         { speaker: 'courier', say: 'Oh! Is my front door locked?' },
         { say: 'It is, and the robot has a light for it that comes on when it\'s locked.' },
-      ],
+      ]),
       say: 'Tell the robot: is it locked?',
       ask: 'Is the door locked?',
       show: { kind: 'lamp' },
       tag: 'you',
       done: (e) => e.thoughts.some(was('bool', 'True')),
-      praise: 'The robot\'s yes is `True`, so the light comes on.',
+      praise: 'A yes for the robot, so a `bool`: the light comes on.',
       nudge: lockedMiss,
     },
     {
-      beats: [{ say: 'Now tell *Mira*, and she needs words.' }],
+      beats: letGo([{ say: 'Now tell *Mira*, and she needs words.' }]),
       say: 'Tell Mira: is it locked?',
       ask: 'A note for Mira.',
       show: { kind: 'door' },
       tag: 'you',
-      done: (e) => e.thoughts.some((t) => /lock|yes/i.test(textOf(t) ?? '')),
+      done: (e) => e.thoughts.some((t) => saysYes(textOf(t) ?? '')),
       praise: 'Same answer, but Mira reads words, so a `str`.',
       nudge: tellMiraMiss,
     },
   ],
   outro: [
-    { say: 'Every answer you gave had a data type, and you picked the right one.', show: { ...SHELF, cheer: true } },
+    { say: 'Every answer you gave had a data type, and you picked the right one.', show: { ...FINALE, cheer: true } },
     { say: 'The question tells you the type: yes or no, how many, how much, or words.' },
     { say: 'Next, the robot works things out for itself.' },
   ],

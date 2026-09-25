@@ -32,10 +32,18 @@
  * Ordered, so each answer counts only for the question that asked it.
  * The likely misses — `true`, `1.5` floors, a bare `M`, a string with no
  * quotes — each have a reply, and each is visible in the picture that
- * asked: a word stuck on the lamp, a lift stuck between floors.
+ * asked: a word stuck on the lamp, a lift stuck between floors. A
+ * whole-valued float (`-1.0`) parks the lift on its floor, so its reply
+ * names the dot, not a stuck lift: the words never contradict the stage.
+ *
+ * A demonstration is narration on the picture the ask goes on to use (the
+ * lamp flipped on, the lift sent to `-1`), so it plays on the element that
+ * is already standing; the ask then puts the picture back as it was, and
+ * the stage never shows the answer before it is typed. The first beat of
+ * each new situation clears the robot's cloud: the last answer is let go.
  */
 import { numberOf, textOf, type Prop } from '../../src/scene/props'
-import { bareWord, boolMiss, commaDecimal, countMiss, measureMiss, stopped, was, wordsMiss, type Lesson, type Line } from './core'
+import { bareWord, boolMiss, commaDecimal, countMiss, measureMiss, stopped, was, wordsMiss, type Beat, type Lesson, type Line } from './core'
 
 const ALL: ('bool' | 'int' | 'float' | 'char' | 'str')[] = ['bool', 'int', 'float', 'char', 'str']
 const shelf = (n: number, more: Partial<Extract<Prop, { kind: 'shelf' }>> = {}): Prop => ({
@@ -45,6 +53,11 @@ const shelf = (n: number, more: Partial<Extract<Prop, { kind: 'shelf' }>> = {}):
   ...more,
 })
 
+/** A new situation's narration clears the robot's cloud, so the last
+ *  answer is not still being thought over the next picture; a beat's own
+ *  demonstration thought (`'A'`) is kept. */
+const letGo = (beats: Beat[]): Beat[] => beats.map((b) => ({ thought: '', ...b }))
+
 const LAMP: Prop = { kind: 'lamp' }
 const LIFT: Prop = { kind: 'lift', lowest: -2, highest: 3 }
 const GLASS: Prop = { kind: 'glass', level: 0.5 }
@@ -53,6 +66,7 @@ const CARD: Prop = { kind: 'card' }
 function liftMiss(l: Line): string | undefined {
   const t = l.thought
   const n = numberOf(t)
+  if (t?.type === 'float' && n !== null && Number.isInteger(n)) return `\`${t.repr}\` has a dot, so it's measured. Floors are counted: \`-1\`.`
   if (t?.type === 'float' && n !== null) return 'Stuck between floors! A lift stops at whole floors, so no dot.'
   if (t?.type === 'int' && n !== null) {
     if (n === 1) return 'That\'s one floor *up*. Under the ground needs a minus sign: `-1`.'
@@ -102,7 +116,7 @@ export const types: Lesson = {
         { say: 'First, questions with only two answers, like: is the lamp on?', show: LAMP },
         { say: 'The robot says yes as `True`…', show: { kind: 'lamp', demo: 'on' } },
         { say: '…and no as `False`.', show: { kind: 'lamp', demo: 'off' } },
-        { say: 'This type is called `bool`: a capital letter, and no quotes.', show: shelf(1) },
+        { say: 'This type is called `bool`, and its `True` and `False` have capitals and no quotes.', show: shelf(1) },
       ],
       say: 'Your turn. Turn the lamp on.',
       ask: 'Turn the lamp on.',
@@ -113,12 +127,12 @@ export const types: Lesson = {
       nudge: (l) => (l.thought?.repr === 'False' ? 'That\'s no, so the lamp stays dark. Yes is `True`.' : boolMiss(l)),
     },
     {
-      beats: [
+      beats: letGo([
         { say: 'Next come questions that ask *how many*.', show: { kind: 'basket', apples: 3, demo: 'count' } },
         { say: 'You count in whole steps, with no halves in between.', show: { kind: 'basket', apples: 3, demo: 'half' } },
         { say: 'Counting numbers are called `int`s, short for *integer*.', show: shelf(2, { examples: { int: ['3', '12'] } }) },
         { say: 'They go below zero, too.', show: { ...LIFT, demo: -1 } },
-      ],
+      ]),
       say: 'Send the lift down to the car park: `-1`.',
       ask: 'Send the lift to the car park.',
       show: LIFT,
@@ -128,12 +142,12 @@ export const types: Lesson = {
       nudge: liftMiss,
     },
     {
-      beats: [
+      beats: letGo([
         { say: 'Some things you can\'t count, so you *measure* them instead.', show: { kind: 'glass', level: 0.5, demo: 'fill' } },
         { say: 'A measurement can land between the whole numbers.', show: { kind: 'numberline', from: 0, to: 1, mark: 0.5, unnamed: true } },
         { say: 'Python writes that with a dot: `0.5`.', show: { kind: 'numberline', from: 0, to: 1, mark: 0.5 } },
         { say: 'Numbers with a dot are called `float`s.', show: shelf(3) },
-      ],
+      ]),
       say: 'Tell the robot how full the glass is.',
       ask: 'How full is the glass?',
       show: GLASS,
@@ -143,7 +157,7 @@ export const types: Lesson = {
       nudge: glassMiss,
     },
     {
-      beats: [
+      beats: letGo([
         {
           say: 'Here\'s Mira, and she\'s a person, not a robot.',
           show: shelf(3),
@@ -152,14 +166,14 @@ export const types: Lesson = {
             { actor: 'courier', do: 'wave' },
           ],
         },
-        { speaker: 'courier', say: 'Hi! I don\'t speak `True` or `12`: I read letters.', show: { kind: 'letters', chars: ['M', 'i', 'r', 'a', '!', '7'] } },
+        { speaker: 'courier', say: 'Hi! I read letters, not `True` or `12`.', show: { kind: 'letters', chars: ['M', 'i', 'r', 'a', '!', '7'] } },
         { say: 'One letter, digit or symbol is a **character**, or a *char* for short.', show: { kind: 'char', char: 'A', clasps: true } },
         {
           say: 'The quotes make it a character: `"7"` is a thing to read, and `7` is a number.',
           show: { kind: 'contrast', left: { text: '7', kind: 'int', label: 'a number' }, right: { text: '"7"', kind: 'char', label: 'a thing to read' } },
         },
         { say: 'Python has no char type of its own: it calls `"A"` a `str`, one letter long.', show: shelf(4), thought: "'A'" },
-      ],
+      ]),
       say: 'Write the first letter of Mira\'s name: `"M"`.',
       ask: 'The first letter of Mira\'s name.',
       show: CARD,
@@ -169,11 +183,11 @@ export const types: Lesson = {
       nudge: letterMiss,
     },
     {
-      beats: [
+      beats: letGo([
         { say: 'Put characters in a row and you get a **string**.', show: { kind: 'beads', text: 'hello' } },
         { say: 'The quotes show where the string starts and where it stops.', show: { kind: 'beads', text: 'hello', glow: true } },
         { say: 'Strings are called `str` too, and they\'re for talking to people.', show: shelf(5) },
-      ],
+      ]),
       say: 'Say hello to Mira.',
       ask: 'Say hello to Mira.',
       show: CARD,

@@ -68,6 +68,22 @@ const WORKSHOP: SceneSpec = {
 }
 
 /**
+ * The first level's workshop: the robot nearer the middle and the
+ * picture on its far side, because the one picture here is the pointer,
+ * whose chevrons run off the stage's right edge towards the console. In
+ * `WORKSHOP` they would run across the robot's face, and they stay up
+ * through the ask.
+ */
+const MEET_WORKSHOP: SceneSpec = {
+  ...WORKSHOP,
+  actors: [
+    { id: 'crow', kind: 'crow', x: 12, y: 0, w: 16, stand: true },
+    { id: 'robot', kind: 'robot', x: 42, y: 0, w: 22, stand: true },
+  ],
+  props: { x: 77, w: 34 },
+}
+
+/**
  * The third level: working things out.
  *
  * Same room, same empty memory. The robot computes and reports, each
@@ -245,7 +261,7 @@ const meetTheRobot: Activity = {
   greeting: 'Ready. One instruction per line.',
   starter: '',
   options: { max_steps: 3000, wall_clock_s: 15 },
-  scene: WORKSHOP,
+  scene: MEET_WORKSHOP,
 }
 
 /**

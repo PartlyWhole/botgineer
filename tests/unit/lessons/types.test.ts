@@ -88,7 +88,10 @@ describe('types', () => {
       const at = TYPES_RIGHT.slice(0, 1)
       expect(reply(...at, line('1.5', th('float', '1.5')))).toMatch(/Stuck between floors/)
       expect(reply(...at, line('1', th('int', '1')))).toMatch(/one floor \*up\*/)
-      expect(reply(...at, line('-1.0', th('float', '-1.0')))).toMatch(/Stuck between floors|dot/)
+      // A whole-valued float parks the lift on its floor, so the reply is
+      // about the dot, never a stuck lift the stage does not show.
+      expect(reply(...at, line('-1.0', th('float', '-1.0')))).toMatch(/`-1.0` has a dot, so it's measured/)
+      expect(reply(...at, line('-1.0', th('float', '-1.0')))).not.toMatch(/Stuck/)
     })
 
     it('at the glass', () => {
@@ -133,6 +136,53 @@ describe('types', () => {
     expect(heard).toEqual(['True', '-1', '0.5'])
   })
 
+  it('plays narration on the picture already standing, and the ask puts it back', () => {
+    const at = (e: ReturnType<typeof typed>, text: RegExp) => {
+      const s = script(types, e)
+      const i = s.items.findIndex((it) => text.test(it.text))
+      expect(i).toBeGreaterThanOrEqual(0)
+      return staging(types, e, i).current!
+    }
+    // The shelf's title settles on the beat that names a data type, on the
+    // same element the first beat stood.
+    const bare = at(NOTHING, /doesn't think of everything/)
+    const titled = at(NOTHING, /\*\*data type\*\*/)
+    expect(bare.prop).toMatchObject({ kind: 'shelf', title: false })
+    expect(titled.prop).toMatchObject({ kind: 'shelf', title: true })
+    expect(titled.key).toBe(bare.key)
+    expect(at(NOTHING, /five basic ones/).prop).toMatchObject({ pulse: true })
+    // The lamp is flipped on, then off, before the player is asked.
+    expect(at(NOTHING, /yes as `True`/).prop).toEqual({ kind: 'lamp', demo: 'on' })
+    expect(at(NOTHING, /no as `False`/).prop).toEqual({ kind: 'lamp', demo: 'off' })
+    // The ask's lamp has no demonstration, so it is dark until answered.
+    expect(staging(types, NOTHING).current!.prop).toEqual({ kind: 'lamp' })
+
+    const lift = typed(TYPES_RIGHT[0]!)
+    const demo = at(lift, /below zero/)
+    expect(demo.prop).toMatchObject({ kind: 'lift', demo: -1 })
+    // The ask does not arrive with the lift already in the car park.
+    const ask = staging(types, lift).current!
+    expect(ask.prop).toEqual({ kind: 'lift', lowest: -2, highest: 3 })
+    expect(ask.key).toBe(demo.key)
+    expect(ask.ask).toBe('Send the lift to the car park.')
+
+    const glass = typed(...TYPES_RIGHT.slice(0, 2))
+    expect(at(glass, /land between/).prop).toMatchObject({ unnamed: true })
+    expect(at(glass, /with a dot: `0.5`/).prop).not.toHaveProperty('unnamed')
+    const hello = typed(...TYPES_RIGHT.slice(0, 4))
+    expect(at(hello, /starts and where it stops/).prop).toMatchObject({ kind: 'beads', glow: true })
+  })
+
+  it('lets the last answer go when a new situation starts', () => {
+    for (let n = 1; n < TYPES_RIGHT.length; n++) {
+      const s = script(types, typed(...TYPES_RIGHT.slice(0, n)))
+      const beats = s.items.filter((i) => i.kind === 'beat')
+      expect(beats[0]!.thought).toBe('')
+      // Every beat either clears the cloud or shows its own demonstration.
+      for (const b of beats) expect(b.thought).toBeDefined()
+    }
+  })
+
   it('closes on the full shelf, then what it will be arranged into', () => {
     const done = typed(...TYPES_RIGHT)
     const s = script(types, done)
@@ -141,6 +191,9 @@ describe('types', () => {
       expect.objectContaining({ kind: 'shelf', cheer: true }),
       expect.objectContaining({ kind: 'shelf', later: true }),
     ])
+    const last = staging(types, done, s.items.length - 1).current!
+    expect(last.prop).toMatchObject({ kind: 'shelf', later: true })
+    expect(staging(types, done, 1).current!.prop).toMatchObject({ kind: 'shelf', cheer: true })
     expect(guidance(types, done).text).toMatch(/a list is a row of them/)
     expect(types.takeaway).toMatch(/bool, int, float, char and str/)
   })
