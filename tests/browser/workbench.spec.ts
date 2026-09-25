@@ -1,77 +1,9 @@
 import { expect, test, type Page } from '@playwright/test'
+import { EDITOR, OPS, WARM_UP, open, reprs, say, send, showMemory, skip, speechSettled, targetOf } from './helpers'
 
-declare global {
-  interface Window {
-    botgineer: {
-      setProgram(text: string): void
-      getProgram(): string
-      run(): Promise<void>
-      say(line: string): Promise<void>
-      snapshot(): {
-        bindings: { name: string; scope: string; target: string }[]
-        objects: Record<
-          string,
-          {
-            id: string
-            type: string
-            kind: string
-            repr: string
-            elements: { label: string | null; target: string }[] | null
-          }
-        >
-      }
-      state(): {
-        boot: string
-        busy: boolean
-        steps: number
-        mode: string
-        history: string[]
-      }
-    }
-  }
-}
-
-/** The starting activity is a console now, so the journeys that are about
- *  the editor run against an activity that still has one. */
-const EDITOR = 'wake'
-
-async function open(page: Page, activity: string) {
-  await page.goto(`./#/${activity}`)
-  // The runtime does not announce that it works; it announces failure.
-  // The shell carries its state as data so there is still something to
-  // wait on without putting a badge on screen.
-  await expect(page.locator('.app')).toHaveAttribute('data-boot', 'ready', { timeout: 60_000 })
-}
-
-/** Marks levels finished before the page loads, as if played earlier.
- *  Each test starts with empty storage, so a journey that finishes level
- *  three would otherwise land on a map still asking for level one. */
-async function seedProgress(page: Page, ids: string[]) {
-  await page.addInitScript((done) => localStorage.setItem('botgineer.progress.v1', JSON.stringify(done)), ids)
-}
-
-/** Memory shares the robot panel with the instrument — there is nothing
- *  to switch to any more, so this only confirms it is on screen. */
-async function showMemory(page: Page) {
-  await expect(page.getByTestId('memory')).toBeVisible()
-}
-
-/** Sends a program and waits for the run to settle. The panel's own busy
- *  flag is the signal, so there is nothing to sleep on. */
-async function send(page: Page, program: string) {
-  await page.evaluate((p) => window.botgineer.setProgram(p), program)
-  await expect.poll(() => page.evaluate(() => window.botgineer.getProgram())).toBe(program)
-  await page.getByTestId('run').click()
-  await expect(page.getByTestId('robot-panel')).toHaveAttribute('data-busy', 'no', {
-    timeout: 60_000,
-  })
-}
-
-const targetOf = (page: Page, name: string) =>
-  page.evaluate(
-    (n) => window.botgineer.snapshot().bindings.find((b) => b.name === n)?.target ?? null,
-    name,
-  )
+/* The lesson journeys are one file per lesson (`lesson-<id>.spec.ts`), and
+   the beat engine's own is `beats.spec.ts`. What stays here is the
+   workbench itself: the panels, memory, the console, the cast and the map. */
 
 /* ---------------------------- the three panels ---------------------------- */
 
@@ -466,23 +398,6 @@ test('activities are separate scenes and each deep-links', async ({ page }) => {
 
 /* --------------------------- the robot's console --------------------------- */
 
-/** Types a line into the console and waits for the robot to finish. */
-async function say(page: Page, line: string) {
-  const input = page.getByTestId('console-input')
-  await input.fill(line)
-  await input.press('Enter')
-  await expect(page.getByTestId('robot-panel')).toHaveAttribute('data-busy', 'no', {
-    timeout: 60_000,
-  })
-}
-
-const reprs = (page: Page) =>
-  page.evaluate(() =>
-    Object.values(window.botgineer.snapshot().objects)
-      .map((o) => o.repr)
-      .sort(),
-  )
-
 test('the starting activity is a console, not an editor', async ({ page }) => {
   await open(page, 'sandbox')
   await expect(page.getByTestId('console')).toBeVisible()
@@ -575,125 +490,9 @@ test('a line that fails is reported and not kept', async ({ page }) => {
   await expect(page.getByTestId('echo').last()).toHaveText('4')
 })
 
-/** Lines that answer the first level right, in order. */
-const KINDS = ['True', 'False', '3', '-1', '0.5', '1.4', '12', 'True', '1.5', 'True + True', '2 + 0.5']
-
-test('the first lesson asks by situation, and the answer is drawn into it', async ({ page }) => {
-  await open(page, 'sandbox')
-  await expect(page.getByTestId('guide')).toContainText('switch')
-  await expect(page.getByTestId('prop')).toHaveAttribute('data-prop', 'lamp')
-  await expect(page.getByTestId('prop-ask')).toHaveText('Turn the lamp on.')
-
-  // A miss is answered, not repeated — and drawn: the word sits on the
-  // lamp as a note, and the lamp stays dark.
-  await say(page, '"True"')
-  await expect(page.getByTestId('guide')).toContainText('word, for people')
-  await expect(page.getByTestId('prop')).toHaveAttribute('aria-label', /dark, with a note/)
-  await expect(page.getByTestId('answer-tag')).toContainText('str')
-
-  // Right: the lamp leaves lit, with its answer, and the fish arrives.
-  await say(page, 'True')
-  await expect(page.getByTestId('prop-leaving')).toHaveAttribute('data-prop', 'lamp')
-  await expect(page.locator('[data-testid="prop-leaving"] .lamp')).toHaveClass(/on/)
-  await expect(page.getByTestId('prop')).toHaveAttribute('data-prop', 'fish')
-  await expect(page.getByTestId('guide')).toContainText('bool')
-
-  await say(page, 'False')
-  // An answer typed as the wrong kind shows what goes wrong with it.
-  await say(page, '3.0')
-  await expect(page.getByTestId('guide')).toContainText('counted')
-  await say(page, '3')
-  await say(page, '1.5')
-  await expect(page.getByTestId('guide')).toContainText('Stuck between floors')
-  await expect(page.getByTestId('prop')).toHaveAttribute('aria-label', /stuck between floors/)
-
-  for (const line of KINDS.slice(3)) await say(page, line)
-  await expect(page.getByTestId('guide')).toContainText('fits inside the next')
-  await expect(page.getByTestId('prop')).toHaveAttribute('data-prop', 'kinds')
-  // Memory stayed empty the whole way: nothing had a name.
-  await expect(page.getByTestId('memory')).toContainText('Memory is empty')
-  await expect(page.getByTestId('advance')).toBeVisible()
-})
-
-test('an answer given before its question does not skip the question', async ({ page }) => {
-  await open(page, 'sandbox')
-  // The apple count, typed at the lamp. It moves nothing.
-  await say(page, '3')
-  await say(page, 'True')
-  await say(page, 'False')
-  await expect(page.getByTestId('prop')).toHaveAttribute('data-prop', 'basket')
-  await expect(page.getByTestId('guide')).toContainText('How many apples')
-})
-
-test('the strings level: words are for people, and Python agrees', async ({ page }) => {
-  await open(page, 'words')
-  await expect(page.getByTestId('actor-courier')).toBeVisible()
-  await expect(page.getByTestId('prop')).toHaveAttribute('data-prop', 'card')
-
-  await say(page, 'hello')
-  await expect(page.getByTestId('guide')).toContainText('Without quotes')
-  await say(page, '"hello Mira"')
-  // Mira answers for herself.
-  await expect(page.getByTestId('guide')).toHaveAttribute('data-speaker', 'courier')
-
-  await say(page, '7 + 7')
-  await say(page, '"7" + "7"')
-  await expect(page.getByTestId('thought')).toHaveText("'77'")
-
-  // Real CPython refuses a number with a leading zero, and an int loses it.
-  await say(page, '0412 555 019')
-  await expect(page.getByTestId('console-error').last()).toContainText('SyntaxError')
-  await expect(page.getByTestId('guide')).toContainText('starts with 0')
-  await say(page, '412555019')
-  await expect(page.getByTestId('guide')).toContainText('vanished')
-  await say(page, '"0412 555 019"')
-
-  await say(page, '"True"')
-  await say(page, 'True')
-  await say(page, '"Yes, the door is locked"')
-  await say(page, 'ord("A")')
-  await expect(page.getByTestId('thought')).toHaveText('65')
-  await expect(page.getByTestId('guide')).toContainText('computers like bits, humans like words')
-  await expect(page.getByTestId('advance')).toBeVisible()
-})
-
-/** Lines that answer the operations level right, in order. */
-const OPS = ['7 * 6', '9 / 2', '8 / 2', '20 - 7', '3 > 5', '2 + 2 == 4', '"bot" + "gineer"', '"ha" * 3', '2 + 3 * 4', '(2 + 3) * 4']
-
-test('the operations lesson works things out, drawn, and keeps none of them', async ({ page }) => {
-  await open(page, 'operations')
-  await expect(page.getByTestId('guide')).toContainText('7 * 6')
-  await expect(page.getByTestId('prop')).toHaveAttribute('data-prop', 'crates')
-
-  // Typing the answer is not asking the robot.
-  await say(page, '42')
-  await expect(page.getByTestId('guide')).toContainText('let the robot')
-  await say(page, '7 * 6')
-  await expect(page.getByTestId('thought')).toHaveText('42')
-
-  // Whole litres only leave one in the jug — in the picture, too.
-  await say(page, '9 // 2')
-  await expect(page.getByTestId('guide')).toContainText('one is left in the jug')
-  await expect(page.getByTestId('prop')).toHaveAttribute('aria-label', /Each tank gets 4\./)
-  await say(page, '9 / 2')
-  await say(page, '8 / 2')
-  await expect(page.getByTestId('thought')).toHaveText('4.0')
-
-  // One equals sign is not a question, and real Python says so.
-  for (const line of OPS.slice(3, 5)) await say(page, line)
-  await say(page, '2 + 2 = 4')
-  await expect(page.getByTestId('console-error').last()).toContainText('SyntaxError')
-  await expect(page.getByTestId('guide')).toContainText('give it a name')
-
-  for (const line of OPS.slice(5)) await say(page, line)
-  await expect(page.getByTestId('thought')).toHaveText('20')
-  await expect(page.getByTestId('guide')).toContainText('nobody else ever knew it')
-  expect(await reprs(page)).toEqual([])
-  await expect(page.getByTestId('advance')).toBeVisible()
-})
-
 test('a block is collected over several lines before it runs', async ({ page }) => {
   await open(page, 'sandbox')
+  await skip(page)
   const input = page.getByTestId('console-input')
 
   await input.fill('def double(n):')
@@ -720,84 +519,6 @@ test('a block is collected over several lines before it runs', async ({ page }) 
   await expect(page.getByTestId('echo').last()).toHaveText('42')
 })
 
-/* ------------------------------ progression ------------------------------ */
-
-test('the naming lesson teaches that a name is an arrow', async ({ page }) => {
-  await open(page, 'names')
-  await expect(page.getByTestId('guide')).toContainText('x = 10')
-
-  await say(page, 'x = 10')
-  // Reading it back is a step of its own: the point is that it was simply
-  // there, where the previous lesson would have had to recompute it.
-  // Backticks in a lesson render as a code chip, so they are not in the text.
-  await expect(page.getByTestId('guide')).toContainText('pointing at')
-  await say(page, 'x')
-  await expect(page.getByTestId('thought')).toHaveText('10')
-  await say(page, 'y = x')
-  // One object, two names on it.
-  expect(
-    await page.evaluate(() => {
-      const s = window.botgineer.snapshot()
-      return new Set(s.bindings.map((b) => b.target)).size
-    }),
-  ).toBe(1)
-
-  await say(page, 'x = 99')
-  const bound = await page.evaluate(() =>
-    Object.fromEntries(
-      window.botgineer
-        .snapshot()
-        .bindings.map((b) => [b.name, window.botgineer.snapshot().objects[b.target]?.repr]),
-    ),
-  )
-  // x moved; y did not.
-  expect(bound).toEqual({ x: '99', y: '10' })
-
-  // Rebinding x makes step one false again, so progress would slide back
-  // to the start if it were read from the current snapshot alone.
-  await expect(page.getByTestId('guide')).toContainText('it never held it')
-})
-
-test('finishing a lesson offers the way back to the map, and only then', async ({ page }) => {
-  await seedProgress(page, ['sandbox', 'words', 'operations', 'practice-thinking'])
-  await open(page, 'names')
-  await expect(page.getByTestId('advance')).toHaveCount(0)
-
-  await say(page, 'x = 10')
-  await expect(page.getByTestId('advance')).toHaveCount(0)
-  await say(page, 'x')
-  await say(page, 'y = x')
-  await say(page, 'x = 99')
-
-  await page.getByTestId('advance').click()
-  expect(page.url()).toContain('#/map')
-  // Where the level just finished pops and the one it unlocked bounces.
-  await expect(page.getByTestId('level-names')).toHaveAttribute('data-state', 'done')
-  await expect(page.locator('[data-cheer="done"] [data-testid="level-names"]')).toHaveCount(1)
-  await expect(page.locator('[data-cheer="unlocked"] [data-testid="level-order"]')).toHaveCount(1)
-})
-
-test('the courier asks, and the robot answers from what it stored', async ({ page }) => {
-  await open(page, 'order')
-  // The courier does the talking in this one, not the crow.
-  await expect(page.getByTestId('guide')).toHaveAttribute('data-speaker', 'courier')
-  await expect(page.getByTestId('waiting')).toContainText('customer')
-  await expect(page.locator('[data-testid="actor-ticket"] .sign-body')).toHaveText('no customer')
-
-  await say(page, 'customer = "Mira"')
-  // Storing a name is visible in the world, not just in memory.
-  await expect(page.locator('[data-testid="actor-ticket"] .sign-body')).toHaveText('Mira')
-  await expect(page.getByTestId('waiting')).toHaveCount(0)
-
-  await say(page, 'parcels = 7')
-  await expect(page.getByTestId('guide')).toContainText('two kilos')
-
-  // The answer was never stored, and was never said out loud by anyone.
-  await say(page, 'parcels * 2')
-  await expect(page.getByTestId('echo').last()).toHaveText('14')
-  await expect(page.getByTestId('guide')).toContainText('Fourteen')
-})
-
 /* ------------------------------- the floor ------------------------------- */
 
 /** Feet-to-floor gap in px for every standing actor, at the current shape. */
@@ -817,7 +538,7 @@ test('everyone stands on the floor, at every panel shape', async ({ page }) => {
   // panel's aspect ratio: it ran from 65px to 359px and swung 2.4x as
   // the panel was dragged. Anchoring by the feet makes it exactly zero,
   // which is why this can be an equality rather than a tolerance.
-  for (const activity of ['sandbox', 'words', 'operations', 'order', 'wake']) {
+  for (const activity of ['sandbox', 'types', 'operations', 'order', 'wake']) {
     await open(page, activity)
     for (const [w, h] of [
       [1440, 900],
@@ -1163,10 +884,10 @@ test('the game opens on the map, inviting you to the first level', async ({ page
   await page.evaluate(() => localStorage.clear())
   await page.reload()
   await expect(page.getByTestId('map')).toBeVisible()
-  // The warm-up's four, then the collection's nine stages.
-  await expect(page.locator('.map-node')).toHaveCount(62)
+  // The warm-up's five, then the collection's nine stages.
+  await expect(page.locator('.map-node')).toHaveCount(63)
   await expect(page.getByTestId('level-sandbox')).toHaveAttribute('data-state', 'current')
-  for (const id of ['words', 'operations', 'practice-thinking', 'names', 'order', 'practice-remembering', 'wake']) {
+  for (const id of ['types', 'choose', 'operations', 'practice-thinking', 'names', 'order', 'practice-remembering', 'wake']) {
     await expect(page.getByTestId(`level-${id}`)).toHaveAttribute('data-state', 'locked')
   }
   // The top bar stays on screen: the map scrolls, not the page.
@@ -1176,10 +897,10 @@ test('the game opens on the map, inviting you to the first level', async ({ page
 test('a level opens from its card, and the map is one click back', async ({ page }) => {
   await page.goto('./#/map')
   await page.getByTestId('level-sandbox').click()
-  await expect(page.getByTestId('map-card')).toContainText('Yes, How Many, How Much')
+  await expect(page.getByTestId('map-card')).toContainText('Meet the Robot')
   await page.getByTestId('map-go').click()
   expect(page.url()).toContain('#/sandbox')
-  await expect(page.getByTestId('level-label')).toHaveText('Level 1 · Yes, How Many, How Much')
+  await expect(page.getByTestId('level-label')).toHaveText('Level 1 · Meet the Robot')
 
   await page.getByTestId('to-map').click()
   await expect(page.getByTestId('map')).toBeVisible()
@@ -1199,13 +920,14 @@ test('finishing a level marks it done on the map and unlocks the next', async ({
   await page.evaluate(() => localStorage.clear())
   await page.reload()
   await expect(page.locator('.app')).toHaveAttribute('data-boot', 'ready', { timeout: 60_000 })
-  for (const line of KINDS) await say(page, line)
+  // Whatever the first level asks, a number answers it.
+  await say(page, '7')
   await expect(page.getByTestId('advance')).toBeVisible()
 
   await page.getByTestId('to-map').click()
   await expect(page.getByTestId('level-sandbox')).toHaveAttribute('data-state', 'done')
-  await expect(page.getByTestId('level-words')).toHaveAttribute('data-state', 'current')
-  await expect(page.getByTestId('map-tally')).toContainText('1 of 62')
+  await expect(page.getByTestId('level-types')).toHaveAttribute('data-state', 'current')
+  await expect(page.getByTestId('map-tally')).toContainText('1 of 63')
 
   // And it survives a reload: this is the one thing that is stored.
   await page.reload()
@@ -1217,31 +939,10 @@ test("a unit's trophy is earned when its last level is", async ({ page }) => {
   await page.evaluate(() => localStorage.setItem('botgineer.progress.v1', JSON.stringify(['sandbox'])))
   await page.reload()
   await expect(page.getByTestId('trophy-thinking')).not.toHaveClass(/earned/)
-  await page.evaluate(() =>
-    localStorage.setItem('botgineer.progress.v1', JSON.stringify(['sandbox', 'words', 'operations', 'practice-thinking'])),
-  )
+  await page.evaluate((done) => localStorage.setItem('botgineer.progress.v1', JSON.stringify(done)), WARM_UP)
   await page.reload()
   await expect(page.getByTestId('trophy-thinking')).toHaveClass(/earned/)
-  await expect(page.getByTestId('unit-thinking').locator('.map-banner-count')).toContainText('4/4')
-})
-
-test('the last lesson offers somewhere to go, and only once it is done', async ({ page }) => {
-  await seedProgress(page, ['sandbox', 'words', 'operations', 'practice-thinking', 'names'])
-  await open(page, 'order')
-  await expect(page.getByTestId('advance')).toHaveCount(0)
-
-  await say(page, 'customer = "Mira"')
-  await say(page, 'parcels = 7')
-  await expect(page.getByTestId('advance')).toHaveCount(0)
-  await say(page, 'parcels * 2')
-
-  // This used to be the end of the road: the crow said its piece and
-  // there was nothing on screen to do next.
-  await expect(page.getByTestId('guide')).toContainText('Fourteen')
-  await page.getByTestId('advance').click()
-  expect(page.url()).toContain('#/map')
-  // Which unlocks the unit's practice, bouncing on the way back.
-  await expect(page.locator('[data-cheer="unlocked"] [data-testid="level-practice-remembering"]')).toHaveCount(1)
+  await expect(page.getByTestId('unit-thinking').locator('.map-banner-count')).toContainText('5/5')
 })
 
 test('the last level celebrates, and still has somewhere to send you', async ({ page }) => {
@@ -1430,6 +1131,8 @@ test("a short speaker's tail reaches down to its own head", async ({ page }) => 
   await say(page, 'parcels = 7')
   await say(page, 'parcels * 2')
   await expect(page.getByTestId('guide')).toHaveAttribute('data-speaker', 'crow')
+  // The tail swings across from Mira; measure where it lands.
+  await speechSettled(page)
 
   const { tail, crow } = await page.evaluate(() => {
     const r = (sel: string) => {
@@ -1452,6 +1155,7 @@ test('no bubble covers a character, whoever is speaking', async ({ page }) => {
   await say(page, 'customer = "Mira"')
   await say(page, 'parcels = 7')
   await say(page, 'parcels * 2')
+  await speechSettled(page)
 
   const clashes = await page.evaluate(() => {
     const box = (el: Element) => el.getBoundingClientRect()

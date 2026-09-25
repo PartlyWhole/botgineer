@@ -167,6 +167,28 @@
   margin-top: auto;
 }
 
+/* The speech bubble (docs/PEDAGOGY.md §4): the map's chunky card — a
+   2px border and a flat lip underneath — with the speaker's name on a
+   pill in their colour, and the line typed on in Nunito.
+
+   Its colours are custom properties on the rail, so the tail, which is
+   the bubble's sibling rather than its child, always matches the body:
+   a reply is a softer tint (never red — a miss is a conversation, not an
+   error), and a question takes the brand colour on its border. */
+.stage .bubble-rail {
+  --bubble-bg: var(--surface);
+  --bubble-line: var(--line);
+}
+
+.stage .bubble-rail[data-kind='ask'] {
+  --bubble-line: var(--brand-line);
+}
+
+.stage .bubble-rail[data-kind='reply'] {
+  --bubble-bg: var(--ref-bg);
+  --bubble-line: var(--ref-line);
+}
+
 .stage .bubble {
   /* In flow inside the rail, so `max-width` and the auto margins decide
      the width; `left` then slides that box towards the speaker without
@@ -174,48 +196,147 @@
   position: relative;
   margin-left: auto;
   margin-right: auto;
+  /* Room above for the name tag, reserved in flow: the tag hangs off the
+     top edge, and a thought stacked above must be pushed up by it rather
+     than sit on it. */
+  margin-top: 13px;
   width: max-content;
   /* 52%, against a 31–69 clamp, leaves a 5% gutter at either edge even
      when the panel is dragged to its 320px minimum and the percentage is
      the binding constraint. */
-  max-width: min(262px, 52%);
+  max-width: min(300px, 52%);
   pointer-events: auto;
-  padding: 11px 15px;
-  border-radius: 14px;
-  background: var(--surface);
-  border: 1.5px solid var(--line);
-  box-shadow: var(--shadow);
-  font-size: 15px;
-  line-height: 1.45;
+  padding: 13px 18px 11px;
+  border-radius: 20px;
+  background: var(--bubble-bg);
+  border: 2px solid var(--bubble-line);
+  /* The lip: flat, like the map's buttons, so the bubble reads as a
+     thing on the stage rather than a tooltip over it. */
+  box-shadow:
+    0 4px 0 var(--bubble-line),
+    0 10px 22px rgb(22 32 58 / 0.08);
+  font: 700 17px/1.5 'Nunito', ui-rounded, system-ui, sans-serif;
   color: var(--ink);
   z-index: 3;
-  /* Every line pops in from the foot, where the tail is (see `usePop` in
-     ScenePanel). Growing from the bottom edge means the bubble's box
-     only ever grows into its settled one: part-way through, it covers
-     less than it will, never more. It used to be the rail that animated,
-     which played once and then let every later line simply swap its
-     text. */
+  /* Every line pops in from where the tail meets it (see `useSpeechPop`
+     in ScenePanel, which sets the origin). Growing from the bottom edge
+     means the bubble's box only ever grows into its settled one:
+     part-way through, it covers less than it will, never more. A change
+     of speaker slides instead. */
   transform-origin: 50% 100%;
+  transition:
+    left 250ms cubic-bezier(0.2, 0.8, 0.3, 1),
+    background 200ms ease,
+    border-color 200ms ease;
+}
+
+/* Narration has the continue cue in its corner. */
+.stage .bubble.telling {
+  padding-right: 28px;
+}
+
+.stage .bubble-name {
+  position: absolute;
+  top: -12px;
+  left: 14px;
+  padding: 1px 10px;
+  border-radius: 999px;
+  background: var(--speaker, var(--ink));
+  box-shadow: 0 2px 0 rgb(22 32 58 / 0.14);
+  color: #ffffff;
+  font: 800 12px/19px 'Nunito', ui-rounded, system-ui, sans-serif;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  transition: background 250ms ease;
+}
+
+/* Who does the work (R4), on the question: the other end of the top
+   edge, quieter than the name. */
+.stage .bubble-who {
+  position: absolute;
+  top: -11px;
+  right: 14px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 2px solid var(--brand-line);
+  color: var(--brand-deep);
+  font: 800 11px/16px 'Nunito', ui-rounded, system-ui, sans-serif;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.stage .bubble-who[data-tag='robot'] {
+  border-color: var(--brand);
+  background: var(--brand-soft);
+}
+
+.stage .bubble-text {
+  display: block;
+}
+
+/* Typing on: each character is laid out from the first frame and only
+   *appears* at its moment (`--d`), so the bubble never changes size as
+   it types, and nothing measured around it moves. `backwards` makes the
+   resting style the visible one — reduced motion, which drops every
+   animation, shows the line whole. */
+.stage .bubble .tw {
+  animation: type-in 60ms ease-out var(--d, 0ms) backwards;
+}
+
+@keyframes type-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* The continue cue: once the line has finished, a small ▸ bouncing in
+   the corner. Static under reduced motion. */
+.stage .bubble-cue {
+  position: absolute;
+  right: 10px;
+  bottom: 6px;
+  color: var(--brand);
+  font-size: 17px;
+  line-height: 1;
+  animation:
+    cue-in 160ms ease-out var(--type-ms, 0ms) backwards,
+    cue-bob 900ms ease-in-out calc(var(--type-ms, 0ms) + 160ms) infinite;
+}
+
+@keyframes cue-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes cue-bob {
+  50% {
+    translate: 3px 0;
+  }
 }
 
 /* On the rail, at the speaker's own x — so it points at whoever is
    talking even when the clamp has slid the body away from them.
 
    It starts just inside the bubble's bottom border, so its fill covers
-   that border, and reaches down to the speaker's head: `--drop` is how
-   far below the band that head is, as a percentage of the stage width,
-   and `padding-top` is the one vertical length a percentage resolves
-   against width for. Zero for the tallest actor, which leaves the short
-   tail it always had. */
+   that border (and the lip), and reaches down to the speaker's head:
+   `--drop` is how far below the band that head is, as a percentage of
+   the stage width, and `padding-top` is the one vertical length a
+   percentage resolves against width for. Zero for the tallest actor,
+   which leaves the short tail it always had.
+
+   Its `left` is transitioned, so a new speaker swings it across. */
 .stage .bubble-tail {
   position: absolute;
   top: calc(100% - 16px);
   left: 0;
-  width: 16px;
+  width: 32px;
   height: 0;
   padding-top: calc(12px + var(--drop, 0%));
-  margin-left: -8px;
+  margin-left: -16px;
   z-index: 4;
+  transition: left 250ms cubic-bezier(0.2, 0.8, 0.3, 1);
 }
 
 .stage .bubble-tail svg {
@@ -226,30 +347,399 @@
   overflow: visible;
 }
 
-.stage .bubble-tail polygon {
-  fill: var(--surface);
+.stage .bubble-tail .tail-fill {
+  fill: var(--bubble-bg);
+  transition: fill 200ms ease;
 }
 
-/* The two slanted sides only: the top edge is inside the bubble. */
-.stage .bubble-tail polyline {
+/* The two curved sides only: the root is inside the bubble. */
+.stage .bubble-tail .tail-edge {
   fill: none;
-  stroke: var(--line);
-  stroke-width: 1.5px;
+  stroke: var(--bubble-line);
+  stroke-width: 2px;
   stroke-linejoin: round;
+  stroke-linecap: round;
   vector-effect: non-scaling-stroke;
+  transition: stroke 200ms ease;
 }
 
 .stage .bubble code {
   /* One expression, one line. Breaking `customer = "Mira"` across two
      chips is exactly the reading the lesson is trying to teach against. */
   white-space: nowrap;
-  padding: 1px 5px;
-  border-radius: 5px;
+  padding: 1px 6px;
+  border-radius: 6px;
   background: var(--brand-soft);
   border: 1px solid var(--brand-line);
   color: var(--brand-deep);
   font-family: var(--mono);
-  font-size: 0.92em;
+  font-size: 0.84em;
+  font-weight: 600;
+}
+
+/* A chip arrives whole, with a small pop rather than a fade. */
+.stage .bubble .tw.chip {
+  display: inline-block;
+  animation-name: chip-in;
+  animation-duration: 140ms;
+}
+
+@keyframes chip-in {
+  from {
+    opacity: 0;
+    scale: 0.85;
+  }
+}
+
+/* The speaker talks while the words arrive: the finite flap in
+   styles.css, with its length counted from the line (`--talk-*`, set by
+   the scene) so the mouth stops when the typing does. */
+.stage .actor .character .mouth-open.talking {
+  animation-iteration-count: var(--talk-jaw, 8);
+}
+
+.stage .actor .crow .beak-lower.talking {
+  animation-iteration-count: var(--talk-peck, 10);
+}
+
+/* Everyone else looks at them. `translate`, so it composes with the
+   moods' own pupil pose instead of replacing it. */
+.stage .actor .pupil {
+  transition: translate 240ms ease;
+}
+
+.stage .actor[data-look='left'] .pupil {
+  translate: -1.6px 0;
+}
+
+.stage .actor[data-look='right'] .pupil {
+  translate: 1.6px 0;
+}
+
+/* ------------------------------ telling ------------------------------
+
+   The controls for a lesson's beats: a thin bar of steps along the top,
+   Next (and a small Back) bottom-centre while narration shows, a pointer
+   at the console when a question waits, and the takeaway at the end. */
+
+.stage .beat-bar {
+  position: absolute;
+  top: 10px;
+  left: 14px;
+  right: 14px;
+  z-index: 4;
+  display: flex;
+  gap: 4px;
+  pointer-events: none;
+}
+
+.stage .beat-seg {
+  position: relative;
+  flex: 1;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgb(22 32 58 / 0.1);
+}
+
+.stage .beat-seg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--brand);
+  transform: scaleX(var(--fill, 0));
+  transform-origin: left center;
+  transition: transform 320ms ease;
+}
+
+.stage .beat-seg.done::after {
+  background: #4cbf2a;
+}
+
+.stage .beat-controls {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transform: translateX(-50%);
+}
+
+.stage .beat-next,
+.stage .beat-back,
+.stage .takeaway-replay {
+  cursor: pointer;
+  font-family: 'Nunito', ui-rounded, system-ui, sans-serif;
+  transition:
+    translate 80ms ease,
+    box-shadow 80ms ease;
+}
+
+.stage .beat-next {
+  padding: 10px 30px;
+  border-radius: 16px;
+  border: 2px solid var(--brand-deep);
+  background: var(--brand);
+  box-shadow: 0 4px 0 var(--brand-deep);
+  color: var(--brand-ink);
+  font-size: 17px;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0.02em;
+}
+
+.stage .beat-back {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 12px;
+  border: 2px solid var(--brand-line);
+  background: var(--surface);
+  box-shadow: 0 3px 0 var(--brand-line);
+  color: var(--brand-deep);
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.stage .beat-next:active,
+.stage .beat-back:active,
+.stage .takeaway-replay:active {
+  translate: 0 3px;
+  box-shadow: 0 1px 0 var(--brand-deep);
+}
+
+.stage .beat-next:focus-visible,
+.stage .beat-back:focus-visible,
+.stage .takeaway-replay:focus-visible {
+  outline: 2px solid var(--brand-deep);
+  outline-offset: 3px;
+}
+
+/* At the question, Next gives way to this: where the answer goes. The
+   console is the panel to the right, so it points right, and a dotted
+   lead runs off towards it. */
+.stage .ask-pointer {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  pointer-events: none;
+  color: var(--brand-deep);
+  font: 800 14px/1 'Nunito', ui-rounded, system-ui, sans-serif;
+}
+
+.stage .ask-pointer-text {
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 2px dashed var(--brand-line);
+  background: var(--surface);
+}
+
+.stage .ask-pointer::after {
+  content: '';
+  width: 14px;
+  border-top: 3px dotted var(--brand);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .stage .ask-pointer {
+    animation: pointer-in 260ms ease-out both;
+  }
+  .stage .ask-pointer-text {
+    animation: pointer-nudge 1.6s ease-in-out 400ms infinite;
+  }
+  @keyframes pointer-in {
+    from {
+      opacity: 0;
+      translate: -8px 0;
+    }
+  }
+  @keyframes pointer-nudge {
+    50% {
+      translate: 4px 0;
+    }
+  }
+}
+
+/* The lesson in a sentence or two, once it is all said. Beside the
+   Continue button, never under it. */
+.stage .takeaway {
+  position: absolute;
+  left: 14px;
+  right: 128px;
+  bottom: 12px;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 8px 7px 14px;
+  border-radius: 16px;
+  border: 2px solid var(--line);
+  background: var(--surface);
+  box-shadow: 0 3px 0 var(--line);
+  font: 700 13.5px/1.35 'Nunito', ui-rounded, system-ui, sans-serif;
+  color: var(--ink);
+}
+
+.stage .takeaway p {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+
+.stage .takeaway-replay {
+  flex: none;
+  padding: 5px 11px;
+  border-radius: 11px;
+  border: 2px solid var(--brand-line);
+  background: var(--surface);
+  box-shadow: 0 3px 0 var(--brand-line);
+  color: var(--brand-deep);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .stage .takeaway {
+    animation: advance-in 260ms ease-out both;
+  }
+}
+
+/* ------------------------------ the cast ------------------------------
+
+   What a beat has the cast do (`CastAction`). Cosmetic, and derived from
+   the lesson's beats: nothing here holds state. */
+
+/* The whole of `.actor`'s transition, restated with opacity added: a
+   shorthand here would otherwise drop the other two. */
+.stage .actor {
+  transition:
+    transform 260ms cubic-bezier(0.2, 0.9, 0.3, 1.2),
+    filter 200ms ease,
+    opacity 360ms ease,
+    visibility 360ms;
+}
+
+.stage .actor .character {
+  transition: translate 460ms cubic-bezier(0.2, 0.9, 0.3, 1.1);
+}
+
+/* Off stage: still laid out, so the speech band and every placement stay
+   as they will be when she arrives — only invisible, and out of reach. */
+.stage .actor.offstage {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.stage .actor.offstage .character {
+  translate: 36px 0;
+}
+
+/* Asleep: the robot's screen goes dark and its face with it. */
+.stage .actor.robot .eye,
+.stage .actor.robot .mouth-shape,
+.stage .actor.robot .antenna-tip {
+  transition:
+    opacity 420ms ease,
+    fill 420ms ease;
+}
+
+.stage .actor.robot.asleep .eye,
+.stage .actor.robot.asleep .mouth-shape {
+  opacity: 0.06;
+}
+
+.stage .actor.robot.asleep .antenna-tip {
+  fill: #8a93ad;
+}
+
+.stage .actor.robot.asleep .character {
+  filter: saturate(0.55) brightness(0.94);
+}
+
+/* One-shots. */
+.stage .actor.act-hop .react {
+  animation: hop-small 700ms cubic-bezier(0.3, 0.7, 0.4, 1) both;
+}
+
+.stage .actor.act-wave .react {
+  transform-origin: 50% 90%;
+  animation: wave 1s ease-in-out both;
+}
+
+.stage .actor.crow.act-wave .wing,
+.stage .actor.crow.act-hop .wing {
+  animation: flap 120ms ease-in-out 6 alternate;
+}
+
+@keyframes wave {
+  15% {
+    transform: rotate(-7deg);
+  }
+  35% {
+    transform: rotate(6deg);
+  }
+  55% {
+    transform: rotate(-5deg);
+  }
+  75% {
+    transform: rotate(3deg);
+  }
+}
+
+/* ------------------------- the robot panel -------------------------
+
+   The console closed while someone talks, glowing when they hand it a
+   question, and whatever a beat points at pulsing. */
+
+.console[data-listening='yes'] .line:disabled {
+  opacity: 1;
+}
+
+.console .line::placeholder {
+  color: var(--ink-soft);
+  font-style: italic;
+}
+
+.robot-panel .view.instrument.glow {
+  outline: 2px solid var(--brand-line);
+  outline-offset: -2px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .robot-panel .view.pulse {
+    animation: focus-pulse 1.3s ease-in-out infinite;
+  }
+  .robot-panel .transport .pulse {
+    animation: focus-pulse-button 1.3s ease-in-out infinite;
+  }
+  @keyframes focus-pulse {
+    50% {
+      outline: 3px solid var(--brand);
+      outline-offset: -3px;
+    }
+  }
+  @keyframes focus-pulse-button {
+    50% {
+      box-shadow: 0 0 0 4px var(--brand-line);
+    }
+  }
+}
+
+/* Reduced motion keeps what a beat points at visible, just still. */
+@media (prefers-reduced-motion: reduce) {
+  .robot-panel .view.pulse {
+    outline: 3px solid var(--brand);
+    outline-offset: -3px;
+  }
 }
 
 /* The way on to the next level. Bottom-right of the stage, in the same

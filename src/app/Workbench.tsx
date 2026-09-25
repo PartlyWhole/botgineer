@@ -29,7 +29,17 @@ import { buildProgram, isExpression, type Entry } from '../repl/program'
 import { events } from '../game/events'
 import { useCast } from '../game/director'
 import type { Activity } from '../../content/activities'
-import { LESSONS, guidance, progress, staging as stageOf, type Heard, type Line } from '../../content/lessons'
+import {
+  LESSONS,
+  NO_CAST,
+  castAt,
+  script,
+  staging as stageOf,
+  type Heard,
+  type Line,
+  type ScriptItem,
+  type Spoken,
+} from '../../content/lessons'
 import { NO_STAGING } from '../scene/props'
 import { goToMap } from './router'
 import { usePractice } from '../practice/usePractice'
@@ -45,7 +55,7 @@ import type { Answer } from '../collection/model'
 import { modelAnswer } from '../collection/runner'
 import { markDone } from '../progress/progress'
 import { readScene } from '../scene/spec'
-import { ScenePanel } from '../panels/ScenePanel'
+import { ScenePanel, type Telling } from '../panels/ScenePanel'
 import { MemoryPanel } from '../panels/MemoryPanel'
 import { RobotPanel, type Transcript } from '../panels/RobotPanel'
 import type { Exchange } from '../ui/RobotConsole'
@@ -460,7 +470,12 @@ export function Workbench({ activity }: { activity: Activity }) {
     [snapshot, thoughts, lineMemory, lastLine],
   )
   const ideas = read.level?.kind === 'ideas'
-  const guide = reading
+  // A lesson tells a script: beats, then its question (docs/PEDAGOGY.md
+  // §4). Derived, like the step it is for.
+  const told = useMemo(() => (lesson && !reading ? script(lesson, evidence) : null), [lesson, reading, evidence])
+  // Everyone else says one line at a time, and may hand over a script of
+  // their own once they have beats to tell.
+  const spoken: Spoken | undefined = reading
     ? ideas
       ? { text: ideasRead ? 'That is the idea. The exercises are next — back to the map.' : 'Read it through. Every example can be run — watch what it builds.' }
       : read.guide
@@ -468,9 +483,32 @@ export function Workbench({ activity }: { activity: Activity }) {
         : undefined
     : practice
       ? practice.guide
-      : lesson
-        ? guidance(lesson, evidence)
-        : undefined
+      : undefined
+  const lines: ScriptItem[] = told
+    ? told.items
+    : (spoken?.script ?? (spoken ? [{ kind: 'ask', asking: true, text: spoken.text, speaker: spoken.speaker }] : []))
+  const rest = told ? told.rest : lines.length - 1
+
+  /**
+   * Which of those lines is showing: the workbench's one piece of view
+   * state for the guide. Not stored (invariant 19) and not progress
+   * (invariant 11) — it is keyed on the step, so the moment the step
+   * changes it is back at that step's first line, and a remount starts it
+   * there too. Returning to a level mid-way therefore resumes at the
+   * derived step and replays its beats.
+   */
+  const tellKey = told ? `${activity.id}:${told.at}` : practice ? `practice:${practice.meter.at}` : activity.id
+  const [telling, setTelling] = useState<{ key: string; at: number }>({ key: '', at: 0 })
+  const beatAt = Math.max(0, Math.min(telling.key === tellKey ? telling.at : 0, lines.length - 1))
+  const current = lines[beatAt]
+  // Narration closes the console; the question opens it. A finished
+  // lesson comes to rest on its last line, where the console is open
+  // again for anything the player likes.
+  const listening = lines.length > 0 && beatAt < rest
+  const moveTo = useCallback((at: number) => setTelling({ key: tellKey, at }), [tellKey])
+  const guide = current
+    ? { text: current.text, speaker: current.speaker, kind: current.kind, tag: current.tag, key: `${tellKey}:${beatAt}` }
+    : undefined
   // Tells the director someone spoke, so the cast turns to listen. Emitted
   // only: nothing reads it back to decide anything.
   const said = guide?.text
@@ -478,15 +516,17 @@ export function Workbench({ activity }: { activity: Activity }) {
     if (said) events.emit({ type: 'npc-spoke', text: said })
   }, [said])
   // The lesson's picture, and the last one leaving with its answer.
-  // Nothing new is known here: it is the same evidence the guide reads.
+  // Nothing new is known here: it is the same evidence the guide reads,
+  // at the line being told.
   const stage = useMemo(
-    () => (practice ? practice.staging : lesson && !reading ? stageOf(lesson, evidence) : NO_STAGING),
-    [lesson, practice, reading, evidence],
+    () => (practice ? practice.staging : lesson && !reading ? stageOf(lesson, evidence, beatAt) : NO_STAGING),
+    [lesson, practice, reading, evidence, beatAt],
   )
+  const onStage = useMemo(() => (lesson && !reading ? castAt(lesson, evidence, beatAt) : NO_CAST), [lesson, reading, evidence, beatAt])
   // The whole progression: the guide offers the next lesson once this one
   // is genuinely done. Derived like everything else, so scrubbing back
   // through the trace withdraws the offer too.
-  const finished = lesson !== null && progress(lesson, evidence) === lesson.steps.length
+  const finished = told !== null && told.finished
   // Finished, by the same one-or-the-other rule the scene celebrates on
   // (invariant 9), and recorded so the map remembers it. This is the only
   // thing written down: the map derives everything else from it.
@@ -521,8 +561,28 @@ export function Workbench({ activity }: { activity: Activity }) {
       setProgram: (text: string) => editorRef.current?.replace(text),
       getProgram: () => editorRef.current?.read() ?? programRef.current,
       run: () => run(),
-      /** The console's equivalent of typing a line and pressing Enter. */
-      say: (line: string) => say(line),
+      /** The console's equivalent of typing a line and pressing Enter.
+       *  Skips any narration first, as a player pressing Next through it
+       *  would, so a journey can still answer a lesson by typing. */
+      say: (line: string) => {
+        moveTo(rest)
+        return say(line)
+      },
+      /** The line being told: where it is in this step's script, whether it
+       *  is the question, and who says it. */
+      beat: () => ({
+        at: beatAt,
+        of: lines.length,
+        text: current?.text ?? '',
+        asking: current?.asking ?? false,
+        speaker: current?.speaker ?? 'crow',
+        kind: current?.kind ?? null,
+        listening,
+      }),
+      /** Next, without waiting for the line to finish typing. */
+      next: () => moveTo(Math.min(beatAt + 1, rest)),
+      /** Straight to the question (or a finished lesson's last line). */
+      skip: () => moveTo(rest),
       snapshot: () => snapshot,
       /** Reading: the item being asked and where it is, and the moves a
        *  player makes — answer a part, commit, repair, mark, move on. */
@@ -578,7 +638,47 @@ export function Workbench({ activity }: { activity: Activity }) {
       }),
     }
     ;(window as unknown as { botgineer: typeof api }).botgineer = api
-  }, [activity.mode, boot.state, busy, run, say, snapshot, practice, read.session, complete])
+  }, [activity.mode, boot.state, busy, run, say, snapshot, practice, read.session, complete, moveTo, rest, beatAt, lines, current, listening])
+
+  // The beat controls the scene draws. Only a lesson has them: practice
+  // and reading say one line at a time until they hand over a script.
+  const firstOutro = lines.findIndex((l) => l.kind === 'outro')
+  const tellingView: Telling | undefined = told
+    ? {
+        listening,
+        back: beatAt > 0,
+        steps: lesson!.steps.length,
+        step: told.at,
+        through: told.finished ? 1 : lines.length > 0 ? (beatAt + 1) / lines.length : 0,
+        // The editor has its own way to hand over (Send to robot), and a
+        // program is written at leisure: no pointer there.
+        prompt: activity.mode === 'console' ? 'Type your answer →' : '',
+        takeaway: lesson!.takeaway,
+        resting: told.finished && beatAt === rest,
+        onNext: () => moveTo(Math.min(beatAt + 1, rest)),
+        onBack: () => moveTo(Math.max(0, beatAt - 1)),
+        onReplay: () => moveTo(Math.max(0, firstOutro)),
+      }
+    : practice
+      ? {
+          // Practice has no beats yet, so nothing to step through: only
+          // the pointer at the console while a question waits.
+          listening,
+          back: false,
+          steps: 0,
+          step: 0,
+          through: 0,
+          prompt: 'Type your answer →',
+          resting: practice.done,
+          onNext: () => moveTo(Math.min(beatAt + 1, rest)),
+          onBack: () => moveTo(Math.max(0, beatAt - 1)),
+          onReplay: () => moveTo(0),
+        }
+      : undefined
+  // A demonstration thought belongs to its beat alone. It is not evidence
+  // and never joins `thoughts`: when the beat moves on, the cloud goes
+  // back to what the robot really thought last.
+  const shownThought = current?.thought ?? (thoughts.length > 0 ? (thoughts[thoughts.length - 1]?.repr ?? null) : null)
 
   return (
     <main className="workbench" style={{ ['--scene-w' as string]: `${sceneW}px` }}>
@@ -594,7 +694,7 @@ export function Workbench({ activity }: { activity: Activity }) {
           onAdvance={onAdvance}
           // The last thing the robot worked out. It lives nowhere else:
           // the value itself was collected when the line ended.
-          thought={!reading && thoughts.length > 0 ? (thoughts[thoughts.length - 1]?.repr ?? null) : null}
+          thought={reading ? null : shownThought}
           // Reading has nothing to think aloud: the run is the answer, and
           // on the short stage a cloud would sit on the crow's words.
           thinking={reading ? false : busy}
@@ -604,6 +704,8 @@ export function Workbench({ activity }: { activity: Activity }) {
           meter={practice?.meter}
           staging={stage}
           compact={reading}
+          telling={tellingView}
+          cast={onStage}
         >
           {reading && ideas && read.stage ? (
             <IdeasSheet
@@ -680,6 +782,11 @@ export function Workbench({ activity }: { activity: Activity }) {
             setIndex(i)
           }}
           traceLine={traceLine}
+          // The console is closed while someone on the stage is talking,
+          // and glows when they hand over a question.
+          listening={talking && listening}
+          asked={talking && current?.asking === true && !reading}
+          focus={current?.focus}
           instrument={
             reading ? (
               ideas ? (

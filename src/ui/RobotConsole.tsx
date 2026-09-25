@@ -40,9 +40,15 @@ type Props = {
   disabled: boolean
   /** Shown once, above the first prompt. The robot introducing itself. */
   greeting?: string | undefined
+  /**
+   * Someone on the stage is talking: the line is closed until they hand
+   * over, and says so. Closed, not hidden — the prompt stays where the
+   * answer will go, so the eye knows where to come back to.
+   */
+  listening?: boolean | undefined
 }
 
-export function RobotConsole({ exchanges, onSubmit, busy, disabled, greeting }: Props) {
+export function RobotConsole({ exchanges, onSubmit, busy, disabled, greeting, listening = false }: Props) {
   const [buffer, setBuffer] = useState('')
   const [recall, setRecall] = useState<number | null>(null)
   const inputRef = useRef<HTMLTextAreaElement | null>(null)
@@ -65,9 +71,11 @@ export function RobotConsole({ exchanges, onSubmit, busy, disabled, greeting }: 
     if (el) el.scrollTop = el.scrollHeight
   }, [exchanges.length, buffer, busy])
 
+  // Focus comes back whenever the line opens: after a run, and when the
+  // narration hands the keyboard over at a question.
   useEffect(() => {
-    if (!busy && !disabled) inputRef.current?.focus()
-  }, [busy, disabled])
+    if (!busy && !disabled && !listening) inputRef.current?.focus()
+  }, [busy, disabled, listening])
 
   const submit = () => {
     const source = buffer.replace(/\s+$/, '')
@@ -129,7 +137,12 @@ export function RobotConsole({ exchanges, onSubmit, busy, disabled, greeting }: 
   }
 
   return (
-    <div className="console" data-testid="console" onClick={() => inputRef.current?.focus()}>
+    <div
+      className="console"
+      data-testid="console"
+      data-listening={listening ? 'yes' : 'no'}
+      onClick={() => inputRef.current?.focus()}
+    >
       <div className="scrollback" ref={scrollRef} data-testid="scrollback">
         {greeting && <p className="says">{greeting}</p>}
 
@@ -169,8 +182,9 @@ export function RobotConsole({ exchanges, onSubmit, busy, disabled, greeting }: 
             autoComplete="off"
             autoCapitalize="off"
             autoCorrect="off"
-            disabled={disabled}
+            disabled={disabled || listening}
             readOnly={busy}
+            placeholder={listening ? 'Listening… press Next' : undefined}
             aria-label="Say something to the robot"
             data-testid="console-input"
             onChange={(e) => setBuffer(e.target.value)}
