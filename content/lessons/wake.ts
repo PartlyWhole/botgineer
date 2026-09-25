@@ -5,7 +5,8 @@
  * the lesson opens with the robot asleep (its screen dark, `sleep`) and
  * four beats before the task, one thing each: the editor, which holds a
  * whole list of instructions (focus on the instrument); Run, which is
- * what makes anything happen now — typing no longer does (focus `run`);
+ * what makes anything happen now — typing no longer does (focus `run`;
+ * the button reads “Send to robot”, so that is what the crow calls it);
  * and the three fixtures in the bay, each named with the name it watches.
  * Then the task, and the outro wakes it.
  *
@@ -75,10 +76,10 @@ export const wake: Lesson = {
       beats: [
         { say: 'The robot has nodded off, and it takes more than one line to wake it.', act: [{ actor: 'robot', do: 'sleep' }] },
         { say: 'So here\'s an editor. Now you can give it a whole list of instructions.', focus: 'console' },
-        { say: 'Typing does nothing yet. Press Run, and it follows the list from top to bottom.', focus: 'run' },
+        { say: 'Typing alone does nothing now. Press “Send to robot”, and it follows the list from top to bottom.', focus: 'run' },
         { say: 'It looks for three names: the lamp shows `power`, the sign `name`, the battery `charge`.' },
       ],
-      say: 'Give `power`, `name` and `charge` values, then press Run.',
+      say: 'Give `power`, `name` and `charge` values, then send the list to the robot.',
       tag: 'you',
       done: ({ snapshot }) => awake(snapshot),
     },
@@ -88,5 +89,5 @@ export const wake: Lesson = {
     { say: 'A list of instructions like that is called a program.' },
     { say: 'Next, you\'ll read programs other people wrote, and say what they do first.' },
   ],
-  takeaway: 'A program is a list of instructions. Run sends the robot through all of them, from top to bottom.',
+  takeaway: 'A program is a list of instructions. Send it to the robot, and it runs every one, from top to bottom.',
 }

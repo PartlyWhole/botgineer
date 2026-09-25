@@ -173,7 +173,7 @@ const takeAnOrder: Activity = {
     ],
     // The scale stands between the robot and Mira: her parcels, weighed
     // by what the robot works out.
-    props: { x: 53.5, w: 24 },
+    props: { x: 54, w: 30 },
     watches: [
       {
         name: 'customer',
