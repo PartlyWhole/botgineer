@@ -94,7 +94,8 @@ describe('types', () => {
     it('at the glass', () => {
       const at = TYPES_RIGHT.slice(0, 2)
       expect(reply(...at, line('0', th('int', '0')))).toMatch(/There's water in it/)
-      expect(reply(...at, line('0,5', th('tuple', '(0, 5)')))).toMatch(/full stop/)
+      expect(reply(...at, line('0,5', th('tuple', '(0, 5)')))).toMatch(/dot, not a comma/)
+      expect(reply(...at, failed('0,5', 'TypeError'))).toMatch(/dot, not a comma/)
       expect(reply(...at, line('"half"', th('str', "'half'")))).toMatch(/`0.5`/)
     })
 

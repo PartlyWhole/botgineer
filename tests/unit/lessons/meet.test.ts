@@ -43,7 +43,9 @@ describe('meet', () => {
   it('answers the misses a newcomer makes', () => {
     const reply = (l: Line) => script(meet, typed(l)).items.at(-1)!
     expect(reply(failed('seven', 'NameError'))).toMatchObject({ kind: 'reply', text: expect.stringMatching(/doesn't know the word `seven`/) })
-    expect(reply(line('1,5', th('tuple', '(1, 5)'))).text).toMatch(/full stop: `1.5`/)
+    expect(reply(line('1,5', th('tuple', '(1, 5)'))).text).toMatch(/dot, not a comma: `1.5`/)
+    // The console stops on it today, rather than making the pair.
+    expect(reply(failed('1,5', 'TypeError')).text).toMatch(/dot, not a comma: `1.5`/)
     expect(reply(line('"7"', th('str', "'7'"))).text).toMatch(/quotes make that a word/i)
     expect(guidance(meet, typed(line('True', th('bool', 'True')))).text).toMatch(/yes-or-no, not a number/)
   })

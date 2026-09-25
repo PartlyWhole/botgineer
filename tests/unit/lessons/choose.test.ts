@@ -101,6 +101,8 @@ describe('choose', () => {
 
     it('a dot for a clock', () => expect(reply(9, line('1.3', th('float', '1.3'))).text).toMatch(/a dot is not a clock/))
 
+    it('a comma for the dot', () => expect(reply(9, failed('1,5', 'TypeError')).text).toMatch(/dot, not a comma/))
+
     it('Mira\'s word for the robot, and the robot\'s for Mira', () => {
       expect(reply(10, line('"yes"', th('str', "'yes'"))).text).toMatch(/That's Mira's word/)
       expect(staging(choose, typed(...upTo(10), line('"yes"', th('str', "'yes'")))).current).toMatchObject({

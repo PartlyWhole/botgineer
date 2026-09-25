@@ -35,7 +35,7 @@
  * asked: a word stuck on the lamp, a lift stuck between floors.
  */
 import { numberOf, textOf, type Prop } from '../../src/scene/props'
-import { bareWord, boolMiss, countMiss, measureMiss, stopped, was, wordsMiss, type Lesson, type Line } from './core'
+import { bareWord, boolMiss, commaDecimal, countMiss, measureMiss, stopped, was, wordsMiss, type Lesson, type Line } from './core'
 
 const ALL: ('bool' | 'int' | 'float' | 'char' | 'str')[] = ['bool', 'int', 'float', 'char', 'str']
 const shelf = (n: number, more: Partial<Extract<Prop, { kind: 'shelf' }>> = {}): Prop => ({
@@ -62,7 +62,12 @@ function liftMiss(l: Line): string | undefined {
   return countMiss(l, 'floors')
 }
 
+/** `0,5` for a half, read from the source too: the console stops on it
+ *  with a `TypeError` rather than making the pair (see meet.ts). */
+const commaTyped = (l: Line) => commaDecimal(l) || /^\s*-?\d+\s*,\s*\d+\s*$/.test(l.source)
+
 function glassMiss(l: Line): string | undefined {
+  if (commaTyped(l)) return 'Python writes a decimal point as a dot, not a comma: `0.5`.'
   const t = l.thought
   const n = numberOf(t)
   if (t?.type === 'int' && n === 0) return 'Empty? There\'s water in it!'

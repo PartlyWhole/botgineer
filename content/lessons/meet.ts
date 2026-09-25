@@ -32,6 +32,12 @@ import { bareWord, commaDecimal, stopped, type Heard, type Lesson, type Line } f
 
 const isNumber = (t: Heard) => t.type === 'int' || t.type === 'float'
 
+/** `1,5` for one and a half. Read from the source as well as the thought:
+ *  the console describes a line by passing it to a helper, and `1,5`
+ *  there is two arguments, so it stops with a `TypeError` instead of
+ *  making the pair Python would, until `src/repl/program` wraps it. */
+const commaTyped = (l: Line) => commaDecimal(l) || /^\s*-?\d+\s*,\s*\d+\s*$/.test(l.source)
+
 function praise(a: Heard | null): string {
   if (!a) return 'It\'s thinking of your number!'
   // Worked out, not copied: `3 + 4` is thought of as `7`.
@@ -42,7 +48,7 @@ function praise(a: Heard | null): string {
 function nudge(l: Line): string | undefined {
   const word = bareWord(l)
   if (word) return `The robot doesn't know the word \`${word}\`. Try digits: \`7\`.`
-  if (commaDecimal(l)) return 'Python writes the dot as a full stop: `1.5`.'
+  if (commaTyped(l)) return 'Python writes a decimal point as a dot, not a comma: `1.5`.'
   const t = l.thought
   if (t?.type === 'str') return 'The quotes make that a word, not a number. Leave them off: `7`.'
   if (t?.type === 'bool') return `\`${t.repr}\` is a yes-or-no, not a number. Try digits: \`7\`.`
@@ -56,7 +62,7 @@ export const meet: Lesson = {
   steps: [
     {
       beats: [
-        { say: 'Hello, I\'m {CROW_NAME}: a crow who knows a lot about robots.', act: [{ actor: 'crow', do: 'hop' }] },
+        { say: 'Hello! I\'m {CROW_NAME}, a crow who knows a lot about robots.', act: [{ actor: 'crow', do: 'hop' }] },
         { say: 'And this is my friend, the robot.', act: [{ actor: 'robot', do: 'sleep' }] },
         { say: 'It\'s very clever, but on its own it does nothing at all.', act: [{ actor: 'robot', do: 'wake' }] },
         {
@@ -64,7 +70,7 @@ export const meet: Lesson = {
           focus: 'console',
           show: { kind: 'pointer', to: 'console', label: 'your instructions go here' },
         },
-        { say: 'Type one on the right and press Enter, and the robot will think of it.', thought: '7' },
+        { say: 'Write an instruction on the right and press Enter, and the robot will think of it.', thought: '7' },
       ],
       say: 'Make the robot think of a number.',
       tag: 'you',

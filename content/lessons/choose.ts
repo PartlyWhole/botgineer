@@ -31,11 +31,18 @@
  * Ordered, so an answer counts only for the question that asked it.
  */
 import { numberOf, textOf, type Prop } from '../../src/scene/props'
-import { bareWord, boolMiss, countMiss, digits, errorType, measureMiss, stopped, was, wordsMiss, type Lesson, type Line } from './core'
+import { bareWord, boolMiss, commaDecimal, countMiss, digits, errorType, measureMiss, stopped, was, wordsMiss, type Lesson, type Line } from './core'
 
 const SHELF: Prop = { kind: 'shelf', filled: ['bool', 'int', 'float', 'char', 'str'], title: true }
 
 const PHONE = '0412555019'
+
+/** A comma for the decimal point, read from the source too: the console
+ *  stops on `1,5` with a `TypeError` rather than making the pair. */
+const measured = (l: Line): string | undefined =>
+  commaDecimal(l) || /^\s*-?\d+\s*,\s*\d+\s*$/.test(l.source)
+    ? 'Python writes a decimal point as a dot, not a comma, like `1.5`.'
+    : measureMiss(l)
 
 function fishMiss(l: Line): string | undefined {
   if (l.thought?.repr === 'True') return 'A bird? Then where are its feathers? Look again.'
@@ -59,7 +66,7 @@ function quarterMiss(l: Line): string | undefined {
   if (t?.type === 'float' && n === 0.5) return '`0.5` is half full. Compare the glasses: this one has less.'
   if (t?.type === 'float') return `I filled the other glass to ${t.repr}. Compare them.`
   if (/quarter/i.test(textOf(t) ?? '')) return 'That\'s the word. The robot writes a quarter as `0.25`.'
-  return measureMiss(l)
+  return measured(l)
 }
 
 function signMiss(l: Line): string | undefined {
@@ -97,7 +104,7 @@ function heightMiss(l: Line): string | undefined {
   if (t?.type === 'int') return 'People aren\'t a whole number of metres tall. Measure it, with a dot.'
   if (t?.type === 'float' && n !== null && n > 2.5) return `${t.repr} metres? You'd bump your head on the door! Most people are between 1 and 2.`
   if (t?.type === 'float' && n !== null) return `${t.repr} metres? That's shorter than a cat! Most people are between 1 and 2.`
-  return measureMiss(l)
+  return measured(l)
 }
 
 function breakfastMiss(l: Line): string | undefined {
@@ -125,7 +132,7 @@ function matchMiss(l: Line): string | undefined {
   if (t?.type === 'float' && n !== null && n > 1 && n < 2) return 'Close! It\'s exactly halfway between one hour and two.'
   if (t?.type === 'int') return 'No whole number of hours fits. Measure it: a number with a dot.'
   if (t?.type === 'float') return 'Two halves of 45 minutes is 90 minutes. How many hours is that?'
-  return measureMiss(l)
+  return measured(l)
 }
 
 function lockedMiss(l: Line): string | undefined {
