@@ -131,10 +131,17 @@ describe('script', () => {
   })
 
   it('is one item for a lesson with no beats, and guidance is that item', () => {
-    for (const e of [NOTHING, typed(line('42', th('int', '42'))), typed(line('7 * 6', th('int', '42')))]) {
-      const s = script(operations, e)
+    // A lesson written the old way: one ask per step, a string outro.
+    const plain: Lesson = {
+      id: 'plain',
+      teaches: [],
+      steps: [{ say: 'Think of 42.', done: (e) => heard(e, was('int', '42')) }],
+      outro: 'Done.',
+    }
+    for (const e of [NOTHING, typed(line('41', th('int', '41'))), typed(line('42', th('int', '42')))]) {
+      const s = script(plain, e)
       expect(s.items).toHaveLength(1)
-      expect({ text: s.items[0]!.text, speaker: s.items[0]!.speaker }).toEqual(guidance(operations, e))
+      expect({ text: s.items[0]!.text, speaker: s.items[0]!.speaker }).toEqual(guidance(plain, e))
     }
   })
 
