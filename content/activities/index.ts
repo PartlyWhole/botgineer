@@ -8,6 +8,7 @@
  */
 import type { SceneSpec } from '../../src/scene/spec'
 import type { RobotMode } from '../../src/panels/RobotPanel'
+import { BAY } from '../lessons/wake'
 import { readingActivities, reviewActivity, singleActivity, type ReadLevel } from './reading'
 
 export type Activity = {
@@ -122,12 +123,17 @@ const workingOut: Activity = {
 }
 
 /**
- * The third lesson: names.
+ * Level 4: names.
  *
  * A fresh session on purpose. Starting from an empty memory is what makes
  * the first binding legible — one name, one arrow, one object — where
- * continuing from the first lesson's four loose objects would open on a
- * field that already looks busy.
+ * continuing from an earlier level would open on a field that already
+ * looks busy.
+ *
+ * The same workshop as `operations`, because the lesson opens on that
+ * level's first picture (the crates of bolts) to show the robot has
+ * forgotten it. After that the picture is the memory graph, which the
+ * crow points at.
  */
 const namingThings: Activity = {
   id: 'names',
@@ -136,19 +142,21 @@ const namingThings: Activity = {
   mode: 'console',
   lesson: 'names-point',
   next: 'order',
-  greeting: 'Still nothing kept. Let us fix that.',
+  greeting: 'Nothing kept yet. Let\'s fix that.',
   starter: '',
   options: { max_steps: 3000, wall_clock_s: 15 },
+  // The workshop's own geometry, restated rather than shared: this level
+  // stands one picture, at its start, and should not move when another
+  // level's cast does.
   scene: {
     id: 'workshop',
     title: 'Workshop',
-    // The bench is gone: it was a floating pill that nobody stood on.
-    // The floor is the thing they stand on now.
-    floor: { at: 78 },
+    floor: { at: 76 },
     actors: [
-      { id: 'crow', kind: 'crow', x: 32, y: 0, w: 17, stand: true },
-      { id: 'robot', kind: 'robot', x: 66, y: 0, w: 24, stand: true },
+      { id: 'crow', kind: 'crow', x: 12, y: 0, w: 16, stand: true },
+      { id: 'robot', kind: 'robot', x: 74, y: 0, w: 22, stand: true },
     ],
+    props: { x: 41.5, w: 40 },
     watches: [],
   },
 }
@@ -180,9 +188,9 @@ const takeAnOrder: Activity = {
     title: 'The counter',
     floor: { at: 82 },
     actors: [
-      { id: 'crow', kind: 'crow', x: 13, y: 0, w: 13, stand: true },
-      { id: 'robot', kind: 'robot', x: 38, y: 0, w: 23, stand: true },
-      { id: 'courier', kind: 'courier', x: 72, y: 0, w: 21, stand: true },
+      { id: 'crow', kind: 'crow', x: 9, y: 0, w: 12, stand: true },
+      { id: 'robot', kind: 'robot', x: 28, y: 0, w: 21, stand: true },
+      { id: 'courier', kind: 'courier', x: 79, y: 0, w: 19, stand: true },
       // A board over the counter, not a plaque on the floor: it is the
       // one thing here that is genuinely mounted rather than standing,
       // and putting it at the robot's feet had it overlapping them.
@@ -195,6 +203,9 @@ const takeAnOrder: Activity = {
       // the default shapes and the stacked layout down to 900px wide.
       { id: 'ticket', kind: 'sign', x: 62, y: 9, w: 26, label: 'no customer' },
     ],
+    // The scale stands between the robot and Mira: her parcels, weighed
+    // by what the robot works out.
+    props: { x: 54, w: 30 },
     watches: [
       {
         name: 'customer',
@@ -219,40 +230,9 @@ const wakeTheRobot: Activity = {
     'The robot is asleep. It reads three things out of its own memory: whether it has power, what it should call itself, and how charged it is. Give those names values.',
   starter: '# Give the robot what it needs.\n# power, name, charge\n\n',
   options: { max_steps: 2000, wall_clock_s: 15 },
-  scene: {
-    id: 'bay',
-    title: 'Charging bay',
-    floor: { at: 80 },
-    actors: [
-      { id: 'robot', kind: 'robot', x: 50, y: 0, w: 27, stand: true },
-      // The crow, so the lesson's lines have someone to say them: on the
-      // floor at the far side from the battery, under the lamp, which is
-      // mounted high enough on the wall to clear its head.
-      { id: 'crow', kind: 'crow', x: 86, y: 0, w: 12, stand: true },
-      // Fixtures, not cast: a lamp and a gauge are mounted on the wall
-      // and a nameplate hangs above the bay. None of them stands.
-      { id: 'lamp', kind: 'lamp', x: 78, y: 20, w: 9 },
-      { id: 'battery', kind: 'gauge', x: 20, y: 26, w: 17 },
-      { id: 'nameplate', kind: 'sign', x: 50, y: 14, w: 38, label: 'unnamed' },
-    ],
-    watches: [
-      {
-        name: 'power',
-        effect: { kind: 'lit', actor: 'lamp' },
-        hint: 'the lamp is waiting for `power`',
-      },
-      {
-        name: 'name',
-        effect: { kind: 'caption', actor: 'nameplate' },
-        hint: 'the nameplate is waiting for `name`',
-      },
-      {
-        name: 'charge',
-        effect: { kind: 'level', actor: 'battery', max: 100 },
-        hint: 'the battery is waiting for `charge` (0 to 100)',
-      },
-    ],
-  },
+  // The lesson's own bay (`content/lessons/wake`), so that finishing the
+  // lesson and satisfying these watches are one test, not two that agree.
+  scene: BAY,
 }
 
 /**
