@@ -36,11 +36,11 @@ import { bareWord, errorType, heard, stopped, type Heard, type Lesson, type Line
  * | 7  | `==` named; the balance levels and its lamp lights `True`             | Is 2 + 2 the same as 4?                   | `2 + 2 == 4`  |
  * | 8  | Mira: words too? (`7` ≠ `"7"`); `7 + 7` → 14 beside `"7" + "7"` → "77" | What does `"bot" + "gineer"` make?        | 'botgineer'   |
  * | 9  | `*` on text: `"ha" * 3` stamps itself three times (tiles)             | Make the robot say `"ha"` five times.     | `"ha" * 5`    |
- * | 10 | a secret: A, B, C slide onto 65, 66, 67 (codes); `ord` named          | What is the code for Mira's `"M"`?        | `ord("M")` 77 |
+ * | 10 | a secret: A, B, C slide onto 65, 66, 67 (codes); `ord` named, thinks 65| What is the code for Mira's `"M"`?        | `ord("M")` 77 |
  * | 11 | another: `True` counts as `1`, two lamps make `2` (lamps)              | What is `True + True + True`?             | 3, an int     |
  * | 12 | a puzzle: which first, `+` or `*`? (expr, working hidden)            | What is `2 + 3 * 4`?                      | 14            |
  * | 13 | brackets go first of all (expr)                                       | Make the robot add `2 + 3` first, …       | `(2 + 3) * 4` |
- * |    | outro: Mira thanks the robot · it can make new values from old ones · it worked out twenty, and forgot it · next, remembering |||
+ * |    | outro: Mira thanks the robot · it can make new values from old ones · it worked out twenty, and forgot it (memory pulses, empty) · next, remembering |||
  *
  * Choices worth keeping:
  *
@@ -61,6 +61,9 @@ import { bareWord, errorType, heard, stopped, type Heard, type Lesson, type Line
  * - `ord` is Mira's own letter, on the card that turns over to its code.
  * - `//` is only ever met in a reply, and the reply names it as a new sign
  *   (R5).
+ * - `2 + 0,5` reaches a reply as a `TypeError`, not a pair: the console
+ *   hands the pending line to its describer as arguments. The reply keys
+ *   on the comma in the source, so it says the same thing either way.
  */
 const BRACKETS: Prop = { kind: 'expr', text: '(2 + 3) * 4', first: '(2 + 3)', then: ['5 * 4', '20'] }
 
@@ -84,24 +87,24 @@ export const operations: Lesson = {
   id: 'operations',
   teaches: ['arith', 'divide', 'join', 'compare', 'order'],
   ordered: true,
-  // The last picture stays, with its working, while the crow says the
-  // answer went nowhere.
-  finale: BRACKETS,
+  // No finale: once it is finished the stage is empty, and so is memory,
+  // which is the point of the last lines. (The finale view carries no
+  // answer, so `expr` would go back to "= ?", which says the wrong thing.)
   steps: [
     {
       beats: [
         {
-          say: 'Hello again! I need the robot\'s help with some counting.',
+          say: 'Hi again, I need the robot\'s help with some counting.',
           speaker: 'courier',
           act: [
             { actor: 'courier', do: 'enter' },
             { actor: 'courier', do: 'wave' },
           ],
         },
-        { say: 'Seven crates, and six bolts in each. How many bolts is that?', speaker: 'courier', show: { kind: 'crates', crates: 7, each: 6 } },
-        { say: 'The robot has never seen these crates, so it can\'t know.', thought: '?' },
-        { say: 'But it can work things out, if you give it the sum.' },
-        { say: 'Don\'t tell me the answer. Give the robot the sum, and let it work it out.', focus: 'console' },
+        { say: 'I have seven crates with six bolts in each, but how many bolts is that?', speaker: 'courier', show: { kind: 'crates', crates: 7, each: 6 } },
+        { say: 'The robot has never seen these crates, so it can\'t just know.', thought: '?' },
+        { say: 'But it can work an answer out, and that\'s what it\'s for.' },
+        { say: 'So don\'t tell me the answer: give the robot the sum, and let it work it out.', focus: 'console' },
         { say: 'Python\'s times sign is a star: `7 * 6` means seven lots of six.' },
       ],
       say: 'How many bolts are in the crates?',
@@ -161,7 +164,7 @@ export const operations: Lesson = {
       },
     },
     {
-      beats: [{ say: 'What if it shares out exactly? Here are 8 litres for the 2 tanks.', show: { kind: 'share', litres: 8, robots: 2 } }],
+      beats: [{ say: 'And what if it shares out exactly, like 8 litres between the 2 tanks?', show: { kind: 'share', litres: 8, robots: 2 } }],
       say: 'How much does each tank get from 8 litres?',
       ask: '8 litres, 2 tanks',
       tag: 'robot',
@@ -186,7 +189,7 @@ export const operations: Lesson = {
             right: { text: '0.5', kind: 'float', label: 'measured' },
           },
         },
-        { say: 'Don\'t add them in your head. Let the robot add them, and look at the type.' },
+        { say: 'Don\'t add them in your head; let the robot add them, and look at the type.' },
       ],
       say: 'What type comes back from `2 + 0.5`?',
       ask: '2 + 0.5',
@@ -201,7 +204,9 @@ export const operations: Lesson = {
         const t = l.thought
         if (byHand(l, '2.5', PLUS)) return yours('2 + 0.5')
         if (t?.type === 'type') return 'That names a type, but it asks nothing. Let the robot add them, and look: `2 + 0.5`.'
-        if (t?.type === 'tuple') return 'A comma makes two things. Python writes a half with a dot: `2 + 0.5`.'
+        // A comma makes two things: typed alone that is a pair, and handed
+        // to the robot's describing it is two arguments, so a TypeError.
+        if (/\d\s*,\s*\d/.test(l.source)) return 'A comma makes two things. Python writes a half with a dot: `2 + 0.5`.'
         if (bareWord(l)) return 'Don\'t name the type: let the robot add them, and it will show you. `2 + 0.5`.'
         if (t?.type === 'str') return 'That\'s words, for people. Let the robot add the numbers: `2 + 0.5`.'
         return stopped(l, 'Let the robot add them: `2 + 0.5`.') ?? 'Let the robot add them: `2 + 0.5`.'
@@ -304,7 +309,7 @@ export const operations: Lesson = {
       beats: [
         { say: 'Here\'s a secret: every character has a number, called its code.', show: { kind: 'codes', chars: 'ABC' } },
         { say: '`"A"` is 65, `"B"` is 66, and `"C"` is 67.' },
-        { say: 'The robot tells you a character\'s code with `ord`, like this: `ord("A")`.' },
+        { say: 'The robot tells you a character\'s code with `ord`, like this: `ord("A")`.', thought: '65' },
       ],
       say: 'What is the code for Mira\'s `"M"`?',
       ask: 'the code for "M"',
@@ -342,7 +347,7 @@ export const operations: Lesson = {
       },
     },
     {
-      beats: [{ say: 'Now a puzzle. Which does the robot do first, the `+` or the `*`?', show: { kind: 'expr', text: '2 + 3 * 4', first: '3 * 4', then: ['2 + 12', '14'] } }],
+      beats: [{ say: 'Here\'s a puzzle: which does the robot do first, the `+` or the `*`?', show: { kind: 'expr', text: '2 + 3 * 4', first: '3 * 4', then: ['2 + 12', '14'] } }],
       say: 'What is `2 + 3 * 4`?',
       ask: 'which goes first?',
       tag: 'robot',
@@ -376,7 +381,7 @@ export const operations: Lesson = {
   outro: [
     { say: 'Thanks, robot, that\'s just what I needed.', speaker: 'courier', act: [{ actor: 'courier', do: 'wave' }] },
     { say: 'Now the robot can make new values out of old ones.' },
-    { say: 'The robot worked out twenty, and then forgot it.' },
+    { say: 'The robot worked out twenty, and then forgot it.', focus: 'memory' },
     { say: 'Next, we\'ll help it remember.' },
   ],
   takeaway: 'An operation makes a new value, and its type depends on the operation.',

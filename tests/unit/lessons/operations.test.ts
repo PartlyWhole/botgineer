@@ -60,7 +60,7 @@ describe('working things out', () => {
   it('says the rule before the first question, and names `*` before asking it', () => {
     const s = script(operations, NOTHING)
     const told = s.items.slice(0, s.rest).map((i) => i.text)
-    expect(told.some((t) => /Give the robot the sum/.test(t))).toBe(true)
+    expect(told.some((t) => /give the robot the sum/i.test(t))).toBe(true)
     expect(told.some((t) => /`7 \* 6`/.test(t))).toBe(true)
     // The ask is the question alone (R3).
     expect(s.items[s.rest]!.text).toBe('How many bolts are in the crates?')
@@ -100,7 +100,9 @@ describe('working things out', () => {
     expect(lit).toBeGreaterThan(0)
     expect(lit).toBeLessThan(s.rest)
     // (Drawing it is `staging`'s: a narration-only change to the same
-    // picture must reach the layer. Not asserted here; see core.ts.)
+    // picture must reach the layer. Today `staging` skips a `show` that is
+    // `sameProp` as the one before it, so the lamp is not drawn; that is
+    // core.ts's to fix, and not asserted here.)
     expect(staging(operations, e).current?.prop).toEqual({ kind: 'balance', left: 4, right: 4, op: '==' })
   })
 
@@ -146,6 +148,8 @@ describe('working things out', () => {
 
     it('on a comma for a point, and on naming the type', () => {
       expect(reply(...at(4), line('2 + 0,5', th('tuple', '(2, 5)')))).toMatch(/dot/)
+      // What the console really gets: describing it passes two arguments.
+      expect(reply(...at(4), failed('2 + 0,5', 'TypeError'))).toMatch(/dot/)
       expect(reply(...at(4), line('float', th('type', "<class 'float'>")))).toMatch(/names a type/)
     })
 

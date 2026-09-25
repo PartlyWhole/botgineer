@@ -37,10 +37,11 @@ test('Mira brings a sum the robot cannot know, and the rule comes before the que
   let thoughtQ = false
   for (let i = 0; i < 12 && !(await beat(page)).asking; i++) {
     told.push((await beat(page)).text)
-    if ((await page.getByTestId('thought').textContent().catch(() => '')) === '?') thoughtQ = true
+    const cloud = page.getByTestId('thought')
+    if ((await cloud.count()) > 0 && (await cloud.first().textContent()) === '?') thoughtQ = true
     await next(page)
   }
-  expect(told.some((t) => t.includes('Give the robot the sum'))).toBe(true)
+  expect(told.some((t) => /give the robot the sum/i.test(t))).toBe(true)
   expect(told.some((t) => t.includes('7 * 6'))).toBe(true)
   expect(thoughtQ).toBe(true)
 
