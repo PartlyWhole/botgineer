@@ -8,10 +8,7 @@
  * its header for why).
  *
  * `LESSONS` is keyed by lesson id, which is what an activity's `lesson`
- * names. `kinds.ts` and `talking.ts` are the warm-up's first lessons as
- * they were before docs/PEDAGOGY.md; they are no longer registered, and
- * are kept only until their replacements (`meet`, `types`, `choose`) are
- * written.
+ * names.
  */
 import type { Lesson } from './core'
 import { meet } from './meet'
@@ -24,8 +21,6 @@ import { wake } from './wake'
 
 export * from './core'
 export { meet, types, choose, operations, namesPoint, takeAnOrder, wake }
-export { threeKinds } from './kinds'
-export { talkingToHumans } from './talking'
 
 export const LESSONS: Record<string, Lesson> = {
   [meet.id]: meet,

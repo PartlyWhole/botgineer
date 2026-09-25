@@ -68,6 +68,22 @@ const WORKSHOP: SceneSpec = {
 }
 
 /**
+ * The first level's workshop: the robot nearer the middle and the
+ * picture on its far side, because the one picture here is the pointer,
+ * whose chevrons run off the stage's right edge towards the console. In
+ * `WORKSHOP` they would run across the robot's face, and they stay up
+ * through the ask.
+ */
+const MEET_WORKSHOP: SceneSpec = {
+  ...WORKSHOP,
+  actors: [
+    { id: 'crow', kind: 'crow', x: 12, y: 0, w: 16, stand: true },
+    { id: 'robot', kind: 'robot', x: 42, y: 0, w: 22, stand: true },
+  ],
+  props: { x: 77, w: 34 },
+}
+
+/**
  * The third level: working things out.
  *
  * Same room, same empty memory. The robot computes and reports, each
@@ -238,14 +254,14 @@ const meetTheRobot: Activity = {
   title: 'Meet the Robot',
   /** Kept as data, rendered nowhere: the starting point does not need to
    *  be introduced. Activities with something to solve will want it. */
-  brief: 'The robot does nothing until you give it an instruction — and it thinks of whatever you write.',
+  brief: 'The robot does nothing until you give it an instruction. Then it thinks of whatever you write.',
   mode: 'console',
   lesson: 'meet',
   next: 'types',
-  greeting: 'Type an instruction and press Enter. I will think of it.',
+  greeting: 'Ready. One instruction per line.',
   starter: '',
   options: { max_steps: 3000, wall_clock_s: 15 },
-  scene: WORKSHOP,
+  scene: MEET_WORKSHOP,
 }
 
 /**
@@ -272,29 +288,31 @@ const WORKSHOP_WITH_MIRA: SceneSpec = {
   watches: [],
 }
 
-/** Level 1b: the five basic kinds, met one at a time. */
+/** Level 1b: the five basic data types, met one at a time, each named
+ *  into its slot on the shelf. Mira arrives part-way, with the letters. */
 const fiveDataTypes: Activity = {
   id: 'types',
   title: 'Five Data Types',
-  brief: 'Yes-or-no, counting, measuring, one character and a string of them: five kinds of data.',
+  brief: 'Yes or no, how many, how much, one character, and words: the five basic data types.',
   mode: 'console',
   lesson: 'types',
   next: 'choose',
-  greeting: 'I sort everything I think of into kinds.',
+  greeting: 'Ready. One instruction per line.',
   starter: '',
   options: { max_steps: 3000, wall_clock_s: 15 },
   scene: WORKSHOP_WITH_MIRA,
 }
 
-/** Level 1c: every question answered with the right kind, no hints. */
+/** Level 1c: twelve questions, each answered with the right data type
+ *  and no hint about which. Mira is on stage from the start. */
 const chooseTheType: Activity = {
   id: 'choose',
   title: 'Choose the Type',
-  brief: 'Each question decides its own kind of answer. Pick the right data type.',
+  brief: 'Each question decides its own data type. Answer it with the right one.',
   mode: 'console',
   lesson: 'choose',
   next: 'operations',
-  greeting: 'Ask me anything. I will think of whatever you answer.',
+  greeting: 'Ready. One instruction per line.',
   starter: '',
   options: { max_steps: 3000, wall_clock_s: 15 },
   scene: WORKSHOP_WITH_MIRA,

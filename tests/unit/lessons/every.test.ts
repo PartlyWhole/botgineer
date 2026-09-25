@@ -5,12 +5,12 @@
  * (docs/PEDAGOGY.md R2).
  */
 import { describe, expect, it } from 'vitest'
-import { LESSONS, guidance, progress, script, talkingToHumans, threeKinds, type Evidence, type Lesson } from '../../../content/lessons'
+import { LESSONS, guidance, progress, script, type Evidence, type Lesson } from '../../../content/lessons'
 import { ACTIVITIES } from '../../../content/activities'
 import { EMPTY, NOTHING, over, snap, th, value } from './fixtures'
 import type { Binding } from '../../../src/memory/model'
 
-const ALL: Lesson[] = [...Object.values(LESSONS), threeKinds, talkingToHumans]
+const ALL: Lesson[] = Object.values(LESSONS)
 
 const outroLines = (l: Lesson): string[] => (typeof l.outro === 'string' ? [l.outro] : l.outro.map((b) => b.say))
 
