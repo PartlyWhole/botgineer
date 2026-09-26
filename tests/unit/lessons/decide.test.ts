@@ -140,6 +140,12 @@ describe('decide', () => {
     const noElse = [...H.slice(0, 3), by('if weight < 10:\n    ride = "bike"', mem({ weight: 3, ride: 'bike' }))]
     expect(at(ev(noElse, ...SAID))).toBe(5)
     expect(at(ev(H.slice(0, 4), ...SAID))).toBe(6)
+    // A bare answer, then an `if` whose block does nothing, still proves
+    // nothing: the block itself has to point `ride`.
+    const emptyIf = [...bareVan, by('if False:\n    pass', mem({ weight: 12, ride: 'van' }))]
+    expect(at(ev(emptyIf, SAID[0]!))).toBe(2)
+    const emptyElse = [...bareBike, by('if False:\n    pass\nelse:\n    pass', mem({ weight: 3, ride: 'bike' }))]
+    expect(at(ev(emptyElse, ...SAID))).toBe(5)
     // Memory with no sources at all proves nothing about how it was made.
     expect(at({ ...ev(H.slice(0, 2), SAID[0]!), lines: undefined })).toBe(2)
   })

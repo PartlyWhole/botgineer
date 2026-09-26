@@ -84,6 +84,12 @@ function guarded(source: string, inner: RegExp): { cond: number; body: number } 
   return cond && body ? { cond: cond.indent, body: body.indent } : null
 }
 
+/** An `if` header whose indented block points `ride`, and an `else`
+ *  header whose block does: the line that made the change, not only one
+ *  that happened to have the keyword in it. */
+const IF_SETS_RIDE = /^\s*if\b[^\n]*:\s*\n(?:[ \t]+[^\n]*\n)*?[ \t]+ride\s*=/m
+const ELSE_SETS_RIDE = /^\s*else\s*:\s*\n(?:[ \t]+[^\n]*\n)*?[ \t]+ride\s*=/m
+
 export const decide: Lesson = {
   id: 'decide',
   teaches: [],
@@ -128,7 +134,9 @@ export const decide: Lesson = {
       ],
       say: 'Type `if weight > 10:`, then `ride = "van"` indented under it, then a blank line.',
       tag: 'you',
-      done: (e) => everBy(e, (src, s) => has(src, 'if') && points(s, 'weight', '12') && points(s, 'ride', "'van'")),
+      // The if block itself must point `ride`: an empty `if` typed after a
+      // bare `ride = "van"` leaves the same memory and proves nothing.
+      done: (e) => everBy(e, (src, s) => IF_SETS_RIDE.test(src) && points(s, 'weight', '12') && points(s, 'ride', "'van'")),
       praise: '`ride` points at `\'van\'`, because `weight > 10` was `True`, so the block ran.',
       nudge: (l) => headerMiss(l) ?? indentMiss(l) ?? bareRide(l),
     },
@@ -173,7 +181,7 @@ export const decide: Lesson = {
       done: (e) =>
         everBy(
           e,
-          (src, s) => has(src, 'if') && has(src, 'else') && points(s, 'weight', '3') && points(s, 'ride', "'bike'"),
+          (src, s) => has(src, 'if') && ELSE_SETS_RIDE.test(src) && points(s, 'weight', '3') && points(s, 'ride', "'bike'"),
         ),
       praise: '`ride` points at `\'bike\'`, because `3 > 10` was `False`, so the `else` block ran instead.',
       nudge: (l) => {

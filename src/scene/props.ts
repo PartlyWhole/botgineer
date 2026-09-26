@@ -435,7 +435,9 @@ export function looksRight(view: PropView): boolean {
   const t = textOf(a)
   switch (p.kind) {
     case 'lamp':
-      return b === true
+      // Either answer lights or darkens the switch the way the right one
+      // would, so a refused `False` is as misleading as a refused `True`.
+      return b !== null
     case 'fish':
       return b === false
     case 'basket':
