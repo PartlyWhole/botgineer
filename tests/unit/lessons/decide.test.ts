@@ -6,7 +6,7 @@
  * typed out by hand is refused.
  */
 import { describe, expect, it } from 'vitest'
-import { decide, guidance, progress, script, type Evidence } from '../../../content/lessons'
+import { decide, guidance, progress, script, type Evidence, type LineMemory } from '../../../content/lessons'
 import { ACTIVITIES } from '../../../content/activities'
 import { LEVEL_ORDER } from '../../../content/roadmap'
 import type { MemorySnapshot, PyObject } from '../../../src/memory/model'
@@ -40,23 +40,37 @@ const mem = (names: Record<string, V>): MemorySnapshot => {
   return snap(objects, bindings)
 }
 
-const ev = (history: MemorySnapshot[], ...said: [string, string, string][]): Evidence => ({
-  snapshot: history[history.length - 1]!,
-  history,
-  thoughts: said.map(([type, repr, source]) => ({ ...th(type, repr), source })),
-})
+/** An accepted line and the memory it left. */
+const by = (source: string, memory: MemorySnapshot): LineMemory => ({ source, memory })
+
+/** Evidence from these accepted lines, as the workbench builds it:
+ *  `history` is their memories plus the current one, `lines` the pairs. */
+const ev = (lines: LineMemory[], ...said: [string, string, string][]): Evidence => {
+  const history = lines.map((l) => l.memory)
+  return {
+    snapshot: history[history.length - 1]!,
+    history,
+    lines,
+    thoughts: said.map(([type, repr, source]) => ({ ...th(type, repr), source })),
+  }
+}
 
 const at = (e: Evidence) => progress(decide, e)
 
-/** Every step done, in play order: memory and what was said. */
-const H: MemorySnapshot[] = [
-  mem({ weight: 12 }),
-  mem({ weight: 12, ride: 'van' }),
-  mem({ weight: 3, ride: 'van' }),
-  mem({ weight: 3, ride: 'bike' }),
-  mem({ weight: 3, ride: 'bike', heavy: [] }),
-  mem({ weight: 3, ride: 'bike', heavy: [12, 15], w: 15 }),
-  mem({ weight: 3, ride: 'bike', heavy: [12, 15], w: 3 }),
+const IF = 'if weight > 10:\n    ride = "van"'
+const IF_ELSE = 'if weight > 10:\n    ride = "van"\nelse:\n    ride = "bike"'
+const LOOP = 'for w in [12, 3, 15]:\n    if w > 10:\n        heavy.append(w)'
+const BREAK = 'for w in [12, 3, 15]:\n    if w == 3:\n        break'
+
+/** Every step done, in play order: each line, and memory as it left it. */
+const H: LineMemory[] = [
+  by('weight = 12', mem({ weight: 12 })),
+  by(IF, mem({ weight: 12, ride: 'van' })),
+  by('weight = 3', mem({ weight: 3, ride: 'van' })),
+  by(IF_ELSE, mem({ weight: 3, ride: 'bike' })),
+  by('heavy = []', mem({ weight: 3, ride: 'bike', heavy: [] })),
+  by(LOOP, mem({ weight: 3, ride: 'bike', heavy: [12, 15], w: 15 })),
+  by(BREAK, mem({ weight: 3, ride: 'bike', heavy: [12, 15], w: 3 })),
 ]
 const SAID: [string, string, string][] = [
   ['bool', 'True', 'weight > 10'],
@@ -105,11 +119,29 @@ describe('decide', () => {
 
   it('refuses a loop’s result typed out by hand: only a loop leaves `w` behind', () => {
     const before = H.slice(0, 5)
-    expect(at(ev([...before, mem({ weight: 3, ride: 'bike', heavy: [12, 15] })], ...SAID))).toBe(7)
+    expect(at(ev([...before, by('heavy = [12, 15]', mem({ weight: 3, ride: 'bike', heavy: [12, 15] }))], ...SAID))).toBe(7)
     // Every parcel appended, because the `if` was left out.
-    expect(at(ev([...before, mem({ weight: 3, ride: 'bike', heavy: [12, 3, 15], w: 15 })], ...SAID))).toBe(7)
+    const all = 'for w in [12, 3, 15]:\n    heavy.append(w)'
+    expect(at(ev([...before, by(all, mem({ weight: 3, ride: 'bike', heavy: [12, 3, 15], w: 15 }))], ...SAID))).toBe(7)
     // A bare `break` stops on the first pass.
-    expect(at(ev([...H.slice(0, 6), mem({ weight: 3, ride: 'bike', heavy: [12, 15], w: 12 })], ...SAID))).toBe(8)
+    const bare = 'for w in [12, 3, 15]:\n    break'
+    expect(at(ev([...H.slice(0, 6), by(bare, mem({ weight: 3, ride: 'bike', heavy: [12, 15], w: 12 }))], ...SAID))).toBe(8)
+  })
+
+  it('refuses `ride` pointed by hand: the change must come from a line with an `if` (and an `else`)', () => {
+    // `ride = "van"` leaves exactly the memory the `if` block does.
+    const bareVan = [H[0]!, by('ride = "van"', mem({ weight: 12, ride: 'van' }))]
+    expect(at(ev(bareVan, SAID[0]!))).toBe(2)
+    expect(at(ev(H.slice(0, 2), SAID[0]!))).toBe(3)
+    // …and `ride = "bike"` exactly what the `else` block does.
+    const bareBike = [...H.slice(0, 3), by('ride = "bike"', mem({ weight: 3, ride: 'bike' }))]
+    expect(at(ev(bareBike, ...SAID))).toBe(5)
+    // An `if` alone cannot be the `else` step, even one that lands on bike.
+    const noElse = [...H.slice(0, 3), by('if weight < 10:\n    ride = "bike"', mem({ weight: 3, ride: 'bike' }))]
+    expect(at(ev(noElse, ...SAID))).toBe(5)
+    expect(at(ev(H.slice(0, 4), ...SAID))).toBe(6)
+    // Memory with no sources at all proves nothing about how it was made.
+    expect(at({ ...ev(H.slice(0, 2), SAID[0]!), lines: undefined })).toBe(2)
   })
 
   describe('answers the likely misses', () => {
@@ -146,6 +178,11 @@ describe('decide', () => {
       expect(reply(e, line('if weight > 10:\n    ride = "truck"', null))).toContain('Predict it first')
     })
 
+    it('`ride` pointed by hand, with no `if` to decide', () => {
+      expect(reply(atIf, line('ride = "van"', null))).toContain('Let the robot decide')
+      expect(reply(atElse, line('ride = "bike"', null))).toContain('Let the robot decide')
+    })
+
     it('an `else` on its own, and an `if` that forgot it', () => {
       expect(reply(atElse, failed('else:', 'SyntaxError'))).toContain('can’t stand alone')
       expect(reply(atElse, line('if weight > 10:\n    ride = "van"', null))).toContain('Add `else:`')
@@ -173,7 +210,7 @@ describe('decide', () => {
     const last = line('for w in [12, 3, 15]:\n    if w > 10:\n        heavy.append(w)', null)
     expect(script(decide, { ...e, last }).items.at(-1)!.kind).toBe('ask')
     // `weight = 12` finished step one and made no thought: not a miss.
-    expect(script(decide, { ...ev([H[0]!]), last: line('weight = 12', null) }).items.at(-1)!.kind).toBe('ask')
+    expect(script(decide, { ...ev([H[0]!]), last: { ...line('weight = 12', null), memory: H[0]!.memory } }).items.at(-1)!.kind).toBe('ask')
     const p = ev(H.slice(0, 3), SAID[0]!)
     expect(script(decide, { ...p, last: line('weight = 3', null) }).items.at(-1)!.kind).toBe('ask')
   })
