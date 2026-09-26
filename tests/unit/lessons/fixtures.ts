@@ -73,3 +73,12 @@ export const typed = (...lines: Line[]): Evidence => ({
   history: [EMPTY],
   last: lines[lines.length - 1] ?? null,
 })
+
+/**
+ * The evidence with `l` as the line that left its newest memory, the way
+ * the workbench reports an accepted line: `Line.memory` is the very entry
+ * it appended to `history`. That is what lets the lesson take the line
+ * back out (`beforeLast`) and see that a binding moved it on, so the next
+ * step's reply is never asked about the line that did the step before.
+ */
+export const madeBy = (e: Evidence, l: Line): Evidence => ({ ...e, last: { ...l, memory: e.history[e.history.length - 1] } })

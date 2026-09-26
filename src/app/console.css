@@ -820,6 +820,10 @@
      is set by the scene when the two would not collide sideways, and
      brings the thought down level with the speech instead of above it. */
   margin: 0 auto calc(42px - var(--beside, 0px));
+  /* And leans sideways by `--aside` when that is what clears the speech,
+     never further than keeps it over the robot (see `useBeside`). The
+     individual property, so the pop's `transform` scales on top of it. */
+  translate: var(--aside, 0px) 0;
   width: max-content;
   max-width: 38%;
   padding: 7px 16px;

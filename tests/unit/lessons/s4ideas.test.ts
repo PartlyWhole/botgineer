@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest'
 import { guidance, progress, s4Ideas, script } from '../../../content/lessons'
 import type { Evidence } from '../../../content/lessons'
 import type { MemorySnapshot, PyObject } from '../../../src/memory/model'
-import { NOTHING, failed, line, snap, th, typed, value } from './fixtures'
+import { NOTHING, failed, line, madeBy, snap, th, typed, value } from './fixtures'
 
 /** A list holding arrows to these objects. */
 const list = (uid: string, ...targets: string[]): PyObject => ({
@@ -107,8 +107,11 @@ describe('s4-ideas', () => {
     expect(guidance(s4Ideas, three).text).toContain('two outer lists')
     // The line that made the copy is still the last line when the
     // prediction is asked: that is the question, not a miss.
-    const fresh = { ...ev([PLAN, SHALLOW]), last: line('new = plan[:]', null) }
+    const fresh = madeBy(ev([PLAN, SHALLOW]), line('new = plan[:]', null))
     expect(script(s4Ideas, fresh).items.at(-1)!.kind).toBe('ask')
+    // Typed again, it did no step: the robot copied instead of a prediction.
+    const again = madeBy(ev([PLAN, SHALLOW, SHALLOW]), line('new = plan[:]', null))
+    expect(guidance(s4Ideas, again).text).toContain('Predict it first')
     const ran = { ...ev([PLAN, SHALLOW]), last: line('len(plan)', th('int', '2')) }
     expect(guidance(s4Ideas, ran).text).toContain('Predict it first')
     const before = ev([PLAN, SHALLOW, ADDED], ['int', '2', '2'], ['list', "['Ann']", '["Ann"]'])

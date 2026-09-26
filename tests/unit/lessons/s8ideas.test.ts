@@ -7,7 +7,7 @@
 import { describe, expect, it } from 'vitest'
 import { guidance, progress, s8Ideas, script } from '../../../content/lessons'
 import type { Binding, MemorySnapshot, PyObject } from '../../../src/memory/model'
-import { NOTHING, failed, line, snap, th, typed, value } from './fixtures'
+import { NOTHING, failed, line, madeBy, snap, th, typed, value } from './fixtures'
 import type { Evidence } from '../../../content/lessons'
 
 const fn = (uid: string, name: string, defaults: string[] = []): PyObject => ({
@@ -107,15 +107,18 @@ describe('s8-ideas', () => {
     const dbl = fn('u1', 'double')
     const m1 = snap([dbl], [g('double', 'u1')])
     const m2 = snap([dbl, five], [g('double', 'u1'), g('x', five.id)])
-    const atPredict = guidance(s8Ideas, { ...ev([m1, m2]), last: line('x = 5', null) })
+    const atPredict = guidance(s8Ideas, madeBy(ev([m1, m2]), line('x = 5', null)))
     expect(atPredict.text).toBe(s8Ideas.steps[2]!.say)
     const dflt = list('u3', [])
     const add = fn('u4', 'add', ['u3'])
     const things = list('u5', [a.id, b.id])
     const m4 = snap([dbl, five, add, dflt, things, a, b], [g('double', 'u1'), g('x', five.id), g('add', 'u4'), g('things', 'u5'), g('same', 'u5')])
     const said: [string, string, string][] = [['int', '5', '5'], ['int', '10', 'double(x)']]
-    const atDefault = guidance(s8Ideas, { ...ev([m4], ...said), last: line('same = add("b", things)', null) })
+    const atDefault = guidance(s8Ideas, madeBy(ev([m4], ...said), line('same = add("b", things)', null)))
     expect(atDefault.text).toBe(s8Ideas.steps[6]!.say)
+    // Typed again, it did no step: the call was run instead of predicted.
+    const again = guidance(s8Ideas, madeBy(ev([m4, m4], ...said), line('same = add("b", things)', null)))
+    expect(again.text).toContain('Predict it first')
   })
 
   it('answers a block that was not indented', () => {

@@ -33,10 +33,6 @@ import { bareWord, errorType, heard, points, stopped, type Heard, type Lesson, t
  * gets "now type the sum on its own", and the bare name gets "right, now
  * show the working", which is true either way.
  *
- * A step's reply is asked about the line that finished the step before
- * whenever that line bound something (only a thought is seen to move a
- * lesson), so `parcels = 7` must not read as a miss at the weighing.
- *
  * The scale (R6) holds seven 2 kg parcels on the floor and `? kg` until
  * the robot works it out; then they drop onto it and it reads the answer,
  * amber if it is not seven twos. It stays for the outro (`finale`), with

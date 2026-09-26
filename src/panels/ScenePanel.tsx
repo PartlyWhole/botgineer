@@ -86,9 +86,6 @@ export type Telling = {
   steps: number
   step: number
   through: number
-  /** Where the answer goes, said by the pointer at the ask (its arrow is
-   *  drawn here, pointing wherever the console is); empty for no pointer. */
-  prompt: string
   /** Shown once the lesson is finished and its last line said. */
   takeaway?: string | undefined
   /** Finished and resting: the takeaway bar, and Replay. */
@@ -191,7 +188,10 @@ export function ScenePanel({
   // the robot has something in mind.
   const anchor = guideShown ? speaker : thoughtShown ? robot : undefined
   const railRef = useRef<HTMLDivElement | null>(null)
-  useBeside(railRef, [guide?.text, speaker?.actor.id, thought, thinking])
+  // The cloud may lean a quarter of the robot's width to clear the speech,
+  // and its middle is still over the robot's head.
+  const cloudLean = robot ? widthOf(robot.actor) / 4 / 100 : 0
+  useBeside(railRef, cloudLean, [guide?.text, speaker?.actor.id, thought, thinking])
   // A new line pops the bubble in again, and a new value pops the cloud.
   // Played straight on the element, never through a `key`: remounting
   // either would replace a live region, and a screen reader does not
@@ -595,13 +595,21 @@ export function ScenePanel({
  * depends on how wide the text came out, which only layout knows, so it
  * is measured.
  *
- * Written straight to the rail as `--beside`, never through React: this
- * is drawing, and the scene still holds no state. Stacked is the default
- * and the fallback, so a measurement that has not happened yet can only
- * cost height, never an overlap. Only the thought moves, and only
- * vertically, so the measurement cannot change its own answer.
+ * A wide line can end a few pixels short of the cloud's room: the crow's
+ * three-line praise in the workshop reached to 13px of it, and the cloud
+ * then sat a whole bubble (173px) above the robot. So the cloud may also
+ * lean away from the speech by up to `lean` (a fraction of the rail's
+ * width), which keeps its middle over the robot; a clash that needs more
+ * than that stays stacked.
+ *
+ * Written straight to the rail as `--beside` and `--aside`, never through
+ * React: this is drawing, and the scene still holds no state. Stacked is
+ * the default and the fallback, so a measurement that has not happened
+ * yet can only cost height, never an overlap. The lean is the individual
+ * `translate` property, which offsets ignore, and the drop is vertical,
+ * so the measurement cannot change its own answer.
  */
-function useBeside(ref: { current: HTMLDivElement | null }, deps: unknown[]) {
+function useBeside(ref: { current: HTMLDivElement | null }, lean: number, deps: unknown[]) {
   useLayoutEffect(() => {
     const rail = ref.current
     if (!rail) return
@@ -610,6 +618,7 @@ function useBeside(ref: { current: HTMLDivElement | null }, deps: unknown[]) {
       const speech = rail.querySelector('.bubble')
       if (!thought || !speech) {
         rail.style.removeProperty('--beside')
+        rail.style.removeProperty('--aside')
         return
       }
       // Layout boxes, not client rects: both are popping in when this
@@ -621,11 +630,18 @@ function useBeside(ref: { current: HTMLDivElement | null }, deps: unknown[]) {
       const b = box(speech as HTMLElement)
       // The puffs reach about 11px past the cloud's box; the rest is air.
       const room = 20
-      const apart = t.right + room <= b.left || b.right + room <= t.left
+      // How far the cloud must lean to clear the speech: away from it, on
+      // whichever side of it the cloud already stands. Nothing when clear.
+      const clear = t.right + room <= b.left || b.right + room <= t.left
+      const right = t.left + t.right >= b.left + b.right
+      const need = clear ? 0 : right ? b.right + room - t.left : b.left - room - t.right
+      const fits =
+        Math.abs(need) <= rail.clientWidth * lean && t.left + need >= 0 && t.right + need <= rail.clientWidth
       // Everything from the top of the speech to the foot of the rail is
       // what the thought can come down by.
       const drop = rail.offsetHeight - b.top
-      rail.style.setProperty('--beside', apart ? `${Math.round(drop)}px` : '0px')
+      rail.style.setProperty('--beside', fits ? `${Math.round(drop)}px` : '0px')
+      rail.style.setProperty('--aside', fits ? `${Math.round(need)}px` : '0px')
     }
     place()
     // A dragged gutter changes the stage's width, and with it both widths.

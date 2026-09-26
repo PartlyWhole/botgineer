@@ -754,9 +754,6 @@ export function Workbench({ activity }: { activity: Activity }) {
         steps: lesson!.steps.length,
         step: told.at,
         through: told.finished ? 1 : lines.length > 0 ? (beatAt + 1) / lines.length : 0,
-        // The editor has its own way to hand over (Send to robot), and a
-        // program is written at leisure: no pointer there.
-        prompt: activity.mode === 'console' ? 'Type your answer' : '',
         takeaway: lesson!.takeaway,
         resting: told.finished && beatAt === rest,
         onNext: () => moveTo(Math.min(beatAt + 1, rest)),
@@ -772,7 +769,6 @@ export function Workbench({ activity }: { activity: Activity }) {
           steps: sectionsOf(read.stage),
           step: ideasAt.end ? sectionsOf(read.stage) : (ideasAt.reach?.section ?? 0),
           through: ideasThrough(read.stage, ideasAt.reach),
-          prompt: '',
           resting: ideasAt.end,
           onNext: () => moveTo(Math.min(beatAt + 1, rest)),
           onBack: () => moveTo(Math.max(0, beatAt - 1)),
@@ -782,13 +778,12 @@ export function Workbench({ activity }: { activity: Activity }) {
       ? {
           // Practice tells a script the way a lesson step does — the
           // praise, a lead, the question — with no bar of steps (the meter
-          // is its progress) and the pointer while a question waits.
+          // is its progress).
           listening,
           back: beatAt > 0,
           steps: 0,
           step: 0,
           through: 0,
-          prompt: 'Type your answer',
           resting: practice.done,
           onNext: () => moveTo(Math.min(beatAt + 1, rest)),
           onBack: () => moveTo(Math.max(0, beatAt - 1)),

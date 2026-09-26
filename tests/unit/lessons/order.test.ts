@@ -3,7 +3,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { guidance, progress, script, staging, takeAnOrder, type Evidence, type Heard, type Line } from '../../../content/lessons'
-import { NOTHING, bound, failed, line, over, snap, th, value } from './fixtures'
+import { NOTHING, bound, failed, line, madeBy, over, snap, th, value } from './fixtures'
 
 const customer = bound('customer', 'str', "'Mira'")
 const parcels = bound('parcels', 'int', '7')
@@ -83,8 +83,14 @@ describe('taking an order', () => {
   })
 
   it('does not call the right `parcels = 7` a miss at the weighing', () => {
-    const s = script(takeAnOrder, asked([], line('parcels = 7', null)))
+    const ticket = snap([customer.object], [customer.binding])
+    const s = script(takeAnOrder, madeBy(over([ticket, stored]), line('parcels = 7', null)))
+    expect(s.at).toBe(2)
     expect(s.items[s.rest]!.kind).toBe('ask')
+    // Nor her name at the count: the line that did a step is never asked about.
+    const named = script(takeAnOrder, madeBy(over([ticket]), line('customer = "Mira"', null)))
+    expect(named.at).toBe(1)
+    expect(named.items[named.rest]!.kind).toBe('ask')
   })
 
   it('says which mistake a wrong weight is', () => {

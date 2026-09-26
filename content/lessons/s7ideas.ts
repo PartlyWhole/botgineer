@@ -60,13 +60,9 @@ const blockMiss = (l: Line): string | undefined => {
   return undefined
 }
 
-/**
- * A prediction that got the robot to do the working: a name asked for,
- * or this step's own block run. Deliberately narrow: a reply is also
- * asked about the line that finished the step before (a memory step moves
- * the lesson without a thought), so it must not match that line.
- */
-const ranIt = (l: Line, block: RegExp) => (l.thought !== null && /[A-Za-z_]/.test(l.source)) || block.test(l.source)
+/** A prediction that got the robot to do the working: an accepted line
+ *  with a name in it, or this step's own block, run or tried. */
+const ranIt = (l: Line, block: RegExp) => (l.ok && /[A-Za-z_]/.test(l.source)) || block.test(l.source)
 
 export const s7Ideas: Lesson = {
   id: 's7-ideas',

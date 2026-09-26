@@ -7,7 +7,7 @@
 import { describe, expect, it } from 'vitest'
 import { guidance, progress, s5Ideas, script, type Evidence } from '../../../content/lessons'
 import type { MemorySnapshot, PyObject } from '../../../src/memory/model'
-import { NOTHING, failed, line, snap, th, typed, value } from './fixtures'
+import { NOTHING, failed, line, madeBy, snap, th, typed, value } from './fixtures'
 
 const int = (n: number) => value('int', String(n))
 const list = (uid: string, items: number[]): PyObject => ({
@@ -112,7 +112,7 @@ describe('s5-ideas', () => {
     const e = ev(h, ['int', '16', '16'], ['int', '3', '3'], ['list', '[0, 3, 6]', 'list(range(0, 9, 3))'])
     expect(progress(s5Ideas, e)).toBe(8)
     // The break loop that finished the step before is not a miss here.
-    expect(script(s5Ideas, { ...e, last: line('for p in parcels:\n    break', null) }).items.at(-1)!.kind).toBe('ask')
+    expect(script(s5Ideas, madeBy(e, line('for p in parcels:\n    break', null))).items.at(-1)!.kind).toBe('ask')
     // As the workbench reports it, the guess is the newest thought.
     const guess = { ...e, thoughts: [...e.thoughts, { ...th('list', '[]'), source: '[]' }], last: line('[]', th('list', '[]')) }
     expect(guidance(s5Ideas, guess).text).toContain('slides the rest left')
@@ -120,7 +120,10 @@ describe('s5-ideas', () => {
 
   it('asks the question, not a reply, when it arrives after the line before', () => {
     const e = ev([mem({ parcels: P }), mem({ parcels: P, total: 0 })])
-    expect(script(s5Ideas, { ...e, last: line('total = 0', null) }).items.at(-1)!.kind).toBe('ask')
+    expect(script(s5Ideas, madeBy(e, line('total = 0', null))).items.at(-1)!.kind).toBe('ask')
+    // Typed again, it did no step, and the robot is not the one to predict.
+    const again = ev([mem({ parcels: P }), mem({ parcels: P, total: 0 }), mem({ parcels: P, total: 0 })])
+    expect(guidance(s5Ideas, madeBy(again, line('total = 0', null))).text).toContain('Predict it first')
   })
 
   it('never lets a bare expression through the first step', () => {
