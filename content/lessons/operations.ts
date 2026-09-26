@@ -237,7 +237,7 @@ export const operations: Lesson = {
       say: 'Let the robot add `2 + 0.5`.',
       ask: '2 + 0.5',
       tag: 'robot',
-      show: { kind: 'numberline', from: 0, to: 3 },
+      show: { kind: 'numberline', from: 0, to: 3, want: 2.5 },
       // `type(2 + 0.5)` answers the beat's question, and the robot still
       // did the adding.
       done: (e) =>
@@ -294,7 +294,7 @@ export const operations: Lesson = {
         { say: 'To ask *is it the same?*, Python uses two equals signs: `==`.', show: { kind: 'tiles', parts: ['2', '+', '2', '==', '4'] } },
         {
           say: 'When both sides weigh the same, the balance levels, and the answer is `True`.',
-          show: { kind: 'balance', left: 4, right: 4, op: '==', lamp: true },
+          show: { kind: 'balance', left: 4, right: 4, op: '==', lamp: true, leftLabel: '2 + 2' },
           thought: 'True',
         },
       ],

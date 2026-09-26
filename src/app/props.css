@@ -32,15 +32,28 @@
   --k-int-soft: #cbd7ff;
   --k-float-soft: #bfe6d6;
   --beat-len: 1.7s;
+  /* Not worked out yet: the right number said the wrong way. Amber, the
+     colour of a reply, never red (PEDAGOGY §4): a miss is a
+     conversation. 5.6:1 on its tint. */
+  --unworked: #9a5a00;
+  --unworked-bg: #fff4e0;
 }
 
 /* ------------------------------ the slot ------------------------------ */
 
+/* No z-index, on purpose. The slot comes before the cast in the stage's
+   markup, and with `z-index: auto` it paints in that order: behind every
+   actor, so a picture that reaches past its slot (the pointer's
+   chevrons, a tall stack of parcels, a phone-width stage where the slot
+   overlaps the robot) goes behind a face, never over it. It had
+   `z-index: 1` once, which drew every picture over the whole cast and
+   contradicted both the scene's comment and the pointer's ("the robot
+   stands in front"). The bubbles and controls keep their own z-indexes
+   above both. */
 .stage .props-slot {
   position: absolute;
   transform: translateX(-50%);
   aspect-ratio: 200 / 130;
-  z-index: 1;
 }
 
 .prop-layer {
@@ -186,6 +199,16 @@
 .answer-tag[data-kind='other'] {
   color: var(--ink-soft);
 }
+/* The right number, not worked out: the value in its kind's colour, the
+   outline amber and dashed, a `?` where the tick goes. */
+.answer-tag.unworked {
+  border-color: var(--unworked);
+  border-style: dashed;
+}
+.answer-tag .answer-unworked {
+  color: var(--unworked);
+  font-weight: 900;
+}
 
 @keyframes tag-pop {
   from {
@@ -304,7 +327,7 @@
 }
 .lamp .switch-label {
   font-family: var(--mono);
-  font-size: 8.5px;
+  font-size: 10px;
   font-weight: 800;
   fill: var(--k-bool);
 }
@@ -665,7 +688,7 @@
   fill: #5a3a00;
 }
 .lift .no-floor {
-  font-size: 8.5px;
+  font-size: 10px;
   font-weight: 800;
   fill: var(--bad);
 }
@@ -975,7 +998,7 @@
   stroke-width: 1.5;
 }
 .kinds .ring text {
-  font-size: 8.5px;
+  font-size: 10px;
   font-weight: 800;
   text-anchor: start;
 }
@@ -1125,7 +1148,7 @@
   fill: #e3f6ea;
 }
 .phone .screen-hint {
-  font-size: 8.5px;
+  font-size: 10px;
   fill: #5b6784;
 }
 .phone .screen-text {
@@ -1140,7 +1163,7 @@
   fill: var(--k-int);
 }
 .phone .screen-call {
-  font-size: 8.5px;
+  font-size: 10px;
   font-weight: 800;
   fill: #1c6e3d;
 }
@@ -1745,6 +1768,9 @@
   font-size: 6.6px;
   font-weight: 800;
 }
+.shelf .chip.tight text {
+  font-size: 6px;
+}
 .shelf .chip.said rect,
 .shelf .chip.heard rect {
   stroke-width: 1.6;
@@ -2106,7 +2132,7 @@
   animation: glow-pulse 700ms ease-in-out calc(var(--beat, 0s) + 0.2s) 2 backwards;
 }
 .beads .clasp-word {
-  font-size: 8.5px;
+  font-size: 10px;
   font-weight: 800;
   fill: var(--k-str);
   animation: from-dark 300ms ease-out calc(var(--beat, 0s) + 0.3s) backwards;
@@ -2188,7 +2214,7 @@
 }
 .lamps .true-text {
   font-family: var(--mono);
-  font-size: 8.5px;
+  font-size: 10px;
   font-weight: 800;
   fill: var(--k-bool);
 }
@@ -2294,7 +2320,7 @@
 }
 .scale .reading {
   font-family: var(--mono);
-  font-size: 9.5px;
+  font-size: 15px;
   font-weight: 800;
   fill: #5b6784;
 }
@@ -2309,6 +2335,38 @@
 .scale.off .reading {
   fill: #8a4b00;
 }
+
+/* ------------------------- not worked out yet -------------------------
+
+   The right number said the wrong way (`unworked` in scene/props): the
+   step refused it, so nothing in the picture may say yes. Nothing is
+   filled, lit, ringed, turned or weighed; the `?` that stands where the
+   working would go is amber, and so is what frames it. */
+.scale.unworked .readout {
+  fill: var(--unworked-bg);
+  stroke: var(--unworked);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 3;
+}
+.scale.unworked .reading,
+.crates.unworked .crates-label,
+.bolts.unworked .bolts-label,
+.share .unworked-q,
+.expr.unworked .expr-hint,
+.letter.unworked .letter-caption {
+  fill: var(--unworked);
+}
+.crates.unworked .crate-box,
+.share.unworked .tank-body {
+  stroke: var(--unworked);
+  stroke-dasharray: 4 3;
+}
+.share .unworked-q {
+  font-size: 14px;
+}
+.numberline .unworked-q {
+  fill: var(--unworked);
+}
 .scale .parcel rect {
   fill: #e2b77a;
   stroke: #9c6630;
@@ -2316,7 +2374,7 @@
 }
 .scale .parcel text {
   font-family: var(--mono);
-  font-size: 6px;
+  font-size: 10px;
   font-weight: 800;
   fill: #5a3a10;
 }

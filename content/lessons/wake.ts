@@ -10,6 +10,8 @@
  * so that is what the crow calls it); and the three fixtures, one beat
  * each, saying where it is and what kind of value it needs (R5): the lamp
  * lights for `True`, the sign shows words, the battery reads a number.
+ * Each one hops as its beat names it, so the eye finds it before the
+ * sentence has said where it is.
  * Without the kinds, `power = 0` or `charge = "full"` failed for a reason
  * nobody had said. Then the task, and the outro wakes it.
  *
@@ -81,9 +83,9 @@ export const wake: Lesson = {
         { say: 'So here\'s an editor: now you can give it a whole list of instructions.', focus: 'console' },
         { say: 'Typing in it alone does nothing now.', focus: 'console' },
         { say: 'Press “Send to robot”, and it follows the list, top to bottom.', focus: 'run' },
-        { say: 'The lamp at the top right lights up when `power` is `True`.' },
-        { say: 'The sign above the robot shows `name`, so give it words, in quotes.' },
-        { say: 'And the battery on the left fills to `charge`, a number from 0 to 100.' },
+        { say: 'The lamp at the top right lights up when `power` is `True`.', act: [{ actor: 'lamp', do: 'hop' }] },
+        { say: 'The sign above the robot shows `name`, so give it words, in quotes.', act: [{ actor: 'nameplate', do: 'hop' }] },
+        { say: 'And the battery on the left fills to `charge`, a number from 0 to 100.', act: [{ actor: 'battery', do: 'hop' }] },
       ],
       say: 'Give `power`, `name` and `charge` values, then send the list to the robot.',
       tag: 'you',
