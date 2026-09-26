@@ -198,3 +198,34 @@ test.describe('with reduced motion', () => {
     expect(left, 'no answered picture was ever on its way out').toBeGreaterThan(0)
   })
 })
+
+/** The smallest type in the picture, as drawn on screen, in pixels: each
+ *  text's own size times how far the picture is scaled. */
+const smallestType = (page: Page, selector: string) =>
+  page.evaluate((sel) => {
+    const sizes = [...document.querySelectorAll<SVGTextElement>(sel)].map((t) => {
+      const k = t.ownerSVGElement!.getScreenCTM()!.a
+      return parseFloat(getComputedStyle(t).fontSize) * k
+    })
+    return sizes.length ? Math.min(...sizes) : 0
+  }, selector)
+
+// The shelf is Lesson 1's spine, and its chips were drawn at 6px on a
+// desktop stage (3.8px on a phone): nobody could read what was on it.
+test.describe('at desktop width', () => {
+  test.use({ viewport: { width: 1400, height: 800 } })
+
+  test('the shelf can be read: its labels and chips are drawn at 9px or more', async ({ page }) => {
+    await open(page, 'types')
+    const answers = ['True', '-1', '0.5', '"M"', '"hello"']
+    for (let i = 0; i < 80; i++) {
+      const chips = await page.locator('[data-testid="prop"] .shelf .chip').count()
+      if (chips >= 8) break
+      if ((await page.evaluate(() => window.botgineer.beat())).listening) await page.evaluate(() => window.botgineer.next())
+      else await say(page, answers.shift()!)
+    }
+    expect(await page.locator('[data-testid="prop"] .shelf .chip').count()).toBeGreaterThanOrEqual(8)
+    expect(await smallestType(page, '[data-testid="prop"] .shelf .chip text')).toBeGreaterThanOrEqual(9)
+    expect(await smallestType(page, '[data-testid="prop"] .shelf .slot-label')).toBeGreaterThanOrEqual(9.5)
+  })
+})
