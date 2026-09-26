@@ -999,7 +999,7 @@ test('the game opens on the map, inviting you to the first level', async ({ page
   await page.reload()
   await expect(page.getByTestId('map')).toBeVisible()
   // The warm-up's five, then the collection's nine stages.
-  await expect(page.locator('.map-node')).toHaveCount(63)
+  await expect(page.locator('.map-node')).toHaveCount(64)
   await expect(page.getByTestId('level-sandbox')).toHaveAttribute('data-state', 'current')
   for (const id of ['types', 'choose', 'operations', 'practice-thinking', 'names', 'order', 'practice-remembering', 'wake']) {
     await expect(page.getByTestId(`level-${id}`)).toHaveAttribute('data-state', 'locked')
@@ -1042,7 +1042,7 @@ test('finishing a level marks it done on the map and unlocks the next', async ({
   await page.getByTestId('to-map').click()
   await expect(page.getByTestId('level-sandbox')).toHaveAttribute('data-state', 'done')
   await expect(page.getByTestId('level-types')).toHaveAttribute('data-state', 'current')
-  await expect(page.getByTestId('map-tally')).toContainText('1 of 63')
+  await expect(page.getByTestId('map-tally')).toContainText('1 of 64')
 
   // And it survives a reload: this is the one thing that is stored.
   await page.reload()

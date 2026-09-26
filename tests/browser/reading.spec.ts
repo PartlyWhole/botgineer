@@ -321,7 +321,7 @@ test('unlocking opens every level without finishing any, and starting over forge
   await page.getByTestId('map-end').getByTestId('unlock-all').click()
   await expect(page.getByTestId('level-s9-capstone')).toHaveAttribute('data-state', 'unlocked')
   await expect(page.getByTestId('level-sandbox')).toHaveAttribute('data-state', 'current')
-  await expect(page.getByTestId('map-tally')).toContainText('0 of 63')
+  await expect(page.getByTestId('map-tally')).toContainText('0 of 64')
   await page.getByTestId('level-s9-capstone').click()
   await expect(page.getByTestId('map-go')).toBeVisible()
   await expect(page.getByTestId('trophy-stage-9')).not.toHaveClass(/earned/)

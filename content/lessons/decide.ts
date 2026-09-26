@@ -131,7 +131,7 @@ export const decide: Lesson = {
     {
       beats: [
         { say: 'Read this block before anything runs: `if weight > 10:`, with `ride = "truck"` under it.' },
-        { say: 'Ask its question first, with `weight` at `3` now.', thought: 'weight > 10 ?', focus: 'memory' },
+        { say: 'Ask its question in your head: is `weight`, at `3` now, more than `10`?', thought: 'weight > 10 ?', focus: 'memory' },
       ],
       say: 'After that block, what will `ride` point at? Type it, in quotes.',
       tag: 'you',
@@ -141,6 +141,9 @@ export const decide: Lesson = {
         if (errorType(l) === 'NameError' && /^\s*\w+\s*$/.test(l.source))
           return 'A word for the robot to keep needs quotes: `"like this"`.'
         if (l.ok && /^\s*if\b/.test(l.source)) return 'Predict it first: type what you expect `ride` to point at, in quotes.'
+        // Asking the question out loud is fair: say what it answered, and ask again.
+        if (l.thought?.type === 'bool' && /weight/.test(l.source))
+          return `That's the question, and the robot says \`${l.thought.repr}\`. So what will \`ride\` point at? Type it, in quotes.`
         if (l.thought && !/^\s*(["'])\w+\1\s*$/.test(l.source)) return 'Predict it first: type what you expect, in quotes.'
         if (l.thought?.repr === "'truck'") return '`3 > 10` is `False`, so the indented line is skipped and never runs.'
         if (l.thought?.type === 'str') return 'Skipping a block moves nothing: `ride` keeps the arrow it already had.'

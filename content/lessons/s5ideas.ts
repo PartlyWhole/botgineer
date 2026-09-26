@@ -204,7 +204,7 @@ export const s5Ideas: Lesson = {
   outro: [
     { say: 'Mira’s total was wrong because her `total = 0` sat inside the body, so every pass started again.' },
     { say: 'Read a loop by its indent: the body runs once per item, and the line after it runs once.' },
-    { say: 'The exercises are next: you read first, then the robot runs it.' },
+    { say: 'Next, the robot learns to choose, and then the exercises: you read first, then the robot runs it.' },
   ],
   takeaway: 'The indented lines under a `for` run once for each item, so anything they build up must exist before the loop starts.',
 }
