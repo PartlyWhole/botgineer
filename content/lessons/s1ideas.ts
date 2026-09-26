@@ -51,9 +51,13 @@ function idMiss(l: Line, p: string, q: string): string | undefined {
   const ask = `\`id(${p}) == id(${q})\``
   if (/^\s*(True|False)\s*$/.test(l.source)) return `That's you saying \`${l.source.trim()}\`. Let the robot check: ${ask}.`
   if (/==/.test(l.source) && !/id\s*\(/.test(l.source)) return `\`==\` asks if they look the same. \`id\` asks if they are one object: ${ask}.`
-  if (/id\s*\(/.test(l.source) && l.thought?.type === 'bool') return `Ask about both names, one on each side: ${ask}.`
+  if (ids(l.source, p, q) && /!=/.test(l.source)) return `Ask whether they are the same, with \`==\`: ${ask}.`
+  if (/id\s*\(/.test(l.source) && l.thought?.type === 'bool' && !ids(l.source, p, q)) return `Ask about both names, one on each side: ${ask}.`
   return undefined
 }
+
+/** `print` given two things: a comma outside any quotes. */
+const TWO_ARGS = /^\s*print\s*\((?:[^,"']|"[^"]*"|'[^']*')+,(?:[^"']|"[^"]*"|'[^']*')+\)\s*$/
 
 /** The line was a bare expression, worked out and let go. */
 const letGo = (l: Line) => l.ok && l.thought !== null && !/=/.test(l.source.replace(/==/g, ''))
@@ -133,7 +137,8 @@ export const s1Ideas: Lesson = {
       tag: 'you',
       // Not a thought: `print` hands back `None`, which the robot does not
       // describe, so the line itself is the evidence (`everBy`).
-      done: (e) => everBy(e, (source) => /^\s*print\s*\(.+,.+\)/.test(source)),
+      // Two arguments: a comma outside any quotes, so `print("a,b")` is one.
+      done: (e) => everBy(e, (source) => TWO_ARGS.test(source)),
       praise: 'Both on one line, with a space between.',
       nudge: (l) =>
         /^\s*print\s*\(/.test(l.source) && l.ok && !/,/.test(l.source)
@@ -194,10 +199,13 @@ export const s1Ideas: Lesson = {
       tag: 'robot',
       done: (e) =>
         tenTwenty(e, 'c') &&
+        !sameObject(e.snapshot, 'c', 'a') &&
         heard(e, (t) => t.type === 'bool' && t.repr === 'False' && ids(t.source, 'c', 'a')),
       praise: '`False`: it looks the same, but `c` has a list of its own.',
       nudge: (l) => {
         if (/^\s*c\s*=(?!=)/.test(l.source) && l.ok) return 'Now ask the robot: `id(c) == id(a)`.'
+        // Asked rightly, but `c` is not a new `[10, 20]` of its own yet.
+        if (ids(l.source, 'c', 'a') && !/!=/.test(l.source)) return 'First point `c` at a new list of its own: `c = [10, 20]`.'
         return idMiss(l, 'c', 'a')
       },
     },

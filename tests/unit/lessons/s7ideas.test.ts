@@ -137,4 +137,14 @@ describe('s7-ideas', () => {
       'same line',
     )
   })
+
+  it('does not credit the loops with an answer typed before them', () => {
+    // `n = 6` typed by hand, then loops that add nothing, leave n at 6:
+    // the loop line has to be what moved it there.
+    const typed = by('n = 6', mem({ r: 1, c: 1, n: 6 }))
+    const idle = by('for r in range(3):\n    for c in range(2): n = n + 0', mem({ r: 2, c: 1, n: 6 }))
+    expect(progress(s7Ideas, ev([printed, zero, typed, idle], ['6', '6']))).toBe(3)
+    // The real loops, from 0, do it.
+    expect(progress(s7Ideas, ev([printed, zero, six], ['6', '6']))).toBe(4)
+  })
 })

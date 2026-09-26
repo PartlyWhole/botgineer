@@ -1,7 +1,7 @@
 import type { MemorySnapshot } from '../../src/memory/model'
 import { openerOf } from '../collection/story'
 import type { Prop } from '../../src/scene/props'
-import { errorType, ever, everBy, heard, points, targetOf, type Evidence, type Heard, type Lesson, type Line } from './core'
+import { errorType, ever, heard, points, targetOf, type Evidence, type Heard, type Lesson, type Line } from './core'
 
 /**
  * Stage 7, the ideas: nested loops, told in beats.
@@ -76,6 +76,14 @@ const blockMiss = (l: Line): string | undefined => {
 
 /** A prediction that got the robot to do the working: an accepted line
  *  with a name in it, or this step's own block, run or tried. */
+/**
+ * A line with this source made this true: it holds after the line and did
+ * not hold before it. \`everBy\` alone let a typed \`n = 6\` be followed by
+ * any nested loop that left \`n\` alone, and praised the robot's counting.
+ */
+const madeBy = (e: Evidence, source: (src: string) => boolean, holds: (s: Evidence['snapshot']) => boolean): boolean =>
+  (e.lines ?? []).some((l, i, all) => source(l.source) && holds(l.memory) && !(i > 0 && holds(all[i - 1]!.memory)))
+
 const ranIt = (l: Line, block: RegExp) => (l.ok && /[A-Za-z_]/.test(l.source)) || block.test(l.source)
 
 export const s7Ideas: Lesson = {
@@ -132,13 +140,13 @@ export const s7Ideas: Lesson = {
       say: 'Type `for r in range(3):`, then `for c in range(2): n = n + 1` below it, four spaces in.',
       show: COUNT,
       tag: 'you',
-      done: (e) => everBy(e, (src, s) => nested(src) && /\bn\s*=\s*n\b/.test(src) && points(s, 'n', '6')),
+      done: (e) => madeBy(e, (src) => nested(src) && /\bn\s*=\s*n\s*\+\s*1\b/.test(src), (s) => points(s, 'n', '6')),
       praise: '`n` is bound to `6`, as you said: multiply the passes of every loop a line is in.',
       nudge: (l) => {
         const miss = blockMiss(l)
         if (miss) return miss
         if (l.ok && /^\s*n\s*=\s*\d+\s*$/.test(l.source) && !/^\s*n\s*=\s*0\s*$/.test(l.source))
-          return 'That typed the answer. Let the robot count: type the two loops.'
+          return 'That typed the answer. Put `n = 0`, then let the robot count with the two loops.'
         if (l.ok && nested(l.source) && /\bn\s*=\s*n\b/.test(l.source))
           return '`n` didn’t start at `0` that time: type `n = 0`, then the two loops again.'
         return undefined
@@ -170,7 +178,7 @@ export const s7Ideas: Lesson = {
       show: SEARCH,
       tag: 'you',
       done: (e) =>
-        everBy(e, (src, s) => nested(src) && /\bbreak\b/.test(src) && points(s, 'shelf', '2') && points(s, 'spot', '0')),
+        madeBy(e, (src) => nested(src) && /\bbreak\b/.test(src), (s) => points(s, 'shelf', '2') && points(s, 'spot', '0')),
       praise: '`shelf` got to `2` while `spot` never passed `0`: the robot searched every shelf.',
       nudge: (l) => {
         const miss = blockMiss(l)

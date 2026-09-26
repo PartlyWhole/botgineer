@@ -340,6 +340,10 @@ export const STAGE_9: Record<string, Spec> = {
             'Leave the first board alone and score the new one: the leak only shows when a different board gets the log.',
           ),
           py('len(record.__defaults__[0]) > 3', 'Score the second board with `record`, leaving out the log — that is what shares it.'),
+          py(
+            "any(isinstance(v, list) and v is not board and v and all(isinstance(r, list) for r in v) and any(c for r in v for c in r) for k, v in list(globals().items()) if not k.startswith('_'))",
+            'Score the new board: one of its cells should change. Scoring the first board again leaves nothing to see.',
+          ),
           printsLike(
             String.raw`\(0, 0, 5\), \(1, 1, 7\), \(2, 2, 12\), \(`,
             'Print the log that call hands back: the first board’s three entries should show up in it, with the new one after them.',

@@ -110,6 +110,11 @@ describe('a wrong answer is wrong', () => {
       expect(g.right, cheat).toBe(false)
       expect(g.why).toMatch(/Leave the first board alone/)
     }
+    // Scoring the first board again with nothing leaves it as it was, and
+    // grows the log all the same: the new board has to be the one scored.
+    const zero = await capstoneFix('9.C6', add('board2 = new_board(3, 3)\nprint(record(board, 0, 0, 0))\n'))
+    expect(zero.right).toBe(false)
+    expect(zero.why).toMatch(/Score the new board/)
     // The key's two lines expose it.
     expect((await capstoneFix('9.C6', add('board2 = new_board(3, 3)\nprint(record(board2, 0, 0, 1))\n'))).right).toBe(true)
   })

@@ -317,6 +317,15 @@ const practiceScene = (id: string): SceneSpec => ({
 })
 
 /**
+ * The ideas lessons' room: the workshop's layout, with its picture slot
+ * between the crow and the robot, because these lessons stand the block
+ * they ask about on the stage (the code card) while memory draws its
+ * effect. The practice yard has no slot, and a card staged there was
+ * never drawn.
+ */
+const ideasScene = (id: string): SceneSpec => ({ ...WORKSHOP, id, title: 'Reading room' })
+
+/**
  * Practice on the warm-up: the same pictures as its lessons, with new
  * numbers each time, so practice is the lessons' world rather than a
  * quiz beside it. The remembering practice keeps the plain yard: its
@@ -364,7 +373,7 @@ const stageIdeas = (n: number): Activity => ({
   greeting: 'Type an instruction and press Enter.',
   starter: '',
   options: { max_steps: 3000, wall_clock_s: 15 },
-  scene: practiceScene(`s${n}-ideas`),
+  scene: ideasScene(`s${n}-ideas`),
 })
 
 const STAGE_BRIEFS = [
@@ -393,7 +402,7 @@ const makingChoices: Activity = {
   greeting: 'Type an instruction and press Enter.',
   starter: '',
   options: { max_steps: 3000, wall_clock_s: 15 },
-  scene: practiceScene('decide'),
+  scene: ideasScene('decide'),
 }
 
 /** Every level. Not the play order: that lives in `content/roadmap`, and

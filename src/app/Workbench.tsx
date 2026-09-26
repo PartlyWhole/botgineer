@@ -59,7 +59,7 @@ import { modelAnswer } from '../collection/runner'
 import { finishedLevels, markDone } from '../progress/progress'
 import { readScene } from '../scene/spec'
 import { ScenePanel, type Telling } from '../panels/ScenePanel'
-import { noteAt, raisedNote, readTo, sectionsOf, type Reach } from '../collection/voice'
+import { hasExamples, noteAt, raisedNote, readTo, sectionsOf, type Reach } from '../collection/voice'
 import { MemoryPanel } from '../panels/MemoryPanel'
 import { RobotPanel, type Transcript } from '../panels/RobotPanel'
 import type { Exchange } from '../ui/RobotConsole'
@@ -952,7 +952,7 @@ export function Workbench({ activity }: { activity: Activity }) {
           instrument={
             reading ? (
               ideas ? (
-                <IdeasPanel code={ideasCode} traceLine={traceLine} note={ideasNote} said={ideasSaid} />
+                <IdeasPanel code={ideasCode} traceLine={traceLine} note={ideasNote} said={ideasSaid} runnable={read.stage ? hasExamples(read.stage) : true} />
               ) : (
                 <ReadPanel session={read.session} traceLine={traceLine} onShow={(src) => void show(src)} busy={busy} />
               )
@@ -1019,8 +1019,3 @@ function outcomeLine(threw: string | null, terminal: TerminalRecord | null): str
       return `The run ended (${terminal.reason}).`
   }
 }
-
-/** Whether a stage's reading has an example the robot can run. Stage 9's
- *  has none, and "Pick Run this" pointed at a button that was not there. */
-const hasExamples = (stage: Stage): boolean =>
-  [...stage.adds, ...stage.ideas.flatMap((i) => i.blocks)].some((b) => b.kind === 'code' && b.lang === 'python')

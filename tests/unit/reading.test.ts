@@ -517,3 +517,12 @@ describe('Stage 9 and the capstone', () => {
     expect(doneLine(0, 8, 'capstone')).not.toMatch(/Mira|can read/)
   })
 })
+
+describe('richText', () => {
+  it('does not backtrack on a stray `*` before a row of code spans', () => {
+    const text = `a * ${Array.from({ length: 40 }, () => '`x`').join(' ')}`
+    const t0 = performance.now()
+    richText(text)
+    expect(performance.now() - t0).toBeLessThan(50)
+  })
+})

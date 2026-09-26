@@ -21,7 +21,11 @@ import { glossaryAnchor } from '../collection/glossaryTerms'
  * Python, not a mark. (Matching `[^*]` there let the single-asterisk rule
  * eat the code instead, and 9.C5's key came out garbled.)
  */
-const TOKEN = /(`[^`]+`|\*\*(?:`[^`]*`|[^*])+?\*\*|\*(?:`[^`]*`|[^*\n])+?\*)/g
+// Inside emphasis, a backtick only ever starts a code span: the plain
+// character classes leave it out, so the two alternatives never overlap.
+// When they did, a stray `*` before a row of code spans backtracked
+// exponentially (16 spans: 92ms, and doubling).
+const TOKEN = /(`[^`]+`|\*\*(?:`[^`]*`|[^*`])+?\*\*|\*(?:`[^`]*`|[^*`\n])+?\*)/g
 
 export function richText(text: string): ReactNode {
   return text.split(TOKEN).map((part, i) => {
