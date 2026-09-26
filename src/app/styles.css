@@ -563,7 +563,17 @@ button.route.current {
 .views .memory-view {
   flex: none;
   height: var(--memory-h, 280px);
+  /* However far it is dragged, or however short the window, the
+     instrument keeps enough for a prompt and a reply. */
+  max-height: calc(100% - 96px);
   border-top: 1px solid var(--line);
+}
+
+/* The console needs a line and its answer; memory is what a console
+   lesson is about. Until the player drags the gutter, memory takes most
+   of the column (`RobotPanel`). */
+.robot-panel[data-mode='console'] .views .memory-view {
+  height: var(--memory-h, 62%);
 }
 
 
@@ -725,15 +735,28 @@ kbd {
   stroke-width: 2.4;
 }
 
+/* A slot's index or key, always there and small: which end of it sits at
+   the arrowhead is the layout's (`text-anchor`, set per arrow), so no
+   anchor here — a CSS one would override it. */
 .edge-label {
   font-family: var(--mono);
-  font-size: 11px;
-  fill: var(--brand);
-  text-anchor: middle;
+  font-size: 10px;
+  fill: #6f7ea3;
   paint-order: stroke;
   stroke: #ffffff;
   stroke-width: 3.5;
   stroke-linejoin: round;
+  transition: fill 160ms ease;
+}
+
+.has-pick .edge .edge-label {
+  fill: #c3cbe0;
+}
+
+.has-pick .edge.lit .edge-label {
+  font-size: 11px;
+  font-weight: 700;
+  fill: var(--brand);
 }
 
 /* ---- the nodes ---- */

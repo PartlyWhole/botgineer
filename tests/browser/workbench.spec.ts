@@ -521,6 +521,57 @@ test('a block is collected over several lines before it runs', async ({ page }) 
   await expect(page.getByTestId('echo').last()).toHaveText('42')
 })
 
+test('a block indents itself: a body after a header, Tab for four more, Escape then Tab to leave', async ({ page }) => {
+  await open(page, 'sandbox')
+  await skip(page)
+  const input = page.getByTestId('console-input')
+  await input.click()
+
+  // No spaces typed: the header's Enter puts them there.
+  await page.keyboard.type('for i in range(2):')
+  await page.keyboard.press('Enter')
+  await expect(input).toHaveValue('for i in range(2):\n    ')
+  await page.keyboard.type('if i:')
+  await page.keyboard.press('Enter')
+  await expect(input).toHaveValue('for i in range(2):\n    if i:\n        ')
+  // Backspace in the indent takes a level back; Tab puts it back, and the
+  // line keeps the focus.
+  await page.keyboard.press('Backspace')
+  await expect(input).toHaveValue('for i in range(2):\n    if i:\n    ')
+  await page.keyboard.press('Tab')
+  await expect(input).toHaveValue('for i in range(2):\n    if i:\n        ')
+  await expect(input).toBeFocused()
+  await page.keyboard.type('print(i)')
+  // Enter keeps the body's indent; Enter on that indent alone closes the
+  // block and sends it.
+  await page.keyboard.press('Enter')
+  await expect(input).toHaveValue('for i in range(2):\n    if i:\n        print(i)\n        ')
+  await page.keyboard.press('Enter')
+  await expect(page.getByTestId('robot-panel')).toHaveAttribute('data-busy', 'no', { timeout: 60_000 })
+  expect(await page.evaluate(() => window.botgineer.state().history)).toEqual([
+    'for i in range(2):\n    if i:\n        print(i)',
+  ])
+  await expect(page.locator('.said.out').last()).toHaveText('1')
+
+  // Outside a block, Tab moves on as it does anywhere.
+  await input.click()
+  await page.keyboard.type('x = 1')
+  await page.keyboard.press('Tab')
+  await expect(input).not.toBeFocused()
+  await expect(input).toHaveValue('x = 1')
+
+  // In one, Escape keeps what was typed and hands Tab back.
+  await input.fill('')
+  await input.click()
+  await page.keyboard.type('def f():')
+  await page.keyboard.press('Enter')
+  await page.keyboard.press('Escape')
+  await expect(input).toHaveValue('def f():\n    ')
+  await page.keyboard.press('Tab')
+  await expect(input).not.toBeFocused()
+  await expect(input).toHaveValue('def f():\n    ')
+})
+
 /* ------------------------------- the floor ------------------------------- */
 
 /** Feet-to-floor gap in px for every standing actor, at the current shape. */
@@ -824,6 +875,66 @@ test('memory fills in beside the console, without switching to it', async ({ pag
   await expect(page.locator('.node.name')).toHaveText(['x'])
   await expect(page.locator('.node.object .repr')).toHaveText('5')
   await expect(page.getByTestId('console')).toBeVisible()
+})
+
+test('a console gives memory most of the column, and the gutter really moves it', async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 800 })
+  const heights = () =>
+    page.evaluate(() => ({
+      views: document.querySelector('.views')!.getBoundingClientRect().height,
+      memory: document.querySelector('.memory-view')!.getBoundingClientRect().height,
+      instrument: document.querySelector('.instrument')!.getBoundingClientRect().height,
+    }))
+  await open(page, 's3-ideas')
+  const h = await heights()
+  // A line and its answer is all the console needs; memory is the picture.
+  expect(h.memory / h.views).toBeGreaterThan(0.55)
+  expect(h.instrument).toBeGreaterThanOrEqual(96)
+
+  // Seven names, one a line: the first is still on screen after the last.
+  for (const line of ['a = 1', 'b = 2', 'c = 3', 'd = 4', 'e = 5', 'f = 6', 'g = 7']) await page.evaluate((l) => window.botgineer.say(l), line)
+  await stillness(page)
+  const graph = (await page.getByTestId('graph').boundingBox())!
+  for (const name of ['a', 'g']) {
+    const b = (await page.getByTestId(`node-${name}`).boundingBox())!
+    expect(b.y, name).toBeGreaterThanOrEqual(graph.y)
+    expect(b.y + b.height, name).toBeLessThanOrEqual(graph.y + graph.height)
+  }
+
+  // The gutter moves the split (it once only moved its own number), and
+  // the split is remembered.
+  const gutter = page.getByRole('separator', { name: 'Resize memory' })
+  await gutter.focus()
+  await page.keyboard.press('Shift+ArrowDown')
+  await expect.poll(async () => (await heights()).memory).toBeLessThan(h.memory - 30)
+  const dragged = (await heights()).memory
+  await page.reload()
+  await expect(page.locator('.app')).toHaveAttribute('data-boot', 'ready', { timeout: 60_000 })
+  expect(Math.abs((await heights()).memory - dragged)).toBeLessThan(2)
+
+  // An editor keeps its own split, and its lines.
+  await open(page, EDITOR)
+  expect((await heights()).memory).toBe(280)
+})
+
+test("a list's indices and a dict's keys are on the arrows, without picking anything", async ({ page }) => {
+  await open(page, 'sandbox')
+  await say(page, 'xs = [10, 20, 10]')
+  await say(page, 'ages = {"ann": 30}')
+  await stillness(page)
+  // Two slots holding one object are one arrow, so they share a label.
+  await expect
+    .poll(() => page.getByTestId('slot-label').evaluateAll((ls) => ls.map((l) => l.textContent).sort()))
+    .toEqual(["'ann'", '0, 2', '1'])
+  // Each stands beside its own arrow, clear of every card.
+  const clear = await page.evaluate(() => {
+    const cards = [...document.querySelectorAll('.node')].map((n) => n.getBoundingClientRect())
+    return [...document.querySelectorAll('[data-testid="slot-label"]')].every((l) => {
+      const b = l.getBoundingClientRect()
+      return b.width > 0 && cards.every((c) => c.right <= b.left || b.right <= c.left || c.bottom <= b.top || b.bottom <= c.top)
+    })
+  })
+  expect(clear).toBe(true)
 })
 
 test('an object card leads with its value, and hides its handle', async ({ page }) => {

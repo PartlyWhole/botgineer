@@ -12,7 +12,7 @@
  */
 import { expect, test, type Page } from '@playwright/test'
 import { CROW_NAME } from '../../content/cast'
-import { beat, open, reachable, skip, speechSettled } from './helpers'
+import { beat, open, reachable, say, skip, speechSettled } from './helpers'
 
 /** Presses Next until the line moves on — the first press may only
  *  finish the typing. */
@@ -151,6 +151,7 @@ const boxes = (page: Page) =>
     return {
       stage: r('.stage'),
       bar: r('[data-testid="beat-bar"]'),
+      meter: r('[data-testid="practice-meter"]'),
       name: r('[data-testid="speaker-name"]'),
       guide: r('[data-testid="guide"]'),
       thought: r('[data-testid="thought"]'),
@@ -177,39 +178,89 @@ for (const level of ['order', 'wake']) {
   })
 }
 
+// The phone, and the width where the panels stack (the stage above the
+// console, `styles.css`): the same walk through the types lesson.
+for (const viewport of [{ width: 390, height: 844 }, { width: 900, height: 900 }]) {
+  test.describe(`at ${viewport.width}x${viewport.height}`, () => {
+    test.use({ viewport })
+
+    test('the stage holds: the bubble over the cast, the picture in view, Next reachable', async ({ page }) => {
+      await open(page, 'types')
+      for (let i = 0; i < 8; i++) {
+        const b = await beat(page)
+        if (!b.listening) break
+        await speechSettled(page)
+        // Nothing stands on Next, and it is on screen.
+        expect(await reachable(page, 'beat-next'), `beat ${b.at}`).toEqual({ inView: true, onTop: true, under: [] })
+        const on = await boxes(page)
+        // The bubble is on the stage, under the bar — the name pill used to
+        // sit on it — and over the cast's heads rather than on them.
+        expect(on.guide!.top, `beat ${b.at}`).toBeGreaterThanOrEqual(on.stage!.top)
+        expect(on.guide!.bottom).toBeLessThanOrEqual(on.stage!.bottom)
+        expect(clash(on.name, on.bar), `name on the bar at beat ${b.at}`).toBe(false)
+        for (const actor of on.cast) expect(clash(on.guide, actor), `bubble on the cast at beat ${b.at}`).toBe(false)
+        if (on.thought) expect(on.thought.top).toBeGreaterThanOrEqual(on.stage!.top)
+        // The picture is in view and nothing talks over it.
+        if (on.prop) {
+          await expect(page.getByTestId('prop')).toBeVisible()
+          expect(on.prop.bottom).toBeLessThanOrEqual(on.stage!.bottom)
+          expect(clash(on.guide, on.prop), `bubble on the picture at beat ${b.at}`).toBe(false)
+        }
+        await next(page)
+      }
+      // The question: the picture still there, and nothing talks over it.
+      await skip(page)
+      await speechSettled(page)
+      const on = await boxes(page)
+      expect(on.prop).not.toBeNull()
+      expect(clash(on.guide, on.prop)).toBe(false)
+      expect(clash(on.name, on.bar)).toBe(false)
+    })
+  })
+}
+
 test.describe('at phone width', () => {
   test.use({ viewport: { width: 390, height: 844 } })
 
-  test('the stage holds: the bubble over the cast, the picture in view, Next reachable', async ({ page }) => {
-    await open(page, 'types')
-    for (let i = 0; i < 8; i++) {
-      const b = await beat(page)
-      if (!b.listening) break
+  test('practice: the name pill clears the meter, the cloud the stage top, and Next is reachable', async ({ page }) => {
+    await open(page, 'practice-thinking')
+    const exercise = () =>
+      page.evaluate(() => (window.botgineer as unknown as { exercise: () => { answer: string } | null }).exercise())
+    for (let i = 0; i < 2; i++) {
+      await say(page, (await exercise())!.answer)
+      // Read over the answer: the praise, with the robot's thought up.
+      await expect(page.getByTestId('guide')).toHaveAttribute('data-kind', 'praise')
       await speechSettled(page)
-      // Nothing stands on Next, and it is on screen.
-      expect(await reachable(page, 'beat-next'), `beat ${b.at}`).toEqual({ inView: true, onTop: true, under: [] })
       const on = await boxes(page)
-      // The bubble is on the stage, under the bar — the name pill used to
-      // sit on it — and over the cast's heads rather than on them.
-      expect(on.guide!.top, `beat ${b.at}`).toBeGreaterThanOrEqual(on.stage!.top)
-      expect(on.guide!.bottom).toBeLessThanOrEqual(on.stage!.bottom)
-      expect(clash(on.name, on.bar), `name on the bar at beat ${b.at}`).toBe(false)
-      for (const actor of on.cast) expect(clash(on.guide, actor), `bubble on the cast at beat ${b.at}`).toBe(false)
-      if (on.thought) expect(on.thought.top).toBeGreaterThanOrEqual(on.stage!.top)
-      // The picture is in view and nothing talks over it.
-      if (on.prop) {
-        await expect(page.getByTestId('prop')).toBeVisible()
-        expect(on.prop.bottom).toBeLessThanOrEqual(on.stage!.bottom)
-        expect(clash(on.guide, on.prop), `bubble on the picture at beat ${b.at}`).toBe(false)
+      expect(on.meter).not.toBeNull()
+      expect(clash(on.name, on.meter), `name on the meter, exercise ${i}`).toBe(false)
+      expect(clash(on.guide, on.meter), `bubble on the meter, exercise ${i}`).toBe(false)
+      if (on.thought) {
+        expect(on.thought.top).toBeGreaterThanOrEqual(on.stage!.top)
+        expect(clash(on.thought, on.meter)).toBe(false)
       }
-      await next(page)
+      for (const actor of on.cast) expect(clash(on.guide, actor), `bubble on the cast, exercise ${i}`).toBe(false)
+      expect(await reachable(page, 'beat-next')).toEqual({ inView: true, onTop: true, under: [] })
     }
-    // The question: the picture still there, and nothing talks over it.
-    await skip(page)
+  })
+
+  test("choose's close stands its shelf on the stage, in view, under the words", async ({ page }) => {
+    test.setTimeout(180_000)
+    await open(page, 'choose')
+    for (const line of ['False', '6', '0.25', '"Mira"', '-1', '"M"', '1.4', 'True', '"0412 555 019"', '1.5', 'True', '"Yeah it is"'])
+      await say(page, line)
+    // From the last praise to the first line of the close.
+    expect((await beat(page)).kind).toBe('praise')
+    await page.evaluate(() => window.botgineer.next())
+    expect(await beat(page)).toMatchObject({ kind: 'outro', listening: true })
     await speechSettled(page)
+    await expect(page.getByTestId('prop')).toBeVisible()
+    await expect(page.getByTestId('prop')).toHaveAttribute('data-prop', 'shelf')
     const on = await boxes(page)
-    expect(on.prop).not.toBeNull()
+    expect(on.prop!.top).toBeGreaterThanOrEqual(on.stage!.top)
+    expect(on.prop!.bottom).toBeLessThanOrEqual(on.stage!.bottom)
+    expect(on.prop!.width).toBeGreaterThan(60)
     expect(clash(on.guide, on.prop)).toBe(false)
-    expect(clash(on.name, on.bar)).toBe(false)
+    expect(await reachable(page, 'beat-next')).toEqual({ inView: true, onTop: true, under: [] })
   })
 })

@@ -15,8 +15,15 @@
  * continuation, and a blank line closes it, exactly as a terminal REPL
  * does. The player is never asked to learn that; they discover it the
  * first time they type `def f():`.
+ *
+ * Inside a block the line indents the way an editor does (`repl/indent`):
+ * after a header the next line starts four spaces in, Tab adds four, and
+ * Backspace in the indent takes four back. Tab outside a block still moves
+ * focus; inside one, Escape hands it back, so the line never traps a
+ * keyboard.
  */
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { asBlank, backspace, newline, tab, untab, type Edit } from '../repl/indent'
 import { needsContinuation } from '../repl/program'
 
 export type Exchange = {
@@ -57,6 +64,13 @@ export function RobotConsole({ exchanges, onSubmit, busy, disabled, greeting, li
   const scrollRef = useRef<HTMLDivElement | null>(null)
 
   const continuing = needsContinuation(buffer)
+  /** A block is being typed: Tab indents rather than moving focus. */
+  const inBlock = continuing || buffer.includes('\n')
+  /** Escape was pressed in a block: the next Tab leaves the line. Any
+   *  other key takes Tab back. */
+  const [released, setReleased] = useState(false)
+  /** Where the caret goes once an edit made here has rendered. */
+  const caretRef = useRef<number | null>(null)
 
   // Grow the input to fit a continuation rather than scrolling it. Done
   // before paint so the scrollback's stick-to-bottom sees the final height.
@@ -65,7 +79,17 @@ export function RobotConsole({ exchanges, onSubmit, busy, disabled, greeting, li
     if (!el) return
     el.style.height = 'auto'
     el.style.height = `${el.scrollHeight}px`
+    const caret = caretRef.current
+    if (caret !== null) {
+      caretRef.current = null
+      el.setSelectionRange(caret, caret)
+    }
   }, [buffer])
+
+  const apply = (edit: Edit) => {
+    caretRef.current = edit.caret
+    setBuffer(edit.text)
+  }
 
   // Stay at the bottom as the conversation grows.
   useEffect(() => {
@@ -106,17 +130,44 @@ export function RobotConsole({ exchanges, onSubmit, busy, disabled, greeting, li
   }
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    const el = e.currentTarget
+    const { selectionStart: from, selectionEnd: to } = el
+    if (e.key !== 'Escape' && released) setReleased(false)
     if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
       // Inside a block, Enter usually adds a line. It sends when the line
       // it would add is the blank one that closes the block — so the
-      // question is what the buffer becomes, not what it is.
-      if (continuing && needsContinuation(`${buffer}\n`)) return
-      e.preventDefault()
+      // question is what the buffer becomes, not what it is. A line that
+      // is only the indent put there for it counts as blank.
+      if (continuing && needsContinuation(`${asBlank(buffer, from)}\n`)) {
+        apply(newline(buffer, from, to))
+        return
+      }
       submit()
       return
     }
+    if (e.key === 'Tab' && inBlock && !released && !e.altKey && !e.ctrlKey && !e.metaKey) {
+      e.preventDefault()
+      apply(e.shiftKey ? untab(buffer, from) : tab(buffer, from, to))
+      return
+    }
+    if (e.key === 'Backspace' && inBlock) {
+      const edit = backspace(buffer, from, to)
+      if (edit) {
+        e.preventDefault()
+        apply(edit)
+        return
+      }
+    }
     if (e.key === 'Escape') {
       e.preventDefault()
+      // In a block, the first Escape only lets go of Tab — what was typed
+      // is kept — and the next Tab moves focus on, as it does anywhere.
+      if (inBlock && !released) {
+        setReleased(true)
+        return
+      }
+      setReleased(false)
       if (buffer !== '') {
         setBuffer('')
         setRecall(null)
@@ -127,7 +178,6 @@ export function RobotConsole({ exchanges, onSubmit, busy, disabled, greeting, li
     }
     // Recall only from the edges of the buffer, so arrow keys still move
     // the caret through a multi-line block.
-    const el = e.currentTarget
     if (e.key === 'ArrowUp' && el.selectionStart === 0) {
       e.preventDefault()
       stepRecall(-1)
@@ -171,7 +221,11 @@ export function RobotConsole({ exchanges, onSubmit, busy, disabled, greeting, li
           </div>
         ))}
 
-        <div className="prompt-row" data-continuing={continuing ? 'yes' : 'no'}>
+        <div
+          className="prompt-row"
+          data-continuing={continuing ? 'yes' : 'no'}
+          data-tab={inBlock ? (released ? 'leaves' : 'indents') : 'leaves'}
+        >
           <span className="prompt" aria-hidden="true">
             {continuing ? '...' : '>>>'}
           </span>
@@ -188,10 +242,16 @@ export function RobotConsole({ exchanges, onSubmit, busy, disabled, greeting, li
             readOnly={busy}
             placeholder={listening ? 'Listening… press Next' : asked ? 'Type your answer here' : undefined}
             aria-label="Say something to the robot"
+            aria-describedby={inBlock ? 'console-tab-hint' : undefined}
             data-testid="console-input"
             onChange={(e) => setBuffer(e.target.value)}
             onKeyDown={onKeyDown}
           />
+          {inBlock && (
+            <span id="console-tab-hint" className="sr-only">
+              {released ? 'Tab moves on.' : 'Tab indents. Escape, then Tab, to move on.'}
+            </span>
+          )}
         </div>
 
         {busy && (
