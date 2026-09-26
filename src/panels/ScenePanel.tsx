@@ -781,9 +781,13 @@ export function typeOn(nodes: ReactNode): { nodes: ReactNode; ms: number } {
   const walk = (n: ReactNode): ReactNode =>
     Children.map(n, (child) => {
       if (typeof child === 'string' || typeof child === 'number') {
-        return [...String(child)].map((ch, i) => {
+        const chars = [...String(child)]
+        return chars.map((ch, i) => {
           const d = t
-          t += PAUSE_MS[ch] ?? CHAR_MS
+          // No breath inside a number: `2.8` is one thing, and a pause at
+          // its dot had the verdict read "sends you back to 2." a moment.
+          const inNumber = /\d/.test(chars[i + 1] ?? '') && /\d/.test(chars[i - 1] ?? '')
+          t += (inNumber ? undefined : PAUSE_MS[ch]) ?? CHAR_MS
           return (
             <span key={i} className="tw" style={at(d)}>
               {ch}

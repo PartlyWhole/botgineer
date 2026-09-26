@@ -65,7 +65,7 @@ test('the misses are shown and named, then a number is thought of and let go', a
   expect(await beat(page)).toMatchObject({ kind: 'praise', listening: true })
   await expect(page.getByTestId('guide')).toContainText("It's thinking of 7, because that's what you wrote.")
   // Thought of and let go: nothing had a name.
-  await expect(page.getByTestId('memory')).toContainText('Memory is empty')
+  await expect(page.getByTestId('memory')).toContainText('Nothing kept yet')
   // Finished, but the crow is still talking: Next, not Continue.
   await expect(page.getByTestId('advance')).toHaveCount(0)
 

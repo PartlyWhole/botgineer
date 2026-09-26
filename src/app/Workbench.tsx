@@ -912,7 +912,9 @@ export function Workbench({ activity }: { activity: Activity }) {
               emptyText={
                 reading
                   ? ideas
-                    ? 'Nothing has run yet. Pick “Run this” under an example and memory draws what it builds.'
+                    ? read.stage && !hasExamples(read.stage)
+                      ? 'No examples to run in this one: the robot runs the capstone program at the end of the stage.'
+                      : 'Nothing has run yet. Pick “Run this” under an example and memory draws what it builds.'
                     : read.vocab === 'formal'
                       ? 'Empty until you commit. Then the robot runs the code and every binding and object appears here.'
                       : 'Empty until you commit. Then the robot runs the code, and every name and the object it points at appear here.'
@@ -1015,3 +1017,8 @@ function outcomeLine(threw: string | null, terminal: TerminalRecord | null): str
       return `The run ended (${terminal.reason}).`
   }
 }
+
+/** Whether a stage's reading has an example the robot can run. Stage 9's
+ *  has none, and "Pick Run this" pointed at a button that was not there. */
+const hasExamples = (stage: Stage): boolean =>
+  [...stage.adds, ...stage.ideas.flatMap((i) => i.blocks)].some((b) => b.kind === 'code' && b.lang === 'python')

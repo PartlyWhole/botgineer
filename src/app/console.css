@@ -619,11 +619,15 @@
     width: 32px;
     height: 32px;
   }
-  /* The takeaway takes the whole width, over Continue rather than beside
-     it: beside it, it was a column two words wide. */
+  /* The takeaway takes the whole width: beside Continue it was a column
+     two words wide. And it stands at the top, under the beat bar, where a
+     narrow stage is empty once everything is said: stacked over Continue
+     it reached up past the floor line, over the crow's body and the
+     robot's feet. */
   .stage .takeaway {
+    top: 26px;
     right: 14px;
-    bottom: calc(50px + var(--foot, 0px));
+    bottom: auto;
     padding: 6px 8px 6px 12px;
     font-size: 12.5px;
   }
