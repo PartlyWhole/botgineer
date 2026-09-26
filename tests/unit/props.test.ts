@@ -15,7 +15,12 @@ import {
   boolOf,
   chipLines,
   chipText,
+  CODE_LINES,
   codeLine,
+  codeLines,
+  codeSize,
+  codeTokens,
+  indentOf,
   kindOf,
   looksRight,
   numberOf,
@@ -500,5 +505,46 @@ describe('the tiles', () => {
 
   it('still shrinks a long row to fit', () => {
     expect(scaleOf(drawn(view({ kind: 'tiles', parts: ['"a long word"', '+', '"another one"', '+', '"and more"'] })))).toBeLessThan(1)
+  })
+})
+
+describe('the code card', () => {
+  it('keeps indentation, drops a shared indent and blank ends, and cuts past eight lines', () => {
+    expect(codeLines('\n    for p in parcels:\n        total = total + p\n')).toEqual(['for p in parcels:', '    total = total + p'])
+    expect(codeLines('if x:\n\ty = 1')).toEqual(['if x:', '    y = 1'])
+    const long = Array.from({ length: 12 }, (_, i) => `x = ${i}`).join('\n')
+    expect(codeLines(long)).toHaveLength(CODE_LINES)
+    expect(codeLines(long)[CODE_LINES - 1]).toBe('…')
+    expect(indentOf('        n = n + 1')).toBe(2)
+  })
+
+  it('cuts a line into tokens that join back to exactly the line', () => {
+    for (const l of ['    ride = "van"  # the van', "for p in parcels:", "if weight > 10.5 and ok:", "s = 'it\\'s'"]) {
+      expect(codeTokens(l).map((t) => t.text).join('')).toBe(l)
+    }
+    const kinds = codeTokens('if n > 10: s = "hi"').filter((t) => t.kind !== 'plain').map((t) => `${t.kind}:${t.text}`)
+    expect(kinds).toEqual(['keyword:if', 'number:10', 'string:"hi"'])
+  })
+
+  it('draws a short block large and a long one smaller, always inside the picture', () => {
+    const short = codeSize(['for p in parcels:', '    total = total + p'])
+    const tall = codeSize(codeLines(Array.from({ length: 8 }, () => 'x = 1').join('\n')))
+    expect(short).toBeGreaterThan(12)
+    expect(tall).toBeLessThan(short)
+    expect(codeSize(['x' .repeat(60)]) * 0.6 * 60).toBeLessThanOrEqual(200 - 18 + 1e-9)
+  })
+
+  it('draws every line, marks one, and says it for a screen reader', () => {
+    const v = view({ kind: 'code', text: 'if weight > 10:\n    ride = "van"', mark: 2 })
+    const html = drawn(v)
+    expect(html).toContain('code-mark')
+    expect((html.match(/class="code-line/g) ?? []).length).toBe(2)
+    expect(html).toContain('    ride = ')
+    expect(sentence(v)).toBe('Code, 2 lines: if weight > 10:; ride = "van" (indented). Line 2 is highlighted: ride = "van".')
+  })
+
+  it('moving the mark is narration: the same picture', () => {
+    expect(sameProp({ kind: 'code', text: 'a\nb', mark: 1 }, { kind: 'code', text: 'a\nb', mark: 2 })).toBe(true)
+    expect(sameProp({ kind: 'code', text: 'a\nb' }, { kind: 'code', text: 'a\nc' })).toBe(false)
   })
 })

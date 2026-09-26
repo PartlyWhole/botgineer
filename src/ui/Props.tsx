@@ -21,7 +21,7 @@
  */
 import { useLayoutEffect, useRef, type ReactNode } from 'react'
 import {
-  CHIP_CHARS,
+  CODE_BOX,
   CHIP_ROWS,
   SLOTS,
   boolOf,
@@ -29,6 +29,10 @@ import {
   chipText,
   clamp,
   codeLine,
+  codeLines,
+  codeSize,
+  codeTokens,
+  indentOf,
   kindOf,
   numberOf,
   refused as refusedOf,
@@ -226,6 +230,8 @@ function draw(view: PropView): ReactNode {
       return <Codes chars={p.chars} />
     case 'scale':
       return <Scale view={view} parcels={p.parcels} each={p.each} />
+    case 'code':
+      return <Code text={p.text} mark={p.mark} />
   }
 }
 
@@ -356,6 +362,13 @@ function drawnAs(view: PropView): string {
         .join(', ')}.`
     case 'scale':
       return `${p.parcels} parcels of ${p.each} kg and a scale.${n !== null ? ` On the scale, it reads ${a!.repr} kg.` : waiting(view)}`
+    case 'code': {
+      const lines = codeLines(p.text)
+      const marked = p.mark !== undefined && lines[p.mark - 1] !== undefined ? ` Line ${p.mark} is highlighted: ${lines[p.mark - 1]!.trim()}.` : ''
+      return `Code, ${lines.length} line${lines.length === 1 ? '' : 's'}: ${lines
+        .map((l) => (indentOf(l) > 0 ? `${l.trim()} (indented${indentOf(l) > 1 ? ` ${indentOf(l)} levels` : ''})` : l))
+        .join('; ')}.${marked}`
+    }
   }
 }
 
@@ -1262,9 +1275,9 @@ function Balance({ view, p }: { view: PropView; p: Extract<Prop, { kind: 'balanc
   // every `==` balance asked about 2 + 2 whatever it weighed.
   const asked = question(p)
   const said = b !== null && view.verdict === 'right' ? `${asked} → ${view.answer!.repr}` : null
-  // As wide as what it says (9px mono is about 5.5 a character), so a
+  // As wide as what it says (11px mono is 6.6 a character), so a
   // longer question never runs out of its pill; kept clear of the lamp.
-  const pill = clamp([...(said ?? `${asked} ?`)].length * 5.6 + 16, 88, lamp ? 130 : 190)
+  const pill = clamp([...(said ?? `${asked} ?`)].length * 6.6 + 16, 88, lamp ? 134 : 190)
   return (
     <g className="balance">
       <path d="M 100 70 l -14 50 h 28 z" className="stand" />
@@ -1289,8 +1302,8 @@ function Balance({ view, p }: { view: PropView; p: Extract<Prop, { kind: 'balanc
       {/* The answer joins the question only when it answers *this*
           question: `5 > 3` is True, and "3 > 5 → True" would be a lie. */}
       <g className={`question ${said ? 'answered' : ''}`} transform="translate(100,22)">
-        <rect x={-pill / 2} y="-11" width={pill} height="20" rx="10" />
-        <text y="3.5">{said ?? `${asked} ?`}</text>
+        <rect x={-pill / 2} y="-12" width={pill} height="22" rx="11" />
+        <text y="4">{said ?? `${asked} ?`}</text>
       </g>
       {lamp && (
         // The comparison's answer, as the thing it is: a lamp, on or off.
@@ -1300,8 +1313,8 @@ function Balance({ view, p }: { view: PropView; p: Extract<Prop, { kind: 'balanc
           <circle r="13" className="lamp-glow" />
           <path d="M -7 -10 h 14 l 4 8 h -22 z" className="shade" />
           <circle cy="2" r="5" className="bulb-glass" />
-          <rect x="-15" y="10" width="30" height="12" rx="6" className="verdict-pill" />
-          <text y="19">{truth ? 'True' : 'False'}</text>
+          <rect x="-17" y="10" width="34" height="14" rx="7" className="verdict-pill" />
+          <text y="20.5">{truth ? 'True' : 'False'}</text>
         </g>
       )}
     </g>
@@ -1415,8 +1428,8 @@ function Door({ view }: { view: PropView }) {
         <rect x="-9" y="0" width="18" height="15" rx="3" className="lock-body" />
       </g>
       <g className="knows" transform="translate(143,8)">
-        <rect x="-22" y="-6" width="44" height="12" rx="6" data-kind="bool" />
-        <text y="3.5">locked: True</text>
+        <rect x="-36" y="-7" width="72" height="14" rx="7" data-kind="bool" />
+        <text y="3.2">locked: True</text>
       </g>
       {/* Words on the note, refused (a no, or not an answer to her): the
           note is edged in amber, dashed — written, and not sent. */}
@@ -1497,19 +1510,30 @@ function Letter({ view, char }: { view: PropView; char: string }) {
 
 /* --- shelf: five data types, each in its slot --- */
 
-const CUBBY_W = 37
-const CUBBY_PITCH = 40.75
+/** Five slots across the whole picture, as wide as they can be: the
+ *  width of a slot is what bounds the type on its chips. */
+const CUBBY_W = 38.5
+const CUBBY_PITCH = 40.375
 /** The first chip's top, inside its slot, and the distance between. */
-const CHIP_TOP = 20
-const CHIP_PITCH = 13
-const CHIP_H = 11
+const CHIP_TOP = 19.5
+const CHIP_PITCH = 14
+const CHIP_H = 13
 /** A chip of `n` lines fills the `n` rows it takes. */
 const chipH = (n: number) => CHIP_H + (n - 1) * CHIP_PITCH
 /** The distance between two lines inside one chip. */
-const CHIP_LEADING = 8.5
-/** A chip's inset from its slot's sides: as narrow as reads, because a
- *  row of `CHIP_CHARS` (8) has to fit across it. */
-const CHIP_X = 2
+const CHIP_LEADING = 10
+/** A chip's inset from its slot's sides. */
+const CHIP_X = 1.5
+/** A chip's type: as large as `CHIP_FONT`, and smaller only as far as its
+ *  longest line needs to fit across the chip (`CHIP_TEXT_W`). Measured by
+ *  estimate, per character, in the stage's face — a picture is drawn
+ *  once, on the server in the unit tests too, so there is nothing to
+ *  measure with. */
+const CHIP_FONT = 10.5
+const CHIP_TEXT_W = 30
+const emOf = (text: string): number =>
+  [...text].reduce((w, c) => w + (/[MWmw@]/.test(c) ? 0.86 : /["']/.test(c) ? 0.36 : /[il.,:;!|1 ]/.test(c) ? 0.3 : /[frtjI()\[\]-]/.test(c) ? 0.38 : /\d/.test(c) ? 0.57 : 0.56), 0)
+const chipFont = (lines: string[]): number => Math.min(CHIP_FONT, ...lines.map((l) => CHIP_TEXT_W / Math.max(emOf(l), 0.01)))
 
 type ShelfRow = { key: string; text: string; cls: string; tag?: boolean }
 
@@ -1551,7 +1575,7 @@ function Shelf({ view, p }: { view: PropView; p: Extract<Prop, { kind: 'shelf' }
             key={k}
             className={`cubby ${named(k) ? 'named' : ''} ${k === newest ? 'fresh' : ''}`}
             data-kind={k}
-            transform={`translate(${0.5 + i * CUBBY_PITCH},16)`}
+            transform={`translate(${i * CUBBY_PITCH},16)`}
             style={{ ['--i' as string]: i }}
           >
             <rect width={CUBBY_W} height="88" rx="4" className="cubby-box" />
@@ -1560,7 +1584,7 @@ function Shelf({ view, p }: { view: PropView; p: Extract<Prop, { kind: 'shelf' }
                 ?
               </text>
             ) : (
-              <text x={CUBBY_W / 2} y="13" className={named(k) ? 'slot-label' : 'q small'}>
+              <text x={CUBBY_W / 2} y="13.5" className={named(k) ? 'slot-label' : 'q small'}>
                 {named(k) ? k : '?'}
               </text>
             )}
@@ -1572,24 +1596,27 @@ function Shelf({ view, p }: { view: PropView; p: Extract<Prop, { kind: 'shelf' }
               const y = CHIP_TOP + at * CHIP_PITCH
               return r.tag ? (
                 <g key={r.key} className="char-tag" transform={`translate(${CUBBY_W / 2},${y})`} style={{ ['--j' as string]: at }}>
-                  <text y="8">str ·</text>
-                  <text y="17">length 1</text>
+                  <text y="10">str ·</text>
+                  <text y="21">length 1</text>
                 </g>
               ) : (
                 <g
                   key={r.key}
-                  // A full row of `CHIP_CHARS` at the chip's own size touches
-                  // its outline, so a chip with one is set a little tighter.
-                  className={`chip ${r.cls} ${isLatest(k, r.text) ? 'latest' : ''} ${lines.some((l) => [...l].length >= CHIP_CHARS) ? 'tight' : ''}`}
+                  className={`chip ${r.cls} ${isLatest(k, r.text) ? 'latest' : ''}`}
                   data-kind={k}
                   transform={`translate(${CHIP_X},${y})`}
                   style={{ ['--j' as string]: at }}
                 >
-                  <rect width={CUBBY_W - 2 * CHIP_X} height={chipH(lines.length)} rx="5.5" />
+                  <rect width={CUBBY_W - 2 * CHIP_X} height={chipH(lines.length)} rx="6" />
                   {lines.map((l, j) => (
                     // The lines sit together in the middle of the chip, not
                     // a whole row apart, so the last is clear of its edge.
-                    <text key={j} x={CUBBY_W / 2 - CHIP_X} y={chipH(lines.length) / 2 + (j - (lines.length - 1) / 2) * CHIP_LEADING + 2.3}>
+                    <text
+                      key={j}
+                      x={CUBBY_W / 2 - CHIP_X}
+                      y={chipH(lines.length) / 2 + (j - (lines.length - 1) / 2) * CHIP_LEADING + chipFont(lines) * 0.34}
+                      style={{ fontSize: `${chipFont(lines).toFixed(2)}px` }}
+                    >
                       {l}
                     </text>
                   ))}
@@ -1611,8 +1638,8 @@ function Shelf({ view, p }: { view: PropView; p: Extract<Prop, { kind: 'shelf' }
             ]
           </text>
           <g transform="translate(160,118)" className="later-tag">
-            <rect x="-17" y="-6.5" width="34" height="13" rx="6.5" />
-            <text y="3">later</text>
+            <rect x="-19" y="-7" width="38" height="14" rx="7" />
+            <text y="3.4">later</text>
           </g>
         </g>
       )}
@@ -2023,6 +2050,83 @@ function Scale({ view, parcels, each }: { view: PropView; parcels: number; each:
           </g>
         )
       })}
+    </g>
+  )
+}
+
+/* --- code: the block the player is about to read --- */
+
+/**
+ * A short block as it would stand in an editor: monospace, on a card,
+ * every indent kept and drawn as a faint guide down the lines it holds,
+ * so what is inside the `for` is seen to be inside it. The type is as
+ * large as the block allows (`codeSize`), and the card is only as tall as
+ * the block, standing on the floor like every picture. `mark` lays a band
+ * under one line; moving it is narration, so the band slides and the
+ * card stays.
+ */
+function Code({ text, mark }: { text: string; mark: number | undefined }) {
+  const lines = codeLines(text)
+  const size = codeSize(lines)
+  const lh = size * CODE_BOX.lineHeight
+  const cw = size * CODE_BOX.charWidth
+  const { pad } = CODE_BOX
+  const longest = Math.max(1, ...lines.map((l) => [...l].length))
+  const w = Math.min(CODE_BOX.width, longest * cw + 2 * pad)
+  const h = lines.length * lh + 2 * pad
+  const x0 = (CODE_BOX.width - w) / 2
+  const y0 = CODE_BOX.height - h
+  const baseline = (i: number) => y0 + pad + i * lh + lh / 2 + size * 0.35
+  // One guide per indent level, from the header above it to the last
+  // line of the block it holds.
+  const guides: { level: number; from: number; to: number }[] = []
+  lines.forEach((l, i) => {
+    const depth = l.trim() === '' ? 0 : indentOf(l)
+    for (let level = 1; level <= depth; level++) {
+      const open = guides.find((g) => g.level === level && g.to === i - 1)
+      if (open) open.to = i
+      else guides.push({ level, from: i, to: i })
+    }
+  })
+  const marked = mark !== undefined && mark >= 1 && mark <= lines.length ? mark - 1 : null
+  return (
+    <g className="code">
+      <rect x={x0} y={y0} width={w} height={h} rx="8" className="code-card" />
+      {marked !== null && (
+        <rect
+          x={x0 + 3}
+          y={y0 + pad + marked * lh}
+          width={w - 6}
+          height={lh}
+          rx="4"
+          className="code-mark"
+        />
+      )}
+      {guides.map((g) => (
+        <line
+          key={`${g.level}:${g.from}`}
+          className="code-guide"
+          x1={x0 + pad + (g.level - 1) * 4 * cw + cw * 0.5}
+          x2={x0 + pad + (g.level - 1) * 4 * cw + cw * 0.5}
+          y1={y0 + pad + g.from * lh + 2}
+          y2={y0 + pad + (g.to + 1) * lh - 2}
+        />
+      ))}
+      {lines.map((l, i) => (
+        <text
+          key={i}
+          x={x0 + pad}
+          y={baseline(i)}
+          className={`code-line ${i === marked ? 'marked' : ''}`}
+          style={{ fontSize: `${size}px`, ['--i' as string]: i }}
+        >
+          {codeTokens(l).map((t, j) => (
+            <tspan key={j} className={`tok-${t.kind}`}>
+              {t.text}
+            </tspan>
+          ))}
+        </text>
+      ))}
     </g>
   )
 }

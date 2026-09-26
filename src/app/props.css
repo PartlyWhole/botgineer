@@ -226,6 +226,10 @@
   text-anchor: middle;
 }
 
+.prop .tick-label {
+  font-size: 11px;
+  font-weight: 700;
+}
 .prop .tick-label.end {
   text-anchor: end;
 }
@@ -588,7 +592,7 @@
 }
 .prop .token text {
   font-family: var(--mono);
-  font-size: 8px;
+  font-size: 9.5px;
   font-weight: 800;
   fill: var(--k-int);
 }
@@ -654,7 +658,7 @@
   stroke-width: 3;
 }
 .lift .ground-label {
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 700;
   fill: #2f6b3c;
 }
@@ -733,7 +737,7 @@
 }
 .glasses .glass-caption {
   font-family: var(--mono);
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 800;
 }
 @keyframes fill-up {
@@ -776,7 +780,7 @@
   stroke-width: 2;
 }
 .height .ref-label {
-  font-size: 7.5px;
+  font-size: 9.5px;
 }
 .height .cat path {
   fill: #5b6784;
@@ -961,7 +965,7 @@
   animation: grow-x 600ms ease-out calc(var(--beat, 0s) + 1s) backwards;
 }
 .match .half-label {
-  font-size: 8px;
+  font-size: 9.5px;
   font-weight: 800;
   fill: #1e5a31;
 }
@@ -1033,7 +1037,7 @@
 }
 .kinds .chip text {
   font-family: var(--mono);
-  font-size: 7.5px;
+  font-size: 9px;
   font-weight: 800;
 }
 .kinds .chip[data-kind='bool'] rect {
@@ -1174,7 +1178,7 @@
 }
 .phone .ghost-zero text {
   font-family: var(--mono);
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 800;
   fill: var(--bad);
 }
@@ -1246,7 +1250,7 @@
 }
 .door .knows text {
   font-family: var(--mono);
-  font-size: 7px;
+  font-size: 9px;
   font-weight: 800;
   fill: var(--k-bool);
 }
@@ -1495,7 +1499,7 @@
 }
 .balance .pan-label {
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 800;
   fill: var(--k-int);
 }
@@ -1505,7 +1509,7 @@
 }
 .balance .question text {
   font-family: var(--mono);
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 800;
   fill: var(--ink);
 }
@@ -1714,7 +1718,7 @@
 }
 .balance .verdict-lamp text {
   font-family: var(--mono);
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 800;
   fill: var(--k-bool);
 }
@@ -1752,24 +1756,22 @@
   fill: #b3bbd3;
 }
 .shelf .q.small {
-  font-size: 10px;
+  font-size: 12px;
 }
 .shelf .slot-label {
   font-family: var(--mono);
-  font-size: 9.5px;
+  font-size: 11.5px;
   font-weight: 800;
 }
 .shelf .chip rect {
   fill: #fff;
   stroke-width: 1.1;
 }
+/* The chips are set in the stage's own face, not monospace: a slot is a
+   fifth of the picture wide, and a proportional `"hello"` fits across it
+   at half as large again as a monospace one did (6.6 → 10.5 units). */
 .shelf .chip text {
-  font-family: var(--mono);
-  font-size: 6.6px;
   font-weight: 800;
-}
-.shelf .chip.tight text {
-  font-size: 6px;
 }
 .shelf .chip.said rect,
 .shelf .chip.heard rect {
@@ -1779,13 +1781,12 @@
   stroke-width: 2.4;
 }
 .shelf .char-tag text {
-  font-family: var(--mono);
-  font-size: 6.4px;
+  font-size: 8.4px;
   font-weight: 800;
   fill: var(--k-str);
 }
 .shelf .shelf-title text {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 900;
   fill: var(--ink);
   letter-spacing: 0.02em;
@@ -1839,7 +1840,7 @@
   stroke: #c4cbe0;
 }
 .shelf .later-tag text {
-  font-size: 7.5px;
+  font-size: 9.5px;
   font-weight: 800;
   fill: var(--ink-soft);
   font-style: italic;
@@ -2523,6 +2524,69 @@
   animation: drop-in 380ms cubic-bezier(0.3, 1.4, 0.6, 1) calc(var(--beat, 0s) + 0.2s + var(--i) * 0.14s) backwards;
 }
 
+/* ------------------------------ code ------------------------------ */
+
+/* The block the player is about to read, as an editor would show it. The
+   card is quiet so the code is the loudest thing on it; the guides show
+   indentation without adding a word. Colours are the kinds' where a kind
+   is meant (a string is a str, a number an int) and each is above 4.5:1
+   on the card. */
+.code .code-card {
+  fill: #fbfcff;
+  stroke: #c4cbe0;
+  stroke-width: 1.4;
+}
+.code .code-line {
+  font-family: var(--mono);
+  font-weight: 600;
+  text-anchor: start;
+  fill: var(--ink);
+  white-space: pre;
+}
+.code .tok-keyword {
+  fill: #6a3fc9;
+  font-weight: 800;
+}
+.code .tok-string {
+  fill: var(--k-str);
+}
+.code .tok-number {
+  fill: var(--k-int);
+}
+.code .tok-comment {
+  fill: #5f6780;
+  font-style: italic;
+}
+.code .code-guide {
+  stroke: #b7c0da;
+  stroke-width: 1.2;
+  stroke-dasharray: 2 2.5;
+}
+.code .code-mark {
+  fill: #fff1c9;
+  stroke: #e0a526;
+  stroke-width: 1.2;
+  transition: y 320ms cubic-bezier(0.3, 1.2, 0.5, 1);
+}
+/* Arriving, the lines are written in one after another, top to bottom:
+   the order the robot will read them. */
+.code .code-line {
+  animation: code-in 260ms ease-out calc(var(--beat, 0s) + 0.12s + var(--i, 0) * 0.09s) backwards;
+}
+.code .code-mark {
+  animation: from-dark 300ms ease-out calc(var(--beat, 0s) + 0.3s) backwards;
+}
+.prop-layer[data-told] .code .code-line,
+.prop-layer[data-told] .code .code-mark {
+  animation: none;
+}
+@keyframes code-in {
+  from {
+    opacity: 0;
+    translate: -6px 0;
+  }
+}
+
 /* ------------------------------ calm ------------------------------ */
 
 /* Without motion, every picture is its resting state: the answer still
@@ -2535,11 +2599,20 @@
     animation: none !important;
     transition: none !important;
   }
-  .prop-layer[data-role='current'] {
-    animation: prop-ask-in 200ms linear var(--beat, 0s) both;
+  /* `!important`, and more specific than styles.css's calm rule
+     (`* { animation: none !important }`), which otherwise wins: without
+     these the payoff never left and the next picture arrived on top of
+     it at once, the old answer's tick drawn over the new question. Two
+     opacity fades are all that is left of the motion, and they are what
+     keeps one picture on the stage at a time. */
+  .stage .prop-layer[data-role='current'] {
+    animation: prop-ask-in 200ms linear var(--beat, 0s) both !important;
   }
-  .prop-layer[data-role='leaving'] {
-    animation: prop-leave-calm var(--beat-len) linear both;
+  .stage .prop-layer[data-role='leaving'] {
+    animation: prop-leave-calm var(--beat-len) linear both !important;
+  }
+  .stage .prop-ask {
+    animation: prop-ask-in 200ms linear var(--beat, 0s) both !important;
   }
   @keyframes prop-leave-calm {
     0%,
