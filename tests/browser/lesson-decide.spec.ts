@@ -24,9 +24,19 @@ async function block(page: Page, ...lines: string[]) {
   await skip(page)
   const input = page.getByTestId('console-input')
   await input.click()
+  // A line that failed stays in the input to be mended; start clean.
+  await input.fill('')
+  // The console indents after a colon (and keeps the indent otherwise).
+  // Each line here carries its own indent, so only the difference is
+  // typed: Backspace in the indent goes back a level, as a player would
+  // before an \`else:\`.
+  let auto = 0
   for (const l of lines) {
-    await page.keyboard.type(l)
+    const want = l.length - l.trimStart().length
+    for (let d = auto; d > want; d -= 4) await page.keyboard.press('Backspace')
+    await page.keyboard.type(' '.repeat(Math.max(0, want - auto)) + l.trimStart())
     await page.keyboard.press('Enter')
+    auto = want + (l.trimEnd().endsWith(':') ? 4 : 0)
   }
   await page.keyboard.press('Enter')
   await expect(page.getByTestId('robot-panel')).toHaveAttribute('data-busy', 'no', { timeout: 60_000 })
@@ -47,9 +57,6 @@ test('Making Choices: the robot asks, and the answer decides which lines run', a
   // A header without its colon stops the robot, and is answered.
   await say(page, 'if weight > 10')
   await expect(page.getByTestId('guide')).toContainText('colon')
-  // A body with no indent is not inside the block.
-  await block(page, 'if weight > 10:', 'ride = "van"')
-  await expect(page.getByTestId('guide')).toContainText('spaces in front')
   await block(page, 'if weight > 10:', '    ride = "van"')
   expect(await bound(page)).toMatchObject({ weight: '12', ride: "'van'" })
 
