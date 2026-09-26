@@ -170,3 +170,31 @@ test('a beat can point at a fixture by hopping it', async ({ page }) => {
   await expect(page.getByTestId('actor-nameplate')).toHaveClass(/act-hop/)
   await expect(lamp).not.toHaveClass(/act-hop/)
 })
+
+test.describe('with reduced motion', () => {
+  test.use({ reducedMotion: 'reduce' })
+
+  // styles.css's calm rule (`* { animation: none !important }`) once took
+  // the payoff's fade too: the answered picture and its ticked tag never
+  // left, and the next question's picture was drawn on top of them.
+  test('the answered picture gives way before the next question is asked', async ({ page }) => {
+    test.setTimeout(120_000)
+    await open(page, 'practice-thinking')
+    const exercise = () =>
+      page.evaluate(() => (window.botgineer as unknown as { exercise: () => { answer: string } | null }).exercise())
+    let left = 0
+    for (let k = 0; k < 2; k++) {
+      await say(page, (await exercise())!.answer)
+      for (let i = 0; i < 6 && !(await page.evaluate(() => window.botgineer.beat())).asking; i++) {
+        await page.evaluate(() => window.botgineer.next())
+      }
+      const leaving = page.getByTestId('prop-leaving')
+      if ((await leaving.count()) > 0) {
+        left++
+        await expect.poll(() => leaving.evaluate((el) => getComputedStyle(el).opacity), { timeout: 5_000 }).toBe('0')
+      }
+      await expect.poll(() => page.getByTestId('prop').evaluate((el) => getComputedStyle(el).opacity), { timeout: 5_000 }).toBe('1')
+    }
+    expect(left, 'no answered picture was ever on its way out').toBeGreaterThan(0)
+  })
+})

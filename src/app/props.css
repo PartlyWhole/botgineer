@@ -2598,11 +2598,20 @@
     animation: none !important;
     transition: none !important;
   }
-  .prop-layer[data-role='current'] {
-    animation: prop-ask-in 200ms linear var(--beat, 0s) both;
+  /* `!important`, and more specific than styles.css's calm rule
+     (`* { animation: none !important }`), which otherwise wins: without
+     these the payoff never left and the next picture arrived on top of
+     it at once, the old answer's tick drawn over the new question. Two
+     opacity fades are all that is left of the motion, and they are what
+     keeps one picture on the stage at a time. */
+  .stage .prop-layer[data-role='current'] {
+    animation: prop-ask-in 200ms linear var(--beat, 0s) both !important;
   }
-  .prop-layer[data-role='leaving'] {
-    animation: prop-leave-calm var(--beat-len) linear both;
+  .stage .prop-layer[data-role='leaving'] {
+    animation: prop-leave-calm var(--beat-len) linear both !important;
+  }
+  .stage .prop-ask {
+    animation: prop-ask-in 200ms linear var(--beat, 0s) both !important;
   }
   @keyframes prop-leave-calm {
     0%,
