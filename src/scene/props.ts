@@ -183,6 +183,16 @@ export type Prop =
    *  one and the scale reads what it said, in kg. A reading that is not
    *  what the parcels weigh is drawn as a scale that disagrees. */
   | { kind: 'scale'; parcels: number; each: number }
+  /** A short Python block, drawn as code: monospace, its indentation
+   *  kept and guided, so a lesson can *show* the block it asks the player
+   *  to read before running it (R1: a sentence describing a loop is not a
+   *  loop). `text` is the block, one line per `\n`; a common leading
+   *  indent (a template literal's) is taken off, and past `CODE_LINES`
+   *  lines the rest is cut to `…`. `mark` (narration) highlights one
+   *  line, counted from 1, so a beat can point at it and the next beat
+   *  move the highlight without the card arriving again. Draws no answer:
+   *  it is the code, not what the code did — memory shows that. */
+  | { kind: 'code'; text: string; mark?: number }
 
 /** One side of a `contrast`. `text` is the value as Python writes it —
  *  or, with `result`, the expression that makes it. `label` is a word for
@@ -247,6 +257,7 @@ const NARRATION: Partial<Record<Prop['kind'], string[]>> = {
   numberline: ['mark', 'unnamed'],
   char: ['clasps'],
   beads: ['glow'],
+  code: ['mark'],
 }
 
 /** A prop without its narration: what identifies the picture. */
@@ -679,4 +690,74 @@ export function codeLine(chars: string): { char: string; code: number; at: numbe
   }
   const order = [...codes].sort((a, b) => a.code - b.code)
   return codes.map((c) => ({ ...c, at: (order.indexOf(c) + 1) / (codes.length + 1), even: true }))
+}
+
+/* ------------------------------ the code ------------------------------ */
+
+/** The most lines a code card draws; a longer block ends in `…`. Past
+ *  eight, a line is too small to read at a phone's width. */
+export const CODE_LINES = 8
+
+/**
+ * A block as the code card draws it: tabs as four spaces, blank lines at
+ * either end dropped, the indent every line shares taken off (so a
+ * template literal indented to sit in its lesson reads flush), and at
+ * most `CODE_LINES` lines, the last of a longer block replaced by `…`.
+ * Indentation inside the block is the point of the picture, so it is
+ * kept exactly.
+ */
+export function codeLines(text: string): string[] {
+  const lines = text.replace(/\t/g, '    ').split('\n').map((l) => l.replace(/\s+$/, ''))
+  while (lines.length > 0 && lines[0] === '') lines.shift()
+  while (lines.length > 0 && lines[lines.length - 1] === '') lines.pop()
+  const shared = Math.min(...lines.filter((l) => l !== '').map((l) => l.length - l.trimStart().length))
+  const flush = Number.isFinite(shared) ? lines.map((l) => l.slice(shared)) : lines
+  return flush.length > CODE_LINES ? [...flush.slice(0, CODE_LINES - 1), '…'] : flush
+}
+
+/** How far a line is indented, in levels of four spaces (rounded down). */
+export const indentOf = (line: string): number => Math.floor((line.length - line.trimStart().length) / 4)
+
+export type CodeToken = { text: string; kind: 'keyword' | 'string' | 'number' | 'comment' | 'plain' }
+
+const KEYWORDS = new Set([
+  'and', 'as', 'break', 'continue', 'def', 'elif', 'else', 'for', 'from', 'if', 'import',
+  'in', 'is', 'not', 'or', 'pass', 'return', 'while', 'with', 'True', 'False', 'None',
+])
+
+/**
+ * One line of Python cut into what the card colours: keywords, strings,
+ * numbers, a comment, and everything else as it stands. Just enough to
+ * read by, not a parser: joined back together the tokens are exactly the
+ * line, spaces and all, so nothing the player reads is changed.
+ */
+export function codeTokens(line: string): CodeToken[] {
+  const out: CodeToken[] = []
+  const push = (text: string, kind: CodeToken['kind']) => {
+    const last = out[out.length - 1]
+    if (last && last.kind === kind && kind === 'plain') last.text += text
+    else out.push({ text, kind })
+  }
+  const re = /(#.*$)|("(?:[^"\\]|\\.)*"?|'(?:[^'\\]|\\.)*'?)|(\b\d+(?:\.\d+)?\b)|([A-Za-z_]\w*)|(\s+|.)/g
+  for (const m of line.matchAll(re)) {
+    if (m[1]) push(m[1], 'comment')
+    else if (m[2]) push(m[2], 'string')
+    else if (m[3]) push(m[3], 'number')
+    else if (m[4]) push(m[4], KEYWORDS.has(m[4]) ? 'keyword' : 'plain')
+    else push(m[0], 'plain')
+  }
+  return out
+}
+
+/** The code card's geometry, in the picture's 200 × 130 units: the type
+ *  as large as the longest line and the line count allow, up to a cap,
+ *  so a two-line loop reads big and an eight-line block still fits. A
+ *  monospace character is taken as 0.6 of its size wide. */
+export const CODE_BOX = { width: 200, height: 130, pad: 9, lineHeight: 1.45, charWidth: 0.6, maxSize: 16 } as const
+
+export function codeSize(lines: readonly string[]): number {
+  const longest = Math.max(1, ...lines.map((l) => [...l].length))
+  const across = (CODE_BOX.width - 2 * CODE_BOX.pad) / (longest * CODE_BOX.charWidth)
+  const down = (CODE_BOX.height - 2 * CODE_BOX.pad) / (Math.max(1, lines.length) * CODE_BOX.lineHeight)
+  return Math.min(CODE_BOX.maxSize, across, down)
 }

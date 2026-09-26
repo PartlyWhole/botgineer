@@ -21,6 +21,7 @@
  */
 import { useLayoutEffect, useRef, type ReactNode } from 'react'
 import {
+  CODE_BOX,
   CHIP_CHARS,
   CHIP_ROWS,
   SLOTS,
@@ -29,6 +30,10 @@ import {
   chipText,
   clamp,
   codeLine,
+  codeLines,
+  codeSize,
+  codeTokens,
+  indentOf,
   kindOf,
   numberOf,
   refused as refusedOf,
@@ -226,6 +231,8 @@ function draw(view: PropView): ReactNode {
       return <Codes chars={p.chars} />
     case 'scale':
       return <Scale view={view} parcels={p.parcels} each={p.each} />
+    case 'code':
+      return <Code text={p.text} mark={p.mark} />
   }
 }
 
@@ -356,6 +363,13 @@ function drawnAs(view: PropView): string {
         .join(', ')}.`
     case 'scale':
       return `${p.parcels} parcels of ${p.each} kg and a scale.${n !== null ? ` On the scale, it reads ${a!.repr} kg.` : waiting(view)}`
+    case 'code': {
+      const lines = codeLines(p.text)
+      const marked = p.mark !== undefined && lines[p.mark - 1] !== undefined ? ` Line ${p.mark} is highlighted: ${lines[p.mark - 1]!.trim()}.` : ''
+      return `Code, ${lines.length} line${lines.length === 1 ? '' : 's'}: ${lines
+        .map((l) => (indentOf(l) > 0 ? `${l.trim()} (indented${indentOf(l) > 1 ? ` ${indentOf(l)} levels` : ''})` : l))
+        .join('; ')}.${marked}`
+    }
   }
 }
 
@@ -2023,6 +2037,83 @@ function Scale({ view, parcels, each }: { view: PropView; parcels: number; each:
           </g>
         )
       })}
+    </g>
+  )
+}
+
+/* --- code: the block the player is about to read --- */
+
+/**
+ * A short block as it would stand in an editor: monospace, on a card,
+ * every indent kept and drawn as a faint guide down the lines it holds,
+ * so what is inside the `for` is seen to be inside it. The type is as
+ * large as the block allows (`codeSize`), and the card is only as tall as
+ * the block, standing on the floor like every picture. `mark` lays a band
+ * under one line; moving it is narration, so the band slides and the
+ * card stays.
+ */
+function Code({ text, mark }: { text: string; mark: number | undefined }) {
+  const lines = codeLines(text)
+  const size = codeSize(lines)
+  const lh = size * CODE_BOX.lineHeight
+  const cw = size * CODE_BOX.charWidth
+  const { pad } = CODE_BOX
+  const longest = Math.max(1, ...lines.map((l) => [...l].length))
+  const w = Math.min(CODE_BOX.width, longest * cw + 2 * pad)
+  const h = lines.length * lh + 2 * pad
+  const x0 = (CODE_BOX.width - w) / 2
+  const y0 = CODE_BOX.height - h
+  const baseline = (i: number) => y0 + pad + i * lh + lh / 2 + size * 0.35
+  // One guide per indent level, from the header above it to the last
+  // line of the block it holds.
+  const guides: { level: number; from: number; to: number }[] = []
+  lines.forEach((l, i) => {
+    const depth = l.trim() === '' ? 0 : indentOf(l)
+    for (let level = 1; level <= depth; level++) {
+      const open = guides.find((g) => g.level === level && g.to === i - 1)
+      if (open) open.to = i
+      else guides.push({ level, from: i, to: i })
+    }
+  })
+  const marked = mark !== undefined && mark >= 1 && mark <= lines.length ? mark - 1 : null
+  return (
+    <g className="code">
+      <rect x={x0} y={y0} width={w} height={h} rx="8" className="code-card" />
+      {marked !== null && (
+        <rect
+          x={x0 + 3}
+          y={y0 + pad + marked * lh}
+          width={w - 6}
+          height={lh}
+          rx="4"
+          className="code-mark"
+        />
+      )}
+      {guides.map((g) => (
+        <line
+          key={`${g.level}:${g.from}`}
+          className="code-guide"
+          x1={x0 + pad + (g.level - 1) * 4 * cw + cw * 0.5}
+          x2={x0 + pad + (g.level - 1) * 4 * cw + cw * 0.5}
+          y1={y0 + pad + g.from * lh + 2}
+          y2={y0 + pad + (g.to + 1) * lh - 2}
+        />
+      ))}
+      {lines.map((l, i) => (
+        <text
+          key={i}
+          x={x0 + pad}
+          y={baseline(i)}
+          className={`code-line ${i === marked ? 'marked' : ''}`}
+          style={{ fontSize: `${size}px`, ['--i' as string]: i }}
+        >
+          {codeTokens(l).map((t, j) => (
+            <tspan key={j} className={`tok-${t.kind}`}>
+              {t.text}
+            </tspan>
+          ))}
+        </text>
+      ))}
     </g>
   )
 }
