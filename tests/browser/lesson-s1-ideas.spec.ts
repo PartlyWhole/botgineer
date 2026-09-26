@@ -7,7 +7,10 @@ import { beat, open, reprs, say, skip } from './helpers'
 
 test('Stage 1’s ideas open on the bridge, and every idea happens in memory', async ({ page }) => {
   await open(page, 's1-ideas')
-  await expect(page.getByTestId('guide')).toContainText('other people write the programs')
+  // `program` is named here: `wake`, next on the path, leans on it.
+  await expect(page.getByTestId('guide')).toContainText('are called a program')
+  await page.evaluate(() => window.botgineer.next())
+  await expect(page.getByTestId('guide')).toContainText('programs other people wrote')
   await page.evaluate(() => window.botgineer.next())
   await expect(page.getByTestId('guide')).toContainText('A good engineer knows what the robot will do before it does it.')
   // No page of prose: the ideas sheet is gone.
@@ -22,8 +25,17 @@ test('Stage 1’s ideas open on the bridge, and every idea happens in memory', a
   await say(page, '7')
   expect((await beat(page)).kind).toBe('praise')
   await say(page, 'shown = print(total)')
+  await say(page, 'print(total, 5)')
+  await expect(page.getByTestId('console')).toContainText('7 5')
+  // Counting by hand is answered: `len` is the robot counting.
+  await say(page, '4')
+  await expect(page.getByTestId('guide')).toContainText('you counting')
+  await say(page, 'len("Mira")')
   await say(page, 'a = [10, 20]')
   await say(page, 'b = a')
+  // `==` on the lists asks something else, and is answered with what `id` is for.
+  await say(page, 'a == b')
+  await expect(page.getByTestId('guide')).toContainText('look the same')
   await say(page, 'id(a) == id(b)')
   await say(page, 'c = [10, 20]')
   await say(page, 'id(c) == id(a)')

@@ -69,7 +69,7 @@ export const meet: Lesson = {
           say: 'It needs someone to give it instructions, and that\'s you.',
           focus: 'console',
         },
-        { say: 'Write an instruction on the right and press Enter, and the robot will think of it.', thought: '7' },
+        { say: 'Type an instruction in the Robot box and press Enter, and the robot will think of it.', thought: '7' },
       ],
       say: 'Make the robot think of a number.',
       tag: 'you',

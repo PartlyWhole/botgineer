@@ -142,6 +142,10 @@ describe('the generators', () => {
     const noQuotes = ex.judge(attempt({ source: word, ok: false, error: 'NameError — the robot stopped there.' }))
     expect(noQuotes.verdict).toBe('wrong')
     expect(noQuotes.why).toMatch(/quotes/)
+    // The word that was typed is the one named, not the one asked for.
+    const other = ex.judge(attempt({ source: 'banana', ok: false, error: 'NameError — the robot stopped there.' }))
+    expect(other.why).toContain('something called `banana`')
+    expect(other.why).toContain(`\`"${word}"\``)
     expect(ex.judge(attempt({ source: ex.answer, thought: { type: 'str', repr: `'${word}'` } })).verdict).toBe('correct')
   })
 
@@ -163,7 +167,59 @@ describe('the generators', () => {
     const ex = generate('rebind', 5)
     const [, , v1, v2] = ex.key.split(':')
     expect(ex.judge(attempt({ source: v1! })).verdict).toBe('correct')
-    expect(ex.judge(attempt({ source: v2! })).why).toMatch(/does not follow/)
+    expect(ex.judge(attempt({ source: v2! })).why).toMatch(/does not follow. It stays put/)
+  })
+
+  it('ask the rebind as a prediction: the move runs after, not before', () => {
+    for (const ex of spread('rebind')) {
+      const [, x, , v2] = ex.key.split(':')
+      expect(ex.setup.some((l) => l === `${x} = ${v2}`), ex.key).toBe(false)
+      expect(ex.then, ex.key).toEqual([`${x} = ${v2}`])
+      // Worded to hold whether or not the move is run after (see `then`).
+      expect(ex.lead?.join(' ')).toMatch(/Suppose .* runs next/)
+      expect(ex.say).toMatch(/would/)
+    }
+  })
+
+  it('want the alias made by following the arrow, not by an equal sum', () => {
+    const ex = generate('alias', 2)
+    const [, a, b, n] = ex.key.split(':')
+    const same = bound([
+      [a!, `v:int:${n}`, n!],
+      [b!, `v:int:${n}`, n!],
+    ])
+    const v = Number(n)
+    for (const source of [`${b} = ${v - 1} + 1`, `${b} = ${v * 2} // 2`]) {
+      const j = ex.judge(attempt({ source, snapshot: same }))
+      expect(j.verdict, source).toBe('wrong')
+      expect(j.why).toMatch(/equal number/)
+    }
+    expect(ex.judge(attempt({ source: `${b}=${a}`, snapshot: same })).verdict).toBe('correct')
+  })
+
+  it('name capitals when the right name was kept in the wrong case', () => {
+    const ex = generate('bind', 4)
+    const [, n, k] = ex.key.split(':')
+    const j = ex.judge(attempt({ source: `${n!.toUpperCase()} = ${k}`, snapshot: bound([[n!.toUpperCase(), `v:int:${k}`, k!]]) }))
+    expect(j.why).toMatch(/capitals/)
+  })
+
+  it('refuses the kept answer dressed up with the name in a recall', () => {
+    for (const ex of spread('recall')) {
+      const [, n, , each] = ex.key.split(':')
+      const want = ex.expect!.repr
+      for (const source of [`${n} * 0 + ${want}`, `${want} + ${n} * 0`, `${n} - ${n} + ${want}`]) {
+        const j = ex.judge(attempt({ source, thought: ex.expect! }))
+        expect(j.verdict, `${ex.key}: ${source}`).toBe('wrong')
+      }
+      expect(ex.judge(attempt({ source: `${each} * ${n}`, thought: ex.expect! })).verdict).toBe('correct')
+    }
+  })
+
+  it('ask the balance as yours in words, and share oil between tanks', () => {
+    for (const ex of spread('bool').filter((e) => !e.key.includes('lamp'))) expect(ex.say).toMatch(/answer it yourself/)
+    for (const ex of spread('divide')) expect(ex.say).toMatch(/each tank get.*tanks\?$/)
+    for (const ex of spread('join')) expect(ex.answer).toMatch(/^"\w+" \+ "\w+"$/)
   })
 
   it('want the name used, not the number typed again', () => {
@@ -268,7 +324,7 @@ describe('what an exercise says', () => {
       }
     }
     const bool = spread('bool').find((e) => e.key === 'bool:3:5')!
-    const kind = spread('kind', 2000).find((e) => e.key === 'kind:Is 3 more than 5?')!
+    const kind = spread('kind', 2000).find((e) => e.key === 'kind:Look at the balance, and answer it yourself: is 3 more than 5?')!
     for (const ex of [bool, kind]) {
       expect(ex.judge(attempt({ source: '3 > 5', thought: { type: 'bool', repr: 'False' } })).verdict, ex.key).toBe('wrong')
       expect(ex.judge(attempt({ source: 'False', thought: { type: 'bool', repr: 'False' } })).verdict, ex.key).toBe('correct')

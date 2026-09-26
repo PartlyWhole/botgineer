@@ -232,7 +232,7 @@ export const operations: Lesson = {
             right: { text: '0.5', kind: 'float', label: 'measured' },
           },
         },
-        { say: 'What type comes back when you add them? Don\'t work it out: let the robot, and look.' },
+        { say: 'Let the robot add them, and look at what type comes back.' },
       ],
       say: 'Let the robot add `2 + 0.5`.',
       ask: '2 + 0.5',
@@ -269,8 +269,9 @@ export const operations: Lesson = {
     },
     {
       beats: [
-        { say: 'The robot can answer questions, too, and a question like that is called a comparison.', show: { kind: 'balance', left: 3, right: 5, op: '>' } },
+        { say: 'A question that weighs one value against another, like this, is called a comparison.', show: { kind: 'balance', left: 3, right: 5, op: '>' } },
         { say: '`>` asks *is it more than?*, so `3 > 5` asks if 3 is more than 5.' },
+        { say: '`<` asks the other way round, *is it less than?*, so `5 < 3` asks if 5 is less than 3.' },
       ],
       say: 'Is 3 more than 5?',
       ask: '3 against 5',
@@ -345,6 +346,9 @@ export const operations: Lesson = {
       nudge: (l) => {
         const text = textOf(l.thought)
         if (text === 'botgineer' && words(l.source).includes('botgineer')) return yours('"bot" + "gineer"')
+        if (text === 'botgineer' && words(l.source).join('|') === 'bot|gineer' && !PLUS.test(l.source)) {
+          return 'Python stuck those together because they touch, but glue them with the sign: `"bot" + "gineer"`.'
+        }
         if (text === 'botgineer') return 'The robot glued it, but from other pieces. Glue these two: `"bot" + "gineer"`.'
         if (text === 'bot gineer') return 'You added a space: `+` glues exactly what it is given. Try `"bot" + "gineer"`.'
         if (bareWord(l) || errorType(l) === 'NameError') return 'Each word needs its own quotes: `"bot" + "gineer"`.'

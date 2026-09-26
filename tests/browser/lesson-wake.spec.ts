@@ -32,6 +32,9 @@ test('the lesson finishes on the run that wakes the robot, and not before', asyn
   await open(page, 'wake')
   await send(page, 'power = 0\nname = "Bolt"\ncharge = 72\n')
   await expect(page.getByTestId('advance')).toHaveCount(0)
+  // Every name is set, so the strip has nothing to wait for: the crow names the miss.
+  await expect(page.getByTestId('waiting')).toHaveCount(0)
+  await expect(page.getByTestId('guide')).toContainText('lamp is still dark')
   await expect(page.getByTestId('actor-robot')).toHaveAttribute('data-asleep', 'yes')
   await send(page, 'power = True\nname = "Bolt"\ncharge = 72\n')
   await expect(page.getByTestId('guide')).toContainText('Awake')

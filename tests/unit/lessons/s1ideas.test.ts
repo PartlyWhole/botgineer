@@ -9,28 +9,44 @@ import type { MemorySnapshot, PyObject } from '../../../src/memory/model'
 import { NOTHING, bound, line, snap, th, typed, value } from './fixtures'
 import type { Evidence } from '../../../content/lessons'
 
-const list = (uid: string): PyObject => ({ id: uid, type: 'list', kind: 'reference', repr: '[10, 20]', elements: [], partial: false })
+const TEN = value('int', '10')
+const TWENTY = value('int', '20')
+/** A list `[10, 20]`: its slots point at the two ints, which `mem` adds. */
+const list = (uid: string, items: PyObject[] = [TEN, TWENTY]): PyObject => ({
+  id: uid,
+  type: 'list',
+  kind: 'reference',
+  repr: `${items.length} items`,
+  elements: items.map((o, i) => ({ label: String(i), target: o.id })),
+  partial: false,
+})
 
 /** Memory with `total` at this value, plus whatever else is given. */
 const mem = (total: string | null, extra: { objects?: PyObject[]; bindings?: { name: string; target: string }[] } = {}): MemorySnapshot => {
   const t = total === null ? [] : [bound('total', 'int', total)]
   return snap(
-    [...t.map((b) => b.object), ...(extra.objects ?? [])],
+    [...t.map((b) => b.object), TEN, TWENTY, ...(extra.objects ?? [])],
     [...t.map((b) => b.binding), ...(extra.bindings ?? []).map((b) => ({ ...b, scope: 'global' }))],
   )
 }
 
+/** Evidence from memory and what was said. A `['line', '', source]`
+ *  entry is an accepted line that thought of nothing (`print(…)` hands
+ *  back `None`, which is not described), so it goes in `lines`. */
 const ev = (history: MemorySnapshot[], ...said: [string, string, string][]): Evidence => ({
   snapshot: history[history.length - 1]!,
   history,
-  thoughts: said.map(([type, repr, source]) => ({ ...th(type, repr), source })),
+  thoughts: said.filter(([type]) => type !== 'line').map(([type, repr, source]) => ({ ...th(type, repr), source })),
+  lines: said.filter(([type]) => type === 'line').map(([, , source]) => ({ source, memory: history[history.length - 1]! })),
 })
 
 describe('s1-ideas', () => {
   it('opens on the bridge into reading, before its first question', () => {
     const s = script(s1Ideas, NOTHING)
-    expect(s.items[0]!.text).toContain('other people write the programs')
-    expect(s.items[1]!.text).toContain('before it does it')
+    // `program` is named here, before `wake` (next on the path) uses it.
+    expect(s.items[0]!.text).toContain('are called a program')
+    expect(s.items[1]!.text).toContain('programs other people wrote')
+    expect(s.items[2]!.text).toContain('before it does it')
     expect(s.items[s.rest]).toMatchObject({ kind: 'ask', text: 'Type `total = 5`.' })
   })
 
@@ -48,17 +64,24 @@ describe('s1-ideas', () => {
     const none = value('NoneType', 'None')
     const shown = mem('7', { objects: [none], bindings: [{ name: 'shown', target: none.id }] })
     expect(at(ev([five, six, seven, shown], ['int', '7', '7']))).toBe(5)
+    // `print` with one thing is not two; with two it is.
+    expect(at(ev([five, six, seven, shown], ['int', '7', '7'], ['line', '', 'print(total)']))).toBe(5)
+    expect(at(ev([five, six, seven, shown], ['int', '7', '7'], ['line', '', 'print(total, 5)']))).toBe(6)
+    // A typed 4 is counting by hand; `len` is the robot counting.
+    expect(at(ev([five, six, seven, shown], ['int', '7', '7'], ['line', '', 'print(total, 5)'], ['int', '4', '4']))).toBe(6)
+    const counted: [string, string, string][] = [['int', '7', '7'], ['line', '', 'print(total, 5)'], ['int', '4', 'len("Mira")']]
+    expect(at(ev([five, six, seven, shown], ...counted))).toBe(7)
     const a = list('u1')
     const withA = mem('7', { objects: [none, a], bindings: [{ name: 'shown', target: none.id }, { name: 'a', target: 'u1' }] })
-    expect(at(ev([five, six, seven, withA], ['int', '7', '7']))).toBe(6)
+    expect(at(ev([five, six, seven, withA], ...counted))).toBe(8)
     const shared = mem('7', {
       objects: [none, a],
       bindings: [{ name: 'shown', target: none.id }, { name: 'a', target: 'u1' }, { name: 'b', target: 'u1' }],
     })
-    const said: [string, string, string][] = [['int', '7', '7']]
-    expect(at(ev([five, six, seven, shared], ...said))).toBe(7)
+    const said: [string, string, string][] = [...counted]
+    expect(at(ev([five, six, seven, shared], ...said))).toBe(9)
     said.push(['bool', 'True', 'id(a) == id(b)'])
-    expect(at(ev([five, six, seven, shared], ...said))).toBe(8)
+    expect(at(ev([five, six, seven, shared], ...said))).toBe(10)
     const c = list('u2')
     const apart = mem('7', {
       objects: [none, a, c],
@@ -78,5 +101,76 @@ describe('s1-ideas', () => {
 
   it('says a bare value was let go, at the first step', () => {
     expect(guidance(s1Ideas, typed(line('5', th('int', '5')))).text).toContain('thought of and let go')
+  })
+
+  it('tells the way on in play order: wake is next, then the exercises', () => {
+    const outro = s1Ideas.outro as { say: string }[]
+    expect(outro.at(-1)!.say).toMatch(/wake the robot.*Then the exercises/)
+  })
+
+  describe('the id steps', () => {
+    const none = value('NoneType', 'None')
+    const a = list('u1')
+    const base = [{ name: 'shown', target: none.id }, { name: 'a', target: 'u1' }, { name: 'b', target: 'u1' }]
+    const shared = mem('7', { objects: [none, a], bindings: base })
+    const before: [string, string, string][] = [['int', '7', '7'], ['line', '', 'print(total, 5)'], ['int', '4', 'len("Mira")']]
+    const at = (h: MemorySnapshot[], ...said: [string, string, string][]) => ev([mem('5'), mem('6'), mem('7'), ...h], ...before, ...said)
+
+    it('wants both names asked about, not one twice', () => {
+      expect(progress(s1Ideas, at([shared], ['bool', 'True', 'id(a) == id(a)']))).toBe(9)
+      expect(progress(s1Ideas, at([shared], ['bool', 'True', 'id(b) == id(a)']))).toBe(10)
+      const twice = { ...at([shared], ['bool', 'True', 'id(a) == id(a)']), last: line('id(a) == id(a)', th('bool', 'True')) }
+      expect(guidance(s1Ideas, twice).text).toMatch(/both names/)
+    })
+
+    it('answers a typed True, and == on the lists, with what id is for', () => {
+      const saidTrue = { ...at([shared], ['bool', 'True', 'True']), last: line('True', th('bool', 'True')) }
+      expect(guidance(s1Ideas, saidTrue).text).toMatch(/you saying `True`/)
+      const eq = { ...at([shared], ['bool', 'True', 'a == b']), last: line('a == b', th('bool', 'True')) }
+      expect(guidance(s1Ideas, eq).text).toMatch(/look the same.*one object/)
+    })
+
+    it('wants c to be a second [10, 20], and both c and a asked about', () => {
+      const ok: [string, string, string] = ['bool', 'True', 'id(a) == id(b)']
+      const withC = (c: PyObject) =>
+        mem('7', { objects: [none, a, c], bindings: [...base, { name: 'c', target: c.id }] })
+      const empty = list('u2', [])
+      expect(progress(s1Ideas, at([shared, withC(empty)], ok, ['bool', 'False', 'id(c) == id(a)']))).toBe(10)
+      expect(progress(s1Ideas, at([shared, withC(list('u2'))], ok, ['bool', 'False', 'id(c) == id(c) + 1']))).toBe(10)
+      expect(progress(s1Ideas, at([shared, withC(list('u2'))], ok, ['bool', 'False', 'id(c) == id(a)']))).toBe(11)
+      const eq = { ...at([shared, withC(list('u2'))], ok, ['bool', 'True', 'c == a']), last: line('c == a', th('bool', 'True')) }
+      expect(guidance(s1Ideas, eq).text).toMatch(/look the same/)
+    })
+  })
+
+  it('answers print alone, and brackets alone', () => {
+    const seven = mem('7')
+    const printed = { ...ev([mem('5'), mem('6'), seven], ['int', '7', '7'], ['line', '', 'print(total)']), last: line('print(total)', null) }
+    expect(guidance(s1Ideas, printed).text).toMatch(/kept nothing.*`shown = print\(total\)`/)
+    const none = value('NoneType', 'None')
+    const shown = mem('7', { objects: [none], bindings: [{ name: 'shown', target: none.id }] })
+    const bracket = { ...ev([mem('5'), mem('6'), seven, shown], ['int', '7', '7'], ['line', '', 'print(total, 5)'], ['int', '4', 'len("Mira")'], ['list', '[10, 20]', '[10, 20]']), last: line('[10, 20]', th('list', '[10, 20]')) }
+    expect(guidance(s1Ideas, bracket).text).toMatch(/built and let go/)
+  })
+
+  it('answers print with one thing, and a count typed by hand', () => {
+    const none = value('NoneType', 'None')
+    const shown = mem('7', { objects: [none], bindings: [{ name: 'shown', target: none.id }] })
+    const one = { ...ev([mem('5'), mem('6'), mem('7'), shown], ['int', '7', '7'], ['line', '', 'print(total)']), last: line('print(total)', null) }
+    expect(guidance(s1Ideas, one).text).toMatch(/Give it two/)
+    const two: [string, string, string] = ['line', '', 'print(total, 5)']
+    const hand = { ...ev([mem('5'), mem('6'), mem('7'), shown], ['int', '7', '7'], two, ['int', '4', '4']), last: line('4', th('int', '4')) }
+    expect(guidance(s1Ideas, hand).text).toMatch(/you counting/)
+  })
+
+  it('names what the exercises lean on: expression, rebinding, literal, label', () => {
+    const all = s1Ideas.steps.flatMap((s) => (s.beats ?? []) as { say: string }[]).map((b) => b.say).join(' ') +
+      (s1Ideas.outro as { say: string }[]).map((b) => b.say).join(' ')
+    for (const w of ['**expression**', '**rebinding**', '**literal**', '**label**', '`len']) expect(all).toContain(w)
+  })
+
+  it('praises only what memory shows, however the step was reached', () => {
+    const e = ev([mem('5'), mem('6'), mem('7')], ['int', '7', '7'])
+    expect(script(s1Ideas, e).items[0]!.text).toMatch(/`total` points at `7` now/)
   })
 })

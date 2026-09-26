@@ -25,7 +25,10 @@
  *  - char: Mira arrives, a person who reads letters rather than `True`,
  *    and `7` stands beside `"7"` (R7). Python has no char type (R8), and
  *    the crow says so where it names one: a char is a `str` one letter
- *    long, which is what its slot's tag says.
+ *    long, which is what its slot's tag says. That comes before the
+ *    `7`/`"7"` cards, whose char card is tagged `str · length 1`, and so
+ *    does the one line saying the robot's `'` and the player's `"` are
+ *    the same quote (every cloud and tag from here on shows `'`).
  *  - `str`: letters threaded into a string, the quotes clipped on each
  *    end as where it starts and stops.
  *
@@ -88,7 +91,7 @@ function glassMiss(l: Line): string | undefined {
   if (t?.type === 'int' && n === 1) return 'Full? The water only comes up to the middle.'
   if (t?.type === 'int') return 'No whole number fits: it\'s between `0` and `1`, so it needs a dot.'
   if (t?.type === 'float' && n !== null && n > 1) return 'More than full? It would spill! It\'s between `0` and `1`.'
-  if (t?.type === 'float' && n !== null) return `I filled the other glass to ${t.repr}. Compare them: the water is exactly halfway.`
+  if (t?.type === 'float' && n !== null) return `The robot filled the other glass to ${t.repr}: compare them, the water is exactly halfway.`
   if (/half/i.test(textOf(t) ?? '')) return 'That\'s the word. The robot writes half as `0.5`.'
   return measureMiss(l)
 }
@@ -116,7 +119,7 @@ export const types: Lesson = {
         { say: 'First, questions with only two answers, like: is the lamp on?', show: LAMP },
         { say: 'The robot says yes as `True`…', show: { kind: 'lamp', demo: 'on' } },
         { say: '…and no as `False`.', show: { kind: 'lamp', demo: 'off' } },
-        { say: 'This type is called `bool`, and its `True` and `False` have capitals and no quotes.', show: shelf(1) },
+        { say: 'This type is called `bool`, and its `True` and `False` both start with a capital.', show: shelf(1) },
       ],
       say: 'Your turn. Turn the lamp on.',
       ask: 'Turn the lamp on.',
@@ -168,11 +171,12 @@ export const types: Lesson = {
         },
         { speaker: 'courier', say: 'Hi! I read letters, not `True` or `12`.', show: { kind: 'letters', chars: ['M', 'i', 'r', 'a', '!', '7'] } },
         { say: 'One letter, digit or symbol is a **character**, or a *char* for short.', show: { kind: 'char', char: 'A', clasps: true } },
+        { say: 'Python has no char type of its own: it calls `"A"` a `str`, one letter long.', show: shelf(4), thought: "'A'" },
+        { say: 'The robot writes its quotes as `\'`, and either kind of quote works the same.', show: shelf(4), thought: "'A'" },
         {
           say: 'The quotes make it a character: `"7"` is a thing to read, and `7` is a number.',
           show: { kind: 'contrast', left: { text: '7', kind: 'int', label: 'a number' }, right: { text: '"7"', kind: 'char', label: 'a thing to read' } },
         },
-        { say: 'Python has no char type of its own: it calls `"A"` a `str`, one letter long.', show: shelf(4), thought: "'A'" },
       ]),
       say: 'Write the first letter of Mira\'s name: `"M"`.',
       ask: 'The first letter of Mira\'s name.',
@@ -202,5 +206,5 @@ export const types: Lesson = {
     { say: 'Five data types, and everything the robot thinks is built from these.', show: shelf(5, { cheer: true }) },
     { say: 'Bigger things are these, arranged: a list is a row of them, for example.', show: shelf(5, { later: true }) },
   ],
-  takeaway: 'There are five basic data types: bool, int, float, char and str. Everything else is built from them.',
+  takeaway: 'There are five basic data types: bool, int, float, char and str, and Python keeps a char as a one-letter str.',
 }

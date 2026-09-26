@@ -202,7 +202,22 @@ describe('names point at objects', () => {
         { name: 'y', scope: 'global', target: 'v:int:99' },
       ],
     )
-    expect(guidance(namesPoint, at([named, aliased, yMoved], [FORTY_TWO, BACK], line('y = 99', null))).text).toMatch(/about `y`/)
+    // Moving `y` shows the same thing, the other name left behind, so it
+    // finishes: requiring `x` stranded this player with a false reply.
+    const e = at([named, aliased, yMoved], [FORTY_TWO, BACK], line('y = 99', null))
+    expect(progress(namesPoint, e)).toBe(namesPoint.steps.length)
+    expect(script(namesPoint, e).items[0]!.text).toMatch(/one arrow moved, and the other name still points where it did/)
+  })
+
+  it('never says they share an object when they do not', () => {
+    // Shared, then both moved apart in one line: nothing was left behind.
+    const apart = snap([value('int', '1'), value('int', '2')], [
+      { name: 'x', scope: 'global', target: 'v:int:1' },
+      { name: 'y', scope: 'global', target: 'v:int:2' },
+    ])
+    const e = madeBy(at([named, aliased, apart], [FORTY_TWO, BACK]), line('x = 1; y = 2', null))
+    expect(progress(namesPoint, e)).toBe(4)
+    expect(guidance(namesPoint, e).text).toMatch(/different objects now. Share one again with `y = x`/)
   })
 
   it('does not slide backwards when the last step un-answers the first', () => {

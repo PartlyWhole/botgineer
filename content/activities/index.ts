@@ -89,7 +89,7 @@ const workingOut: Activity = {
   mode: 'console',
   lesson: 'operations',
   next: 'practice-thinking',
-  greeting: 'Give me a sum. I will work it out.',
+  greeting: 'Ready. One instruction per line.',
   starter: '',
   options: { max_steps: 3000, wall_clock_s: 15 },
   scene: {
@@ -348,10 +348,6 @@ const practiceRemembering: Activity = {
   scene: practiceScene('practice-remembering'),
 }
 
-/** The console lesson first: it is the starting point, and `ACTIVITIES[0]`
- *  is what the router opens with. The editor activities are reachable by
- *  hash but are not offered anywhere yet — they are what unlocking looks
- *  like, once there is a progression to unlock them from. */
 /**
  * Stages 1–8's ideas, as console lessons rather than the collection's
  * pages of prose (content/lessons/s1ideas.ts says why). Same ids and
@@ -400,6 +396,11 @@ const makingChoices: Activity = {
   scene: practiceScene('decide'),
 }
 
+/** Every level. Not the play order: that lives in `content/roadmap`, and
+ *  each activity's `next` must agree with it (there is a test). The console
+ *  lesson comes first because it is the starting point. `wake` is the one
+ *  editor activity, and it is on the path like any other, straight after
+ *  Stage 1's ideas: the editor is what it unlocks. */
 export const ACTIVITIES: Activity[] = [
   meetTheRobot,
   fiveDataTypes,

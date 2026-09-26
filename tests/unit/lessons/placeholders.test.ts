@@ -16,16 +16,17 @@ describe('wake (placeholder)', () => {
   const world = (...xs: ReturnType<typeof bound>[]) => over([snap(xs.map((x) => x.object), xs.map((x) => x.binding))])
 
   it('wakes on what the bay watches, all three', () => {
-    expect(progress(wake, world(power('True'), name, charge))).toBe(1)
+    expect(progress(wake, world(power('True'), name, charge))).toBe(wake.steps.length)
     expect(progress(wake, world(power('True'), name))).toBe(0)
   })
 
   it('does not wake on a power the lamp would not light for', () => {
-    expect(progress(wake, world(power('0', 'int'), name, charge))).toBe(0)
-    expect(progress(wake, world(power('False'), name, charge))).toBe(0)
+    // Every name set, so past the first ask, and stopped at the lamp's.
+    expect(progress(wake, world(power('0', 'int'), name, charge))).toBe(1)
+    expect(progress(wake, world(power('False'), name, charge))).toBe(1)
   })
 
   it('does not take a word for a charge', () => {
-    expect(progress(wake, world(power('True'), name, bound('charge', 'str', "'full'")))).toBe(0)
+    expect(progress(wake, world(power('True'), name, bound('charge', 'str', "'full'")))).toBe(wake.steps.length - 1)
   })
 })

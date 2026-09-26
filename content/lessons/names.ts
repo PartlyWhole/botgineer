@@ -36,10 +36,14 @@ import { bareWord, errorType, ever, heard, points, sameObject, stopped, targetOf
  * `x` would leave `y` alone by luck rather than by rule — so the lesson
  * ends by moving `x` and looking at `y` (R7: two names, differing in one
  * move). That step judges the *move*, not a literal: some line shared one
- * object between `x` and `y`, and a later one left `y` on it with `x`
- * elsewhere. Judging `x -> 99, y -> 10` on the snapshot stranded anyone
- * who had moved `x` earlier, and sent a finished guide back to the ask
- * when the player went on typing.
+ * object between `x` and `y`, and a later one left one of them on it with
+ * the other elsewhere. Judging `x -> 99, y -> 10` on the snapshot stranded
+ * anyone who had moved `x` earlier, and sent a finished guide back to the
+ * ask when the player went on typing. Moving `y` instead shows the same
+ * thing (the name left behind stays put), so it finishes too, and the
+ * outro says "one arrow", which is true either way. Requiring `x` left a
+ * player who moved `y` first with no way on: the step could no longer be
+ * passed by `x = 99`, and its reply said they still shared an object.
  *
  * Every object here is a small int, which CPython caches, so two
  * separately typed `10`s really are one object and the memory view says
@@ -60,13 +64,18 @@ const fromCrates = (source: string | undefined): boolean => {
   return /\*/.test(source ?? '') && ns.includes(7) && ns.includes(6) && ns.every((n) => n === 7 || n === 6)
 }
 
-/** Some line pointed `x` and `y` at one object, and a later one left `y`
- *  there with `x` moved away: the move itself, whatever the numbers. */
+/** Some line pointed `x` and `y` at one object, and a later one left one
+ *  of them there with the other moved away: the move itself, whichever
+ *  name moved and whatever the numbers. */
 const splitAfterSharing = (e: Evidence): boolean =>
   e.history.some((s, i) => {
     if (!sameObject(s, 'x', 'y')) return false
     const shared = targetOf(s, 'y')
-    return e.history.slice(i + 1).some((t) => targetOf(t, 'y') === shared && targetOf(t, 'x') !== null && targetOf(t, 'x') !== shared)
+    return e.history.slice(i + 1).some((t) => {
+      const x = targetOf(t, 'x')
+      const y = targetOf(t, 'y')
+      return x !== null && y !== null && x !== y && (x === shared || y === shared)
+    })
   })
 
 /** Only the name, on its own: `x`, perhaps in brackets. */
@@ -179,14 +188,17 @@ export const namesPoint: Lesson = {
       // The move, not the numbers: see the header.
       done: splitAfterSharing,
       nudge: (l) => {
-        if (/^\s*y\s*=/.test(l.source) && l.ok) return 'That line was about `y`. This time, move `x`: `x = 99`.'
-        if (/^\s*x\s*=(?!=)/.test(l.source) && l.ok && !l.thought) return 'Look below: `x` and `y` still share one object. Point `x` at a new one: `x = 99`.'
+        // Only a line that moved nothing apart gets here: a split finishes the step.
+        const sharing = l.memory ? sameObject(l.memory, 'x', 'y') : true
+        const moved = /^\s*[xy]\s*=(?!=)/.test(l.source) && l.ok && !l.thought
+        if (moved && sharing) return 'Look below: `x` and `y` still share one object. Point `x` at a new one: `x = 99`.'
+        if (moved) return 'Look below: `x` and `y` point at different objects now. Share one again with `y = x`, then move `x`.'
         return namingMiss(l, 'x = 99') ?? stopped(l, 'Type `x = 99`.')
       },
     },
   ],
   outro: [
-    { say: 'Look below: `x`\'s arrow moved, and `y` still points where it did.', focus: 'memory', thought: '' },
+    { say: 'Look below: one arrow moved, and the other name still points where it did.', focus: 'memory', thought: '' },
     { say: 'Moving an arrow never changes the object it pointed at.', thought: '' },
     { say: 'And now the robot can keep things, under names, for as long as you need.', thought: '' },
   ],

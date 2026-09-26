@@ -2,7 +2,7 @@
  * Wake the robot (Level 7): the editor's level, judged on a run.
  */
 import { describe, expect, it } from 'vitest'
-import { castAt, progress, script, wake } from '../../../content/lessons'
+import { castAt, guidance, progress, script, wake } from '../../../content/lessons'
 import { awake, BAY } from '../../../content/lessons/wake'
 import { ACTIVITIES } from '../../../content/activities'
 import { readScene } from '../../../src/scene/spec'
@@ -50,7 +50,7 @@ describe('wake', () => {
           const s = world(...[p, n, c].filter((x): x is ReturnType<typeof bound> => x !== null))
           const solved = readScene(BAY, s).solved
           expect(awake(s)).toBe(solved)
-          expect(progress(wake, over([s]))).toBe(solved ? 1 : 0)
+          expect(progress(wake, over([s])) === wake.steps.length).toBe(solved)
           if (solved) woke++
         }
     expect(woke).toBeGreaterThan(0)
@@ -59,7 +59,24 @@ describe('wake', () => {
   it('does not wake on a power the lamp would not light for', () => {
     const name = bound('name', 'str', "'Bolt'")
     const charge = bound('charge', 'int', '72')
-    expect(progress(wake, over([world(bound('power', 'int', '0'), name, charge)]))).toBe(0)
-    expect(progress(wake, over([world(bound('power', 'bool', 'False'), name, charge)]))).toBe(0)
+    for (const power of [bound('power', 'int', '0'), bound('power', 'bool', 'False')]) {
+      const e = over([world(power, name, charge)])
+      expect(progress(wake, e)).toBeLessThan(wake.steps.length)
+      expect(guidance(wake, e).text).toMatch(/lamp is still dark: `power` needs to be `True`/)
+    }
+  })
+
+  it('names a name set to the wrong kind, which the hint strip no longer can (R10)', () => {
+    const power = bound('power', 'bool', 'True')
+    const name = bound('name', 'str', "'Bolt'")
+    const charge = bound('charge', 'int', '72')
+    // Nothing set yet: the task itself, and the strip lists what is missing.
+    expect(guidance(wake, NOTHING).text).toMatch(/Give `power`, `name` and `charge` values/)
+    // One still missing: still the task.
+    expect(guidance(wake, over([world(bound('power', 'int', '0'), name)])).text).toMatch(/Give `power`/)
+    expect(guidance(wake, over([world(power, bound('name', 'str', "''"), charge)])).text).toMatch(/sign is still blank/)
+    expect(guidance(wake, over([world(power, name, bound('charge', 'str', "'full'"))])).text).toMatch(/battery can't read that/)
+    // The first fixture still wrong is the one named.
+    expect(guidance(wake, over([world(bound('power', 'int', '0'), name, bound('charge', 'str', "'full'"))])).text).toMatch(/lamp/)
   })
 })

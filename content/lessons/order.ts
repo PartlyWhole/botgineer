@@ -144,7 +144,7 @@ export const takeAnOrder: Lesson = {
   outro: [
     { say: 'Fourteen kilos, because it took the seven it kept and doubled it.' },
     { speaker: 'courier', say: 'Fourteen kilos! Thank you, robot.', act: [{ actor: 'courier', do: 'wave' }] },
-    { say: 'It never kept fourteen. It kept what she told it, and worked the rest out.' },
+    { say: 'It never needed fourteen kept: it kept what she told it, and worked the rest out.' },
   ],
   takeaway: 'Keep the facts under names, and the robot can work out answers nobody said.',
 }

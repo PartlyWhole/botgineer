@@ -24,8 +24,15 @@
  * `awake` *is* the watches' own verdict (`readScene(...).solved`), not a
  * restatement of it that could drift; the activity stands on this scene.
  *
- * No praise and no nudge: the editor reports no line to reply to, and the
- * stage already says what it is still waiting for, one fixture at a time.
+ * No praise and no nudge: the editor reports no line to reply to. The
+ * stage's hint strip says which names are still missing, but a name set
+ * to the wrong kind (`power = 0`, `charge = "full"`) is not missing, so
+ * the strip goes and the fixture just stays dark. That miss is named by
+ * the steps instead (R10): once every name is set, one step per fixture,
+ * each done when *its own* watch is satisfied (`fixture`, the bay's
+ * verdict on that watch alone), so the ask that shows is the one naming
+ * the first fixture still wrong. The last step is `awake`, the whole
+ * bay's verdict, so finishing is still exactly the watches.
  * The robot wakes on the first outro beat, which says why it could.
  */
 import type { MemorySnapshot } from '../../src/memory/model'
@@ -73,6 +80,15 @@ export const BAY: SceneSpec = {
  *  the bay's watches say, because it is what they say. */
 export const awake = (s: MemorySnapshot): boolean => readScene(BAY, s).solved
 
+/** One fixture doing its job: the bay's verdict on that watch alone. */
+const fixture = (name: string) => {
+  const watches = BAY.watches.filter((w) => w.name === name)
+  return (s: MemorySnapshot): boolean => readScene({ ...BAY, watches }, s).solved
+}
+
+/** Every name the bay reads has been given something, right or not. */
+const allSet = (s: MemorySnapshot): boolean => readScene(BAY, s).waitingFor.length === 0
+
 export const wake: Lesson = {
   id: 'wake',
   teaches: [],
@@ -89,12 +105,28 @@ export const wake: Lesson = {
       ],
       say: 'Give `power`, `name` and `charge` values, then send the list to the robot.',
       tag: 'you',
+      done: ({ snapshot }) => allSet(snapshot),
+    },
+    {
+      say: 'The lamp is still dark: `power` needs to be `True`. Change it, and send the list again.',
+      tag: 'you',
+      done: ({ snapshot }) => fixture('power')(snapshot),
+    },
+    {
+      say: 'The sign is still blank: give `name` some words, in quotes, and send the list again.',
+      tag: 'you',
+      done: ({ snapshot }) => fixture('name')(snapshot),
+    },
+    {
+      say: 'The battery can\'t read that: `charge` needs a number from 0 to 100. Change it, and send again.',
+      tag: 'you',
+      // The last step is the whole bay, so finishing is exactly the watches.
       done: ({ snapshot }) => awake(snapshot),
     },
   ],
   outro: [
     { say: 'Awake! It ran every line, top to bottom, and found all three names.', act: [{ actor: 'robot', do: 'wake' }] },
-    { say: 'A list of instructions like that is called a program.' },
+    { say: 'A list of instructions like that is a program, and you\'ve just written your first.' },
     { say: 'Next, you\'ll read programs other people wrote, and say what they do first.' },
   ],
   takeaway: 'A program is a list of instructions. Send it to the robot, and it runs every one, from top to bottom.',
