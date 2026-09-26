@@ -156,7 +156,6 @@ const boxes = (page: Page) =>
       thought: r('[data-testid="thought"]'),
       prop: r('[data-testid="prop"]'),
       ask: r('[data-testid="prop-ask"]'),
-      pointer: r('[data-testid="ask-pointer"]'),
       cast: [...document.querySelectorAll('.actor.robot, .actor.crow, .actor.courier')]
         .filter((a) => a.getAttribute('data-offstage') !== 'yes')
         .map((a) => a.getBoundingClientRect().toJSON() as DOMRect),
@@ -167,7 +166,7 @@ const boxes = (page: Page) =>
 // strip is up while the crow and Mira talk — and it used to float over
 // Next, the one control a beat needs.
 for (const level of ['order', 'wake']) {
-  test(`Next stands clear of the hint strip in ${level}, and so does the pointer`, async ({ page }) => {
+  test(`Next stands clear of the hint strip in ${level}`, async ({ page }) => {
     await open(page, level)
     await expect(page.getByTestId('waiting')).toBeVisible()
     expect((await beat(page)).listening).toBe(true)
@@ -175,12 +174,6 @@ for (const level of ['order', 'wake']) {
     // And it works where it stands.
     await next(page)
     expect((await beat(page)).at).toBe(1)
-    await skip(page)
-    if (level === 'order') {
-      // The pointer takes no clicks, so only its box can say it is covered.
-      const { under } = await reachable(page, 'ask-pointer')
-      expect(under).toEqual([])
-    }
   })
 }
 
@@ -211,13 +204,11 @@ test.describe('at phone width', () => {
       }
       await next(page)
     }
-    // The question: the pointer beside the question under the picture, not
-    // on it, and the picture still there.
+    // The question: the picture still there, and nothing talks over it.
     await skip(page)
     await speechSettled(page)
     const on = await boxes(page)
     expect(on.prop).not.toBeNull()
-    expect(clash(on.pointer, on.ask)).toBe(false)
     expect(clash(on.guide, on.prop)).toBe(false)
     expect(clash(on.name, on.bar)).toBe(false)
   })

@@ -542,71 +542,6 @@
   outline-offset: 3px;
 }
 
-/* At the question, Next gives way to this: where the answer goes. The
-   console is the panel to the right, so it points right, and a dotted
-   lead runs off towards it — or, once the panels stack, down, where the
-   console now is. */
-.stage .ask-pointer {
-  position: absolute;
-  right: 14px;
-  bottom: calc(14px + var(--foot, 0px));
-  z-index: 4;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 0;
-  pointer-events: none;
-  color: var(--brand-deep);
-  font: 800 14px/1 'Nunito', ui-rounded, system-ui, sans-serif;
-}
-
-.stage .ask-pointer-text {
-  padding: 7px 12px;
-  border-radius: 999px;
-  border: 2px dashed var(--brand-line);
-  background: var(--surface);
-}
-
-.stage .ask-pointer::after {
-  content: '';
-  width: 14px;
-  border-top: 3px dotted var(--brand);
-}
-
-.stage .ask-pointer-arrow {
-  display: inline-block;
-  margin-left: 4px;
-}
-
-@media (max-width: 1000px) {
-  .stage .ask-pointer-arrow {
-    rotate: 90deg;
-  }
-  .stage .ask-pointer::after {
-    display: none;
-  }
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .stage .ask-pointer {
-    animation: pointer-in 260ms ease-out both;
-  }
-  .stage .ask-pointer-text {
-    animation: pointer-nudge 1.6s ease-in-out 400ms infinite;
-  }
-  @keyframes pointer-in {
-    from {
-      opacity: 0;
-      translate: -8px 0;
-    }
-  }
-  @keyframes pointer-nudge {
-    50% {
-      translate: 4px 0;
-    }
-  }
-}
-
 /* The lesson in a sentence or two, once it is all said. Beside the
    Continue button, never under it. */
 .stage .takeaway {
@@ -683,14 +618,6 @@
   .stage .beat-back {
     width: 32px;
     height: 32px;
-  }
-  .stage .ask-pointer {
-    right: 10px;
-    bottom: calc(8px + var(--foot, 0px));
-    font-size: 13px;
-  }
-  .stage .ask-pointer-text {
-    padding: 5px 10px;
   }
   /* The takeaway takes the whole width, over Continue rather than beside
      it: beside it, it was a column two words wide. */

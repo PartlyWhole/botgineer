@@ -61,12 +61,12 @@ import { bareWord, errorType, heard, stopped, type Heard, type Lesson, type Line
  *   five is the ask.
  * - The `==` balance can only draw `2 + 2 == 4`, so its lamp answers that
  *   question on a narration beat and the ask moves to Mira's crates:
- *   `7 * 6 == 42`, on Lesson 1's lamp, which lights for `True`. (A
- *   balance on the ask would now be safe: `staging` adopts a narration
- *   change on the standing picture and the ask puts it back, so the lamp
- *   would go out again. It is the sum it cannot draw.) The naming beat
- *   before it lays `2 + 2 == 4` out as blocks, so the balance arrives
- *   with the idea it demonstrates. One `=` still gets the reply that it means *give it a
+ *   `7 * 6 == 42`, on Lesson 1's lamp, which lights for `True`. The ask
+ *   needs a picture of another kind anyway: `staging` keeps the picture
+ *   of the same kind across a narration change, so a balance on the ask
+ *   would keep the lamp lit and give the answer away. For the same reason
+ *   the naming beat before it lays `2 + 2 == 4` out as blocks, not on the
+ *   balance. One `=` still gets the reply that it means *give it a
  *   name*, coming soon, because that confusion lasts.
  * - `True + True` is demonstrated with two lamps, and the ask is three of
  *   them, drawn as the sum and not as lamps: the lamps picture always
