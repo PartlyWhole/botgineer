@@ -56,7 +56,7 @@
  * before beats existed.
  */
 import type { Thought } from '../../src/memory/extract'
-import type { MemorySnapshot } from '../../src/memory/model'
+import { EMPTY, type MemorySnapshot } from '../../src/memory/model'
 import { NO_STAGING, numberOf, sameProp, textOf, type Prop, type PropView, type Staging } from '../../src/scene/props'
 import { CROW_NAME } from '../cast'
 
@@ -72,6 +72,14 @@ export type Line = {
   error: string | null
   /** What the robot thought, for a bare expression that made something. */
   thought: Thought | null
+  /**
+   * Memory as this line left it — the entry it added to `history`, the
+   * same object — for an accepted line. It is how `beforeLast` takes the
+   * line back out of the evidence, which is how a binding that did a step
+   * is known to have moved the lesson (and so is never answered as a miss
+   * to the step after it).
+   */
+  memory?: MemorySnapshot | undefined
 }
 
 /**
@@ -346,16 +354,43 @@ export function progress(lesson: Lesson, evidence: Evidence): number {
   return walk(lesson, evidence).at
 }
 
-/** Where the lesson was before the last line, and where it is now. The
- *  last line did something exactly when they differ. */
+/**
+ * The evidence as it stood before the last line: without its thought, if
+ * it made one, and without its entry in `history`, if it has one. Only an
+ * accepted line left anything behind — a line that failed was never kept —
+ * so for one of those it is the evidence unchanged.
+ *
+ * The line names its own entry (`Line.memory`, the very object the
+ * workbench appended), so nothing here has to guess which one it was:
+ * memory before it is the entry before that one, or nothing before the
+ * first. A line that says nothing about memory is taken back by its
+ * thought alone, which is all it could have changed.
+ */
+export function beforeLast(evidence: Evidence): Evidence {
+  const last = evidence.last
+  if (!last?.ok) return evidence
+  const thought = last.thought !== null && evidence.thoughts.length > 0
+  const thoughts = thought ? evidence.thoughts.slice(0, -1) : evidence.thoughts
+  const entry = last.memory ? evidence.history.lastIndexOf(last.memory) : -1
+  if (entry === -1) return thought ? { ...evidence, thoughts, last: null } : evidence
+  const kept = evidence.history.slice(0, entry)
+  const then = kept[kept.length - 1] ?? EMPTY
+  return { snapshot: then, thoughts, history: [...kept, then], last: null }
+}
+
+/**
+ * Where the lesson was before the last line, and where it is now. The
+ * last line did something exactly when they differ.
+ *
+ * Asked of everything the line left behind, not only of a thought: a
+ * binding (`x = 10`) does a step through memory and thinks of nothing,
+ * and when this looked only at thoughts, the next step's `nudge` was
+ * asked about that right line and could call it a miss.
+ */
 function moved(lesson: Lesson, evidence: Evidence): { before: number; at: number } {
   const at = progress(lesson, evidence)
-  const last = evidence.last
-  // Only a line that made a thought can have moved an ordered lesson, and
-  // that thought is the newest one.
-  if (!last?.ok || !last.thought || evidence.thoughts.length === 0) return { before: at, at }
-  const before = progress(lesson, { ...evidence, thoughts: evidence.thoughts.slice(0, -1) })
-  return { before, at }
+  const was = beforeLast(evidence)
+  return { before: was === evidence ? at : progress(lesson, was), at }
 }
 
 /** The thought that finished step `i`: exact for an ordered lesson, and
@@ -517,6 +552,38 @@ export function guidance(lesson: Lesson, evidence: Evidence): Utterance {
  * passes a line today; a script is welcome whenever it has beats to tell.
  */
 export type Spoken = { text: string; speaker?: string | undefined; script?: ScriptItem[] | undefined }
+
+/* --------------------------------- cloud --------------------------------- */
+
+/**
+ * Where a step's telling began, for the robot's cloud: the newest thought
+ * then (`stale`), and — when the line that moved the lesson on made it —
+ * that same thought as the `answer` the praise is about. Taken once when
+ * the step changes; view state, like the index into the script.
+ */
+export type CloudFrom = { stale: Heard | undefined; answer: Heard | undefined }
+
+/**
+ * What the robot's cloud shows at an item of the script.
+ *
+ * A beat's demonstration thought, while that beat shows (`''` for an
+ * empty cloud). Otherwise the robot's newest real thought — but only for
+ * as long as it belongs to what is being told: a thought made since this
+ * step began, or the answer, while its praise is read. A thought from a
+ * step already done is not what the robot is thinking about now, and
+ * left up it read as an answer to the next question: `42` over "Ask for
+ * it back: `x`".
+ *
+ * Compared by identity: `thoughts` only grows (or starts over, for a
+ * practice exercise), so a newest thought that is not the one the step
+ * began with was thought since.
+ */
+export function cloud(item: ScriptItem | undefined, newest: Heard | undefined, from: CloudFrom): string | null {
+  if (item?.thought !== undefined) return item.thought
+  if (newest === undefined) return null
+  if (newest !== from.stale) return newest.repr
+  return item?.kind === 'praise' && newest === from.answer ? newest.repr : null
+}
 
 /* -------------------------------- staging -------------------------------- */
 

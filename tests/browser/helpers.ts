@@ -6,6 +6,7 @@
  * the journeys that import it.
  */
 import { expect, type Page } from '@playwright/test'
+import { OPS_ANSWERS } from './ops'
 
 /** What `beat()` reports: the line being told, and where it sits in its
  *  step's script. */
@@ -125,9 +126,10 @@ export const reprs = (page: Page) =>
 export const targetOf = (page: Page, name: string) =>
   page.evaluate((n) => window.botgineer.snapshot().bindings.find((b) => b.name === n)?.target ?? null, name)
 
-/** Lines that answer the operations level right, in order. The bubble
- *  journeys use its longest lines and widest values. */
-export const OPS = ['7 * 6', '9 / 2', '8 / 2', '20 - 7', '3 > 5', '2 + 2 == 4', '"bot" + "gineer"', '"ha" * 3', '2 + 3 * 4', '(2 + 3) * 4']
+/** Lines that answer the operations level right, in order (`ops.ts`,
+ *  which the unit suite holds to the lesson). The bubble journeys use its
+ *  longest lines and widest values. */
+export const OPS: string[] = OPS_ANSWERS.map(([source]) => source)
 
 /** Waits for the speech bubble and its tail to stop moving: a change of
  *  speaker slides them across (a CSS transition), and anything measured
@@ -142,4 +144,35 @@ export async function speechSettled(page: Page) {
       ),
     )
     .toBe(false)
+}
+
+/** What floats over the stage and could stand on a control: the hint
+ *  strip, the speech, the thought, the takeaway. The strip takes no
+ *  clicks (`pointer-events: none`), so `elementFromPoint` sees through it
+ *  just as a click does — and a player's eye does not; hence boxes too. */
+export const OVERLAYS = ['.stage-foot', '[data-testid="guide"]', '[data-testid="thought"]', '[data-testid="takeaway"]']
+
+/** Whether a control can be seen and pressed where it stands: in the
+ *  viewport, the topmost thing at its centre (or inside it) — so anything
+ *  drawn over it fails, as it would fail a finger — and clear of every
+ *  overlay's box (`under` names the ones it is not). Scrolls it into view
+ *  first, as a player would. */
+export async function reachable(
+  page: Page,
+  testId: string,
+  overlays: string[] = OVERLAYS,
+): Promise<{ inView: boolean; onTop: string | true; under: string[] }> {
+  const el = page.getByTestId(testId)
+  await el.scrollIntoViewIfNeeded()
+  return el.evaluate((node, sels) => {
+    const b = node.getBoundingClientRect()
+    const x = (b.left + b.right) / 2
+    const y = (b.top + b.bottom) / 2
+    const inView = b.top >= 0 && b.left >= 0 && b.bottom <= innerHeight && b.right <= innerWidth
+    const hit = document.elementFromPoint(x, y)
+    const onTop = hit !== null && (hit === node || node.contains(hit)) ? true : (hit?.className?.toString() ?? 'nothing')
+    const hits = (o: DOMRect) => !(o.right <= b.left || b.right <= o.left || o.bottom <= b.top || b.bottom <= o.top)
+    const under = sels.filter((sel) => [...document.querySelectorAll(sel)].some((o) => o !== node && !o.contains(node) && hits(o.getBoundingClientRect())))
+    return { inView, onTop, under }
+  }, overlays)
 }

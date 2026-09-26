@@ -17,7 +17,10 @@ type Props = {
   /** Which axis the gutter moves along: 'vertical' sits between columns and
    *  drags left/right; 'horizontal' sits between rows and drags up/down. */
   orientation: Orientation
+  /** NaN while the pane has no size of its own yet (CSS decides it), in
+   *  which case `measure` says what it is when a drag or a key starts. */
   value: number
+  measure?: () => number
   onChange: (next: number) => void
   min: number
   max: number
@@ -27,9 +30,10 @@ type Props = {
   label: string
 }
 
-export function Gutter({ orientation, value, onChange, min, max, invert, label }: Props) {
+export function Gutter({ orientation, value, measure, onChange, min, max, invert, label }: Props) {
   const dragging = useRef<{ start: number; from: number } | null>(null)
   const clamp = useCallback((n: number) => Math.min(max, Math.max(min, n)), [min, max])
+  const current = () => (Number.isFinite(value) ? value : clamp(measure?.() ?? min))
 
   useEffect(() => {
     const move = (e: PointerEvent) => {
@@ -57,14 +61,14 @@ export function Gutter({ orientation, value, onChange, min, max, invert, label }
       role="separator"
       aria-orientation={orientation}
       aria-label={label}
-      aria-valuenow={Math.round(value)}
+      aria-valuenow={Number.isFinite(value) ? Math.round(value) : undefined}
       aria-valuemin={min}
       aria-valuemax={max}
       tabIndex={0}
       onPointerDown={(e) => {
         dragging.current = {
           start: orientation === 'vertical' ? e.clientX : e.clientY,
-          from: value,
+          from: current(),
         }
         document.body.classList.add('dragging')
       }}
@@ -75,7 +79,7 @@ export function Gutter({ orientation, value, onChange, min, max, invert, label }
         if (e.key !== back && e.key !== fwd) return
         e.preventDefault()
         const dir = (e.key === fwd ? 1 : -1) * (invert ? -1 : 1)
-        onChange(clamp(value + dir * step))
+        onChange(clamp(current() + dir * step))
       }}
     />
   )

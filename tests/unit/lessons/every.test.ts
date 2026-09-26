@@ -5,9 +5,10 @@
  * (docs/PEDAGOGY.md R2).
  */
 import { describe, expect, it } from 'vitest'
-import { LESSONS, guidance, progress, script, type Evidence, type Lesson } from '../../../content/lessons'
+import { LESSONS, guidance, operations, progress, script, type Evidence, type Lesson } from '../../../content/lessons'
 import { ACTIVITIES } from '../../../content/activities'
-import { EMPTY, NOTHING, over, snap, th, value } from './fixtures'
+import { EMPTY, NOTHING, line, over, snap, th, typed, value } from './fixtures'
+import { OPS_ANSWERS } from '../../browser/ops'
 import type { Binding } from '../../../src/memory/model'
 
 const ALL: Lesson[] = Object.values(LESSONS)
@@ -23,6 +24,16 @@ describe('the registry', () => {
     const named = new Set(ACTIVITIES.flatMap((a) => (a.lesson ? [a.lesson] : [])))
     for (const id of named) expect(LESSONS[id], id).toBeDefined()
     for (const id of Object.keys(LESSONS)) expect(named.has(id), `${id} is played by no activity`).toBe(true)
+  })
+})
+
+describe('what the browser journeys type', () => {
+  it('answers operations right, one step a line, in order', () => {
+    // `OPS` in tests/browser/helpers.ts. The journeys that walk the whole
+    // level (the bubble layouts) type exactly these.
+    const lines = OPS_ANSWERS.map(([source, type, repr]) => line(source, th(type, repr)))
+    expect(lines).toHaveLength(operations.steps.length)
+    for (let i = 1; i <= lines.length; i++) expect(progress(operations, typed(...lines.slice(0, i))), lines[i - 1]!.source).toBe(i)
   })
 })
 

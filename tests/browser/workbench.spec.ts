@@ -521,6 +521,57 @@ test('a block is collected over several lines before it runs', async ({ page }) 
   await expect(page.getByTestId('echo').last()).toHaveText('42')
 })
 
+test('a block indents itself: a body after a header, Tab for four more, Escape then Tab to leave', async ({ page }) => {
+  await open(page, 'sandbox')
+  await skip(page)
+  const input = page.getByTestId('console-input')
+  await input.click()
+
+  // No spaces typed: the header's Enter puts them there.
+  await page.keyboard.type('for i in range(2):')
+  await page.keyboard.press('Enter')
+  await expect(input).toHaveValue('for i in range(2):\n    ')
+  await page.keyboard.type('if i:')
+  await page.keyboard.press('Enter')
+  await expect(input).toHaveValue('for i in range(2):\n    if i:\n        ')
+  // Backspace in the indent takes a level back; Tab puts it back, and the
+  // line keeps the focus.
+  await page.keyboard.press('Backspace')
+  await expect(input).toHaveValue('for i in range(2):\n    if i:\n    ')
+  await page.keyboard.press('Tab')
+  await expect(input).toHaveValue('for i in range(2):\n    if i:\n        ')
+  await expect(input).toBeFocused()
+  await page.keyboard.type('print(i)')
+  // Enter keeps the body's indent; Enter on that indent alone closes the
+  // block and sends it.
+  await page.keyboard.press('Enter')
+  await expect(input).toHaveValue('for i in range(2):\n    if i:\n        print(i)\n        ')
+  await page.keyboard.press('Enter')
+  await expect(page.getByTestId('robot-panel')).toHaveAttribute('data-busy', 'no', { timeout: 60_000 })
+  expect(await page.evaluate(() => window.botgineer.state().history)).toEqual([
+    'for i in range(2):\n    if i:\n        print(i)',
+  ])
+  await expect(page.locator('.said.out').last()).toHaveText('1')
+
+  // Outside a block, Tab moves on as it does anywhere.
+  await input.click()
+  await page.keyboard.type('x = 1')
+  await page.keyboard.press('Tab')
+  await expect(input).not.toBeFocused()
+  await expect(input).toHaveValue('x = 1')
+
+  // In one, Escape keeps what was typed and hands Tab back.
+  await input.fill('')
+  await input.click()
+  await page.keyboard.type('def f():')
+  await page.keyboard.press('Enter')
+  await page.keyboard.press('Escape')
+  await expect(input).toHaveValue('def f():\n    ')
+  await page.keyboard.press('Tab')
+  await expect(input).not.toBeFocused()
+  await expect(input).toHaveValue('def f():\n    ')
+})
+
 /* ------------------------------- the floor ------------------------------- */
 
 /** Feet-to-floor gap in px for every standing actor, at the current shape. */
@@ -826,6 +877,66 @@ test('memory fills in beside the console, without switching to it', async ({ pag
   await expect(page.getByTestId('console')).toBeVisible()
 })
 
+test('a console gives memory most of the column, and the gutter really moves it', async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 800 })
+  const heights = () =>
+    page.evaluate(() => ({
+      views: document.querySelector('.views')!.getBoundingClientRect().height,
+      memory: document.querySelector('.memory-view')!.getBoundingClientRect().height,
+      instrument: document.querySelector('.instrument')!.getBoundingClientRect().height,
+    }))
+  await open(page, 's3-ideas')
+  const h = await heights()
+  // A line and its answer is all the console needs; memory is the picture.
+  expect(h.memory / h.views).toBeGreaterThan(0.55)
+  expect(h.instrument).toBeGreaterThanOrEqual(96)
+
+  // Seven names, one a line: the first is still on screen after the last.
+  for (const line of ['a = 1', 'b = 2', 'c = 3', 'd = 4', 'e = 5', 'f = 6', 'g = 7']) await page.evaluate((l) => window.botgineer.say(l), line)
+  await stillness(page)
+  const graph = (await page.getByTestId('graph').boundingBox())!
+  for (const name of ['a', 'g']) {
+    const b = (await page.getByTestId(`node-${name}`).boundingBox())!
+    expect(b.y, name).toBeGreaterThanOrEqual(graph.y)
+    expect(b.y + b.height, name).toBeLessThanOrEqual(graph.y + graph.height)
+  }
+
+  // The gutter moves the split (it once only moved its own number), and
+  // the split is remembered.
+  const gutter = page.getByRole('separator', { name: 'Resize memory' })
+  await gutter.focus()
+  await page.keyboard.press('Shift+ArrowDown')
+  await expect.poll(async () => (await heights()).memory).toBeLessThan(h.memory - 30)
+  const dragged = (await heights()).memory
+  await page.reload()
+  await expect(page.locator('.app')).toHaveAttribute('data-boot', 'ready', { timeout: 60_000 })
+  expect(Math.abs((await heights()).memory - dragged)).toBeLessThan(2)
+
+  // An editor keeps its own split, and its lines.
+  await open(page, EDITOR)
+  expect((await heights()).memory).toBe(280)
+})
+
+test("a list's indices and a dict's keys are on the arrows, without picking anything", async ({ page }) => {
+  await open(page, 'sandbox')
+  await say(page, 'xs = [10, 20, 10]')
+  await say(page, 'ages = {"ann": 30}')
+  await stillness(page)
+  // Two slots holding one object are one arrow, so they share a label.
+  await expect
+    .poll(() => page.getByTestId('slot-label').evaluateAll((ls) => ls.map((l) => l.textContent).sort()))
+    .toEqual(["'ann'", '0, 2', '1'])
+  // Each stands beside its own arrow, clear of every card.
+  const clear = await page.evaluate(() => {
+    const cards = [...document.querySelectorAll('.node')].map((n) => n.getBoundingClientRect())
+    return [...document.querySelectorAll('[data-testid="slot-label"]')].every((l) => {
+      const b = l.getBoundingClientRect()
+      return b.width > 0 && cards.every((c) => c.right <= b.left || b.right <= c.left || c.bottom <= b.top || b.bottom <= c.top)
+    })
+  })
+  expect(clear).toBe(true)
+})
+
 test('an object card leads with its value, and hides its handle', async ({ page }) => {
   await open(page, 'sandbox')
   // Named, because an unnamed value is never in memory to draw.
@@ -1079,8 +1190,8 @@ for (const width of [null, 320]) {
     // longest line — the outro — beside the last value. Asserting after
     // the first line alone measured the lesson's shortest sentence.
     const moments: [string[], string][] = [
-      [OPS.slice(0, 7), "'botgineer'"],
-      [OPS.slice(7), '20'],
+      [OPS.slice(0, OPS.indexOf('"bot" + "gineer"') + 1), "'botgineer'"],
+      [OPS.slice(OPS.indexOf('"bot" + "gineer"') + 1), '20'],
     ]
     for (const [lines, value] of moments) {
       for (const line of lines) await say(page, line)
@@ -1183,4 +1294,66 @@ test('no bubble covers a character, whoever is speaking', async ({ page }) => {
     return out
   })
   expect(clashes).toEqual([])
+})
+
+/* ------------------------ the cloud and the next step ------------------------ */
+
+test("a thought belongs to its step: it stays for the praise and goes with it", async ({ page }) => {
+  await open(page, 'names')
+  await say(page, '7 * 6')
+  // Read over the praise for working it out.
+  await expect(page.getByTestId('guide')).toHaveAttribute('data-kind', 'praise')
+  await expect(page.getByTestId('thought')).toHaveText('42')
+
+  await say(page, 'x = 10')
+  // A binding did this step: it thought of nothing, and 42 is from the
+  // step before. Left up, it read as an answer to the question after.
+  await expect(page.getByTestId('guide')).toHaveAttribute('data-kind', 'praise')
+  await expect(page.getByTestId('thought')).toHaveCount(0)
+  await skip(page)
+  // And the right line is not answered as a miss to the next step.
+  await expect(page.getByTestId('guide')).toHaveAttribute('data-kind', 'ask')
+  await expect(page.getByTestId('guide')).toContainText('Ask for it back')
+  await expect(page.getByTestId('thought')).toHaveCount(0)
+
+  // What is thought of in this step shows, as ever.
+  await say(page, 'x')
+  await expect(page.getByTestId('thought')).toHaveText('10')
+})
+
+/* ------------------------------ practice pacing ------------------------------ */
+
+type Exercise = { answer: string; at: number }
+const exercise = (page: Page) =>
+  page.evaluate(() => (window.botgineer as unknown as { exercise: () => Exercise | null }).exercise())
+
+test('say() during a practice praise waits for the next exercise to start, and the line counts', async ({ page }) => {
+  await open(page, 'practice-thinking')
+  await expect.poll(() => page.evaluate(() => window.botgineer.state().busy)).toBe(false)
+  const first = (await exercise(page))!
+  await say(page, first.answer)
+  await expect.poll(async () => (await exercise(page))?.at).toBe(first.at + 1)
+  await expect(page.getByTestId('guide')).toHaveAttribute('data-kind', 'praise')
+  // The praise is read over the answer: the next exercise has not started,
+  // so the console still holds the line just answered.
+  await expect(page.getByTestId('console')).toContainText(first.answer)
+
+  // Straight from the praise, through the test surface: it passes the
+  // praise, waits for the clean console and setup, then types. Typed at
+  // once, the line ran at the last exercise's memory and was lost.
+  const second = (await exercise(page))!
+  await page.evaluate((line) => window.botgineer.say(line), second.answer)
+  await expect.poll(async () => (await exercise(page))?.at).toBe(second.at + 1)
+  await expect(page.locator('.practice-seg').nth(second.at)).toHaveClass(/right/)
+  expect(await page.evaluate(() => window.botgineer.state().history)).toContain(second.answer)
+
+  // Back is offered on a line past a praise, and returns to it (when the
+  // exercise has a lead: at its question the controls give way to the
+  // console).
+  await expect(page.getByTestId('guide')).toHaveAttribute('data-kind', 'praise')
+  await page.evaluate(() => window.botgineer.next())
+  if (await page.evaluate(() => window.botgineer.beat().listening)) {
+    await page.getByTestId('beat-back').click()
+    await expect(page.getByTestId('guide')).toHaveAttribute('data-kind', 'praise')
+  }
 })

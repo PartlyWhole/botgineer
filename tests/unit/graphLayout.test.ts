@@ -14,6 +14,8 @@ import {
   ease,
   frame,
   grid,
+  LABEL_CHAR,
+  LABEL_ROOM,
   MAX_K,
   MIN_K,
   NAME_GAP,
@@ -23,6 +25,7 @@ import {
   OVERVIEW_MIN_K,
   place,
   scrolled,
+  slotLabel,
   transformOf,
   type LayoutInput,
   type Placed,
@@ -144,6 +147,28 @@ describe('the grid', () => {
     expect(at(p, 'v:1').x - 30 - (at(p, 'o:L').x + 30)).toBe(COL_GAP)
   })
 
+  it('widens the gap in front of a column to hold the slot labels on the arrows into it', () => {
+    const m: Mem = { names: [['ages', 'o:D']], children: { 'o:D': ['v:30', 'v:25'] } }
+    const inp = input(m)
+    // `'customer'` is 10 characters: wider than the plain gap allows.
+    const w = slotLabel("'customer'").w
+    expect(w + LABEL_ROOM).toBeGreaterThan(COL_GAP)
+    const p = place({ ...inp, labelW: new Map([['v:30', w], ['v:25', slotLabel("'bo'").w]]) }, sized(grid(inp).keys()))
+    expect(at(p, 'v:30').x - 30 - (at(p, 'o:D').x + 30)).toBe(w + LABEL_ROOM)
+    // Short labels — a list's indices — fit the plain gap, which stays.
+    const q = place({ ...inp, labelW: new Map([['v:30', slotLabel('0').w], ['v:25', slotLabel('1').w]]) }, sized(grid(inp).keys()))
+    expect(at(q, 'v:30').x - 30 - (at(q, 'o:D').x + 30)).toBe(COL_GAP)
+    // And the name column's gap is not touched by labels further right.
+    expect(at(p, 'o:D').x).toBe(at(q, 'o:D').x)
+  })
+
+  it('cuts a long slot label short, so one key cannot push the grid across the pane', () => {
+    expect(slotLabel('0')).toEqual({ text: '0', w: Math.ceil(LABEL_CHAR) })
+    const long = slotLabel("'a very long key indeed'")
+    expect(long.text).toHaveLength(12)
+    expect(long.text.endsWith('…')).toBe(true)
+  })
+
   it('lays the same memory out the same way twice', () => {
     const m: Mem = { names: [['a', 'o:1'], ['b', 'o:1'], ['c', 'o:2']], children: { 'o:1': ['v:x', 'v:y'] } }
     expect([...layout(m)]).toEqual([...layout(m)])
@@ -210,10 +235,27 @@ describe('the arrows', () => {
     expect(d[d.length - 1]).toBeLessThan(100 - 15)
   })
 
-  it('puts a label near the far end and above the line', () => {
-    const c = curve(box(0, 0), box(300, 0))
-    expect(c.label.x).toBeGreaterThan(150)
-    expect(c.label.y).toBeLessThan(0)
+  it('stands a slot label halfway along the arrow, above it', () => {
+    const c = curve(box(0, 0), box(300, 40))
+    expect(c.label.anchor).toBe('middle')
+    expect(c.label.x).toBeCloseTo((30 + 300 - 30 - 4) / 2, 5)
+    expect(c.label.y).toBeCloseTo(20 - 4, 5)
+  })
+
+  it('keeps apart the labels of a fan, and of arrows converging on one card', () => {
+    // One list's slots 0..2 into three rows, and a second list's slot into
+    // the first list's row-1 element: every label at its own place.
+    const list = box(0, 0)
+    const other = box(0, 150)
+    const labels = [curve(list, box(200, 0)), curve(list, box(200, 50)), curve(list, box(200, 100)), curve(other, box(200, 50))].map((c) => c.label)
+    for (let i = 0; i < labels.length; i++)
+      for (let j = i + 1; j < labels.length; j++) expect(Math.abs(labels[i]!.y - labels[j]!.y)).toBeGreaterThanOrEqual(20)
+  })
+
+  it('stands it on the loop of an arrow back to something already drawn', () => {
+    const c = curve(box(300, 100), box(100, 0))
+    expect(c.label.x).toBeGreaterThan(100 + 30)
+    expect(c.label.y).toBeLessThan(100)
   })
 })
 

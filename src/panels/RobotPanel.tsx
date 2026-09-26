@@ -15,7 +15,7 @@
  * The transport and the transcript stay put across both views, so a run
  * can be started and scrubbed while looking at either.
  */
-import type { ReactNode } from 'react'
+import { useRef, type ReactNode } from 'react'
 import { CodeEditor, type EditorApi } from '../ui/CodeEditor'
 import { RobotConsole, type Exchange } from '../ui/RobotConsole'
 import { Gutter, useRemembered } from '../ui/Split'
@@ -87,10 +87,20 @@ export function RobotPanel({
   const talking = mode === 'console'
   const reading = mode === 'read'
   // Remembered, because how much room memory deserves depends on what the
-  // player is doing with it.
-  // Reading keeps its own: the questions need the room above memory, and
-  // memory stays empty until the commit.
-  const [memoryH, setMemoryH] = useRemembered(reading ? 'botgineer.rp.memory.read' : 'botgineer.rp.memory', reading ? 220 : 280)
+  // player is doing with it, and each mode keeps its own.
+  // Reading: the questions need the room above memory, and memory stays
+  // empty until the commit. The editor: a program wants the lines.
+  // The console wants little — a line or two and what came back — while
+  // memory is the picture a console lesson is about, and its names pile up
+  // a line at a time: at a fixed 280px the stage-ideas lessons scrolled
+  // their first names away by the fifth line. So until the player drags
+  // it, the console's memory is a share of the column (`--memory-h` left
+  // unset, `styles.css`) rather than a number of pixels.
+  const [memoryH, setMemoryH] = useRemembered(
+    reading ? 'botgineer.rp.memory.read' : talking ? 'botgineer.rp.memory.console' : 'botgineer.rp.memory',
+    reading ? 220 : talking ? NaN : 280,
+  )
+  const memoryRef = useRef<HTMLDivElement | null>(null)
 
   return (
     <div
@@ -107,7 +117,10 @@ export function RobotPanel({
           made it. A strip of memory under the console was the first
           attempt; the real view, resizable, is better than an abridgement
           of it, and it is the same snapshot either way. */}
-      <div className="views">
+      <div
+        className="views"
+        style={Number.isFinite(memoryH) ? { ['--memory-h' as string]: `${memoryH}px` } : undefined}
+      >
         <div
           className={`view instrument ${focus === 'console' ? 'pulse' : ''} ${asked ? 'glow' : ''}`}
           data-testid="instrument"
@@ -139,14 +152,19 @@ export function RobotPanel({
         <Gutter
           orientation="horizontal"
           value={memoryH}
+          measure={() => memoryRef.current?.offsetHeight ?? 280}
           onChange={setMemoryH}
           min={120}
-          max={620}
+          max={talking ? 900 : 620}
           invert
           label="Resize memory"
         />
 
-        <div className={`view memory-view ${focus === 'memory' ? 'pulse' : ''}`} data-focus={focus === 'memory' ? 'yes' : 'no'}>
+        <div
+          ref={memoryRef}
+          className={`view memory-view ${focus === 'memory' ? 'pulse' : ''}`}
+          data-testid="memory-view"
+          data-focus={focus === 'memory' ? 'yes' : 'no'}>
           {memory}
         </div>
       </div>

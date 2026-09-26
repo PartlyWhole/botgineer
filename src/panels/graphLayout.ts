@@ -37,6 +37,24 @@
  *
  * What it costs: dragging, and the organic look. A card cannot be put
  * somewhere by hand when its place is a property of the program.
+ *
+ * ## Slot labels
+ *
+ * A list's arrows are labelled with their index and a dict's with their
+ * key, always — not only when the card is picked, which is how it started.
+ * Those labels are the whole of what indexing and keys *are* (Stages 3 and
+ * 6 are about nothing else), so hiding them behind a click hid the lesson.
+ * They sit halfway along the arrow. Not at its head: equal values are one
+ * object (invariant 4), so `[10, 20, 10]` and an aliased element bring
+ * several arrows into one card at one point, and labels there land on
+ * each other. Not at its tail either, where a fan leaves from one point.
+ * Halfway, arrows from one card to different rows, or from different
+ * cards to one, are apart — a fan's indices step down the gap one half-row
+ * at a time. Two slots of one collection holding the same object are one
+ * arrow drawn twice, so they share one label, `0, 2`. The gap in front
+ * of a column is widened to fit its longest label (`labelW`), which is a
+ * property of memory like a card's width, and labels are cut short
+ * (`slotLabel`) so one long key cannot push the grid across the pane.
  */
 
 export type NodeKind = 'name' | 'object'
@@ -47,6 +65,9 @@ export type LayoutInput = {
   names: { id: string; scope: string; target: string }[]
   /** Each object's pointers, in element order. */
   children: Map<string, string[]>
+  /** The widest slot label on an arrow into each object, px (`slotLabel`).
+   *  Absent: no labels, and every gap is the plain `COL_GAP`. */
+  labelW?: Map<string, number>
 }
 
 export type Size = { w: number; h: number }
@@ -62,6 +83,9 @@ export const ROW_GAP = 10
 export const NAME_GAP = 72
 /** Space between object columns. */
 export const COL_GAP = 56
+/** Room in a gap beyond its widest label: the arrowhead, and enough bare
+ *  line before the label to read as an arrow. */
+export const LABEL_ROOM = 26
 /** Rows left empty between one scope's names and the next scope's. */
 const SCOPE_GAP_ROWS = 0.5
 
@@ -150,11 +174,16 @@ export function place(input: LayoutInput, sizes: Map<string, Size>): Map<string,
   }
   pitch += ROW_GAP
 
+  // The gap in front of each column holds the labels on the arrows into it.
+  const labels: number[] = []
+  for (const [id, c] of cells) labels[c.col] = Math.max(labels[c.col] ?? 0, input.labelW?.get(id) ?? 0)
+
   const lefts: number[] = []
   let x = 0
   for (let c = 0; c < widths.length; c++) {
     lefts[c] = x
-    x += (widths[c] ?? 0) + (c === 0 ? NAME_GAP : COL_GAP)
+    const room = (labels[c + 1] ?? 0) > 0 ? (labels[c + 1] ?? 0) + LABEL_ROOM : 0
+    x += (widths[c] ?? 0) + Math.max(c === 0 ? NAME_GAP : COL_GAP, room)
   }
 
   const out = new Map<string, Placed>()
@@ -174,16 +203,29 @@ type Box = { x: number; y: number; w: number; h: number }
 export type Curve = {
   /** SVG path data. */
   d: string
-  /** Where a pointer's label goes. */
-  label: { x: number; y: number }
+  /** Where a pointer's label goes, and which of its ends is there (SVG's
+   *  `text-anchor`). */
+  label: { x: number; y: number; anchor: 'start' | 'middle' | 'end' }
 }
 
-/** How close to its target a label sits along the curve, 0..1. Near the
- *  far end, so a list's indices land next to the elements they name
- *  instead of in a ring around the list. */
-const LABEL_T = 0.8
-/** Label height above the curve. */
-const LABEL_OFF = 8
+/** Where along the arrow a label stands, 0..1. */
+const LABEL_T = 0.5
+/** Label baseline above the arrow. */
+const LABEL_OFF = 4
+/** A slot label's width per character, px: the edge label's monospace at
+ *  its larger (picked) size, so a picked label never outgrows its gap —
+ *  which it straddles, centred. */
+export const LABEL_CHAR = 6.7
+/** Longest slot label drawn whole. */
+const LABEL_MAX = 12
+
+/** A slot label as drawn — cut short past `LABEL_MAX` characters — and
+ *  the room it needs. */
+export function slotLabel(label: string): { text: string; w: number } {
+  const text = label.length > LABEL_MAX ? `${label.slice(0, LABEL_MAX - 1)}…` : label
+  return { text, w: Math.ceil(text.length * LABEL_CHAR) }
+}
+
 /** How far an arrowhead stops short of the card it points at. */
 const TIP = 4
 
@@ -213,7 +255,7 @@ export function curve(a: Box, b: Box): Curve {
     const cx = a.x + a.w / 4
     const top = a.y - a.h / 2
     const d = `M ${ax} ${a.y} C ${ax + 44} ${a.y} ${cx + 10} ${top - 42} ${cx} ${top - TIP}`
-    return { d, label: { x: ax + 20, y: top - 22 } }
+    return { d, label: { x: ax + 20, y: top - 22, anchor: 'middle' } }
   }
 
   const forward = b.x - b.w / 2 - TIP > ax + 8
@@ -225,6 +267,7 @@ export function curve(a: Box, b: Box): Curve {
   const label = {
     x: cubic(ax, c1x, c2x, ex, LABEL_T),
     y: cubic(a.y, a.y, b.y, b.y, LABEL_T) - LABEL_OFF,
+    anchor: 'middle' as const,
   }
   return { d, label }
 }

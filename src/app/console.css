@@ -156,9 +156,26 @@
   z-index: 3;
 }
 
-/* Room for the tail under the speech. */
+/* Room for the tail under the speech, and above for the thought's puffs,
+   which are drawn about 9px outside its box: at the top of a full rail
+   they were cut off by the stage's edge. */
 .stage .bubble-rail.with-speech {
   padding-bottom: 14px;
+}
+.stage .bubble-rail {
+  padding-top: 10px;
+}
+
+/* The rail's room starts under whatever runs along the top of the stage:
+   the beat bar, or the practice meter. At `top: 0` a tall line filled the
+   rail to its top, and the speaker's name pill sat on the bar — or on the
+   meter, hiding which question the player was on. (Reading's short stage
+   runs its bar along the foot instead.) */
+.scene-panel:not(.compact) .stage:has(> .beat-bar) > .bubble-rail {
+  top: 16px;
+}
+.scene-panel:not(.compact) .stage:has(> .practice-meter) > .bubble-rail {
+  top: 24px;
 }
 
 /* One auto margin, on whichever comes first. Two would split the free
@@ -194,6 +211,9 @@
      the width; `left` then slides that box towards the speaker without
      taking any room away from it. */
   position: relative;
+  /* Slid towards the speaker by `--shift` percent of the stage, set by the
+     scene from the 31–69 clamp (`bubbleX`). */
+  left: calc(var(--shift, 0) * 1%);
   margin-left: auto;
   margin-right: auto;
   /* Room above for the name tag, reserved in flow: the tag hangs off the
@@ -460,7 +480,11 @@
 .stage .beat-controls {
   position: absolute;
   left: 50%;
-  bottom: 14px;
+  /* Above the hint strip when there is one (`--foot`, measured by the
+     scene): the strip floats over the bottom of the stage, and Next under
+     it could be neither seen nor pressed. Everything else that stands on
+     the bottom edge takes the same lift. */
+  bottom: calc(14px + var(--foot, 0px));
   z-index: 5;
   display: flex;
   align-items: center;
@@ -518,63 +542,13 @@
   outline-offset: 3px;
 }
 
-/* At the question, Next gives way to this: where the answer goes. The
-   console is the panel to the right, so it points right, and a dotted
-   lead runs off towards it. */
-.stage .ask-pointer {
-  position: absolute;
-  right: 14px;
-  bottom: 14px;
-  z-index: 4;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 0;
-  pointer-events: none;
-  color: var(--brand-deep);
-  font: 800 14px/1 'Nunito', ui-rounded, system-ui, sans-serif;
-}
-
-.stage .ask-pointer-text {
-  padding: 7px 12px;
-  border-radius: 999px;
-  border: 2px dashed var(--brand-line);
-  background: var(--surface);
-}
-
-.stage .ask-pointer::after {
-  content: '';
-  width: 14px;
-  border-top: 3px dotted var(--brand);
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .stage .ask-pointer {
-    animation: pointer-in 260ms ease-out both;
-  }
-  .stage .ask-pointer-text {
-    animation: pointer-nudge 1.6s ease-in-out 400ms infinite;
-  }
-  @keyframes pointer-in {
-    from {
-      opacity: 0;
-      translate: -8px 0;
-    }
-  }
-  @keyframes pointer-nudge {
-    50% {
-      translate: 4px 0;
-    }
-  }
-}
-
 /* The lesson in a sentence or two, once it is all said. Beside the
    Continue button, never under it. */
 .stage .takeaway {
   position: absolute;
   left: 14px;
   right: 128px;
-  bottom: 12px;
+  bottom: calc(12px + var(--foot, 0px));
   z-index: 4;
   display: flex;
   align-items: center;
@@ -609,6 +583,52 @@
 @media (prefers-reduced-motion: no-preference) {
   .stage .takeaway {
     animation: advance-in 260ms ease-out both;
+  }
+}
+
+/* ---------------------------- a narrow stage ----------------------------
+
+   A phone, or the scene dragged to its narrowest. The cast and the
+   pictures shrink with the stage; the words cannot, much, and stay
+   readable. So the bubble takes most of the width — wrapping to two lines
+   rather than five, which is what kept it clear of the cast and the
+   picture — and slides less far towards its speaker, since a wider body
+   has less room to slide (the tail still points at them). The things on
+   the bottom edge come down a little and slim, so they stand in the strip
+   under the floor, below the question and the answer. */
+@container stage (max-width: 480px) {
+  /* Reading's short stage sizes its own bubble (`read.css`). */
+  .scene-panel:not(.compact) .stage .bubble {
+    max-width: min(380px, 88%);
+    left: clamp(-6%, calc(var(--shift, 0) * 1%), 6%);
+    padding: 11px 15px 9px;
+    font-size: 15.5px;
+    line-height: 1.45;
+  }
+  .scene-panel:not(.compact) .stage .bubble.telling {
+    padding-right: 24px;
+  }
+  .stage .beat-controls {
+    bottom: calc(8px + var(--foot, 0px));
+  }
+  .stage .beat-next {
+    padding: 8px 24px;
+    font-size: 15px;
+  }
+  .stage .beat-back {
+    width: 32px;
+    height: 32px;
+  }
+  /* The takeaway takes the whole width, over Continue rather than beside
+     it: beside it, it was a column two words wide. */
+  .stage .takeaway {
+    right: 14px;
+    bottom: calc(50px + var(--foot, 0px));
+    padding: 6px 8px 6px 12px;
+    font-size: 12.5px;
+  }
+  .stage > .advance {
+    bottom: calc(10px + var(--foot, 0px));
   }
 }
 
@@ -749,7 +769,7 @@
 .stage > .advance {
   position: absolute;
   right: 14px;
-  bottom: 14px;
+  bottom: calc(14px + var(--foot, 0px));
   z-index: 4;
   padding: 7px 16px;
   border-radius: 999px;

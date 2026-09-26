@@ -30,6 +30,7 @@ import {
   overview,
   place,
   scrolled,
+  slotLabel,
   svgTransformOf,
   transformOf,
   type Camera,
@@ -102,18 +103,27 @@ export function MemoryGraph({ snapshot, handles, runKey, picked, onPick, fit = f
     }))
     const objects = Object.values(snapshot.objects).map((o) => `o:${o.id}`)
     const children = new Map<string, string[]>()
+    /** The widest slot label into each object, for the gap in front of it. */
+    const labelW = new Map<string, number>()
     const edges: Edge[] = []
     for (const n of names) edges.push({ from: n.id, to: n.target, label: null, key: `${n.id}>${n.target}` })
     for (const o of Object.values(snapshot.objects)) {
       const kids = (o.elements ?? []).map((e) => `o:${e.target}`)
       children.set(`o:${o.id}`, kids)
+      // Slots of this collection that hold the same object are one arrow
+      // drawn twice, so the first carries all their labels: `0, 2`.
+      const shared = new Map<string, string[]>()
+      for (const e of o.elements ?? []) if (e.label !== null) shared.set(e.target, [...(shared.get(e.target) ?? []), e.label])
       ;(o.elements ?? []).forEach((e, i) => {
         // Keyed by slot, not by target: `[1, 1]` is two pointers at one
         // object, and both arrows have to exist.
-        edges.push({ from: `o:${o.id}`, to: `o:${e.target}`, label: e.label, key: `o:${o.id}#${i}` })
+        const first = (o.elements ?? []).findIndex((x) => x.target === e.target) === i
+        const label = e.label === null || !first ? null : slotLabel(shared.get(e.target)!.join(', '))
+        edges.push({ from: `o:${o.id}`, to: `o:${e.target}`, label: label?.text ?? null, key: `o:${o.id}#${i}` })
+        if (label) labelW.set(`o:${e.target}`, Math.max(labelW.get(`o:${e.target}`) ?? 0, label.w))
       })
     }
-    return { names, objects, children, edges }
+    return { names, objects, children, labelW, edges }
   }, [snapshot])
 
   const pickedId =
@@ -161,6 +171,7 @@ export function MemoryGraph({ snapshot, handles, runKey, picked, onPick, fit = f
       if (label) {
         label.setAttribute('x', String(c.label.x))
         label.setAttribute('y', String(c.label.y))
+        label.setAttribute('text-anchor', c.label.anchor)
       }
     }
   }
@@ -240,6 +251,7 @@ export function MemoryGraph({ snapshot, handles, runKey, picked, onPick, fit = f
     const input: LayoutInput = {
       names: orderNames(model.names, seen.current),
       children: model.children,
+      labelW: model.labelW,
     }
     const placed = place(input, sizes.current)
 
@@ -376,13 +388,17 @@ export function MemoryGraph({ snapshot, handles, runKey, picked, onPick, fit = f
                   }}
                   markerEnd="url(#tip)"
                 />
-                {lit && e.label !== null && (
+                {/* Always drawn: an index or a key is what the slot
+                    is, not a detail for when it is picked. Quiet until
+                    its arrow is lit. */}
+                {e.label !== null && (
                   <text
                     ref={(el) => {
                       if (el) labelRefs.current.set(e.key, el)
                       else labelRefs.current.delete(e.key)
                     }}
                     className="edge-label"
+                    data-testid="slot-label"
                   >
                     {e.label}
                   </text>
