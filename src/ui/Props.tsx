@@ -31,6 +31,7 @@ import {
   codeLine,
   kindOf,
   numberOf,
+  refused as refusedOf,
   shelfRoom,
   shelved,
   slotOf,
@@ -88,7 +89,8 @@ export function PropLayer({ view, role, beat }: { view: PropView; role: 'current
   }
 
   const said = view.answer
-  const refused = unworked(view)
+  const waiting = unworked(view)
+  const refused = refusedOf(view)
   return (
     <button
       ref={ref}
@@ -97,7 +99,8 @@ export function PropLayer({ view, role, beat }: { view: PropView; role: 'current
       data-role={role}
       data-prop={view.prop.kind}
       data-verdict={view.verdict ?? 'none'}
-      data-worked={refused ? 'no' : undefined}
+      data-worked={waiting ? 'no' : undefined}
+      data-refused={refused ? 'yes' : undefined}
       data-testid={role === 'current' ? 'prop' : 'prop-leaving'}
       onClick={replay}
       tabIndex={role === 'current' ? 0 : -1}
@@ -107,7 +110,7 @@ export function PropLayer({ view, role, beat }: { view: PropView; role: 'current
       <svg viewBox="0 0 200 130" className={`prop prop-${view.prop.kind}`} aria-hidden="true">
         {draw(view)}
       </svg>
-      {said && <AnswerTag key={`${said.type}:${said.repr}`} thought={said} right={view.verdict === 'right'} refused={refused} />}
+      {said && <AnswerTag key={`${said.type}:${said.repr}`} thought={said} right={view.verdict === 'right'} waiting={waiting} refused={refused} />}
     </button>
   )
 }
@@ -116,11 +119,13 @@ export function PropLayer({ view, role, beat }: { view: PropView; role: 'current
  *  picture in these lessons colours it, but never only by colour. A
  *  right number said the wrong way (`unworked`) is still what the robot
  *  thought, so the tag still shows it — outlined in amber, with a `?`
- *  where the tick would go: the value, not yet the answer. */
-function AnswerTag({ thought, right, refused }: { thought: Thought; right: boolean; refused: boolean }) {
+ *  where the tick would go: the value, not yet the answer. A miss the
+ *  picture draws refused (`refused`) is outlined in amber too, with no
+ *  mark at all: not the answer, and nothing owed but another go. */
+function AnswerTag({ thought, right, waiting, refused }: { thought: Thought; right: boolean; waiting: boolean; refused: boolean }) {
   const kind = kindOf(thought) ?? 'other'
   return (
-    <span className={`answer-tag ${refused ? 'unworked' : ''}`} data-kind={kind} data-testid="answer-tag">
+    <span className={`answer-tag ${waiting ? 'unworked' : ''} ${refused ? 'refused' : ''}`} data-kind={kind} data-testid="answer-tag">
       <span className="answer-value">{short(thought.repr, 14)}</span>
       <span className="answer-kind">{thought.type}</span>
       {right && (
@@ -128,7 +133,7 @@ function AnswerTag({ thought, right, refused }: { thought: Thought; right: boole
           ✓
         </span>
       )}
-      {refused && (
+      {waiting && (
         <span className="answer-unworked" aria-label="not worked out yet">
           ?
         </span>
@@ -229,15 +234,22 @@ function draw(view: PropView): ReactNode {
  *  five ideas, but Python has four types (R8). */
 const kindWord = (k: TypeSlot): string => (k === 'char' ? 'str · length 1' : k)
 
-/** One sentence a screen reader can say for the picture as it stands. */
+/** One sentence a screen reader can say for the picture as it stands. A
+ *  miss the picture draws refused says so, as the amber does. */
 export function describe(view: PropView): string {
+  const said = drawnAs(view)
+  return refusedOf(view) ? `${said} But the robot's ${view.answer!.repr} is not the answer yet.` : said
+}
+
+function drawnAs(view: PropView): string {
   const p = view.prop
   const a = view.answer
-  // The right number said the wrong way is described as the picture
+  // The right answer said the wrong way is described as the picture
   // draws it: still waiting (`unworked`).
-  const n = unworked(view) ? null : numberOf(a)
+  const idle = unworked(view)
+  const n = idle ? null : numberOf(a)
   const b = boolOf(a)
-  const t = textOf(a)
+  const t = idle ? null : textOf(a)
   switch (p.kind) {
     case 'lamp':
       return b === true || (a === null && p.demo === 'on')
@@ -286,7 +298,7 @@ export function describe(view: PropView): string {
         ? `Letter tiles: ${[...t].join(', ')}.`
         : n !== null
           ? `A block of ${a!.repr}.`
-          : `Blocks: ${(p.parts ?? ['7', '+', '7']).join(' ')}.${p.demo === 'stamp' ? ' The word stamps itself that many times.' : ''}`
+          : `Blocks: ${(p.parts ?? ['7', '+', '7']).join(' ')}.${p.demo === 'stamp' && !idle ? ' The word stamps itself that many times.' : ''}${waiting(view)}`
     case 'crates':
       return `${p.crates} crates with ${p.each} bolts in each.${n !== null ? ` ${a!.repr} bolts lit.` : waiting(view)}`
     case 'share':
@@ -300,13 +312,17 @@ export function describe(view: PropView): string {
     case 'expr':
       return view.verdict === 'right' ? `${p.text}: ${p.first} first, then ${p.then.join(', then ')}.` : `${p.text} = ?${waiting(view)}`
     case 'phone':
-      return a ? `A phone showing ${t ?? a.repr}.` : 'A phone, waiting for a number.'
+      return a ? `A phone showing ${textOf(a) ?? a.repr}.` : 'A phone, waiting for a number.'
     case 'door':
       return `A locked door. The robot knows: True.${t !== null ? ` A note for Mira says: ${t}.` : ''}`
     case 'card':
       return t !== null ? `A card for Mira that says: ${t}.` : 'A blank card for Mira.'
     case 'letter':
-      return n !== null ? `The letter ${p.char}, turned over: ${a!.repr}.` : `A tile with the letter ${p.char} on it.${waiting(view)}`
+      return refusedOf(view)
+        ? `A tile with the letter ${p.char} on it, not turned.`
+        : n !== null
+          ? `The letter ${p.char}, turned over: ${a!.repr}.`
+          : `A tile with the letter ${p.char} on it.${waiting(view)}`
     case 'shelf': {
       // The same room the drawing gives each slot, so the sentence lists
       // exactly the chips on the shelf.
@@ -364,8 +380,11 @@ function Lamp({ view, demo }: { view: PropView; demo: 'on' | 'off' | undefined }
   // runs, and a changed animation starts again.
   const on = view.answer ? boolOf(view.answer) === true : demo === 'on'
   const note = textOf(view.answer)
+  // A refused `True` still flips the switch — it is what the robot
+  // thought — but the lamp comes on amber, not warm: lit, and not taken.
+  const no = refusedOf(view)
   return (
-    <g className={`lamp ${on ? 'on' : ''} ${demo ? `demo-${demo}` : ''}`}>
+    <g className={`lamp ${on ? 'on' : ''} ${no ? 'refused' : ''} ${demo ? `demo-${demo}` : ''}`}>
       <circle cx="92" cy="50" r="40" className="lamp-glow" />
       <line x1="92" y1="46" x2="92" y2="126" className="pole" />
       <ellipse cx="92" cy="126" rx="18" ry="4" className="lamp-base" />
@@ -406,7 +425,7 @@ function Fish({ view }: { view: PropView }) {
   // settles nothing — the sign still asks.
   const note = textOf(view.answer)
   return (
-    <g className={`fishbowl ${b === true ? 'said-true' : b === false ? 'said-false' : ''}`}>
+    <g className={`fishbowl ${b === true ? 'said-true' : b === false ? 'said-false' : ''} ${refusedOf(view) ? 'refused' : ''}`}>
       <rect x="0" y="92" width="200" height="38" className="water" />
       <path d="M 0 92 q 12 -5 25 0 t 25 0 t 25 0 t 25 0 t 25 0 t 25 0 t 25 0 t 25 0" className="wave" />
       <g className="fish" transform="translate(52,98)">
@@ -464,6 +483,9 @@ function Basket({ view, apples, demo }: { view: PropView; apples: number; demo: 
   const count = whole + (part ? 1 : 0)
   const x0 = 100 - ((count - 1) * 17) / 2
   const shown = Math.min(apples, APPLE_AT.length)
+  // Counted to the apples and still refused (`3.0`, or `2 + 1` where the
+  // player was to count): the tokens stand, in amber, dashed.
+  const no = refusedOf(view)
   return (
     <g className={`basket ${demo ? `demo-${demo}` : ''}`}>
       {demo && (
@@ -513,7 +535,7 @@ function Basket({ view, apples, demo }: { view: PropView; apples: number; demo: 
         const extra = i >= apples
         const half = part && i === count - 1
         return (
-          <g key={i} transform={`translate(${x0 + i * 17},16)`} className={`token ${extra ? 'extra' : ''} ${half ? 'half' : ''}`}>
+          <g key={i} transform={`translate(${x0 + i * 17},16)`} className={`token ${extra ? 'extra' : ''} ${half ? 'half' : ''} ${no ? 'refused' : ''}`}>
             {half ? <path d="M 0 -7 a 7 7 0 0 0 0 14 z" /> : <circle r="7" />}
             <text y="3">{half ? '' : i + 1}</text>
           </g>
@@ -543,6 +565,11 @@ function Lift({ view, lowest, highest, demo }: { view: PropView; lowest: number;
   const at = n === null ? 0 : clamp(n, lowest, highest)
   const stuck = n !== null && !Number.isInteger(n) && n >= lowest && n <= highest
   const outside = answered !== null && (answered < lowest || answered > highest)
+  // Parked on a floor and refused (`-1.0` at the car park, or any floor
+  // but the one asked): the car arrives amber and hollow, its floor is
+  // not marked as reached, and the number the robot said is written
+  // beside it, dot and all.
+  const no = refusedOf(view)
   const list = Array.from({ length: floors }, (_, i) => highest - i)
   return (
     <g className="lift">
@@ -552,7 +579,7 @@ function Lift({ view, lowest, highest, demo }: { view: PropView; lowest: number;
       {list.map((f) => (
         <g key={f}>
           <line x1="44" x2="156" y1={top(f) + h} y2={top(f) + h} className="floor-line" />
-          <text x="36" y={top(f) + h / 2 + 3.5} className={`floor-num ${n !== null && !stuck && at === f ? 'here' : ''}`}>
+          <text x="36" y={top(f) + h / 2 + 3.5} className={`floor-num ${n !== null && !stuck && !no && at === f ? 'here' : ''}`}>
             {f}
           </text>
           {f < 0 && (
@@ -569,7 +596,7 @@ function Lift({ view, lowest, highest, demo }: { view: PropView; lowest: number;
       <rect x="116" y="6" width="30" height="118" className="shaft" />
       <g className="car-move" style={{ transform: `translateY(${top(at)}px)` }}>
         <g className="car-demo" style={{ ['--from' as string]: `${top(highest) - top(at)}px` }}>
-          <rect x="118" y="2" width="26" height={h - 4} rx="3" className={`car ${stuck ? 'stuck' : ''}`} />
+          <rect x="118" y="2" width="26" height={h - 4} rx="3" className={`car ${stuck ? 'stuck' : ''} ${no ? 'refused' : ''}`} />
           <line x1="131" x2="131" y1="4" y2={h - 4} className="car-door" />
         </g>
       </g>
@@ -578,6 +605,11 @@ function Lift({ view, lowest, highest, demo }: { view: PropView; lowest: number;
           <path d="M 0 -9 l 9 16 h -18 z" />
           <text y="5">!</text>
         </g>
+      )}
+      {no && (
+        <text x="159" y={top(at) + h / 2 + 3.5} className="refused-floor">
+          {short(view.answer!.repr, 6)}
+        </text>
       )}
       {outside && (
         <text x="172" y={answered! > highest ? 16 : 122} className="no-floor">
@@ -611,8 +643,11 @@ function Glass({ x, level, className, children }: { x: number; level: number; cl
 function Glasses({ view, level }: { view: PropView; level: number }) {
   const n = numberOf(view.answer)
   const spill = n !== null && n > 1
+  // Filled like the first and refused (typed by the robot's working where
+  // the player was to read it): the water is amber, the caption too.
+  const no = refusedOf(view)
   return (
-    <g className="glasses">
+    <g className={`glasses ${no ? 'refused' : ''}`}>
       <line x1="46" x2="52" y1="40" y2="40" className="tick" />
       <text x="42" y="43" className="tick-label end">
         1
@@ -660,8 +695,11 @@ function Height({ view }: { view: PropView }) {
   const shown = n === null ? 1.2 : clamp(n, 0.15, 2.6)
   const off = n !== null && n > 2.6
   const marks = Array.from({ length: 26 }, (_, i) => i / 10)
+  // A person drawn, and refused (a whole number of metres): the figure is
+  // outlined in amber, not filled, and so is its mark.
+  const no = refusedOf(view)
   return (
-    <g className="height">
+    <g className={`height ${no ? 'refused' : ''}`}>
       <line x1="50" x2="50" y1={floor} y2={floor - 2.5 * perM} className="ruler" />
       {marks.map((m) => {
         const y = floor - m * perM
@@ -709,8 +747,11 @@ function Carton({ view, slots }: { view: PropView; slots: number }) {
   const eggs = n === null ? 0 : clamp(Math.floor(Math.max(n, 0)), 0, slots)
   const more = n !== null && n > slots ? Math.floor(n) - slots : 0
   const perRow = Math.ceil(slots / 2)
+  // A full box, refused (`6.0`: eggs are counted, not measured): the eggs
+  // sit in their hollows outlined in amber, dashed.
+  const no = refusedOf(view)
   return (
-    <g className="carton">
+    <g className={`carton ${no ? 'refused' : ''}`}>
       <path d="M 28 64 l 8 -30 h 128 l 8 30 z" className="lid" />
       <rect x="26" y="64" width="148" height="56" rx="8" className="box" />
       {Array.from({ length: slots }, (_, i) => {
@@ -737,7 +778,7 @@ function Carton({ view, slots }: { view: PropView; slots: number }) {
 function Plate({ view }: { view: PropView }) {
   const b = boolOf(view.answer)
   return (
-    <g className={`breakfast ${b === null ? 'covered' : b ? 'full' : 'empty'}`}>
+    <g className={`breakfast ${b === null ? 'covered' : b ? 'full' : 'empty'} ${refusedOf(view) ? 'refused' : ''}`}>
       <line x1="10" x2="190" y1="112" y2="112" className="table" />
       <path d="M 40 104 v 8 M 36 96 v 8 M 44 96 v 8 M 36 104 h 8" className="cutlery" />
       <path d="M 160 94 q 5 8 0 18" className="cutlery" />
@@ -765,7 +806,7 @@ function Match({ view }: { view: PropView }) {
   const reach = n === null ? 0 : clamp(n, 0, 3)
   const off = n !== null && n > 3
   return (
-    <g className="match">
+    <g className={`match ${refusedOf(view) ? 'refused' : ''}`}>
       <g className="ball" transform="translate(20,40)">
         <g className="ball-roll" style={{ ['--to' as string]: `${x(1.5) - 20}px` }}>
           <circle r="9" className="ball-skin" />
@@ -876,9 +917,26 @@ function Kinds({ view }: { view: PropView }) {
 /* --- tiles: numbers add, text sticks together --- */
 
 function Tiles({ view, parts, stamp }: { view: PropView; parts: string[]; stamp: boolean }) {
-  const t = textOf(view.answer)
-  const n = numberOf(view.answer)
-  if (stamp && t === null && n === null) return <Stamps parts={parts} />
+  // What the sum makes, typed where the robot was to glue or add it
+  // (`unworked`): no tiles are glued and no blocks added up; the sum
+  // stays as asked, and under it an amber `= ?`.
+  const waiting = unworked(view)
+  const t = waiting ? null : textOf(view.answer)
+  const n = waiting ? null : numberOf(view.answer)
+  // One letter under a lone word, refused (not the one asked for): its
+  // tile is drawn, outlined in amber, dashed.
+  const no = refusedOf(view)
+  if (!waiting && stamp && t === null && n === null) return <Stamps parts={parts} />
+  if (waiting) {
+    return (
+      <g className="tiles blocks unworked">
+        <Parts parts={parts} />
+        <text x="100" y="108" className="tiles-caption unworked-q">
+          = ?
+        </text>
+      </g>
+    )
+  }
   if (t !== null) {
     const chars = [...t].slice(0, 10)
     // As big as they fit: two tiles are the point of `"7" + "7"`, and
@@ -886,7 +944,7 @@ function Tiles({ view, parts, stamp }: { view: PropView; parts: string[]; stamp:
     const w = Math.min(36, 190 / Math.max(chars.length, 1))
     const x0 = 100 - (chars.length * w) / 2
     return (
-      <g className="tiles text">
+      <g className={`tiles text ${no ? 'refused' : ''}`}>
         {chars.map((c, i) => (
           <g key={i} className="tile" transform={`translate(${x0 + i * w},${56 - w * 0.6})`} style={{ ['--i' as string]: i }}>
             <rect width={w - 2} height={w * 1.2} rx="4" />
@@ -904,7 +962,7 @@ function Tiles({ view, parts, stamp }: { view: PropView; parts: string[]; stamp:
   if (n !== null && Number.isInteger(n) && n >= 0) {
     const dots = Math.min(n, 21)
     return (
-      <g className="tiles number">
+      <g className={`tiles number ${no ? 'refused' : ''}`}>
         <rect x="70" y="18" width="60" height="38" rx="8" className="block" />
         <text x="100" y="44" className="block-num">
           {view.answer!.repr}
@@ -1044,8 +1102,11 @@ function Crates({ view, crates, each }: { view: PropView; crates: number; each: 
   const cw = Math.min(24, 180 / crates)
   const x0 = 100 - (crates * cw) / 2
   const pitch = 78 / each
+  // Every bolt lit by a number that is not the sum (`43`, or `42.5`): the
+  // bolts light amber, and the label says what the robot said, amber too.
+  const no = refusedOf(view)
   return (
-    <g className={`crates ${waiting ? 'unworked' : ''}`}>
+    <g className={`crates ${waiting ? 'unworked' : ''} ${no ? 'refused' : ''}`}>
       {Array.from({ length: crates }, (_, c) => (
         <g key={c} className="crate" style={{ ['--i' as string]: c }} transform={`translate(${x0 + c * cw},0)`}>
           <rect x="1" y="34" width={cw - 2} height="86" rx="3" className="crate-box" />
@@ -1084,8 +1145,12 @@ function Share({ view, litres, robots }: { view: PropView; litres: number; robot
   // Three tanks sit closer than two, so the last stays on the stage.
   const gap = robots > 2 ? 40 : 48
   const tanks = Array.from({ length: robots }, (_, i) => 146 - ((robots - 1) * gap) / 2 + i * gap)
+  // More each than the jug holds (`5` of 9 litres, twice): the jug
+  // empties, but it does not say it shared out — it says in amber that it
+  // only had so much, and the tanks' labels are amber too.
+  const no = refusedOf(view)
   return (
-    <g className={`share ${waiting ? 'unworked' : ''}`}>
+    <g className={`share ${waiting ? 'unworked' : ''} ${no ? 'refused' : ''}`}>
       <g className="jug" transform="translate(40,0)">
         <path d="M -24 40 h 48 v 76 a 6 6 0 0 1 -6 6 h -36 a 6 6 0 0 1 -6 -6 z" className="jug-body" />
         <clipPath id="jug-clip">
@@ -1096,7 +1161,7 @@ function Share({ view, litres, robots }: { view: PropView; litres: number; robot
         </g>
         <path d="M 24 52 q 12 2 12 14 q 0 12 -12 14" className="jug-handle" />
         <text y="34" className="jug-label">
-          {n === null ? `${litres} L` : `${Number.isInteger(left) ? left : left.toFixed(1)} L left`}
+          {n === null ? `${litres} L` : no ? `only ${litres} L` : `${Number.isInteger(left) ? left : left.toFixed(1)} L left`}
         </text>
       </g>
       {tanks.map((x, i) => (
@@ -1137,8 +1202,11 @@ function Bolts({ view, have, use }: { view: PropView; have: number; use: number 
   const perRow = 10
   const ringed = n === null ? 0 : clamp(Math.floor(n), 0, have)
   const at = (i: number) => [19 + (i % perRow) * 18, 58 + Math.floor(i / perRow) * 30] as const
+  // The bolts left ringed by a number that is not what is left (`13.5`):
+  // the rings are amber, dashed, and so is the label.
+  const no = refusedOf(view)
   return (
-    <g className={`bolts ${waiting ? 'unworked' : ''}`}>
+    <g className={`bolts ${waiting ? 'unworked' : ''} ${no ? 'refused' : ''}`}>
       {Array.from({ length: have }, (_, i) => {
         const [x, y] = at(i)
         const used = i >= have - use
@@ -1280,12 +1348,15 @@ function Expr({ view, text, first, then }: { view: PropView; text: string; first
 function Phone({ view, number }: { view: PropView; number: string }) {
   const a = view.answer
   const t = textOf(a)
-  const calling = t !== null && t.replace(/\D/g, '') === number
+  // The right digits, refused, ring nobody: the screen shows them in
+  // amber and the phone stays quiet.
+  const no = refusedOf(view)
+  const calling = !no && t !== null && t.replace(/\D/g, '') === number
   const asInt = a && (a.type === 'int' || a.type === 'float') ? a.repr : null
   const lostZero = asInt !== null && number.startsWith('0') && number.replace(/^0+/, '') === asInt
   const shown = t ?? asInt
   return (
-    <g className={`phone ${calling ? 'calling' : ''}`}>
+    <g className={`phone ${calling ? 'calling' : ''} ${no ? 'refused' : ''}`}>
       <g className="phone-shake">
         <rect x="60" y="4" width="80" height="122" rx="12" className="phone-body" />
         <rect x="66" y="15" width="68" height="60" rx="5" className="screen" />
@@ -1347,7 +1418,9 @@ function Door({ view }: { view: PropView }) {
         <rect x="-22" y="-6" width="44" height="12" rx="6" data-kind="bool" />
         <text y="3.5">locked: True</text>
       </g>
-      <g className={`note ${t === null ? 'blank' : ''}`} transform="translate(8,40)">
+      {/* Words on the note, refused (a no, or not an answer to her): the
+          note is edged in amber, dashed — written, and not sent. */}
+      <g className={`note ${t === null ? 'blank' : ''} ${refusedOf(view) ? 'refused' : ''}`} transform="translate(8,40)">
         <rect width="92" height="58" rx="4" />
         {t === null ? (
           <path d="M 12 20 h 68 M 12 32 h 68 M 12 44 h 44" className="blank-lines" />
@@ -1368,8 +1441,10 @@ function Door({ view }: { view: PropView }) {
 function Card({ view }: { view: PropView }) {
   const t = textOf(view.answer)
   const lines = t === null ? [] : wrap(t, 12, 3)
+  // Words on the card, refused (not the ones asked for): the card is
+  // edged in amber, dashed — written, and not handed over.
   return (
-    <g className="card">
+    <g className={`card ${refusedOf(view) ? 'refused' : ''}`}>
       <path d="M 70 128 l 14 -26 M 130 128 l -14 -26" className="easel" />
       <g className="card-flip">
         <rect x="26" y="12" width="148" height="92" rx="8" className="card-face" />
@@ -1392,9 +1467,13 @@ function Card({ view }: { view: PropView }) {
 function Letter({ view, char }: { view: PropView; char: string }) {
   // Its code typed from memory does not turn the tile: only `ord` looks.
   const waiting = unworked(view)
-  const n = view.answer?.type === 'int' && !waiting ? view.answer.repr : null
+  // Nor does another character's code: the tile's back is its own code,
+  // so a refused int never turns it. The caption says, in amber, that the
+  // robot's number is not this letter's.
+  const no = refusedOf(view)
+  const n = view.answer?.type === 'int' && !waiting && !no ? view.answer.repr : null
   return (
-    <g className={`letter ${n !== null ? 'turned' : ''} ${waiting ? 'unworked' : ''}`}>
+    <g className={`letter ${n !== null ? 'turned' : ''} ${waiting ? 'unworked' : ''} ${no ? 'refused' : ''}`}>
       <g className="letter-wiggle">
         <g className="face front">
           <rect x="66" y="12" width="68" height="78" rx="8" />
@@ -1410,7 +1489,7 @@ function Letter({ view, char }: { view: PropView; char: string }) {
         </g>
       </g>
       <text x="100" y="114" className="letter-caption">
-        {n !== null ? `"${char}"  →  ${n}` : waiting ? `"${char}"  →  ?` : `"${char}"`}
+        {n !== null ? `"${char}"  →  ${n}` : waiting ? `"${char}"  →  ?` : no ? `"${char}"  ≠  ${short(view.answer!.repr, 6)}` : `"${char}"`}
       </text>
     </g>
   )

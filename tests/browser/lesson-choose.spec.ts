@@ -34,7 +34,11 @@ test('twelve questions, each miss drawn and named, each praise giving the reason
 
   // 2. Eggs: a dot means measured.
   await say(page, '6.0')
-  await expect(prop(page)).toHaveAttribute('aria-label', /6 eggs in it/)
+  await expect(prop(page)).toHaveAttribute('aria-label', /6 eggs in it\. But the robot's 6\.0 is not the answer yet/)
+  // A full box is what the right answer draws, so the refused one is
+  // drawn in amber: the eggs outlined, not laid.
+  await expect(prop(page)).toHaveAttribute('data-refused', 'yes')
+  await expect(prop(page).locator('.carton')).toHaveClass(/refused/)
   await expect(guide(page)).toContainText('The dot means measured')
   await right(page, '6', /Counted, so an int/)
 

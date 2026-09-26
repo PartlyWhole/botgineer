@@ -305,11 +305,38 @@ export const clamp = (n: number, lo: number, hi: number): number => Math.min(hi,
 /* ------------------------- right, but not worked out ------------------------- */
 
 /**
+ * What a row of tiles makes, when it is a sum the robot can be asked to
+ * work out: whole numbers joined by `+` or `*`, or words glued by `+`
+ * and repeated by `*` a whole number of times. One operator throughout,
+ * so no order of operations is guessed at. A lone word is not a sum —
+ * its question is about a letter of it — and nor is anything else
+ * (`2 + 2 == 4` is a comparison, drawn for a beat, never asked).
+ */
+export function tilesMake(parts: readonly string[]): { number: number } | { text: string } | null {
+  if (parts.length < 3 || parts.length % 2 === 0) return null
+  const ops = parts.filter((_, i) => i % 2 === 1)
+  const op = ops[0]
+  if ((op !== '+' && op !== '*') || ops.some((o) => o !== op)) return null
+  const texts: string[] = []
+  const nums: number[] = []
+  for (const v of parts.filter((_, i) => i % 2 === 0)) {
+    if (/^".*"$/.test(v)) texts.push(v.slice(1, -1))
+    else if (/^-?\d+$/.test(v)) nums.push(Number(v))
+    else return null
+  }
+  if (texts.length === 0) return { number: nums.reduce((a, v) => (op === '+' ? a + v : a * v), op === '+' ? 0 : 1) }
+  if (op === '+') return nums.length === 0 ? { text: texts.join('') } : null
+  // A word times whole numbers: the one word, repeated.
+  if (texts.length !== 1) return null
+  return { text: texts[0]!.repeat(Math.max(0, nums.reduce((a, v) => a * v, 1))) }
+}
+
+/**
  * The number a picture that asks for one is asking for: what the crates
  * hold, what is left of the bolts, what each tank gets, what the parcels
- * weigh, where the working ends, the letter's code. Null for a picture
- * that does not draw a number as its answer (the lamps and the codes
- * narrate; they draw no answer at all).
+ * weigh, where the working ends, the letter's code, what a sum of blocks
+ * makes. Null for a picture that does not draw a number as its answer
+ * (the lamps and the codes narrate; they draw no answer at all).
  */
 export function rightNumber(p: Prop): number | null {
   switch (p.kind) {
@@ -329,19 +356,32 @@ export function rightNumber(p: Prop): number | null {
       return p.char.codePointAt(0) ?? null
     case 'numberline':
       return p.want ?? null
+    case 'tiles': {
+      const made = tilesMake(p.parts ?? [])
+      return made && 'number' in made ? made.number : null
+    }
     default:
       return null
   }
 }
 
+/** The words a picture asks the robot to make: what a sum of words glues
+ *  or repeats into (`"bot" + "gineer"`, `"ha" * 5`). */
+export function rightText(p: Prop): string | null {
+  if (p.kind !== 'tiles') return null
+  const made = tilesMake(p.parts ?? [])
+  return made && 'text' in made ? made.text : null
+}
+
 /**
- * The right number, said the wrong way: the step refused it (`miss`) and
- * yet it is the number the picture asks for — typed by hand, or worked
- * out from the wrong thing. The crow's reply says *not like that*, so
- * the picture must not say *yes*: drawn as an answer it would fill the
- * crates, weigh the parcels and tick the reading while the words refuse
- * it. Such a picture is drawn as not worked out yet: waiting, in amber,
- * with a `?` where the working would go.
+ * The right answer, said the wrong way: the step refused it (`miss`) and
+ * yet it is the number, or the words, the picture asks for — typed by
+ * hand, or worked out from the wrong thing. The crow's reply says *not
+ * like that*, so the picture must not say *yes*: drawn as an answer it
+ * would fill the crates, weigh the parcels, tick the reading and glue
+ * the tiles while the words refuse it. Such a picture is drawn as not
+ * worked out yet: waiting, in amber, with a `?` where the working would
+ * go.
  *
  * Compared by value, so a typed `4` for `8 / 2`'s `4.0` counts: the right
  * amount, and still not what the robot was asked to work out.
@@ -350,7 +390,109 @@ export function unworked(view: PropView): boolean {
   if (view.verdict !== 'miss') return false
   const n = numberOf(view.answer)
   const want = rightNumber(view.prop)
-  return n !== null && want !== null && Math.abs(n - want) < 1e-9
+  if (n !== null && want !== null && Math.abs(n - want) < 1e-9) return true
+  const text = textOf(view.answer)
+  const words = rightText(view.prop)
+  return text !== null && words !== null && text === words
+}
+
+/** How close two amounts read by eye must be to look the same: a glass
+ *  or a bar a twentieth off is not a different picture. Practice judges
+ *  a glass by the same margin. */
+export const BY_EYE = 0.051
+
+/** The heights, in metres, the chart draws as a person standing there:
+ *  what the choose lesson takes for an answer. */
+export const HEIGHT_RANGE = [0.5, 2.5] as const
+
+/**
+ * Whether the picture draws this answer the way it draws the answer it
+ * asks for — which is what the player reads as *yes*. Not whether the
+ * answer is right: that is the step's to say, from the evidence. A
+ * picture draws what the robot thought, and three apples are three
+ * apples whether they were `3`, `3.0` or `2 + 1`. So this is the half a
+ * picture can know, and `refused` sets it beside the step's verdict.
+ *
+ * Per picture: the lamp lit; the fish not a bird; the basket counted to
+ * its apples; the lift parked on a floor it has; the second glass filled
+ * like the first; a person on the height chart; the egg box full; the
+ * plate uncovered; the bar reaching the final whistle; words on the card
+ * or the note; the phone calling; the tiles making what the sum makes
+ * (or, under a lone word, one letter tile); every crate's bolts lit; the
+ * jug emptied into the tanks; the bolts left ringed; the letter turned;
+ * the scale reading what the parcels weigh; the marker where the ask
+ * wants it. The balance and the working are drawn only once the step is
+ * right, the shelf and the kinds sort by type (Python's truth either
+ * way), and the rest draw no answer: none of those can look right on a
+ * miss.
+ */
+export function looksRight(view: PropView): boolean {
+  const p = view.prop
+  const a = view.answer
+  if (!a) return false
+  const n = numberOf(a)
+  const b = boolOf(a)
+  const t = textOf(a)
+  switch (p.kind) {
+    case 'lamp':
+      return b === true
+    case 'fish':
+      return b === false
+    case 'basket':
+      return n !== null && n === p.apples
+    case 'lift':
+      return n !== null && Number.isInteger(n) && n >= p.lowest && n <= p.highest
+    case 'glass':
+      return p.demo !== 'fill' && n !== null && Math.abs(n - p.level) <= BY_EYE
+    case 'height':
+      return n !== null && n >= HEIGHT_RANGE[0] && n <= HEIGHT_RANGE[1]
+    case 'carton':
+      return n !== null && Math.floor(n) === p.slots
+    case 'plate':
+      return b !== null
+    case 'match':
+      return n !== null && Math.abs(n - 1.5) <= BY_EYE
+    case 'card':
+    case 'door':
+      return t !== null && t.trim() !== ''
+    case 'phone':
+      return t !== null && t.replace(/\D/g, '') === p.number
+    case 'tiles': {
+      const made = tilesMake(p.parts ?? [])
+      if (made === null) return (p.parts ?? []).length === 1 && t !== null && [...t].length === 1
+      return 'text' in made ? t === made.text : n !== null && Math.abs(n - made.number) < 1e-9
+    }
+    case 'crates':
+      return n !== null && Math.floor(n) >= p.crates * p.each
+    case 'share':
+      return n !== null && p.robots > 0 && n * p.robots >= p.litres - 1e-9
+    case 'bolts':
+      return n !== null && clamp(Math.floor(n), 0, p.have) === p.have - p.use
+    case 'letter':
+      return a.type === 'int'
+    case 'scale':
+      return n !== null && Math.abs(n - p.parcels * p.each) < 1e-9
+    case 'numberline':
+      return n !== null && p.want !== undefined && Math.abs(n - p.want) < 1e-9
+    default:
+      return false
+  }
+}
+
+/**
+ * A miss the picture would draw as a yes: the step refused the answer,
+ * and the picture, left to itself, would draw it the way it draws the
+ * right one (`looksRight`) — `3.0` apples counted into a basket of
+ * three, a lift parked at `-1.0`, the lamp lit by a typed `True`. Such a
+ * picture draws the answer *refused*: still what the robot thought, but
+ * in amber, in its own idiom, so what the player sees agrees with what
+ * the crow says.
+ *
+ * The right answer said the wrong way (`unworked`) is not this: that
+ * picture draws nothing done at all, and waits for the working.
+ */
+export function refused(view: PropView): boolean {
+  return view.verdict === 'miss' && !unworked(view) && looksRight(view)
 }
 
 /** The kinds, in the order the first level builds them. */

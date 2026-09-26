@@ -58,6 +58,12 @@ test('five data types, each shown, named and used, with the misses drawn', async
   // the dot is the trouble, not that the lift is stuck.
   await say(page, '-1.0')
   await expect(prop(page)).toHaveAttribute('aria-label', /lift is at floor -1\./)
+  // Parked where the answer would park it, and still refused: the car is
+  // amber and hollow, its floor unmarked, the dot written beside it.
+  await expect(prop(page)).toHaveAttribute('data-refused', 'yes')
+  await expect(prop(page).locator('.car.refused')).toHaveCount(1)
+  await expect(prop(page).locator('.floor-num.here')).toHaveCount(0)
+  await expect(prop(page).locator('.refused-floor')).toHaveText('-1.0')
   await expect(page.getByTestId('guide')).toContainText("has a dot, so it's measured")
   await say(page, '1.5')
   await expect(prop(page)).toHaveAttribute('aria-label', /stuck between floors at 1.5/)
@@ -98,6 +104,7 @@ test('five data types, each shown, named and used, with the misses drawn', async
   await expect(page.getByTestId('guide')).toContainText('Quotes make it a character')
   await say(page, '"Mira"')
   await expect(prop(page)).toHaveAttribute('aria-label', /card for Mira that says: Mira/)
+  await expect(prop(page).locator('.card')).toHaveClass(/refused/)
   await expect(page.getByTestId('guide')).toContainText('more than one letter')
   await say(page, '"M"')
   await expect(page.getByTestId('guide')).toContainText('which Python keeps as a str')

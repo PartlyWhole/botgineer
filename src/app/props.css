@@ -2364,8 +2364,148 @@
 .share .unworked-q {
   font-size: 14px;
 }
-.numberline .unworked-q {
+.numberline .unworked-q,
+.tiles .unworked-q {
   fill: var(--unworked);
+}
+.tiles .unworked-q {
+  font-size: 14px;
+  font-weight: 800;
+}
+
+/* ------------------------------ refused ------------------------------
+
+   A miss the picture would otherwise draw as a yes (`refused` in
+   scene/props): three apples counted from `3.0`, the lift parked at
+   `-1.0`, a lamp lit by a typed `True`. The answer is still drawn — it
+   is what the robot thought — but whatever would say *right* is amber
+   and dashed instead of its kind's colour: the same amber as not worked
+   out yet, and never red (PEDAGOGY §4). */
+.answer-tag.refused {
+  border-color: var(--unworked);
+  border-style: dashed;
+}
+.lamp.refused .lamp-glow {
+  fill: #f0a534;
+}
+.lamp.refused.on .lamp-glow {
+  opacity: 0.4;
+}
+.lamp.refused.on .bulb-glass {
+  fill: var(--unworked-bg);
+  stroke: var(--unworked);
+  stroke-dasharray: 3 2;
+}
+.lamp.refused .shade {
+  stroke: var(--unworked);
+  stroke-width: 2;
+  stroke-dasharray: 4 3;
+}
+.fishbowl.refused .same-sign {
+  fill: var(--unworked);
+}
+.prop .token.refused circle,
+.prop .token.refused path {
+  fill: var(--unworked-bg);
+  stroke: var(--unworked);
+  stroke-dasharray: 3 2;
+}
+.prop .token.refused text {
+  fill: var(--unworked);
+}
+.lift .car.refused {
+  fill: var(--unworked-bg);
+  stroke: var(--unworked);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 3;
+}
+.lift .car.refused + .car-door {
+  stroke: var(--unworked);
+  opacity: 0.6;
+}
+.lift .refused-floor {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 800;
+  fill: var(--unworked);
+  text-anchor: start;
+}
+.glasses.refused .yours .liquid {
+  fill: #f3c77e;
+}
+.glasses.refused .yours .glass-edge {
+  stroke: var(--unworked);
+}
+.glasses.refused .glass-caption {
+  fill: var(--unworked);
+}
+.height.refused .figure circle,
+.height.refused .figure path {
+  fill: var(--unworked-bg);
+  stroke: var(--unworked);
+  stroke-dasharray: 3 2;
+  vector-effect: non-scaling-stroke;
+}
+.height.refused .height-mark line {
+  stroke: var(--unworked);
+}
+.height.refused .height-mark text {
+  fill: var(--unworked);
+}
+.carton.refused .egg {
+  fill: var(--unworked-bg);
+  stroke: var(--unworked);
+  stroke-width: 1.5;
+  stroke-dasharray: 3 2;
+}
+.breakfast.refused .dish {
+  stroke: var(--unworked);
+  stroke-width: 2;
+  stroke-dasharray: 4 3;
+}
+.match.refused .reach rect {
+  fill: var(--unworked-bg);
+  stroke: var(--unworked);
+  stroke-dasharray: 3 2;
+}
+.match.refused .reach text {
+  fill: var(--unworked);
+}
+.card.refused .card-face,
+.door .note.refused rect {
+  stroke: var(--unworked);
+  stroke-width: 2;
+  stroke-dasharray: 5 3;
+}
+.phone.refused .screen-text.text,
+.phone.refused .screen-text.num {
+  fill: var(--unworked);
+}
+.tiles.refused .tile rect,
+.tiles.refused .block {
+  stroke: var(--unworked);
+  stroke-dasharray: 4 3;
+}
+.tiles.refused .tiles-caption {
+  fill: var(--unworked);
+}
+.crates.refused .bolt.lit {
+  fill: #e6a94a;
+}
+.crates.refused .crates-label,
+.bolts.refused .bolts-label,
+.share.refused .jug-label,
+.share.refused .tank-label,
+.letter.refused .letter-caption {
+  fill: var(--unworked);
+}
+.bolts.refused .ring {
+  stroke: var(--unworked);
+  stroke-dasharray: 3 2;
+}
+.bolts.refused .ringed:not(.used) .bolt-shape path,
+.bolts.refused .ringed:not(.used) .bolt-shape rect {
+  fill: #c98a2a;
 }
 .scale .parcel rect {
   fill: #e2b77a;
