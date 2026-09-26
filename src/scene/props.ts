@@ -183,6 +183,13 @@ export type Prop =
    *  one and the scale reads what it said, in kg. A reading that is not
    *  what the parcels weigh is drawn as a scale that disagrees. */
   | { kind: 'scale'; parcels: number; each: number }
+  /** A block of code to read before it runs, drawn as written: one line
+   *  per `\n`, indentation kept, on a read-only card. `mark` (narration)
+   *  highlights one line, counted from 1. Draws no answer; the answer tag
+   *  still shows what the robot thought. (Minimal version added by the
+   *  X-stages workstream for the ideas lessons' predictions; the pictures
+   *  workstream owns the real drawing.) */
+  | { kind: 'code'; text: string; mark?: number }
 
 /** One side of a `contrast`. `text` is the value as Python writes it —
  *  or, with `result`, the expression that makes it. `label` is a word for
@@ -247,6 +254,7 @@ const NARRATION: Partial<Record<Prop['kind'], string[]>> = {
   numberline: ['mark', 'unnamed'],
   char: ['clasps'],
   beads: ['glow'],
+  code: ['mark'],
 }
 
 /** A prop without its narration: what identifies the picture. */

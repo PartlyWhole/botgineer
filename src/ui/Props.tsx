@@ -226,6 +226,8 @@ function draw(view: PropView): ReactNode {
       return <Codes chars={p.chars} />
     case 'scale':
       return <Scale view={view} parcels={p.parcels} each={p.each} />
+    case 'code':
+      return <Code text={p.text} mark={p.mark} />
   }
 }
 
@@ -356,6 +358,8 @@ function drawnAs(view: PropView): string {
         .join(', ')}.`
     case 'scale':
       return `${p.parcels} parcels of ${p.each} kg and a scale.${n !== null ? ` On the scale, it reads ${a!.repr} kg.` : waiting(view)}`
+    case 'code':
+      return `Code to read: ${p.text.split('\n').map((l) => l.trim()).join(' / ')}.`
   }
 }
 
@@ -1934,6 +1938,51 @@ function Lamps({ on }: { on: number }) {
           int
         </text>
       </g>
+    </g>
+  )
+}
+
+/* --- code: a block to read before it runs ---
+ * Minimal, added by the X-stages workstream so the ideas lessons can show
+ * the block a prediction is about; the pictures workstream owns the real
+ * one. Inline styles only (props.css is not this workstream's). Each line
+ * is placed by its indent, in character widths, so the block's shape is
+ * the indentation Python reads. */
+
+function Code({ text, mark }: { text: string; mark?: number | undefined }) {
+  const lines = text.split('\n')
+  const longest = Math.max(12, ...lines.map((l) => l.length))
+  const size = Math.min(12, 180 / (longest * 0.6), 100 / (lines.length * 1.4))
+  const lh = size * 1.4
+  const w = size * 0.6
+  const height = lh * lines.length + 14
+  const top = (130 - height) / 2
+  return (
+    <g className="code-card">
+      <rect
+        x="4"
+        y={top}
+        width="192"
+        height={height}
+        rx="8"
+        style={{ fill: 'var(--surface)', stroke: 'var(--line)', strokeWidth: 2 }}
+      />
+      {lines.map((l, i) => {
+        const indent = l.length - l.trimStart().length
+        const y = top + 7 + lh * i
+        return (
+          <g key={i}>
+            {mark === i + 1 && <rect x="8" y={y} width="184" height={lh} rx="3" style={{ fill: 'var(--brand-soft)' }} />}
+            <text
+              x={10 + indent * w}
+              y={y + lh * 0.75}
+              style={{ fontFamily: 'var(--mono)', fontSize: size, fill: 'var(--ink)', fontWeight: 600 }}
+            >
+              {l.trimStart()}
+            </text>
+          </g>
+        )
+      })}
     </g>
   )
 }

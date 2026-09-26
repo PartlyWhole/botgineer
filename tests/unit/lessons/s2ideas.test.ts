@@ -42,6 +42,55 @@ const ev = (history: MemorySnapshot[], ...said: [string, string, string][]): Evi
   thoughts: said.map(([type, repr, source]) => ({ ...th(type, repr), source })),
 })
 
+/** Evidence from accepted lines, each beside the memory it left, as the
+ *  workbench builds it: the steps that name a kind of line read `lines`. */
+const run = (steps: [string, MemorySnapshot][], ...said: [string, string, string][]): Evidence => ({
+  ...ev(
+    steps.map(([, m]) => m),
+    ...said,
+  ),
+  lines: steps.map(([source, memory]) => ({ source, memory })),
+})
+
+const TUPLE = (inner: number[]): PyObject => ({
+  id: 't',
+  type: 'tuple',
+  kind: 'reference',
+  repr: '2 items',
+  elements: [
+    { label: '0', target: value('int', '1').id },
+    { label: '1', target: 'i' },
+  ],
+  partial: false,
+})
+
+/** Every step done, in play order. */
+const PLAY: [string, MemorySnapshot][] = [
+  ['nums = [1, 2]', mem({ a: [1, 2] }, { nums: 'a' })],
+  ['other = nums', mem({ a: [1, 2] }, { nums: 'a', other: 'a' })],
+  ['nums.append(3)', mem({ a: [1, 2, 3] }, { nums: 'a', other: 'a' })],
+  ['[1, 2, 3]', mem({ a: [1, 2, 3] }, { nums: 'a', other: 'a' })],
+  ['nums = nums + [4]', mem({ a: [1, 2, 3], b: [1, 2, 3, 4] }, { nums: 'b', other: 'a' })],
+  ['other = [3, 1, 2]', mem({ b: [1, 2, 3, 4], c: [3, 1, 2] }, { nums: 'b', other: 'c' })],
+  ['other.sort()', mem({ b: [1, 2, 3, 4], c: [1, 2, 3] }, { nums: 'b', other: 'c' })],
+  ['other = other.sort()', mem({ b: [1, 2, 3, 4] }, { nums: 'b', other: NONE.id }, [NONE])],
+  ['other = nums', mem({ b: [1, 2, 3, 4] }, { nums: 'b', other: 'b' })],
+  ['nums += [5]', mem({ b: [1, 2, 3, 4, 5] }, { nums: 'b', other: 'b' })],
+  ['n = 10', mem({ b: [1, 2, 3, 4, 5] }, { nums: 'b', other: 'b', n: TEN.id }, [TEN])],
+  ['m = n', mem({ b: [1, 2, 3, 4, 5] }, { nums: 'b', other: 'b', n: TEN.id, m: TEN.id }, [TEN])],
+  ['n += 1', mem({ b: [1, 2, 3, 4, 5] }, { nums: 'b', other: 'b', n: ELEVEN.id, m: TEN.id }, [TEN, ELEVEN])],
+  ['inner = [2]', mem({ b: [1, 2, 3, 4, 5], i: [2] }, { nums: 'b', other: 'b', n: ELEVEN.id, m: TEN.id, inner: 'i' }, [TEN, ELEVEN])],
+  [
+    'pair = (1, inner)',
+    mem({ b: [1, 2, 3, 4, 5], i: [2] }, { nums: 'b', other: 'b', n: ELEVEN.id, m: TEN.id, inner: 'i', pair: 't' }, [TEN, ELEVEN, TUPLE([2])]),
+  ],
+  [
+    'inner.append(3)',
+    mem({ b: [1, 2, 3, 4, 5], i: [2, 3] }, { nums: 'b', other: 'b', n: ELEVEN.id, m: TEN.id, inner: 'i', pair: 't' }, [TEN, ELEVEN, TUPLE([2, 3])]),
+  ],
+]
+const SAID: [string, string, string] = ['list', '[1, 2, 3]', '[1, 2, 3]']
+
 describe('s2-ideas', () => {
   it('opens on Mira’s changed list, before its first question', () => {
     const s = script(s2Ideas, NOTHING)
@@ -49,49 +98,82 @@ describe('s2-ideas', () => {
     expect(s.items[s.rest]).toMatchObject({ kind: 'ask', text: 'Make a list: type `nums = [1, 2]`.' })
   })
 
-  it('walks change, the prediction, the move, None, and += on a list and a number', () => {
-    const at = (e: Evidence) => progress(s2Ideas, e)
-    const h: MemorySnapshot[] = [mem({ a: [1, 2] }, { nums: 'a' })]
-    expect(at(ev(h))).toBe(1)
-    h.push(mem({ a: [1, 2] }, { nums: 'a', other: 'a' }))
-    expect(at(ev(h))).toBe(2)
-    h.push(mem({ a: [1, 2, 3] }, { nums: 'a', other: 'a' }))
-    expect(at(ev(h))).toBe(3)
+  it('walks change, the prediction, the move, sort, None, += on a list and a number, and a tuple', () => {
+    const at = (n: number, said = true) => progress(s2Ideas, run(PLAY.slice(0, n), ...(said ? [SAID] : [])))
+    expect(at(1, false)).toBe(1)
+    expect(at(2, false)).toBe(2)
+    expect(at(3, false)).toBe(3)
     // The robot looking at `other` is not a prediction; a typed list is.
-    expect(at(ev(h, ['list', '[1, 2, 3]', 'other']))).toBe(3)
-    const said: [string, string, string][] = [['list', '[1, 2, 3]', '[1, 2, 3]']]
-    expect(at(ev(h, ...said))).toBe(4)
-    h.push(mem({ a: [1, 2, 3], b: [1, 2, 3, 4] }, { nums: 'b', other: 'a' }))
-    expect(at(ev(h, ...said))).toBe(5)
-    h.push(mem({ b: [1, 2, 3, 4] }, { nums: 'b', other: NONE.id }, [NONE]))
-    expect(at(ev(h, ...said))).toBe(6)
-    h.push(mem({ b: [1, 2, 3, 4] }, { nums: 'b', other: 'b' }))
-    expect(at(ev(h, ...said))).toBe(6)
-    h.push(mem({ b: [1, 2, 3, 4, 5] }, { nums: 'b', other: 'b' }))
-    expect(at(ev(h, ...said))).toBe(7)
-    h.push(mem({ b: [1, 2, 3, 4, 5] }, { nums: 'b', other: 'b', n: TEN.id, m: TEN.id }, [TEN]))
-    expect(at(ev(h, ...said))).toBe(7)
-    h.push(mem({ b: [1, 2, 3, 4, 5] }, { nums: 'b', other: 'b', n: ELEVEN.id, m: TEN.id }, [TEN, ELEVEN]))
-    expect(at(ev(h, ...said))).toBe(s2Ideas.steps.length)
+    expect(progress(s2Ideas, run(PLAY.slice(0, 3), ['list', '[1, 2, 3]', 'other']))).toBe(3)
+    expect(at(4)).toBe(4)
+    expect(at(5)).toBe(5)
+    expect(at(6)).toBe(5)
+    expect(at(7)).toBe(6)
+    expect(at(8)).toBe(7)
+    expect(at(9)).toBe(7)
+    expect(at(10)).toBe(8)
+    expect(at(12)).toBe(8)
+    expect(at(13)).toBe(9)
+    expect(at(15)).toBe(9)
+    expect(at(16)).toBe(s2Ideas.steps.length)
   })
 
   it('does not count a rebinding as the change, or += on a list as the move', () => {
     const at = (e: Evidence) => progress(s2Ideas, e)
-    const two = [mem({ a: [1, 2] }, { nums: 'a' }), mem({ a: [1, 2] }, { nums: 'a', other: 'a' })]
+    const two = PLAY.slice(0, 2)
     // `nums = nums + [3]`: a new list, and `other` left on the old one.
-    expect(at(ev([...two, mem({ a: [1, 2], b: [1, 2, 3] }, { nums: 'b', other: 'a' })]))).toBe(2)
+    expect(at(run([...two, ['nums = nums + [3]', mem({ a: [1, 2], b: [1, 2, 3] }, { nums: 'b', other: 'a' })]]))).toBe(2)
     // `nums += [4]` where the move was asked: both names see it, so no move.
-    const changed = [...two, mem({ a: [1, 2, 3] }, { nums: 'a', other: 'a' })]
-    const said: [string, string, string] = ['list', '[1, 2, 3]', '[1, 2, 3]']
-    expect(at(ev([...changed, mem({ a: [1, 2, 3, 4] }, { nums: 'a', other: 'a' })], said))).toBe(4)
+    const changed = PLAY.slice(0, 3)
+    const plus: [string, MemorySnapshot] = ['nums += [4]', mem({ a: [1, 2, 3, 4] }, { nums: 'a', other: 'a' })]
+    expect(at(run([...changed, plus], SAID))).toBe(4)
     // …and the asked-for line after that detour still finishes the step.
-    const after = mem({ a: [1, 2, 3, 4], b: [1, 2, 3, 4, 4] }, { nums: 'b', other: 'a' })
-    expect(at(ev([...changed, mem({ a: [1, 2, 3, 4] }, { nums: 'a', other: 'a' }), after], said))).toBe(5)
+    const after: [string, MemorySnapshot] = ['nums = nums + [4]', mem({ a: [1, 2, 3, 4], b: [1, 2, 3, 4, 4] }, { nums: 'b', other: 'a' })]
+    expect(at(run([...changed, plus, after], SAID))).toBe(5)
+  })
+
+  it('asks the line that did it, where the praise names one', () => {
+    const at = (e: Evidence) => progress(s2Ideas, e)
+    // Two names pointed at a list typed out with a 3 in it: no change seen.
+    const typedOut: [string, MemorySnapshot][] = [
+      PLAY[0]!,
+      ['nums = [1, 2, 3]', mem({ z: [1, 2, 3] }, { nums: 'z' })],
+      ['other = nums', mem({ z: [1, 2, 3] }, { nums: 'z', other: 'z' })],
+    ]
+    expect(at(run(typedOut))).toBe(2)
+    // `nums = nums + [5]` then `other = nums`: the same memory as `+=`, but no `+=`.
+    const upToPlus = PLAY.slice(0, 9)
+    const noPlus: [string, MemorySnapshot][] = [
+      ...upToPlus,
+      ['nums = nums + [5]', mem({ b: [1, 2, 3, 4], d: [1, 2, 3, 4, 5] }, { nums: 'd', other: 'b' })],
+      ['other = nums', mem({ d: [1, 2, 3, 4, 5] }, { nums: 'd', other: 'd' })],
+    ]
+    expect(at(run(noPlus, SAID))).toBe(7)
+    // `n = 11`, then `m = 10`: the number step's memory with no `+=`.
+    const upToN = PLAY.slice(0, 10)
+    const handN: [string, MemorySnapshot][] = [
+      ...upToN,
+      ['n = 11', mem({ b: [1, 2, 3, 4, 5] }, { nums: 'b', other: 'b', n: ELEVEN.id }, [ELEVEN])],
+      ['m = 10', mem({ b: [1, 2, 3, 4, 5] }, { nums: 'b', other: 'b', n: ELEVEN.id, m: TEN.id }, [TEN, ELEVEN])],
+    ]
+    expect(at(run(handN, SAID))).toBe(8)
+    // `.sort()` on a list already in order, or the sorted list typed out.
+    const typedSorted: [string, MemorySnapshot][] = [
+      ...PLAY.slice(0, 5),
+      ['other = [1, 2, 3]', mem({ b: [1, 2, 3, 4], c: [1, 2, 3] }, { nums: 'b', other: 'c' })],
+    ]
+    expect(at(run(typedSorted, SAID))).toBe(5)
+    // The tuple typed out whole: nothing changed inside it.
+    const whole: [string, MemorySnapshot][] = [
+      ...PLAY.slice(0, 14),
+      ['pair = (1, inner)', PLAY[14]![1]],
+      ['pair = (1, [2, 3])', PLAY[15]![1]],
+    ]
+    expect(at(run(whole, SAID))).toBe(8 + 1)
   })
 
   it('answers a prediction that asked the robot, or moved both names', () => {
-    const h = [mem({ a: [1, 2, 3] }, { nums: 'a', other: 'a' })]
-    const base: Evidence = { ...ev([mem({ a: [1, 2] }, { nums: 'a' }), mem({ a: [1, 2] }, { nums: 'a', other: 'a' }), ...h]) }
+    const base = run(PLAY.slice(0, 3))
     expect(progress(s2Ideas, base)).toBe(3)
     const looked = guidance(s2Ideas, { ...base, last: line('other', th('list', '[1, 2, 3]')) })
     expect(looked.text).toContain('Predict it first')
@@ -99,19 +181,19 @@ describe('s2-ideas', () => {
     expect(both.text).toContain('only `nums` moves')
   })
 
+  it('answers a list typed out afresh where the shared one was to change', () => {
+    const e = run(PLAY.slice(0, 2))
+    expect(guidance(s2Ideas, { ...e, last: line('nums = [1, 2, 3]', null) }).text).toContain('Point it back with `nums = other`')
+  })
+
   it('says a bare list was let go, at the first step', () => {
     expect(guidance(s2Ideas, typed(line('[1, 2]', th('list', '[1, 2]')))).text).toContain('thought of and let go')
   })
 
-  it('says None is never shown, when `.sort()` is asked bare', () => {
-    const h = [
-      mem({ a: [1, 2] }, { nums: 'a' }),
-      mem({ a: [1, 2] }, { nums: 'a', other: 'a' }),
-      mem({ a: [1, 2, 3] }, { nums: 'a', other: 'a' }),
-      mem({ a: [1, 2, 3], b: [1, 2, 3, 4] }, { nums: 'b', other: 'a' }),
-    ]
-    const e: Evidence = { ...ev(h, ['list', '[1, 2, 3]', '[1, 2, 3]']), last: line('other.sort()', null) }
-    expect(progress(s2Ideas, e)).toBe(5)
+  it('says None is never shown, when `.sort()` is asked bare at the trap', () => {
+    const e: Evidence = { ...run(PLAY.slice(0, 7), SAID), last: line('other.sort()', null) }
+    expect(progress(s2Ideas, e)).toBe(6)
     expect(guidance(s2Ideas, e).text).toContain('shows nothing for `None`')
   })
+
 })

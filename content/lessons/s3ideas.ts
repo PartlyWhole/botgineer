@@ -1,6 +1,6 @@
 import type { MemorySnapshot, PyObject } from '../../src/memory/model'
 import { STAGE_OPENERS } from '../collection/story'
-import { ever, errorType, heard, targetOf, type Evidence, type Lesson, type Line } from './core'
+import { ever, everBy, errorType, heard, targetOf, type Lesson, type Line } from './core'
 
 /**
  * Stage 3, the ideas: brackets and keys, told in beats.
@@ -18,12 +18,18 @@ import { ever, errorType, heard, targetOf, type Evidence, type Lesson, type Line
  *    missing key is a `KeyError`, `.get` hands back a default instead (a
  *    bare `None` is not said aloud by the console, so the ask gives one), and
  *    `in` asks about keys, never values;
- * 5. brackets after brackets are read left to right.
+ * 5. what may be a key: a tuple can, a list cannot, because a key must
+ *    never change (exercise 3.9 and Checkpoint C3.3 ask why);
+ * 6. brackets after brackets are read left to right.
  *
  * Cut, because an earlier level or a later stage owns it: rebinding versus
- * changing (Stage 2; one line of reminder here), what may be a key and
- * dictionary order (Stage 6 does them properly), and the shared insides of
- * a slice (Stage 4 — one beat points at the arrows, no more).
+ * changing (Stage 2; one line of reminder here), dictionary order (Stage 6
+ * does it properly), and the shared insides of a slice (Stage 4 — one beat
+ * points at the arrows, no more).
+ *
+ * The write step judges the line that wrote (`everBy`), not the first list
+ * `items` ever named: a player who rebinds `items` on the way (the miss
+ * its nudge names) can still finish it by writing into the new list.
  *
  * The picture is the memory graph (R6): a list's slots carry their
  * numbers there and a dictionary's carry their keys, so every read has
@@ -43,13 +49,6 @@ const slot = (s: MemorySnapshot, name: string, label: string): string | null => 
   const o = objectOf(s, name)
   const target = o?.elements?.find((e) => e.label === label)?.target
   return target === undefined ? null : (s.objects[target]?.repr ?? null)
-}
-
-/** The first list `items` pointed at: the one that was made, not a
- *  replacement typed out afresh. */
-const firstItems = (e: Evidence): string | null => {
-  for (const s of e.history) if (typeOf(s, 'items') === 'list') return targetOf(s, 'items')
-  return null
 }
 
 const from = (t: { source?: string | undefined }, re: RegExp) => re.test(t.source ?? '')
@@ -83,11 +82,12 @@ export const s3Ideas: Lesson = {
       done: (e) =>
         heard(e, (t) => t.type === 'str' && t.repr === "'b'" && from(t, /items\s*\[/)) &&
         heard(e, (t) => t.type === 'str' && t.repr === "'c'" && from(t, /items\s*\[\s*-/)),
-      praise: '`\'b\'`, then `\'c\'`: slot 1 is the second, because counting starts at 0, and -1 is the last.',
+      praise: 'Slot 1 is `\'b\'`, the second, because counting starts at 0, and -1 is the last, `\'c\'`.',
       nudge: (l) => {
         if (errorType(l) === 'IndexError') return 'There is no such slot: this list has only 0, 1 and 2, so the robot stopped with an `IndexError`.'
         if (byHand(l, 'items')) return 'Let the robot read the slot: `items[1]`.'
         if (l.thought?.repr === "'b'") return '`\'b\'` is in slot 1. Now the last slot: `items[-1]`.'
+        if (l.thought?.repr === "'c'" && !/-/.test(l.source)) return 'Right slot, counted from the front. Now count from the end: `items[-1]`.'
         if (l.thought?.repr === "'c'") return '`\'c\'` is the last slot. Now ask for slot 1: `items[1]`.'
         if (l.thought?.repr === "'a'") return '`\'a\'` is in slot 0, the first. Ask for slot 1: `items[1]`.'
         return undefined
@@ -101,10 +101,9 @@ export const s3Ideas: Lesson = {
       ],
       say: 'Type `items[1] = "z"`, and watch slot 1.',
       tag: 'you',
-      done: (e) => {
-        const made = firstItems(e)
-        return made !== null && ever(e, (s) => targetOf(s, 'items') === made && slot(s, 'items', '1') === "'z'")
-      },
+      // The line that wrote into slot 1, whichever list `items` names by
+      // then: a rebinding typed out with a `'z'` in it does not count.
+      done: (e) => everBy(e, (src, s) => /^\s*items\s*\[\s*1\s*\]\s*=[^=]/.test(src) && slot(s, 'items', '1') === "'z'"),
       praise: 'Slot 1’s arrow moved to `\'z\'`, and `items` still points at the same list.',
       nudge: (l) =>
         /^\s*items\s*=/.test(l.source)
@@ -123,6 +122,8 @@ export const s3Ideas: Lesson = {
       nudge: (l) => {
         if (/items/.test(l.source)) return 'Predict it first: type just the number you expect.'
         if (l.thought?.type === 'int' && l.thought.repr === '3') return 'A slice stops *before* its end: which slots does `1:3` take?'
+        if (l.thought?.type === 'list' && /^\[[^,]*,[^,]*\]$/.test(l.thought.repr))
+          return 'Those are the right slots. Now just count them: how many is that?'
         if (l.thought?.type === 'int') return 'Count the slots from 1, stopping before 3.'
         return undefined
       },
@@ -192,16 +193,36 @@ export const s3Ideas: Lesson = {
       beats: [{ say: '`in` asks a dictionary a yes-or-no question about what it holds.' }],
       say: 'Ask the robot: `30 in ages`.',
       tag: 'robot',
-      done: (e) => heard(e, (t) => t.type === 'bool' && t.repr === 'False' && from(t, /\bin\s+ages\b/)),
+      done: (e) => heard(e, (t) => t.type === 'bool' && t.repr === 'False' && from(t, /\b(30|25)\s+in\s+ages\b/)),
       praise: '`False`: `in` asks about keys, and `30` is only what a key points at.',
       nudge: (l) => {
         if (l.thought?.repr === 'True' && /\bin\b/.test(l.source)) return '`True`: that is a key. Now try a value: `30 in ages`.'
+        if (l.thought?.repr === 'False' && /\bin\s+ages\b/.test(l.source))
+          return '`False`, because that is no key of `ages`. Now try a value that is there: `30 in ages`.'
         if (byHand(l, 'ages')) return 'Let the robot answer: `30 in ages`.'
         return undefined
       },
     },
     {
       beats: [
+        { say: 'A key must be something that can never change, so the dictionary can always find it again.' },
+        { say: 'A list can change, so it can’t be a key; a tuple of numbers can.' },
+      ],
+      say: 'Try `ages[[1, 2]] = 5`, then `ages[(1, 2)] = 5`.',
+      tag: 'you',
+      // The line that filed it: the tuple is a key of `ages` now. The list
+      // is refused with a `TypeError`, and a refused line leaves nothing.
+      done: (e) => everBy(e, (src, s) => /ages\s*\[\s*\(/.test(src) && slot(s, 'ages', '(1, 2)') !== null),
+      praise: 'The list was refused with a `TypeError`, because it could change; the tuple was filed as a key.',
+      nudge: (l) => {
+        if (errorType(l) === 'TypeError' && /\[\s*\[/.test(l.source))
+          return 'Refused: a list can change, so it can’t be a key. Now the tuple: `ages[(1, 2)] = 5`.'
+        return undefined
+      },
+    },
+    {
+      beats: [
+        { say: 'Look below: `ages` has a third key now, the tuple `(1, 2)`.', focus: 'memory' },
         { say: 'Brackets can follow brackets, and Python reads them left to right.' },
         { say: 'In `grid[1][0]`, `grid[1]` hands back an inner list, then `[0]` reads that list.' },
       ],
@@ -223,6 +244,7 @@ export const s3Ideas: Lesson = {
   outro: [
     { say: 'Look below: `grid` points at a list whose slots point at two more lists.', focus: 'memory' },
     { say: 'Every bracket named one container and one slot in it, read left to right.' },
+    { say: 'Now you can find Mira’s line: the one with brackets left of `=`, naming the wrong slot.' },
     { say: 'The exercises are next: find which slot each line reads, or writes.' },
   ],
   takeaway: 'Brackets pick a slot: a number counts from 0 in a list, a key finds its pair in a dictionary.',

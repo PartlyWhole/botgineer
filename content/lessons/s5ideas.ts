@@ -1,5 +1,6 @@
 import { openerOf } from '../collection/story'
-import { errorType, ever, heard, points, targetOf, type Evidence, type Lesson, type Line } from './core'
+import { errorType, ever, everBy, heard, points, targetOf, type Evidence, type Heard, type Lesson, type Line } from './core'
+import type { Prop } from '../../src/scene/props'
 import type { MemorySnapshot } from '../../src/memory/model'
 
 /**
@@ -12,8 +13,8 @@ import type { MemorySnapshot } from '../../src/memory/model'
  * 1. a `for` line points its name at each item in turn and runs the lines
  *    indented under it, once per item — indentation is the block;
  * 2. an accumulator starts before the loop, because the first pass reads
- *    it — predicted, then run (Mira's bug in the story is `total = 0`
- *    inside the body);
+ *    it — predicted, then run; then Mira's bug, `total = 0` inside the
+ *    body, predicted and run too, so the story's payoff is seen;
  * 3. the `for` line runs once more than the body, to find nothing left,
  *    and its name is left behind pointing at the last item;
  * 4. moving the loop name inside the body leaves the list alone —
@@ -25,11 +26,23 @@ import type { MemorySnapshot } from '../../src/memory/model'
  *
  * The console takes a block the way a terminal does: the header's colon
  * opens a continuation and a blank line closes it (src/repl/program.ts).
- * Each block here is two lines. Memory after a block is memory after the
- * whole loop, so every "run it" step is judged on what the loop left: the
- * total, and the loop name still pointing at the item it stopped on.
- * Printed output is never evidence, so nothing here prints.
+ * Memory after a block is memory after the whole loop, so every "run it"
+ * step is judged on what the loop left: the total, and the loop name still
+ * pointing at the item it stopped on. So that a single pass can be seen
+ * too, the two "let the robot check you" loops print on every pass; the
+ * printout is never evidence, and a loop typed without it still counts.
+ *
+ * A prediction is about a block that has not run, so the block is on the
+ * stage (a `code` picture) from the beat that introduces it to the ask:
+ * the indentation is the idea, and a sentence about code cannot show it.
  */
+
+/** The blocks this lesson reads, drawn as written. */
+const LOOP: Prop = { kind: 'code', text: 'for p in parcels:\n    total = total + p' }
+const CHECK: Prop = { kind: 'code', text: 'for p in parcels:\n    total = total + p\n    print(p, total)' }
+const BUG: Prop = { kind: 'code', text: 'for p in parcels:\n    total = 0\n    total = total + p' }
+const TIDY: Prop = { kind: 'code', text: 'for p in parcels:\n    parcels.remove(p)' }
+const TIDY_CHECK: Prop = { kind: 'code', text: 'for p in parcels:\n    parcels.remove(p)\n    print(p, parcels)' }
 
 /** This name points at a list whose slots point at these, read slot by
  *  slot — memory's own repr of a list is only its size ("3 items"). */
@@ -43,6 +56,16 @@ const listIs = (s: MemorySnapshot, name: string, repr: string): boolean => {
 /** A typed prediction: a bare literal, never a line that did the work. */
 const said = (e: Evidence, type: string, repr: string): boolean =>
   heard(e, (t) => t.type === type && t.repr === repr && /^[\d\s[\],-]+$/.test((t.source ?? '').trim()))
+
+/** A thought passing `then`, thought after the first one passing `first`:
+ *  a second prediction is not answered by a guess made at the first. */
+const after = (e: Evidence, first: (t: Heard) => boolean, then: (t: Heard) => boolean): boolean => {
+  const i = e.thoughts.findIndex(first)
+  return i >= 0 && e.thoughts.slice(i + 1).some(then)
+}
+
+/** A typed number and nothing else. */
+const typedInt = (repr: string) => (t: Heard) => t.type === 'int' && t.repr === repr && (t.source ?? '').trim() === repr
 
 /** The robot did the working — a sum, a name, a loop — instead of a
  *  prediction: an accepted line that is more than a number typed out. */
@@ -68,6 +91,8 @@ export const s5Ideas: Lesson = {
       tag: 'you',
       done: (e) => ever(e, (s) => listIs(s, 'parcels', '[5, 7, 4]')),
       praise: 'One list, and each of its slots points at a number.',
+      nudge: (l) =>
+        l.ok && /^\s*parcels\s*=\s*\(?\s*\d+\s*,/.test(l.source) ? 'Square brackets make a list: `parcels = [5, 7, 4]`.' : undefined,
     },
     {
       beats: [
@@ -81,12 +106,13 @@ export const s5Ideas: Lesson = {
     },
     {
       beats: [
-        { say: 'Here is the loop: `for p in parcels:`, and under it, indented, `total = total + p`.' },
-        { say: 'The `for` line points `p` at the next parcel, then runs the indented line once.' },
-        { say: 'The indented lines are the loop’s body: the colon starts it, the indent shows what is in it.' },
-        { say: 'Read it before you run it.', focus: 'memory' },
+        { say: 'Here is the loop: read it before you run it.', show: LOOP },
+        { say: 'The `for` line points `p` at the next parcel, then runs the indented line once.', show: LOOP },
+        { say: 'The indented lines are the loop’s body: the colon starts it, the indent shows what is in it.', show: LOOP },
+        { say: 'Memory holds what it starts from: the parcels, and `total` at `0`.', focus: 'memory', show: LOOP },
       ],
       say: 'After the loop, what will `total` point at? Type just the number.',
+      show: LOOP,
       tag: 'you',
       done: (e) => said(e, 'int', '16'),
       praise: 'Sixteen: each pass adds one parcel to whatever the pass before it left.',
@@ -101,9 +127,11 @@ export const s5Ideas: Lesson = {
       beats: [
         { say: 'Now let the robot check you.' },
         { say: 'The console keeps collecting a block until you give it a blank line.' },
-        { say: 'Put spaces in front of the body line: that indent is what puts it inside the loop.', focus: 'console' },
+        { say: 'Put spaces in front of the body line: that indent is what puts it inside the loop.', focus: 'console', show: CHECK },
+        { say: 'This time the body prints too, so you can watch every pass add its parcel.', show: CHECK },
       ],
-      say: 'Type `for p in parcels:`, then `total = total + p` indented under it, then a blank line.',
+      say: 'Type `for p in parcels:`, then `total = total + p` and `print(p, total)` indented, then a blank line.',
+      show: CHECK,
       tag: 'you',
       done: (e) => ever(e, (s) => points(s, 'total', '16') && points(s, 'p', '4')),
       praise: '`total` is at `16`, as you said, because every pass added one parcel to it.',
@@ -111,6 +139,41 @@ export const s5Ideas: Lesson = {
         const indent = indentMiss(l)
         if (indent) return indent
         if (/^\s*for\b/.test(l.source) && !/total/.test(l.source)) return 'Give the loop its body: `total = total + p`, indented.'
+        return undefined
+      },
+    },
+    {
+      beats: [
+        { say: 'Read the printout: each pass added one parcel to what the pass before it left.', focus: 'console' },
+        { say: 'Mira’s loop was different: her `total = 0` sat inside the body, under the `for`.', show: BUG },
+        { say: 'Read it the way the robot will: every pass runs both indented lines, in order.', show: BUG },
+      ],
+      say: 'After Mira’s loop, what will `total` point at? Type just the number.',
+      show: BUG,
+      tag: 'you',
+      done: (e) => after(e, typedInt('16'), typedInt('4')),
+      praise: 'Four: every pass set `total` back to `0`, so only the last parcel was left in it.',
+      nudge: (l) => {
+        if (ranInstead(l)) return 'Predict it first: type just the number you expect.'
+        if (l.thought?.repr === '16') return 'Look again: every pass sets `total` back to `0` before it adds.'
+        if (l.thought?.type === 'int') return 'Walk the last pass: `total = 0`, then add that pass’s parcel, `4`.'
+        return undefined
+      },
+    },
+    {
+      beats: [{ say: 'Now let the robot run Mira’s loop.', show: BUG }],
+      say: 'Type `for p in parcels:`, then `total = 0` and `total = total + p`, both indented, then a blank line.',
+      show: BUG,
+      tag: 'you',
+      // Her loop, with the reset inside the body: `total = 4` typed bare
+      // leaves the same memory and shows no bug.
+      done: (e) =>
+        everBy(e, (src, s) => /^\s*for\b/m.test(src) && /^[ \t]+total\s*=\s*0\s*$/m.test(src) && points(s, 'total', '4')),
+      praise: 'Four: `total = 0` inside the body started the total again on every pass.',
+      nudge: (l) => {
+        const indent = indentMiss(l)
+        if (indent) return indent
+        if (l.ok && /^\s*total\s*=\s*\d+\s*$/.test(l.source)) return 'Let the loop do it: type Mira’s loop, with `total = 0` inside the body.'
         return undefined
       },
     },
@@ -155,8 +218,10 @@ export const s5Ideas: Lesson = {
       tag: 'robot',
       done: (e) => heard(e, (t) => t.type === 'list' && t.repr === '[0, 3, 6]' && /range\s*\(/.test(t.source ?? '')),
       praise: '`[0, 3, 6]`, and no `9`, because a range stops just before its end.',
-      nudge: (l) =>
-        l.thought !== null && !/range/.test(l.source) ? 'Let `range` do the counting: `list(range(0, 9, 3))`.' : undefined,
+      nudge: (l) => {
+        if (l.thought?.type === 'range') return 'A range keeps its numbers to itself: wrap it in `list(...)` to see them.'
+        return l.thought !== null && !/range/.test(l.source) ? 'Let `range` do the counting: `list(range(0, 9, 3))`.' : undefined
+      },
     },
     {
       beats: [
@@ -171,10 +236,11 @@ export const s5Ideas: Lesson = {
     {
       beats: [
         { say: '`continue` is milder: it skips the rest of the body for this pass, then goes on to the next item.' },
-        { say: 'Last, Mira’s tidy-up: `parcels.remove(p)` takes that item out of the list.' },
-        { say: 'She loops over `parcels` and removes each parcel as the loop reaches it.' },
+        { say: 'Last, Mira’s tidy-up: `parcels.remove(p)` takes that item out of the list.', show: TIDY },
+        { say: 'She loops over `parcels` and removes each parcel as the loop reaches it.', show: TIDY },
       ],
       say: 'After that loop, what will `parcels` hold? Type the list.',
+      show: TIDY,
       tag: 'you',
       done: (e) => said(e, 'list', '[7]'),
       praise: '`[7]`: removing `5` slid `7` into the place the loop had just looked at.',
@@ -187,8 +253,9 @@ export const s5Ideas: Lesson = {
       },
     },
     {
-      beats: [{ say: 'Now let the robot check you.' }],
-      say: 'Type `for p in parcels:`, then `parcels.remove(p)` indented under it, then a blank line.',
+      beats: [{ say: 'Now let the robot check you, printing each pass.', show: TIDY_CHECK }],
+      say: 'Type `for p in parcels:`, then `parcels.remove(p)` and `print(p, parcels)` indented, then a blank line.',
+      show: TIDY_CHECK,
       tag: 'you',
       done: (e) => ever(e, (s) => listIs(s, 'parcels', '[7]') && points(s, 'p', '4')),
       praise: 'Only `7` is left, and `p` ended at `4`, because the loop never looked at `7`.',
@@ -196,7 +263,8 @@ export const s5Ideas: Lesson = {
     },
   ],
   outro: [
-    { say: 'Mira’s total was wrong because her `total = 0` sat inside the body, so every pass started again.' },
+    { say: 'The printout shows two passes only, `5` and then `4`: the `7` slid past.', focus: 'console' },
+    { say: 'And Mira’s total? Her `total = 0` belonged before the loop, where it runs once.' },
     { say: 'Read a loop by its indent: the body runs once per item, and the line after it runs once.' },
     { say: 'Next, the robot learns to choose, and then the exercises: you read first, then the robot runs it.' },
   ],

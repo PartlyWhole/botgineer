@@ -1,5 +1,6 @@
 import { ever, heard, points, targetOf, type Evidence, type Lesson, type LessonStep, type Line } from './core'
 import type { MemorySnapshot } from '../../src/memory/model'
+import type { Prop } from '../../src/scene/props'
 
 /**
  * Stage 6, the ideas: what a `for` loop is handed, told in beats.
@@ -23,7 +24,13 @@ import type { MemorySnapshot } from '../../src/memory/model'
  * list, so the effect of a pass survives the line, and the beat after it
  * points at it. A block is one accepted line, so memory is seen only once
  * the loop has finished — which is why every loop here collects.
+ *
+ * The prediction is about Mira's loop before it runs, so the loop is on
+ * the stage (a `code` picture) while it is read, asked about and run.
  */
+
+/** Mira's loop, drawn as written. */
+const MIRA: Prop = { kind: 'code', text: 'for x in prices:\n    got.append(x)' }
 
 /**
  * What a name's object looks like, written the way Python would write
@@ -136,10 +143,11 @@ export const s6Ideas: Lesson = {
     },
     {
       beats: [
-        { say: 'Here is Mira\'s loop: `for x in prices:`, and under it, indented, `got.append(x)`.' },
-        { say: 'Read it before it runs: each pass adds to `got` whatever `x` is bound to.' },
+        { say: 'Here is Mira\'s loop.', show: MIRA },
+        { say: 'Read it before it runs: each pass adds to `got` whatever `x` is bound to.', show: MIRA },
       ],
       say: 'What will `got` hold after the loop? Type the list you expect.',
+      show: MIRA,
       tag: 'you',
       done: (e) => heard(e, (t) => t.type === 'list' && literalList(t.source ?? '')),
       praise: (a) => `\`${a?.repr ?? 'That'}\`, you say. Now let the robot run it, and check.`,
@@ -152,8 +160,9 @@ export const s6Ideas: Lesson = {
     },
     {
       beats: [
-        { say: 'In the console, a block ends when you press Enter on an empty line.', thought: '' },
+        { say: 'In the console, a block ends when you press Enter on an empty line.', thought: '', show: MIRA },
       ],
+      show: MIRA,
       say: 'Type `for x in prices:`, then four spaces and `got.append(x)`, then Enter on an empty line.',
       tag: 'you',
       done: collectedKeys,
@@ -163,8 +172,9 @@ export const s6Ideas: Lesson = {
     {
       beats: [
         { say: 'Look below: `got` holds both keys, and `x` is still bound to the last one, `"jam"`.', focus: 'memory' },
+        { say: 'If you said `[3, 5]`, you made Mira’s mistake: a dict hands a loop its keys.' },
         { say: 'You\'ve been saying *the thing being looped over*. The formal word is **iterable**.' },
-        { say: 'You\'ve been saying *the name the `for` line rebinds*. The formal word is **loop variable**.' },
+        { say: 'You\'ve been saying *the name that moves on each pass*. The formal word is **loop variable**.' },
         { say: 'To get the prices as well, ask the dict for its pairs: `prices.items()`.' },
         { say: 'Rebind `got` to them, and the list of keys, with nothing bound to it, is let go.' },
         { say: '`list()` walks any iterable and keeps what it is handed, so you can see it.' },
@@ -190,6 +200,7 @@ export const s6Ideas: Lesson = {
       praise: '`8`: `v` was bound to each price in turn, so both were added. That is Mira\'s fix.',
       nudge: (l) => {
         if (errorIs(l, 'TypeError') && /\+\s*k\b/.test(l.source)) return '`k` is the key, a `str`: add the price, `v`.'
+        if (errorIs(l, 'NameError') && /total/.test(l.source)) return 'The first pass reads `total`, so it must exist first: type `total = 0`.'
         if (l.ok && /^\s*total\s*=\s*0\s*$/.test(l.source)) {
           return 'Now the loop: `for k, v in prices.items():`, then four spaces and `total = total + v`.'
         }

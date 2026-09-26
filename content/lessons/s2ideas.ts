@@ -1,6 +1,6 @@
 import { openerOf } from '../collection/story'
-import { ever, heard, points, sameObject, targetOf, type Evidence, type Lesson, type Line } from './core'
-import type { MemorySnapshot } from '../../src/memory/model'
+import { ever, everBy, heard, points, sameObject, targetOf, type Evidence, type Lesson, type Line } from './core'
+import { EMPTY, type MemorySnapshot } from '../../src/memory/model'
 
 /**
  * Stage 2, the ideas: changing an object versus moving a name, told in
@@ -19,7 +19,9 @@ import type { MemorySnapshot } from '../../src/memory/model'
  *    under a name — `other = other.sort()`, the trap itself, which loses
  *    the list (the console echoes no `None`, so it is never a thought);
  * 4. `+=` changes a list but, on a number, builds a new object and moves
- *    the arrow — numbers (and strings, and tuples) can only be replaced.
+ *    the arrow — numbers (and strings, and tuples) can only be replaced;
+ * 5. a tuple, seen once: its arrows never move, but a list it points at
+ *    can still change (Checkpoint 2 asks exactly that).
  *
  * The picture is the memory graph (R6): every step changes a card or
  * moves an arrow there, and the beat after it points at it (focus
@@ -33,7 +35,21 @@ import type { MemorySnapshot } from '../../src/memory/model'
  * The run steps judge the *event*, not exact reprs: a player who took a
  * detour (`nums += [4]` where `nums = nums + [4]` was asked) still has
  * two names, and the next line of the right kind still finishes the step.
+ * Where the praise names a kind of line (the change through a shared
+ * list, `+=`, `.sort()`), the step asks the line that did it (`changedBy`:
+ * its source, memory before it and memory after), so the same memory
+ * reached another way never earns a praise that says something false.
  */
+
+/**
+ * An accepted line did this: of its source, memory before it and memory
+ * as it left it. Derived from the accepted lines like `everBy`, and so
+ * true for good once true.
+ */
+const changedBy = (e: Evidence, holds: (source: string, before: MemorySnapshot, after: MemorySnapshot) => boolean) => {
+  const ls = e.lines ?? []
+  return ls.some((l, i) => holds(l.source, i > 0 ? ls[i - 1]!.memory : EMPTY, l.memory))
+}
 
 /**
  * The list a name points at, written the way Python prints it, or null.
@@ -53,9 +69,17 @@ const letGo = (l: Line) => l.ok && l.thought !== null && !/=/.test(l.source.repl
 /** A list written out, and nothing else: a prediction, not a question. */
 const listLiteral = (source: string | undefined) => /^\[[\d\s,]*\]$/.test((source ?? '').trim())
 
-/** Some memory where `nums` and `other` share one list that holds a 3. */
+/** A line that changed the one list `nums` and `other` already shared, so
+ *  it now holds a 3: not two names pointed at a list typed out with one. */
 const sharedAndChanged = (e: Evidence) =>
-  ever(e, (s) => sameObject(s, 'nums', 'other') && (listOf(s, 'nums') ?? '').startsWith('[1, 2, 3'))
+  changedBy(
+    e,
+    (_, before, after) =>
+      sameObject(before, 'nums', 'other') &&
+      targetOf(before, 'nums') === targetOf(after, 'nums') &&
+      sameObject(after, 'nums', 'other') &&
+      (listOf(after, 'nums') ?? '').startsWith('[1, 2, 3'),
+  )
 
 /** `nums` on a new list, one `4` longer than the list `other` kept. */
 const movedAway = (e: Evidence) =>
@@ -102,6 +126,7 @@ export const s2Ideas: Lesson = {
       nudge: (l) => {
         if (/=\s*nums\s*\.\s*append/.test(l.source)) return 'That pointed `nums` at what `.append` handed back. Fix it: `nums = other`.'
         if (/nums\s*=\s*nums\s*\+/.test(l.source)) return 'That built a new list. Put `nums` back with `nums = other`, then `nums.append(3)`.'
+        if (/^\s*nums\s*=\s*\[/.test(l.source)) return 'That built a new list. Point it back with `nums = other`, then `nums.append(3)`.'
         return undefined
       },
     },
@@ -139,7 +164,30 @@ export const s2Ideas: Lesson = {
         { say: 'So read what is just left of the `=`: a bare name there means an arrow moves.', thought: '' },
         { say: 'A line with no `=`, like `nums.append(3)`, asked something of the object instead.', thought: '' },
         { say: '`.sort()` is one of those: it puts a list in order, right where it is.', thought: '' },
-        { say: 'But what does it hand back? Keep it under a name, and see.', thought: '' },
+        { say: 'Give it something to sort: point `other` at a list that is out of order.', thought: '' },
+      ],
+      say: 'Type `other = [3, 1, 2]`, then `other.sort()`, and watch its arrows.',
+      tag: 'you',
+      done: (e) =>
+        changedBy(
+          e,
+          (src, before, after) =>
+            /^\s*other\s*\.\s*sort\s*\(\s*\)\s*$/.test(src) &&
+            listOf(before, 'other') === '[3, 1, 2]' &&
+            targetOf(before, 'other') === targetOf(after, 'other') &&
+            listOf(after, 'other') === '[1, 2, 3]',
+        ),
+      praise: 'Same list card, its arrows reordered, because `.sort()` changes the list where it is.',
+      nudge: (l) => {
+        if (/^\s*other\s*=\s*\[\s*3\s*,\s*1\s*,\s*2\s*\]\s*$/.test(l.source)) return 'Now `other.sort()`, and watch its arrows.'
+        if (/^\s*other\s*=\s*other\s*\.\s*sort/.test(l.source)) return 'Nearly: just `other.sort()`, with no `=`. First point `other` at `[3, 1, 2]` again.'
+        return undefined
+      },
+    },
+    {
+      beats: [
+        { say: 'Look below: the same list, now in order, and no arrow of a name moved.', focus: 'memory', thought: '' },
+        { say: 'But what does `.sort()` hand back? Keep it under a name, and see.', thought: '' },
       ],
       say: 'Type `other = other.sort()`, and watch `other`.',
       tag: 'you',
@@ -159,7 +207,19 @@ export const s2Ideas: Lesson = {
       ],
       say: 'Type `other = nums`, then `nums += [5]`.',
       tag: 'you',
-      done: (e) => ever(e, (s) => sameObject(s, 'nums', 'other') && (listOf(s, 'nums') ?? '').endsWith(', 5]')),
+      // The `+=` line itself, on the list both names already shared: the
+      // same memory reached by `nums = nums + [5]` then `other = nums`
+      // would make the praise say something false.
+      done: (e) =>
+        changedBy(
+          e,
+          (src, before, after) =>
+            /\bnums\s*\+=/.test(src) &&
+            sameObject(before, 'nums', 'other') &&
+            targetOf(before, 'nums') === targetOf(after, 'nums') &&
+            sameObject(after, 'nums', 'other') &&
+            (listOf(after, 'nums') ?? '').endsWith(', 5]'),
+        ),
       praise: '`other` sees the `5` too, because on a list `+=` changes the list rather than building one.',
       nudge: (l) => {
         if (/^\s*other\s*=\s*nums\s*$/.test(l.source)) return 'Now `nums += [5]`, and watch `other`.'
@@ -174,18 +234,56 @@ export const s2Ideas: Lesson = {
       ],
       say: 'Type `n = 10`, then `m = n`, then `n += 1`.',
       tag: 'you',
-      done: (e) => ever(e, (s) => points(s, 'n', '11') && points(s, 'm', '10')),
+      // `n` moved off a `10` it shared with `m`, by a `+=`: not `n = 11`.
+      done: (e) =>
+        changedBy(
+          e,
+          (src, before, after) =>
+            /^\s*n\s*\+=\s*1\s*$/.test(src) &&
+            points(before, 'n', '10') &&
+            sameObject(before, 'n', 'm') &&
+            points(after, 'n', '11') &&
+            points(after, 'm', '10'),
+        ),
       praise: '`m` stayed on `10`, because a number can’t change: `+=` built an `11` and moved `n`.',
       nudge: (l) => {
         if (/^\s*n\s*=\s*10\s*$/.test(l.source)) return 'Now `m = n`.'
         if (/^\s*m\s*=\s*n\s*$/.test(l.source)) return 'Now `n += 1`, and watch both arrows.'
+        if (/^\s*n\s*=\s*n\s*\+\s*1\s*$/.test(l.source)) return 'Same effect, but try the short way: `n = 10`, `m = n`, then `n += 1`.'
+        if (/^\s*[nm]\s*=\s*1[01]\s*$/.test(l.source)) return 'Let `+=` do it: `n = 10`, then `m = n`, then `n += 1`.'
+        return undefined
+      },
+    },
+    {
+      beats: [
+        { say: 'Look below: `n` moved to a new `11`, and `m` stayed on `10`.', focus: 'memory', thought: '' },
+        { say: 'Round brackets make a **tuple**: like a list, but its arrows can never be pointed anywhere else.', thought: '' },
+        { say: 'But a list a tuple points at is still a list, and it can still change.', thought: '' },
+      ],
+      say: 'Type `inner = [2]`, then `pair = (1, inner)`, then `inner.append(3)`.',
+      tag: 'you',
+      // The append, with the tuple already made: `pair = (1, [2, 3])`
+      // typed out holds the same values and shows nothing changing.
+      done: (e) =>
+        everBy(e, (src, s) => {
+          if (!/^\s*inner\s*\.\s*append\s*\(/.test(src)) return false
+          const id = targetOf(s, 'pair')
+          const t = id === null ? undefined : s.objects[id]
+          return t?.type === 'tuple' && t.elements?.[1]?.target === targetOf(s, 'inner') && (listOf(s, 'inner') ?? '').endsWith(', 3]')
+        }),
+      praise: 'The tuple’s arrows never moved, but the list its slot points at changed, because lists can.',
+      nudge: (l) => {
+        if (/^\s*inner\s*=\s*\[\s*2\s*\]\s*$/.test(l.source)) return 'Now the tuple: `pair = (1, inner)`.'
+        if (/^\s*pair\s*=\s*\(\s*1\s*,\s*inner\s*\)\s*$/.test(l.source)) return 'Now change the list: `inner.append(3)`, and watch `pair`.'
+        if (/^\s*pair\s*=\s*\(/.test(l.source) && !/inner/.test(l.source)) return 'Use the name, so there is a list to change: `pair = (1, inner)`.'
+        if (/^\s*inner\s*\.\s*append/.test(l.source)) return 'Make the tuple first, then change the list: `inner = [2]`, then `pair = (1, inner)`.'
         return undefined
       },
     },
   ],
   outro: [
-    { say: 'Look below: `n` moved to a new `11`, and `m` stayed on `10`.', focus: 'memory', thought: '' },
-    { say: 'Strings and tuples are like numbers: they can be replaced, but never changed.', thought: '' },
+    { say: 'Look below: `pair` still points at its `1` and at the same list, which now holds a `3`.', focus: 'memory', thought: '' },
+    { say: 'Strings and tuples can’t be changed, only replaced, though a list inside a tuple still can.', thought: '' },
     { say: 'So when a list changes by itself, look for a line that changed it through another name.', thought: '' },
     { say: 'The exercises are next: you read first, then the robot runs it.', thought: '' },
   ],

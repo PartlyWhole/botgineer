@@ -61,6 +61,7 @@ const IF = 'if weight > 10:\n    ride = "van"'
 const IF_ELSE = 'if weight > 10:\n    ride = "van"\nelse:\n    ride = "bike"'
 const LOOP = 'for w in [12, 3, 15]:\n    if w > 10:\n        heavy.append(w)'
 const BREAK = 'for w in [12, 3, 15]:\n    if w == 3:\n        break'
+const SKIP = 'for w in [12, 3, 15]:\n    if w == 3:\n        continue\n    heavy.append(w)'
 
 /** Every step done, in play order: each line, and memory as it left it. */
 const H: LineMemory[] = [
@@ -71,6 +72,8 @@ const H: LineMemory[] = [
   by('heavy = []', mem({ weight: 3, ride: 'bike', heavy: [] })),
   by(LOOP, mem({ weight: 3, ride: 'bike', heavy: [12, 15], w: 15 })),
   by(BREAK, mem({ weight: 3, ride: 'bike', heavy: [12, 15], w: 3 })),
+  by('heavy = []', mem({ weight: 3, ride: 'bike', heavy: [], w: 3 })),
+  by(SKIP, mem({ weight: 3, ride: 'bike', heavy: [12, 15], w: 15 })),
 ]
 const SAID: [string, string, string][] = [
   ['bool', 'True', 'weight > 10'],
@@ -94,13 +97,15 @@ describe('decide', () => {
     expect(at(ev(H.slice(0, 4), ...SAID))).toBe(6)
     expect(at(ev(H.slice(0, 5), ...SAID))).toBe(7)
     expect(at(ev(H.slice(0, 6), ...SAID))).toBe(8)
+    expect(at(ev(H.slice(0, 7), ...SAID))).toBe(9)
+    expect(at(ev(H.slice(0, 8), ...SAID))).toBe(9)
     expect(at(ev(H, ...SAID))).toBe(decide.steps.length)
     expect(script(decide, ev(H, ...SAID)).finished).toBe(true)
   })
 
-  it('has between six and nine asks, each praised with its reason (R9)', () => {
+  it('has between six and ten asks, each praised with its reason (R9)', () => {
     expect(decide.steps.length).toBeGreaterThanOrEqual(6)
-    expect(decide.steps.length).toBeLessThanOrEqual(9)
+    expect(decide.steps.length).toBeLessThanOrEqual(10)
     for (const s of decide.steps) expect(String(s.praise)).toMatch(/because|so /)
     expect(decide.takeaway).toMatch(/\.$/)
   })
@@ -126,6 +131,21 @@ describe('decide', () => {
     // A bare `break` stops on the first pass.
     const bare = 'for w in [12, 3, 15]:\n    break'
     expect(at(ev([...H.slice(0, 6), by(bare, mem({ weight: 3, ride: 'bike', heavy: [12, 15], w: 12 }))], ...SAID))).toBe(8)
+  })
+
+  it('refuses memory the loop leaves, reached without the loop: `w = 3`, a loop with no `if`', () => {
+    // After the heavy loop, `w = 3` alone leaves what the break loop does.
+    const bareW = [...H.slice(0, 6), by('w = 3', mem({ weight: 3, ride: 'bike', heavy: [12, 15], w: 3 }))]
+    expect(at(ev(bareW, ...SAID))).toBe(8)
+    // A loop over the heavy two alone chooses nothing.
+    const noIf = 'for w in [12, 15]:\n    heavy.append(w)'
+    expect(at(ev([...H.slice(0, 5), by(noIf, mem({ weight: 3, ride: 'bike', heavy: [12, 15], w: 15 }))], ...SAID))).toBe(7)
+    // The `continue` step: the break loop's memory, or a loop with no
+    // `continue`, is not it; nor is a `continue` loop onto a full list.
+    const noSkip = [...H.slice(0, 8), by(LOOP, mem({ weight: 3, ride: 'bike', heavy: [12, 15], w: 15 }))]
+    expect(at(ev(noSkip, ...SAID))).toBe(9)
+    const full = [...H.slice(0, 7), by(SKIP, mem({ weight: 3, ride: 'bike', heavy: [12, 15, 12, 15], w: 15 }))]
+    expect(at(ev(full, ...SAID))).toBe(9)
   })
 
   it('refuses `ride` pointed by hand: the change must come from a line with an `if` (and an `else`)', () => {
@@ -201,6 +221,16 @@ describe('decide', () => {
       expect(reply(atLoop, line('for w in [12, 3, 15]:\n    heavy.append(w)', null))).toContain('Every parcel went in')
       expect(reply(atLoop, line('for w in [12, 3, 15]:\n    if w > 10:\n        heavy.append(w)', null))).toContain(
         'wasn’t empty',
+      )
+    })
+
+    it('`w` pointed by hand, and a `continue` loop onto a list that was not empty', () => {
+      expect(reply(atBreak, line('w = 3', null))).toContain('Let the loop stop there')
+      const atSkip = ev(H.slice(0, 7), ...SAID)
+      expect(reply(atSkip, line('heavy = []', null))).toContain('the loop on the card')
+      expect(reply(atSkip, line(SKIP, null))).toContain('wasn’t empty')
+      expect(reply(atSkip, line('for w in [12, 3, 15]:\n    if w == 3:\n        continue\n        heavy.append(w)', null))).toContain(
+        'inside the `if`',
       )
     })
 
