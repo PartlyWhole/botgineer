@@ -11,6 +11,7 @@ import {
   speechDrop,
   speechLift,
   propHeightPct,
+  typeOn,
 } from '../../src/panels/ScenePanel'
 import { placement, readScene, widthOf, type Actor, type SceneSpec } from '../../src/scene/spec'
 import { ACTIVITIES } from '../../content/activities'
@@ -451,5 +452,13 @@ describe('the cast on stage', () => {
       expect(dur).toBeLessThanOrEqual(11)
       expect(parseFloat(t['--blink-delay']!)).toBeLessThanOrEqual(0)
     }
+  })
+})
+
+describe('typing a line on', () => {
+  it('breathes at the end of a sentence, but not at the dot inside a number', () => {
+    // "sends you back to 2." read as the verdict for a moment before the 8.
+    expect(typeOn('2.8').ms).toBe(typeOn('248').ms)
+    expect(typeOn('2. 8').ms).toBeGreaterThan(typeOn('2 88').ms)
   })
 })

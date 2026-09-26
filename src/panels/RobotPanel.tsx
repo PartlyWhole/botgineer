@@ -15,10 +15,10 @@
  * The transport and the transcript stay put across both views, so a run
  * can be started and scrubbed while looking at either.
  */
-import { useRef, type ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import { CodeEditor, type EditorApi } from '../ui/CodeEditor'
 import { RobotConsole, type Exchange } from '../ui/RobotConsole'
-import { Gutter, useRemembered } from '../ui/Split'
+import { Gutter, STACKED, useRemembered } from '../ui/Split'
 
 export type Transcript =
   | { kind: 'out'; text: string }
@@ -101,6 +101,7 @@ export function RobotPanel({
     reading ? 220 : talking ? NaN : 280,
   )
   const memoryRef = useRef<HTMLDivElement | null>(null)
+  useMemoryInView(focus === 'memory', memoryRef)
 
   return (
     <div
@@ -253,4 +254,42 @@ export function RobotPanel({
       )}
     </div>
   )
+}
+
+/** How much of memory a beat about it needs on screen: its first rows,
+ *  where the names start. */
+const MEMORY_SHOWN = 300
+
+/**
+ * A beat that points at memory ("Look below: there's `x`…") has to have
+ * memory on screen, and on a phone it starts below the fold. So on a
+ * stacked layout the page scrolls down just far enough to show memory's
+ * first rows, and scrolls back up to where it was when the beat moves on
+ * — the stage is where the crow talks and where Next is, and a beat about
+ * memory must not take the player away from it for good. The scroll is
+ * the least that shows those rows, which on a phone keeps the bubble's
+ * lower edge, the cast and Next in view too.
+ *
+ * If the player has scrolled the page meanwhile, it is theirs, and
+ * nothing is put back.
+ */
+function useMemoryInView(on: boolean, ref: { current: HTMLElement | null }) {
+  useEffect(() => {
+    const el = ref.current
+    if (!on || !el || typeof window.matchMedia !== 'function' || !window.matchMedia(STACKED).matches) return
+    const box = el.getBoundingClientRect()
+    const want = Math.min(box.height, MEMORY_SHOWN)
+    const by = box.top + want - window.innerHeight
+    if (by <= 0) return
+    const from = window.scrollY
+    const to = from + by
+    const smooth = !window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    window.scrollTo({ top: to, behavior: smooth ? 'smooth' : 'auto' })
+    return () => {
+      // Put back only a scroll we made (perhaps still under way) and
+      // nobody has moved since.
+      const y = window.scrollY
+      if (y >= from - 24 && y <= to + 24) window.scrollTo({ top: from, behavior: smooth ? 'smooth' : 'auto' })
+    }
+  }, [on, ref])
 }

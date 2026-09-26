@@ -132,7 +132,7 @@ test('five data types, each shown, named and used, with the misses drawn', async
   await page.evaluate(() => window.botgineer.next())
   await expect(page.getByTestId('takeaway')).toContainText('bool, int, float, char and str')
   // Memory stayed empty the whole way: nothing had a name.
-  await expect(page.getByTestId('memory')).toContainText('Memory is empty')
+  await expect(page.getByTestId('memory')).toContainText('Nothing kept yet')
 })
 
 /**

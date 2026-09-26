@@ -94,6 +94,15 @@ describe('script', () => {
     expect(b2).toMatchObject({ thought: '7', focus: 'console', speaker: 'courier', beat: 2 })
   })
 
+  it('says where the console is, for the layout on screen', () => {
+    const WHERE: Lesson = {
+      ...DEMO,
+      steps: [{ ...DEMO.steps[0]!, beats: [{ say: 'Type it {CONSOLE}.' }], say: 'Now {CONSOLE}.' }],
+    }
+    expect(script(WHERE, NOTHING).items.map((i) => i.text)).toEqual(['Type it on the right.', 'Now on the right.'])
+    expect(script(WHERE, NOTHING, 'stacked').items.map((i) => i.text)).toEqual(['Type it below.', 'Now below.'])
+  })
+
   it('swaps the ask for a reply to a miss, in the same place', () => {
     const s = script(DEMO, typed(line('False', th('bool', 'False'))))
     expect(s.items).toHaveLength(4)
@@ -386,7 +395,7 @@ describe('a line that moved the lesson through memory', () => {
 describe('the cloud', () => {
   const forty2 = { type: 'int', repr: '42', source: '7 * 6' }
   const ten = { type: 'int', repr: '10', source: 'x' }
-  const item = (kind: 'praise' | 'beat' | 'ask', thought?: string) => ({ kind, asking: kind === 'ask', text: '', thought })
+  const item = (kind: 'praise' | 'beat' | 'ask' | 'reply', thought?: string) => ({ kind, asking: kind === 'ask' || kind === 'reply', text: '', thought })
   // The step began with 42 the newest thought, and 42 was what moved it.
   const answered = { stale: forty2, answer: forty2 }
 
@@ -411,5 +420,15 @@ describe('the cloud', () => {
     expect(cloud(item('beat', '?'), forty2, answered)).toBe('?')
     expect(cloud(item('beat', ''), ten, answered)).toBe('')
     expect(cloud(item('ask'), undefined, answered)).toBeNull()
+  })
+
+  it('empties when the last line stopped the robot', () => {
+    // `42`, then `7 x 6`: a SyntaxError, and 42 left up read as its answer.
+    const since = { stale: undefined, answer: undefined }
+    expect(cloud(item('ask'), forty2, since)).toBe('42')
+    expect(cloud(item('reply'), forty2, since, true)).toBeNull()
+    expect(cloud(item('praise'), forty2, answered, true)).toBeNull()
+    // A beat's demonstration is not the robot's thought, so it still shows.
+    expect(cloud(item('beat', '7'), forty2, since, true)).toBe('7')
   })
 })

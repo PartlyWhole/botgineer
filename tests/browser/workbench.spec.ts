@@ -421,7 +421,7 @@ test('a bare literal is thought of and let go, never stored', async ({ page }) =
   // which is what the first lesson is for.
   expect(await page.evaluate(() => window.botgineer.snapshot().bindings)).toEqual([])
   expect(await reprs(page)).toEqual([])
-  await expect(page.getByTestId('memory')).toContainText('Memory is empty')
+  await expect(page.getByTestId('memory')).toContainText('Nothing kept yet')
 })
 
 test('memory stays empty however much the robot works out', async ({ page }) => {
@@ -500,7 +500,7 @@ test('memory keeps what the robot has after a line that fails', async ({ page })
   for (const bad of ['y = )', 'y = 1 / 0', 'nope']) {
     await say(page, bad)
     await expect(page.getByTestId('console-error').last()).toBeVisible()
-    await expect(page.getByTestId('memory')).not.toContainText('Memory is empty')
+    await expect(page.getByTestId('memory')).not.toContainText('Nothing kept yet')
     await expect(page.getByTestId('node-x')).toBeVisible()
     expect(await page.evaluate(() => window.botgineer.snapshot().bindings.map((b) => b.name))).toEqual(['x'])
   }
@@ -877,12 +877,12 @@ test('memory fills in beside the console, without switching to it', async ({ pag
   await open(page, 'sandbox')
   // The point: no switching anywhere in this test.
   await expect(page.getByTestId('console')).toBeVisible()
-  await expect(page.getByTestId('memory')).toContainText('Memory is empty')
+  await expect(page.getByTestId('memory')).toContainText('Nothing kept yet')
 
   // A bare expression is thought of and let go, so memory stays empty.
   await say(page, '10')
   await expect(page.getByTestId('thought')).toHaveText('10')
-  await expect(page.getByTestId('memory')).toContainText('Memory is empty')
+  await expect(page.getByTestId('memory')).toContainText('Nothing kept yet')
 
   // A name is what puts something there, and it appears as you type it.
   await say(page, 'x = 5')
@@ -1367,4 +1367,31 @@ test('say() during a practice praise waits for the next exercise to start, and t
     await page.getByTestId('beat-back').click()
     await expect(page.getByTestId('guide')).toHaveAttribute('data-kind', 'praise')
   }
+})
+
+/* --------------------------- reading's shown run --------------------------- */
+
+test('each reading item opens with nothing of the item before shown', async ({ page }) => {
+  // Invariant 22. The shown run was reset only per activity, so the next
+  // item opened under the last one's memory, scrubber and output — in the
+  // capstone, where every item shares one program, that was the answer.
+  const read = (fn: string, ...args: unknown[]) =>
+    page.evaluate(([fn, args]) => (window as any).botgineer.read[fn as string](...(args as unknown[])), [fn, args] as const)
+  await page.goto('./#/s1-set-1')
+  await expect(page.locator('.app')).toHaveAttribute('data-boot', 'ready', { timeout: 60_000 })
+  await expect.poll(() => read('models'), { timeout: 30_000 }).not.toBeNull()
+  const models = (await read('models')) as ({ kind: string } | null)[]
+  for (const [i, m] of models.entries()) {
+    if (!m) continue
+    await read('answer', i, m.kind === 'rule' ? { kind: 'rule', text: 'my rule', mark: null } : m)
+  }
+  await page.getByTestId('commit').click()
+  await expect(page.getByTestId('scrubber')).toBeVisible()
+  await expect(page.getByTestId('memory')).not.toHaveClass(/empty/)
+  for (const [i, m] of models.entries()) if (m?.kind === 'rule') await page.getByTestId(`part-${i}`).getByTestId('mark-right').click()
+  await page.getByTestId('next-item').click()
+
+  await expect(page.getByTestId('memory')).toHaveClass(/empty/)
+  await expect(page.getByTestId('scrubber')).toHaveCount(0)
+  await expect(page.getByTestId('transcript')).toHaveCount(0)
 })

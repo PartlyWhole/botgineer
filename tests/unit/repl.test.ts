@@ -108,7 +108,7 @@ describe('buildProgram', () => {
     const built = buildProgram([], expr('10'))
     const lines = built.source.trimEnd().split('\n')
     expect(lines[0]).toContain(DESCRIBE)
-    expect(lines[1]).toBe(`${THOUGHT} = ${DESCRIBE}(10)`)
+    expect(lines.slice(1)).toEqual([`${THOUGHT} = ${DESCRIBE}((10`, '))'])
     // Nothing anywhere holds a reference to the value.
     expect(built.source).not.toContain('append')
   })
@@ -124,18 +124,26 @@ describe('buildProgram', () => {
     // means the description can only have come from the pending line.
     const built = buildProgram([expr('10'), stmt('x = 5')], expr('x + 1'))
     const lines = built.source.trimEnd().split('\n')
-    expect(lines.slice(1)).toEqual(['10', 'x = 5', `${THOUGHT} = ${DESCRIBE}(x + 1)`])
+    expect(lines.slice(1)).toEqual(['10', 'x = 5', `${THOUGHT} = ${DESCRIBE}((x + 1`, '))'])
   })
 
   it('points pendingLine at the submission, not at the replay', () => {
     const built = buildProgram([expr('10'), stmt('x = 5')], expr('x + 1'))
     const lines = built.source.split('\n')
-    expect(lines[built.pendingLine - 1]).toBe(`${THOUGHT} = ${DESCRIBE}(x + 1)`)
+    expect(lines[built.pendingLine - 1]).toBe(`${THOUGHT} = ${DESCRIBE}((x + 1`)
   })
 
   it('points pendingLine correctly with no history at all', () => {
     const built = buildProgram([], expr('10'))
-    expect(built.source.split('\n')[built.pendingLine - 1]).toBe(`${THOUGHT} = ${DESCRIBE}(10)`)
+    expect(built.source.split('\n')[built.pendingLine - 1]).toBe(`${THOUGHT} = ${DESCRIBE}((10`)
+  })
+
+  it('hands the describer one argument, whatever the line holds', () => {
+    // `1,5` is the tuple (1, 5) to Python, not two arguments.
+    expect(buildProgram([], expr('1,5')).source).toContain(`${DESCRIBE}((1,5\n))`)
+    // A trailing comment cannot swallow the closing parentheses.
+    const commented = buildProgram([], expr('10  # ten')).source.trimEnd().split('\n')
+    expect(commented.slice(1)).toEqual([`${THOUGHT} = ${DESCRIBE}((10  # ten`, '))'])
   })
 
   it('attributes every program line to the entry that produced it', () => {

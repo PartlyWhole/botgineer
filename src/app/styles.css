@@ -718,6 +718,8 @@ kbd {
   flex: 1 1 auto;
   min-height: 0;
   overflow: hidden;
+  /* Sideways swipes pan memory (MemoryGraph); upright ones scroll the page. */
+  touch-action: pan-y;
   background:
     radial-gradient(120% 90% at 30% 0%, #ffffff 0%, #f8faff 55%, #f3f6fd 100%);
 }
@@ -768,7 +770,8 @@ kbd {
    anchor here — a CSS one would override it. */
 .edge-label {
   font-family: var(--mono);
-  font-size: 10px;
+  /* The slot numbers are what Stage 3 teaches: big enough to read. */
+  font-size: 11px;
   fill: #6f7ea3;
   paint-order: stroke;
   stroke: #ffffff;
@@ -782,7 +785,7 @@ kbd {
 }
 
 .has-pick .edge.lit .edge-label {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   fill: var(--brand);
 }
@@ -1484,6 +1487,14 @@ code.inline {
   .robot-pane {
     height: 640px;
   }
+
+  /* Stacked, memory sits under the console and below a phone's fold. The
+     console needs its prompt and the last few exchanges (it scrolls), so
+     it keeps a fixed few lines and memory starts that much nearer the
+     stage. A beat about memory scrolls the rest into view (RobotPanel). */
+  .robot-panel[data-mode='console'] .views .memory-view {
+    height: var(--memory-h, calc(100% - 176px));
+  }
 }
 
 /* Reduced motion drops movement, not change.
@@ -1529,6 +1540,21 @@ code.inline {
 
   .actor.crate.picked {
     transform: translate(-50%, -50%) translateY(-22px);
+  }
+
+  /* A picture's arrival and departure are change, not movement: a fade
+     (props.css, "calm"). The rule above killed them, and a leaving layer
+     with no animation never leaves — the last exercise's picture and its
+     ticked answer stayed drawn under the next question for good. These
+     are `!important` because the rule they undo is. */
+  .prop-layer[data-role='current'] {
+    animation: prop-ask-in 200ms linear var(--beat, 0s) both !important;
+  }
+  .prop-layer[data-role='leaving'] {
+    animation: prop-leave-calm var(--beat-len) linear both !important;
+  }
+  .stage .prop-ask {
+    animation: prop-ask-in 200ms linear var(--beat, 0s) both !important;
   }
 }
 

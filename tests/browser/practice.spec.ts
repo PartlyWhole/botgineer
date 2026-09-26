@@ -179,3 +179,25 @@ test('the skills screen shows what practice recorded', async ({ page }) => {
   await expect(page.locator('.skill-stats').first()).toContainText('first time')
   await expect(page.getByTestId('skill-bind')).toContainText('Not introduced yet')
 })
+
+test.describe('with reduced motion', () => {
+  test.use({ reducedMotion: 'reduce' })
+
+  test('the answered picture fades and is gone by the next question', async ({ page }) => {
+    // The page-wide calm rule stopped every animation, the leaving layer's
+    // fade included, so the last exercise's picture and its ticked answer
+    // stayed drawn under the next question for good.
+    await open(page, 'practice-thinking')
+    await idle(page)
+    const ex = (await exercise(page))!
+    await say(page, ex.answer)
+    await expect.poll(async () => (await exercise(page))?.at).toBe(ex.at + 1)
+    await pastPraise(page)
+    await skip(page)
+    const leaving = page.getByTestId('prop-leaving')
+    await expect(leaving).toHaveCount(1)
+    await expect.poll(() => leaving.evaluate((el) => getComputedStyle(el).opacity), { timeout: 5_000 }).toBe('0')
+    // The question's own picture is there and fully drawn.
+    await expect.poll(() => page.getByTestId('prop').evaluate((el) => getComputedStyle(el).opacity)).toBe('1')
+  })
+})

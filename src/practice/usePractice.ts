@@ -257,7 +257,7 @@ export function usePractice(
   const settled: Staging = done
     ? shelf
       ? {
-          current: { key: 'practice:done', prop: { kind: 'shelf', filled: [...SLOTS], cheer: true }, answer: null, verdict: null, heard: rights },
+          current: { key: 'practice:done', prop: { kind: 'shelf', filled: [...SLOTS], cheer: true, examples: { bool: [], int: [], float: [], char: [], str: [] } }, answer: null, verdict: null, heard: rights },
           leaving,
         }
       : { current: null, leaving }

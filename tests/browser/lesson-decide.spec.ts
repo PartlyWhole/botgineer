@@ -62,7 +62,7 @@ test('Making Choices: the robot asks, and the answer decides which lines run', a
   // memory changed.
   await block(page, 'if weight > 10:', 'ride = "van"')
   await expect(page.getByTestId('guide')).toContainText('spaces in front')
-  await expect(page.getByTestId('memory')).not.toContainText('Memory is empty')
+  await expect(page.getByTestId('memory')).not.toContainText('Nothing kept yet')
   await expect(page.getByTestId('node-weight')).toBeVisible()
   expect(await bound(page)).toEqual({ weight: '12' })
   // Pointing `ride` by hand chooses for the robot: the same memory as the

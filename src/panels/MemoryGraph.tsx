@@ -31,6 +31,7 @@ import {
   place,
   scrolled,
   slotLabel,
+  spread,
   svgTransformOf,
   transformOf,
   type Camera,
@@ -160,20 +161,26 @@ export function MemoryGraph({ snapshot, handles, runKey, picked, onPick, fit = f
       const b = bodies.current.get(id)
       if (b) el.style.transform = `translate(${b.x}px, ${b.y}px) translate(-50%, -50%)`
     }
+    // Every card is something an arrow must not pass through.
+    const cards = [...bodies.current.values()]
+    const labels: { el: SVGTextElement; x: number; y: number; w: number; anchor: string }[] = []
     for (const e of edgesRef.current) {
       const path = edgeRefs.current.get(e.key)
       const a = bodies.current.get(e.from)
       const b = bodies.current.get(e.to)
       if (!path || !a || !b) continue
-      const c = curve(a, b)
+      const c = curve(a, b, cards)
       path.setAttribute('d', c.d)
       const label = labelRefs.current.get(e.key)
-      if (label) {
-        label.setAttribute('x', String(c.label.x))
-        label.setAttribute('y', String(c.label.y))
-        label.setAttribute('text-anchor', c.label.anchor)
-      }
+      if (label && e.label !== null) labels.push({ el: label, ...c.label, w: slotLabel(e.label).w })
     }
+    // And no label stands on another.
+    const ys = spread(labels)
+    labels.forEach((l, i) => {
+      l.el.setAttribute('x', String(l.x))
+      l.el.setAttribute('y', String(ys[i]))
+      l.el.setAttribute('text-anchor', l.anchor)
+    })
   }
   const paintRef = useRef(paint)
   paintRef.current = paint
@@ -318,9 +325,39 @@ export function MemoryGraph({ snapshot, handles, runKey, picked, onPick, fit = f
       loopRef.current()
     }
     host.addEventListener('wheel', onWheel, { passive: false })
+
+    // A phone has no wheel. A sideways swipe pans a memory wider than the
+    // pane (the overview never follows a card to the right on its own, so
+    // this is how the right of a wide memory is reached); an upright one
+    // is left to the page (`touch-action: pan-y`, styles.css), which has to
+    // scroll past this pane.
+    let swipe: { id: number; x: number } | null = null
+    const onDown = (e: PointerEvent) => {
+      if (e.pointerType === 'touch') swipe = { id: e.pointerId, x: e.clientX }
+    }
+    const onMove = (e: PointerEvent) => {
+      if (swipe === null || e.pointerId !== swipe.id || nearRef.current !== null) return
+      const next = scrolled(target.current, swipe.x - e.clientX, 0, boxes(null), viewport.current)
+      swipe.x = e.clientX
+      target.current = next
+      camera.current = next
+      scroll.current = { x: next.x, y: next.y }
+      loopRef.current()
+    }
+    const onUp = (e: PointerEvent) => {
+      if (swipe !== null && e.pointerId === swipe.id) swipe = null
+    }
+    host.addEventListener('pointerdown', onDown)
+    host.addEventListener('pointermove', onMove)
+    host.addEventListener('pointerup', onUp)
+    host.addEventListener('pointercancel', onUp)
     return () => {
       ro.disconnect()
       host.removeEventListener('wheel', onWheel)
+      host.removeEventListener('pointerdown', onDown)
+      host.removeEventListener('pointermove', onMove)
+      host.removeEventListener('pointerup', onUp)
+      host.removeEventListener('pointercancel', onUp)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

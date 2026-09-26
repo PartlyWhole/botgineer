@@ -213,9 +213,9 @@ const LABEL_T = 0.5
 /** Label baseline above the arrow. */
 const LABEL_OFF = 4
 /** A slot label's width per character, px: the edge label's monospace at
- *  its larger (picked) size, so a picked label never outgrows its gap —
- *  which it straddles, centred. */
-export const LABEL_CHAR = 6.7
+ *  its larger (picked) size, 12px, so a picked label never outgrows its
+ *  gap — which it straddles, centred. */
+export const LABEL_CHAR = 7.3
 /** Longest slot label drawn whole. */
 const LABEL_MAX = 12
 
@@ -234,12 +234,43 @@ const cubic = (p0: number, p1: number, p2: number, p3: number, t: number) => {
   return u * u * u * p0 + 3 * u * u * t * p1 + 3 * u * t * t * p2 + t * t * t * p3
 }
 
+/** Whether a box is crossed by the path through these points. The ends'
+ *  own cards are left out by the caller. */
+const crosses = (pts: [number, number][], o: Box, pad = 3): boolean => {
+  const l = o.x - o.w / 2 - pad
+  const r = o.x + o.w / 2 + pad
+  const t = o.y - o.h / 2 - pad
+  const btm = o.y + o.h / 2 + pad
+  return pts.some(([x, y]) => x > l && x < r && y > t && y < btm)
+}
+
+/** Points along a cubic, for testing it against cards. */
+const sample = (x0: number, y0: number, x1: number, y1: number, x2: number, y2: number, x3: number, y3: number, n = 24) => {
+  const pts: [number, number][] = []
+  for (let i = 0; i <= n; i++) pts.push([cubic(x0, x1, x2, x3, i / n), cubic(y0, y1, y2, y3, i / n)])
+  return pts
+}
+
+/** A forward arrow's control points, from x `ax` to `ex`: the plain S. */
+const plain = (ax: number, ex: number) => {
+  const reach = Math.max(24, (ex - ax) * 0.5)
+  return { c1x: ax + reach, c2x: ex - reach }
+}
+
 /**
  * The arrow from one card to another.
  *
  * Forward — the usual case, left to right — it leaves the source's right
  * edge and enters the target's left edge, horizontal at both ends, so rows
  * read as rows and an arrow's direction is never in doubt.
+ *
+ * A forward arrow that would pass through a card on its way (`obstacles`:
+ * the other cards) is routed round it: it runs level along a lane — its
+ * own row, the target's row, or the gap between two rows — past the cards
+ * in the way, and only then bends into its target. Drawn straight through,
+ * `total`'s arrow to a `0` that a list also held entered the list card and
+ * came out on the list's own arrow, and read as `total` pointing at the
+ * list.
  *
  * Backward — to something already drawn in the same column or further
  * left, which is what a shared object or a cycle produces — it loops out to
@@ -248,7 +279,7 @@ const cubic = (p0: number, p1: number, p2: number, p3: number, t: number) => {
  *
  * A collection that holds itself gets a loop over its own top.
  */
-export function curve(a: Box, b: Box): Curve {
+export function curve(a: Box, b: Box, obstacles: Box[] = []): Curve {
   const ax = a.x + a.w / 2
 
   if (a === b || (a.x === b.x && a.y === b.y)) {
@@ -260,6 +291,10 @@ export function curve(a: Box, b: Box): Curve {
 
   const forward = b.x - b.w / 2 - TIP > ax + 8
   const ex = forward ? b.x - b.w / 2 - TIP : b.x + b.w / 2 + TIP
+  if (forward && obstacles.length > 0) {
+    const routed = around(a, b, ax, ex, obstacles)
+    if (routed) return routed
+  }
   const reach = forward ? Math.max(24, (ex - ax) * 0.5) : 56 + Math.abs(b.y - a.y) * 0.12
   const c1x = ax + reach
   const c2x = forward ? ex - reach : Math.max(ax, ex) + reach
@@ -270,6 +305,92 @@ export function curve(a: Box, b: Box): Curve {
     anchor: 'middle' as const,
   }
   return { d, label }
+}
+
+/**
+ * A forward arrow routed round the cards in its way, or null when the
+ * plain S is clear (or no lane is).
+ *
+ * The lane is the first clear one of: the source's own row, the target's
+ * row, then the gaps just above and below each card in the way, nearest
+ * the source first. The arrow bends onto the lane before the first card
+ * in the way, runs level past the last, and bends into the target.
+ */
+function around(a: Box, b: Box, ax: number, ex: number, obstacles: Box[]): Curve | null {
+  const others = obstacles.filter(
+    (o) => !(o.x === a.x && o.y === a.y) && !(o.x === b.x && o.y === b.y) && o.x + o.w / 2 > ax && o.x - o.w / 2 < ex,
+  )
+  if (others.length === 0) return null
+  const { c1x, c2x } = plain(ax, ex)
+  const straight = sample(ax, a.y, c1x, a.y, c2x, b.y, ex, b.y)
+  const inWay = others.filter((o) => crosses(straight, o))
+  if (inWay.length === 0) return null
+
+  const xs = Math.min(...inWay.map((o) => o.x - o.w / 2)) - 10
+  const xe = Math.max(...inWay.map((o) => o.x + o.w / 2)) + 10
+  if (xs <= ax + 4 || xe >= ex - 16) return null
+
+  const lanes = [a.y, b.y, ...inWay.flatMap((o) => [o.y - o.h / 2 - ROW_GAP / 2, o.y + o.h / 2 + ROW_GAP / 2])]
+  const tried = new Set<number>()
+  for (const lane of lanes) {
+    if (tried.has(lane)) continue
+    tried.add(lane)
+    // Onto the lane, along it, and into the target.
+    const k1 = Math.max(12, (xs - ax) * 0.5)
+    const k2 = Math.max(12, (ex - xe) * 0.5)
+    const pts = [
+      ...sample(ax, a.y, ax + k1, a.y, xs - k1, lane, xs, lane),
+      ...sample(xs, lane, xs + 1, lane, xe - 1, lane, xe, lane, 12),
+      ...sample(xe, lane, xe + k2, lane, ex - k2, b.y, ex, b.y),
+    ]
+    if (others.some((o) => crosses(pts, o))) continue
+    const d = `M ${ax} ${a.y} C ${ax + k1} ${a.y} ${xs - k1} ${lane} ${xs} ${lane} L ${xe} ${lane} C ${xe + k2} ${lane} ${ex - k2} ${b.y} ${ex} ${b.y}`
+    // A slot label stands in the gap its arrow crosses first, above the
+    // arrow where it leaves — that gap is the one sized for it.
+    const label = {
+      x: cubic(ax, ax + k1, xs - k1, xs, LABEL_T),
+      y: cubic(a.y, a.y, lane, lane, LABEL_T) - LABEL_OFF,
+      anchor: 'middle' as const,
+    }
+    return { d, label }
+  }
+  return null
+}
+
+/** A label as drawn, for keeping labels off each other. */
+export type LabelBox = { x: number; y: number; w: number }
+
+/** Label height, px, as far as overlapping goes. */
+const LABEL_H = 12
+
+/**
+ * Moves labels so no two overlap: each one that would sit on another
+ * (closer than a label's height, with their widths overlapping) is pushed
+ * down clear of it. Where arrows converge, `0` and `1` stood on one spot
+ * and read as `61`. Returns the new y of each, in the order given.
+ */
+export function spread(labels: LabelBox[]): number[] {
+  const order = labels.map((_, i) => i).sort((i, j) => labels[i]!.y - labels[j]!.y || labels[i]!.x - labels[j]!.x)
+  const ys = labels.map((l) => l.y)
+  const placed: number[] = []
+  for (const i of order) {
+    const l = labels[i]!
+    let y = l.y
+    for (let moved = true, n = 0; moved && n < labels.length; n++) {
+      moved = false
+      for (const j of placed) {
+        const o = labels[j]!
+        const apart = Math.abs(l.x - o.x) >= (l.w + o.w) / 2 + 2
+        if (!apart && Math.abs(y - ys[j]!) < LABEL_H) {
+          y = ys[j]! + LABEL_H
+          moved = true
+        }
+      }
+    }
+    ys[i] = y
+    placed.push(i)
+  }
+  return ys
 }
 
 /* ------------------------------ the tween ------------------------------ */
@@ -336,6 +457,14 @@ export const OVERVIEW_MIN_K = 0.8
  * whole grid left by half its width — which is the very motion this layout
  * exists to get rid of. Anchored, memory grows down and to the right and
  * what was already there stays exactly where it was.
+ *
+ * A newcomer is revealed **downwards only**. The names are the left
+ * column, and they are where every arrow starts: following a card that
+ * arrived to the right scrolled them off a phone's pane (s8's `add` and
+ * its default list), leaving `unction add` and a grid of arrows from
+ * nowhere under "Look below: …". So the view stays left unless the player
+ * scrolls it there, and a memory wider than the pane is cut on the right,
+ * where the least of it is.
  */
 export function overview(
   nodes: Box[],
@@ -359,7 +488,7 @@ export function overview(
     return clamp(c, min, max)
   }
   return {
-    x: span(b.left, b.right, v.w / k, at?.x, reveal.map((r) => [r.x - r.w / 2, r.x + r.w / 2])),
+    x: span(b.left, b.right, v.w / k, at?.x, []),
     y: span(b.top, b.bottom, v.h / k, at?.y, reveal.map((r) => [r.y - r.h / 2, r.y + r.h / 2])),
     k,
   }

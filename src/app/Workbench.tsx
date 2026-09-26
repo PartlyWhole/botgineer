@@ -64,7 +64,7 @@ import { MemoryPanel } from '../panels/MemoryPanel'
 import { RobotPanel, type Transcript } from '../panels/RobotPanel'
 import type { Exchange } from '../ui/RobotConsole'
 import type { EditorApi } from '../ui/CodeEditor'
-import { Gutter, useRemembered } from '../ui/Split'
+import { Gutter, STACKED, useRemembered, useStacked } from '../ui/Split'
 
 /** What one call to the engine came back with. `output` is everything the
  *  whole program printed — replay included. Separating out the part the
@@ -296,6 +296,20 @@ export function Workbench({ activity }: { activity: Activity }) {
 
   const readEnv = useMemo<ReadEnv>(() => ({ evaluate: quiet, show, ready: boot.state === 'ready' }), [quiet, show, boot.state])
   const read = useReadLevel(activity, readEnv)
+  // Each reading item opens with nothing shown (invariant 22): memory
+  // empty, no scrubber, no output. The shown run is otherwise only reset
+  // per activity or by the next run, so the item before's run stayed up
+  // under a card saying "Nothing has run yet" — and in the capstone,
+  // where every item shares one program, it showed the answers. Keyed on
+  // the session's position, so finishing the level clears it too.
+  const readAt = reading && read.level?.kind !== 'ideas' ? read.session.at : null
+  useEffect(() => {
+    if (readAt === null) return
+    stepsRef.current = []
+    setIndex(0)
+    setTranscript([])
+    setRunSeq((n) => n + 1)
+  }, [readAt])
   const [ideasCode, setIdeasCode] = useState<string | null>(null)
   const [ideasNote, setIdeasNote] = useState<string | null>(null)
   /** The beat an example was run on, and what it stopped with. The crow
@@ -351,7 +365,7 @@ export function Workbench({ activity }: { activity: Activity }) {
         // Stacked, memory is a screen below the stage: bring the robot's
         // pane up, where the example and what it built are, so the crow's
         // "look at memory" has something in view to point at.
-        if (typeof matchMedia === 'function' && matchMedia('(max-width: 1000px)').matches) {
+        if (typeof matchMedia === 'function' && matchMedia(STACKED).matches) {
           const still = matchMedia('(prefers-reduced-motion: reduce)').matches
           document.querySelector('.robot-pane')?.scrollIntoView({ block: 'start', behavior: still ? 'auto' : 'smooth' })
         }
@@ -528,7 +542,10 @@ export function Workbench({ activity }: { activity: Activity }) {
   const ideas = read.level?.kind === 'ideas'
   // A lesson tells a script: beats, then its question (docs/PEDAGOGY.md
   // §4). Derived, like the step it is for.
-  const told = useMemo(() => (lesson && !reading ? script(lesson, evidence) : null), [lesson, reading, evidence])
+  // Where the console is from the stage, for a line that says so
+  // (`{CONSOLE}`): on the right, or below on a stacked layout.
+  const layout = useStacked() ? 'stacked' : 'side'
+  const told = useMemo(() => (lesson && !reading ? script(lesson, evidence, layout) : null), [lesson, reading, evidence, layout])
   // Everyone else says one line at a time, and may hand over a script of
   // their own once they have beats to tell.
   //
@@ -817,7 +834,7 @@ export function Workbench({ activity }: { activity: Activity }) {
     from = { stale: newest, answer: lastLine?.ok && lastLine.thought ? newest : undefined }
     setCloudFrom({ key: tellKey, ...from })
   }
-  const shownThought = cloud(current, newest, from) || null
+  const shownThought = cloud(current, newest, from, lastLine !== null && !lastLine.ok) || null
 
   return (
     <main className="workbench" style={{ ['--scene-w' as string]: `${sceneW}px` }}>
@@ -895,7 +912,9 @@ export function Workbench({ activity }: { activity: Activity }) {
               emptyText={
                 reading
                   ? ideas
-                    ? 'Nothing has run yet. Pick “Run this” under an example and memory draws what it builds.'
+                    ? read.stage && !hasExamples(read.stage)
+                      ? 'No examples to run in this one: the robot runs the capstone program at the end of the stage.'
+                      : 'Nothing has run yet. Pick “Run this” under an example and memory draws what it builds.'
                     : read.vocab === 'formal'
                       ? 'Empty until you commit. Then the robot runs the code and every binding and object appears here.'
                       : 'Empty until you commit. Then the robot runs the code, and every name and the object it points at appear here.'
@@ -998,3 +1017,8 @@ function outcomeLine(threw: string | null, terminal: TerminalRecord | null): str
       return `The run ended (${terminal.reason}).`
   }
 }
+
+/** Whether a stage's reading has an example the robot can run. Stage 9's
+ *  has none, and "Pick Run this" pointed at a button that was not there. */
+const hasExamples = (stage: Stage): boolean =>
+  [...stage.adds, ...stage.ideas.flatMap((i) => i.blocks)].some((b) => b.kind === 'code' && b.lang === 'python')
