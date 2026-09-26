@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest'
 import { guidance, progress, s7Ideas, script, type Evidence } from '../../../content/lessons'
 import type { Binding, MemorySnapshot, PyObject } from '../../../src/memory/model'
-import { NOTHING, failed, line, snap, th, value } from './fixtures'
+import { NOTHING, failed, line, madeBy, snap, th, value } from './fixtures'
 
 const int = (n: number) => value('int', String(n))
 const list = (uid: string, items: string[] = []): PyObject => ({
@@ -87,14 +87,17 @@ describe('s7-ideas', () => {
   })
 
   it('does not answer the line that finished the step before as a miss', () => {
-    // A memory step moves on without a thought, so the next step's reply
-    // is asked about that very line: it must not match it.
+    // A memory step moves on without a thought; the line that did it
+    // names its entry in memory, so it is known to have moved the lesson.
     const counting = 'for r in range(3):\n    for c in range(2): n = n + 1'
-    const e = { ...ev([printed, zero, six], ['6', '6']), last: line(counting, null) }
+    const e = madeBy(ev([printed, zero, six], ['6', '6']), line(counting, null))
     expect(progress(s7Ideas, e)).toBe(4)
     expect(guidance(s7Ideas, e).text).toBe(s7Ideas.steps[4]!.say)
-    const z = { ...ev([printed, zero]), last: line('n = 0', null) }
+    const z = madeBy(ev([printed, zero]), line('n = 0', null))
     expect(guidance(s7Ideas, z).text).toBe(s7Ideas.steps[2]!.say)
+    // Typed again, it did no step: the prediction is still owed.
+    const again = madeBy(ev([printed, zero, zero]), line('n = 0', null))
+    expect(guidance(s7Ideas, again).text).toContain('Predict it first')
   })
 
   it('answers the misses a nested loop invites', () => {

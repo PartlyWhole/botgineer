@@ -69,15 +69,9 @@ const predicted = (repr: string) => (t: Heard) => {
   return t.type === 'list' && t.repr === repr && source.startsWith('[') && !/[A-Za-z_]/.test(outsideQuotes)
 }
 
-/**
- * The robot read memory for you: a bare expression that used one of these
- * names and came back with a value. Only such a line — never the line
- * that finished the step before, which is still `last` when the question
- * arrives, nor a method call that hands back `None`.
- */
-const usesName = (l: Line, ...names: string[]) =>
-  l.ok && l.thought !== null && l.thought.type !== 'NoneType' &&
-  names.some((n) => new RegExp(`\\b${n}\\b`).test(l.source))
+/** The robot did the working instead of a prediction: an accepted line
+ *  that used one of these names. */
+const usesName = (l: Line, ...names: string[]) => l.ok && names.some((n) => new RegExp(`\\b${n}\\b`).test(l.source))
 
 export const s4Ideas: Lesson = {
   id: 's4-ideas',

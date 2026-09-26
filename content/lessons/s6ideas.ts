@@ -144,9 +144,7 @@ export const s6Ideas: Lesson = {
       done: (e) => heard(e, (t) => t.type === 'list' && literalList(t.source ?? '')),
       praise: (a) => `\`${a?.repr ?? 'That'}\`, you say. Now let the robot run it, and check.`,
       nudge: (l) => {
-        // A statement line has no thought: `got = []`, which did the step
-        // before, must not be answered as a miss of this one.
-        if ((l.thought && /\b(prices|got)\b/.test(l.source)) || /^\s*for\b/.test(l.source)) return 'Predict it first: type the list itself, in square brackets.'
+        if ((l.ok && /\b(prices|got)\b/.test(l.source)) || /^\s*for\b/.test(l.source)) return 'Predict it first: type the list itself, in square brackets.'
         if (errorIs(l, 'NameError')) return 'Words need their quotes inside a list too, like `"tea"`.'
         if (l.thought && l.thought.type !== 'list') return 'Type a list, in square brackets: what you expect `got` to hold.'
         return undefined

@@ -111,8 +111,7 @@ export const s8Ideas: Lesson = {
       done: (e) => predicted(e, '5'),
       praise: 'Five: `n = n * 2` moves the arrow of `n`, and `x` is a different name.',
       nudge: (l) => {
-        // A thought only: `x = 5`, which did the step before, is not one.
-        if (l.thought && /double/.test(l.source)) return 'Predict it first: type just the number you expect.'
+        if (l.ok && /double/.test(l.source)) return 'Predict it first: type just the number you expect.'
         if (l.thought?.type === 'int') return 'Read it again: which name does `n = n * 2` move?'
         return undefined
       },
@@ -166,8 +165,7 @@ export const s8Ideas: Lesson = {
       done: (e) => predicted(e, '2'),
       praise: 'Two: both calls append to the one default list, because it was built once.',
       nudge: (l) => {
-        // A thought only: `same = add("b", things)`, the step before, is not one.
-        if (l.thought && /add/.test(l.source)) return 'Predict it first: type just the number you expect.'
+        if (l.ok && /add/.test(l.source)) return 'Predict it first: type just the number you expect.'
         if (l.thought?.type === 'int') return 'Read it again: `items=[]` ran once, at `def`, not on every call.'
         return undefined
       },

@@ -4,7 +4,7 @@
 import { describe, expect, it } from 'vitest'
 import { castAt, guidance, namesPoint, progress, script, staging, type Evidence, type Heard } from '../../../content/lessons'
 import type { MemorySnapshot } from '../../../src/memory/model'
-import { EMPTY, NOTHING, bound, failed, line, snap, th, value } from './fixtures'
+import { EMPTY, NOTHING, bound, failed, line, madeBy, snap, th, value } from './fixtures'
 
 const x10 = bound('x', 'int', '10')
 const named = snap([x10.object], [x10.binding])
@@ -115,9 +115,12 @@ describe('names point at objects', () => {
   })
 
   it('does not call the right `x = 10` a miss at the next ask', () => {
-    const e = at([named], [FORTY_TWO], line('x = 10', null))
+    const e = madeBy(at([named], [FORTY_TWO]), line('x = 10', null))
     expect(progress(namesPoint, e)).toBe(2)
     expect(script(namesPoint, e).items.at(-1)!.kind).toBe('ask')
+    // Typed again, it moved nothing, and is answered.
+    const again = madeBy(at([named, named], [FORTY_TWO]), line('x = 10', null))
+    expect(guidance(namesPoint, again).text).toMatch(/kept something/)
   })
 
   it('says the robot does the looking before it asks', () => {
@@ -138,7 +141,7 @@ describe('names point at objects', () => {
   })
 
   it('praises the alias for the reason, and does not call it a miss after', () => {
-    const e = at([named, aliased], [FORTY_TWO, BACK], line('y = x', null))
+    const e = madeBy(at([named, aliased], [FORTY_TWO, BACK]), line('y = x', null))
     const s = script(namesPoint, e)
     expect(s.items[0]).toMatchObject({ kind: 'praise' })
     expect(s.items[0]!.text).toMatch(/because `y = x`/)
@@ -199,7 +202,7 @@ describe('names point at objects', () => {
         { name: 'y', scope: 'global', target: 'v:int:99' },
       ],
     )
-    expect(guidance(namesPoint, at([named, aliased, yMoved], [FORTY_TWO, BACK], line('y = 99', null))).text).toMatch(/moved `y`/)
+    expect(guidance(namesPoint, at([named, aliased, yMoved], [FORTY_TWO, BACK], line('y = 99', null))).text).toMatch(/about `y`/)
   })
 
   it('does not slide backwards when the last step un-answers the first', () => {

@@ -41,12 +41,6 @@ import { bareWord, errorType, ever, heard, points, sameObject, stopped, targetOf
  * who had moved `x` earlier, and sent a finished guide back to the ask
  * when the player went on typing.
  *
- * A reply is asked about the last line even when that line was the right
- * answer to the step before, if it bound something rather than thought
- * something (the engine only sees a thought move a lesson). So a step's
- * nudge stays quiet on its predecessor's own answer: `x = 10` is not a
- * miss at "ask for it back", nor `y = x` at "move `x`".
- *
  * Every object here is a small int, which CPython caches, so two
  * separately typed `10`s really are one object and the memory view says
  * so. That is why the aliasing step asks for `y = x` and never `y = 10`:
@@ -154,8 +148,6 @@ export const namesPoint: Lesson = {
         if (t && /\bx\b/.test(l.source)) return `That worked out \`${t.repr}\` from \`x\`, a sum. Just the name, on its own: \`x\`.`
         if (t?.repr === '10') return 'That\'s you remembering `10`. Ask the robot with the name: `x`.'
         if (bareWord(l) === 'X') return 'Names care about capitals. This one is a small `x`.'
-        // `x = 10` is the last step's answer, not a miss at this one.
-        if (/^\s*x\s*=\s*10\s*$/.test(l.source)) return undefined
         if (l.ok && !t) return 'That line kept something. To ask, type the name on its own: `x`.'
         return stopped(l, 'Type just `x`.')
       },
@@ -187,9 +179,7 @@ export const namesPoint: Lesson = {
       // The move, not the numbers: see the header.
       done: splitAfterSharing,
       nudge: (l) => {
-        // `y = x` is the last step's answer, not a miss at this one.
-        if (/^\s*y\s*=\s*x\s*$/.test(l.source)) return undefined
-        if (/^\s*y\s*=/.test(l.source) && l.ok) return 'That moved `y`. This time, move `x`: `x = 99`.'
+        if (/^\s*y\s*=/.test(l.source) && l.ok) return 'That line was about `y`. This time, move `x`: `x = 99`.'
         if (/^\s*x\s*=(?!=)/.test(l.source) && l.ok && !l.thought) return 'Look below: `x` and `y` still share one object. Point `x` at a new one: `x = 99`.'
         return namingMiss(l, 'x = 99') ?? stopped(l, 'Type `x = 99`.')
       },

@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest'
 import { guidance, progress, s6Ideas, script, type Evidence } from '../../../content/lessons'
 import type { Binding, MemorySnapshot, PyObject } from '../../../src/memory/model'
-import { NOTHING, failed, line, snap, th, value } from './fixtures'
+import { NOTHING, failed, line, madeBy, snap, th, value } from './fixtures'
 
 /** A tiny heap: values by repr, collections by uid. */
 type Mem = { objects: PyObject[]; bindings: Binding[] }
@@ -147,7 +147,9 @@ describe('s6-ideas', () => {
   it('answers a prediction that asked the robot, and a block that lost its indent', () => {
     const base = ev([S(values, prices), S(values, prices, got('g'))])
     // The line that did the step before is not a miss of this one.
-    expect(guidance(s6Ideas, { ...base, last: line('got = []', null) }).text).toContain('Type the list you expect')
+    expect(guidance(s6Ideas, madeBy(base, line('got = []', null))).text).toContain('Type the list you expect')
+    const again = ev([S(values, prices), S(values, prices, got('g')), S(values, prices, got('g'))])
+    expect(guidance(s6Ideas, madeBy(again, line('got = []', null))).text).toContain('Predict it first')
     const asked = guidance(s6Ideas, { ...base, last: line('list(prices)', th('list', "['tea', 'jam']")) })
     expect(asked.text).toContain('Predict it first')
     const unquoted = guidance(s6Ideas, { ...base, last: failed('[tea, jam]', 'NameError') })

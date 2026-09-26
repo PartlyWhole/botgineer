@@ -44,15 +44,9 @@ const listIs = (s: MemorySnapshot, name: string, repr: string): boolean => {
 const said = (e: Evidence, type: string, repr: string): boolean =>
   heard(e, (t) => t.type === type && t.repr === repr && /^[\d\s[\],-]+$/.test((t.source ?? '').trim()))
 
-/**
- * The robot did the working — a sum, a name — instead of a prediction.
- *
- * Only a line that made a thought is read: the line that finished the
- * step before (`total = 0`, a loop) is still the last line when the
- * question arrives, and it must not be answered as a miss.
- */
-const ranInstead = (l: Line) =>
-  l.thought !== null && (/[A-Za-z=+*/%]/.test(l.source) || /\d\s*-\s*\d/.test(l.source))
+/** The robot did the working — a sum, a name, a loop — instead of a
+ *  prediction: an accepted line that is more than a number typed out. */
+const ranInstead = (l: Line) => l.ok && (/[A-Za-z=+*/%]/.test(l.source) || /\d\s*-\s*\d/.test(l.source))
 
 /** A block whose body was not indented, or a stray indent. */
 const indentMiss = (l: Line): string | undefined =>
@@ -97,7 +91,7 @@ export const s5Ideas: Lesson = {
       done: (e) => said(e, 'int', '16'),
       praise: 'Sixteen: each pass adds one parcel to whatever the pass before it left.',
       nudge: (l) => {
-        if (ranInstead(l) || (l.ok && /^\s*for\b/.test(l.source))) return 'Predict it first: type just the number you expect.'
+        if (ranInstead(l)) return 'Predict it first: type just the number you expect.'
         if (l.thought?.repr === '4') return 'That is only the last parcel. Each pass adds to what `total` already holds.'
         if (l.thought?.type === 'int') return 'Walk it: `0 + 5`, then add `7`, then add `4`.'
         return undefined
