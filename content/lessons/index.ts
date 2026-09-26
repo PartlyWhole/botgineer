@@ -26,9 +26,10 @@ import { s5Ideas } from './s5ideas'
 import { s6Ideas } from './s6ideas'
 import { s7Ideas } from './s7ideas'
 import { s8Ideas } from './s8ideas'
+import { decide } from './decide'
 
 export * from './core'
-export { meet, types, choose, operations, namesPoint, takeAnOrder, wake, s1Ideas, s2Ideas, s3Ideas, s4Ideas, s5Ideas, s6Ideas, s7Ideas, s8Ideas }
+export { meet, types, choose, operations, namesPoint, takeAnOrder, wake, s1Ideas, s2Ideas, s3Ideas, s4Ideas, s5Ideas, s6Ideas, s7Ideas, s8Ideas, decide }
 
 export const LESSONS: Record<string, Lesson> = {
   [meet.id]: meet,
@@ -46,4 +47,5 @@ export const LESSONS: Record<string, Lesson> = {
   [s6Ideas.id]: s6Ideas,
   [s7Ideas.id]: s7Ideas,
   [s8Ideas.id]: s8Ideas,
+  [decide.id]: decide,
 }

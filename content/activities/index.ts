@@ -364,7 +364,7 @@ const stageIdeas = (n: number): Activity => ({
   brief: STAGE_BRIEFS[n - 1]!,
   mode: 'console',
   lesson: `s${n}-ideas`,
-  next: n === 1 ? 'wake' : `s${n}-set-1`,
+  next: n === 1 ? 'wake' : n === 5 ? 'decide' : `s${n}-set-1`,
   greeting: 'Type an instruction and press Enter.',
   starter: '',
   options: { max_steps: 3000, wall_clock_s: 15 },
@@ -382,6 +382,23 @@ const STAGE_BRIEFS = [
   'Follow a call in and back out, and which names belong to it.',
 ]
 
+/**
+ * `if`, taught between Stage 5's ideas and its exercises, which use it
+ * (content/lessons/decide.ts says why there: it needs a `for` block and
+ * `break`, which Stage 5's ideas teach).
+ */
+const makingChoices: Activity = {
+  id: 'decide',
+  title: 'Making Choices',
+  brief: 'Let the robot choose: an if runs its block only when its question answers True.',
+  mode: 'console',
+  lesson: 'decide',
+  next: 's5-set-1',
+  greeting: 'Type an instruction and press Enter.',
+  starter: '',
+  options: { max_steps: 3000, wall_clock_s: 15 },
+  scene: practiceScene('decide'),
+}
 
 export const ACTIVITIES: Activity[] = [
   meetTheRobot,
@@ -393,6 +410,7 @@ export const ACTIVITIES: Activity[] = [
   takeAnOrder,
   practiceRemembering,
   ...[1, 2, 3, 4, 5, 6, 7, 8].map(stageIdeas),
+  makingChoices,
   wakeTheRobot,
   ...readingActivities(),
 ]
