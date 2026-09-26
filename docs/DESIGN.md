@@ -1,13 +1,15 @@
 # BotGineer — design
 
 **Status:** design of record.
-**Shape:** a Python runtime in a worker, and three panels over one snapshot.
+**Shape:** a Python runtime in a worker, and two panels over one snapshot.
+What lessons say is held to [PEDAGOGY.md](PEDAGOGY.md); how they are
+written is [AUTHORING.md](AUTHORING.md).
 
 ---
 
 ## 1. The one idea
 
-> **One snapshot, three panels.**
+> **One snapshot, several views.**
 
 A worker runs real CPython and reports a complete snapshot at every line.
 Exactly one module turns that into the app's memory model. Everything else
@@ -28,17 +30,23 @@ produced, from the same data, so they cannot disagree — and the step slider
 moves all of them together, so scrubbing rewinds the picture as well as the
 diagram.
 
-**Two panels, not three.** Memory is a *view* of the robot panel, switched
-with Code. As a third panel it competed with the editor for height until
-both were strips, and the code and the memory it produced are the same
-subject anyway. Both views stay mounted, so switching back does not throw
-away where the graph's nodes had settled.
+**Two panels, not three.** On screen are the **scene** and the **robot**
+panel, and the robot panel is split: the instrument on top (the console,
+or the editor where a level has one) and **memory below it, always on
+screen**, with a draggable gutter between them. As a third panel memory
+competed with the editor for height until both were strips. As a
+`Talk | Memory` switch it was worse: the effect of an instruction was
+always on the tab you were not looking at, and the moment a beginner most
+needs to see an object appear is the moment they made it. In the console
+memory takes most of the column (62% until the gutter is dragged), since
+the console needs a line and its answer and memory is what a console
+lesson is about; each mode remembers its own split.
 
-**The chrome is deliberately thin.** No tabs (the sandbox is the starting
-point; the other activities are reachable by hash and advertised nowhere),
-no readiness badge — the runtime's state is a data attribute, because a
-working runtime announcing that it works is noise, and failure still gets
-an alert — and no panel descriptions, briefs or editor hints.
+**The chrome is deliberately thin.** No tabs — the map is home, and a
+level's top bar only names it and offers the way back — no readiness
+badge — the runtime's state is a data attribute, because a working
+runtime announcing that it works is noise, and failure still gets an
+alert — and no panel descriptions, briefs or editor hints.
 
 ## 2. The memory model
 
@@ -114,16 +122,43 @@ panel shows its *repr*. The scene shows the world; the memory panel shows
 the representation. Binding a non-string to a sign shows its repr, so a
 type mistake stays visible instead of being coerced away.
 
+**A lesson's picture** stands in the scene's `props` slot (`src/scene/props.ts`,
+`src/ui/Props.tsx`): a lamp, a basket, a shelf of the five data types.
+It is the same evidence the crow reads, drawn — the step, the last line
+and what the robot thought of it — so it cannot disagree with the words.
+A right answer is drawn in; a miss is drawn into the picture that asked;
+a refused answer is never drawn as a yes (amber, in the picture's own
+idiom), and the right number typed by hand where the robot was to work
+it out is drawn as not worked out yet. The slot paints behind the cast,
+so a picture never covers a face.
+
 ### (B) Robot — `src/panels/RobotPanel.tsx`
 
-The only panel that causes anything: a CodeMirror editor (Python syntax,
-Tab/Shift-Tab indent, `Mod-/` comment, Escape to leave), Run and Stop, the
-step slider that moves all three panels, and a transcript of what the
-program printed.
+The only panel that causes anything. What sits on top depends on the
+activity's `mode`:
 
-**What runs is read from the editor's live document**, never from React
-state — the editor owns the text, and asking React for it runs whatever was
-last rendered.
+- **`console`** — where the game starts and where nearly every lesson is
+  taught: one line at a time, `>>>` and the answer. A block (`if`, `for`,
+  `def`) is typed over several lines and accepted as one; the console
+  indents it the way an editor would (`src/repl/indent.ts`: four spaces
+  after a `:` header, Tab adds four, Backspace in the indent takes four
+  back, a line of indent alone closes the block). Outside a block Tab
+  still moves focus; inside one, Escape hands it back. A bare expression
+  is *thought of*, shown in the robot's cloud, and let go; memory is for
+  names (CLAUDE.md, invariant 8). The console is **replay**: every line
+  re-runs the accepted history plus itself, and a line that fails is not
+  kept (invariant 7). It shows the last accepted memory throughout — while
+  it replays, and after a line that failed, since the robot lost nothing.
+- **`editor`** — a CodeMirror editor (Python syntax, Tab/Shift-Tab indent,
+  `Mod-/` comment, Escape to leave), "Send to robot" and Stop, the step
+  slider that moves the scene and memory together, and a transcript of
+  what the program printed. It arrives once, at *Wake the robot*. **What
+  runs is read from the editor's live document**, never from React state
+  — the editor owns the text, and asking React for it runs whatever was
+  last rendered.
+- **`read`** — the reading levels' code and answers (§3.1).
+
+Memory sits below whichever it is.
 
 ### (C) Memory — `src/panels/MemoryGraph.tsx`, `src/panels/graphLayout.ts`
 
@@ -146,10 +181,18 @@ memory always draws the same way and a new line only ever *adds* rows. The
 component tweens cards to their places, about a quarter of a second, and
 fades newcomers in where they belong.
 
+**Every slot is labelled.** An arrow out of a list carries its index and
+one out of a dict its key, always — not only when the card is picked,
+which is how it started. Indexing and keys are what Stages 3 and 6 are
+about, so hiding the labels behind a click hid the lesson. A label sits
+halfway along its arrow, where a fan's and a convergence's arrows are
+apart (equal values are one object, so `[10, 20, 10]` brings two arrows
+into one card); two slots holding one object share one label, `0, 2`;
+and the gap in front of a column widens to its longest label.
+
 Picking a node does not open a panel. The **camera** flies to frame that
 node *together with everything it is connected to*, the node grows in
-place, its arrows light up and are labelled with the index or key, and
-everything else dims without moving. Clicking a neighbour re-picks it,
+place, its arrows light up, and everything else dims without moving. Clicking a neighbour re-picks it,
 so the structure is walked. Escape or a press on the background returns
 to the overview.
 
@@ -182,6 +225,48 @@ test fixture. Three things fixed it, and all three are needed:
 
 What was given up: dragging, and the organic look.
 
+### The dialogue — `content/lessons/`, `content/cast.ts`, `ScenePanel`
+
+A lesson is told in **beats**: short lines the player advances with
+**Next** (the button, Enter or Space; the first press finishes the typing,
+the second moves on), ending on an **ask**, the question alone, which
+opens the console. The console is closed while a character talks
+("Listening… press Next") and open while they wait. Three characters: the
+crow (the guide, `CROW_NAME`), the robot (wordless; it *thinks*, in a
+cloud), and Mira (a person, who brings problems from outside). The rules
+for what they say — show, then name, then ask, one idea a beat — are
+[PEDAGOGY.md](PEDAGOGY.md).
+
+- **Derived, like everything else.** `script(lesson, evidence)` lays out
+  what is said at the current step: the praise of the step before (why it
+  was right), this step's beats, then its ask — or, once every step is
+  done, the last praise and the closing lines. Which *step* it is stays
+  `progress`, derived from the evidence; which *line* of that script is
+  showing is the workbench's one piece of view state, an index keyed on
+  the step and never stored. A miss replaces the ask with a reply in the
+  same place, so the list never shifts under the index.
+- **Everything on stage follows the index.** The picture (`staging`), who
+  is on stage and what they are doing (`castAt`: Mira *enters* on a beat,
+  the robot sleeps and wakes), a part of the screen pulsing (`focus`),
+  and the robot's cloud (`cloud`: a beat's demonstration thought, or the
+  robot's newest real thought while it still belongs to this step). Back
+  and resuming a level both land on the right picture and cast, because
+  each is a function of the beats up to the index.
+- **The bubble** is the map's chunky style: a name pill in the speaker's
+  colour, a tail that swings to the speaker, text typing on at about 45
+  characters a second with code chips whole, a *You answer* or *Robot
+  works it out* tag on the ask, and a soft amber tint on a reply — a miss
+  is a conversation, not an error. Reduced motion shows the text whole.
+- **The end.** Once finished and resting on the last closing line, the
+  takeaway bar shows (one or two sentences, with Replay), the console
+  opens again for anything the player likes, and **Continue** appears —
+  not before, because Next and Continue side by side left the player to
+  guess which one moved them on.
+
+Practice tells its exercises the same way (a lead, the question, the
+praise as its own beat), and Stage 9's ideas step through their text one
+block a beat.
+
 ### The roadmap — `src/roadmap/`, `content/roadmap.ts`, `src/progress/`
 
 The game opens on a **map**, not in a level: one winding path of round
@@ -190,11 +275,22 @@ into **units**, each a coloured stretch of path under a sticky banner, with
 a trophy at its end and one of the cast idling beside it — the same SVG
 and CSS as in the levels, so the map and the levels are one world.
 
-- **What a level's state is** (done, the one to play next, locked) is
-  derived from a set of finished level ids and the roadmap's order. That
-  set is the only thing the app stores, in localStorage, because it is a
-  fact about the player that must outlive the page and there are no
-  accounts.
+- **The path is 64 levels in ten units.** *Warm-up: Thinking* is five:
+  Meet the robot, Five data types, Choose the type, Working things out,
+  and a practice. Then the collection's nine stages. Stage 1 opens on the
+  console lessons about names — Names, Taking an order, a practice — then
+  its ideas, then *Wake the robot*, where the editor arrives, then its
+  sets, practice and checkpoint. Stage 5 plays *Making Choices* (`if`)
+  between its ideas and its sets, because those sets use `if` and nothing
+  earlier taught it, and it needs the `for` block and `break` the ideas
+  teach. Stage 9 ends on the capstone. `content/roadmap.ts` (with
+  `stageLevelIds`) is the only place the order lives.
+- **What a level's state is** (done, the one to play next, unlocked,
+  locked) is derived from a set of finished level ids and the roadmap's
+  order. That set and mastery are the only two things the app stores, in
+  localStorage, because they are facts about the player that must outlive
+  the page and there are no accounts. The player can choose to unlock
+  every level (which earns no trophy), or start over, which clears both.
 - **The current level** wears a ring and a bobbing "Start"; the map opens
   scrolled to it. Clicking any level opens a card with its title, brief
   and a Start (or Play again) button; a locked one says what unlocks it.
@@ -203,14 +299,15 @@ and CSS as in the levels, so the map and the levels are one world.
 - **Locks do not block deep links.** A level's hash always opens it.
 
 Inside a level, the top bar names it and offers the way back to the map.
-Finishing a level offers `Continue`, which returns to the map: the level
+Finishing a level offers `Continue` — for a lesson, once its closing lines
+have been said — which returns to the map: the level
 just finished pops with a burst of stars, the one it unlocked turns from
 grey to its colour and its "Start" arrives, and a trophy just earned
 lifts — in that order, so the eye follows the path down.
 
 ### Practice and mastery — `src/practice/`, `src/mastery/`, `content/concepts.ts`
 
-**Introduce, then practise.** Lessons introduce **skills** — fourteen
+**Introduce, then practise.** Lessons introduce **skills** — fifteen
 small ones, like "division gives a float" or "a copied name does not
 follow the original" — and each unit ends with a **practice** level: five
 generated questions on that unit's skills, weighted towards the ones you
@@ -227,7 +324,10 @@ know least and the ones that have faded.
   no quotes round a word, `*` before `+`, the number typed where the name
   was asked for. Two misses and the crow shows a line that works; the
   player still types it. The question stays pinned under the meter while
-  the crow talks about the answer.
+  the crow talks about the answer. Each card says who does the work (*You
+  answer* or *Robot works it out*), the praise is its own beat, and the
+  next exercise starts — clean console, setup run — only once it has been
+  read.
 - **Only first tries count.** Mastery is a score per skill that moves 35%
   of the way to right or wrong on each first try, with a streak. Levels:
   Attempted, Familiar, Proficient, Mastered (which needs a streak of three
@@ -326,10 +426,21 @@ shown one are never in flight together (invariant 5).
 
 ### The map, the gate and the review
 
-Each stage is **Ideas** (the stage's prose, every example runnable in
-place), three or four **sets** of about five exercises in file order, a
-**practice** of missed items and fresh **variants**, and a **checkpoint**.
-Stage 9 ends on the **capstone**: one program, eight items.
+Each stage is **Ideas**, three or four **sets** of about five exercises in
+file order, a **practice** of missed items and fresh **variants**, and a
+**checkpoint**. Stage 9 ends on the **capstone**: one program, eight items.
+
+**Stages 1–8's ideas are console lessons** (`content/lessons/sNideas.ts`),
+not the collection's pages of prose. The ideas are about what a line does
+to memory, and memory is drawn right under the console, so the player
+types each idea and watches the arrow move, where two screens of
+paragraphs — much of Stage 1's already taught at the console — asked them
+to imagine it. Each takes the markdown's ideas, not its text. Stage 1's
+opens on the bridge into reading, Stages 2–8's on the stage's line of the
+story (`content/collection/story.ts`: something Mira's program did that
+she did not expect); the markdown stays the source of truth for the collection's own prose.
+**Stage 9's ideas** — how to read a long program — still read: the
+stage's text one block a beat, every example runnable in place.
 
 **The checkpoint is a gate**: all but one right first time, a
 vocabulary-only miss counting as right. A failed checkpoint is simply not
@@ -362,9 +473,10 @@ A bold term in the collection's text links to its glossary entry
 
 ## 4. Execution
 
-One session per page, booted once from a module-level promise. Run
-executes the whole editor document fresh: memory belongs to a run, which is
-what Python actually does.
+One session per page, booted once from a module-level promise. Every run
+executes a whole program fresh: memory belongs to a run, which is what
+Python actually does. The editor runs its document; the console runs its
+accepted history plus the new line (CLAUDE.md, invariant 7).
 
 Rules that are not negotiable:
 
@@ -403,15 +515,24 @@ model, not as a parallel structure** — a contract asserting things about a
 snapshot, checked by the same "the interpreter is the answer key" rule that
 the old semantic tests used.
 
-## 7. Testing
+## 7. Testing and deploy
 
 - `tests/unit/extract.test.ts` — the one translation, against synthetic
   wire data: aliasing, value identity, cycles, frames, elision, opacity.
-- `tests/unit/scene.test.ts` — given what is bound, what does the picture
-  show.
-- `tests/browser/workbench.spec.ts` — the three panels against **real
-  Python** in the production build, served at the sub-path with no
-  isolation headers, exactly as Pages serves it.
+- `tests/unit/scene.test.ts`, `props.test.ts` — given what is bound, or
+  what was answered, what does the picture show.
+- `tests/unit/lessons/` — each lesson against crafted evidence, and
+  `every.test.ts` holding every registered lesson to the shared rules
+  (short lines, forward-only progress, registration).
+- `tests/unit/graphLayout.test.ts`, `indent.test.ts` — placement and slot
+  labels; the console's block indentation.
+- `tests/browser/workbench.spec.ts`, `beats.spec.ts`,
+  `lesson-<id>.spec.ts`, `practice.spec.ts`, `props.spec.ts` — the panels,
+  the beat engine, every lesson played through, practice sessions, and
+  the pictures' layering, against **real Python** in the production
+  build, served at the sub-path with no isolation headers, exactly as
+  Pages serves it. One at a time unless `WORKERS` says otherwise: each
+  page boots its own CPython.
 - `tests/semantics/` — the real engine in Node (the shipped wheel in the
   shipped Pyodide): the collection's audit and self-consistency sweep, the
   graders on crafted misses, and every variant family across many seeds.
@@ -419,7 +540,17 @@ the old semantic tests used.
   authoring audit (prerequisites point earlier; checkpoint concepts met in
   two forms first).
 - `tests/browser/reading.spec.ts`, `collection-audit.spec.ts` — reading
-  journeys, and every item played in the page with the key's answers.
+  journeys, and every item played in the page with the key's answers. The
+  audit is slow, so it is opt-in: `npm run test:audit`.
+
+**Where they run.** The **deploy** (`deploy.yml`, on push to main)
+typechecks, runs the unit and semantic tests, builds, publishes to Pages,
+and smoke-tests the published site (page, isolation shim, `.nojekyll`,
+runtime, wheel, wasm type). It does **not** run the browser journeys:
+installing Chromium and playing them took most of its twelve minutes.
+They run in **Checks** (`checks.yml`) on every pull request and every push
+to main, beside the deploy rather than in front of it, so a regression
+still shows; Checks also runs the collection audit on pull requests.
 
 The browser suite is where "the interpreter is the answer key" now lives:
 it asserts that `a = 10; b = a` really share a target and that `[1]` and
@@ -438,6 +569,8 @@ it asserts that `a = 10; b = a` really share a target and that `[1]` and
   `return` leaving a loop part-way is met in one form only (8.15).
 - **A runaway loop takes ~a minute to stop.** Bounded, not instant. The
   real fix is a worker-side budget.
-- **No accounts, no saving, no i18n.** Work lives in the tab.
+- **No accounts, no sync, no i18n.** Finished levels and mastery live in
+  this browser's localStorage; a program or a console session lives in
+  the tab.
 - **Not tamper-proof.** A static site ships everything it knows.
 - **Not piloted with a learner.** Every claim here is a product check.
