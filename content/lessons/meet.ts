@@ -68,7 +68,6 @@ export const meet: Lesson = {
         {
           say: 'It needs someone to give it instructions, and that\'s you.',
           focus: 'console',
-          show: { kind: 'pointer', to: 'console', label: 'your instructions go here' },
         },
         { say: 'Write an instruction on the right and press Enter, and the robot will think of it.', thought: '7' },
       ],

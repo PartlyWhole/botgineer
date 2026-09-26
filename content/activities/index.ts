@@ -69,22 +69,6 @@ const WORKSHOP: SceneSpec = {
 }
 
 /**
- * The first level's workshop: the robot nearer the middle and the
- * picture on its far side, because the one picture here is the pointer,
- * whose chevrons run off the stage's right edge towards the console. In
- * `WORKSHOP` they would run across the robot's face, and they stay up
- * through the ask.
- */
-const MEET_WORKSHOP: SceneSpec = {
-  ...WORKSHOP,
-  actors: [
-    { id: 'crow', kind: 'crow', x: 12, y: 0, w: 16, stand: true },
-    { id: 'robot', kind: 'robot', x: 42, y: 0, w: 22, stand: true },
-  ],
-  props: { x: 77, w: 34 },
-}
-
-/**
  * Level 2: working things out.
  *
  * Same room, same empty memory, and Mira back with a sum: seven crates
@@ -257,7 +241,7 @@ const meetTheRobot: Activity = {
   greeting: 'Ready. One instruction per line.',
   starter: '',
   options: { max_steps: 3000, wall_clock_s: 15 },
-  scene: MEET_WORKSHOP,
+  scene: WORKSHOP,
 }
 
 /**
@@ -368,6 +352,37 @@ const practiceRemembering: Activity = {
  *  is what the router opens with. The editor activities are reachable by
  *  hash but are not offered anywhere yet — they are what unlocking looks
  *  like, once there is a progression to unlock them from. */
+/**
+ * Stages 1–8's ideas, as console lessons rather than the collection's
+ * pages of prose (content/lessons/s1ideas.ts says why). Same ids and
+ * places on the map as the reading levels they replace, so progress and
+ * links hold. Memory is the picture, so the stage needs no props slot.
+ */
+const stageIdeas = (n: number): Activity => ({
+  id: `s${n}-ideas`,
+  title: 'The Ideas',
+  brief: STAGE_BRIEFS[n - 1]!,
+  mode: 'console',
+  lesson: `s${n}-ideas`,
+  next: n === 1 ? 'wake' : `s${n}-set-1`,
+  greeting: 'Type an instruction and press Enter.',
+  starter: '',
+  options: { max_steps: 3000, wall_clock_s: 15 },
+  scene: practiceScene(`s${n}-ideas`),
+})
+
+const STAGE_BRIEFS = [
+  'Read straight-line code one line at a time: right side first, then see which arrow moves.',
+  'Tell a line that changes an object from one that moves a name.',
+  'Read brackets and keys exactly: which container, which slot.',
+  'Track the outer object and the objects inside it separately.',
+  'Tell the lines a loop repeats from the lines after it.',
+  'Say what each kind of collection hands a for loop.',
+  'Track which loop is running, inside another.',
+  'Follow a call in and back out, and which names belong to it.',
+]
+
+
 export const ACTIVITIES: Activity[] = [
   meetTheRobot,
   fiveDataTypes,
@@ -377,6 +392,7 @@ export const ACTIVITIES: Activity[] = [
   namingThings,
   takeAnOrder,
   practiceRemembering,
+  ...[1, 2, 3, 4, 5, 6, 7, 8].map(stageIdeas),
   wakeTheRobot,
   ...readingActivities(),
 ]

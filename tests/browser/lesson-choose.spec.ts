@@ -5,7 +5,7 @@
  * shelf at the close holding only the right answers.
  */
 import { expect, test, type Page } from '@playwright/test'
-import { beat, open, say } from './helpers'
+import { beat, open, say, skip } from './helpers'
 
 const prop = (page: Page) => page.getByTestId('prop')
 const guide = (page: Page) => page.getByTestId('guide')
@@ -100,6 +100,7 @@ test('twelve questions, each miss drawn and named, each praise giving the reason
   await expect(prop(page)).toHaveAttribute('aria-label', /note for Mira says: It is not locked/)
   await expect(guide(page)).toContainText('It is locked, I checked')
   await right(page, '"Yeah it is"', /Mira reads words, so a str/)
+  await skip(page) // Continue waits for the closing lines
   await expect(page.getByTestId('advance')).toBeVisible()
 
   // The close: the shelf, holding what was said right and no miss.

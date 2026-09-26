@@ -48,12 +48,10 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Browser journeys against the production build
-        run: |
-          npx playwright install --with-deps chromium
-          npm run test:browser
-        env:
-          BASE_PATH: ${{ env.VITE_BASE }}
+      # No browser journeys here: installing Chromium and playing them took
+      # most of the deploy's twelve minutes. They run in the Checks
+      # workflow, on pull requests and on every push to main, alongside
+      # this deploy rather than in front of it.
 
       - uses: actions/configure-pages@v6
 

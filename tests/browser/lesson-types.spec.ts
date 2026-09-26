@@ -7,7 +7,7 @@
  * the right answers only.
  */
 import { expect, test, type Page } from '@playwright/test'
-import { beat, open, say } from './helpers'
+import { beat, open, say, skip } from './helpers'
 
 const prop = (page: Page) => page.getByTestId('prop')
 
@@ -109,6 +109,7 @@ test('five data types, each shown, named and used, with the misses drawn', async
   await expect(page.getByTestId('guide')).toContainText('Words go inside quotes')
   await say(page, '"Hello, Mira!"')
   await expect(page.getByTestId('guide')).toContainText("because it's words in quotes")
+  await skip(page) // Continue waits for the closing lines
   await expect(page.getByTestId('advance')).toBeVisible()
 
   // The close: the full shelf, holding what was said right and no miss.

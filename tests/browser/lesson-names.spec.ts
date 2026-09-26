@@ -3,7 +3,7 @@
  * the fix, and a name is an arrow. Finishing it is the way back to the map.
  */
 import { expect, test } from '@playwright/test'
-import { WARM_UP, beat, open, say, seedProgress } from './helpers'
+import { WARM_UP, beat, open, say, seedProgress, skip } from './helpers'
 
 /** What each name points at, by value. */
 const bound = (page: import('@playwright/test').Page) =>
@@ -88,6 +88,9 @@ test('finishing a lesson offers the way back to the map, and only then', async (
   await say(page, 'y = x')
   await say(page, 'x = 99')
 
+  // Continue waits for the closing lines, then replaces Next.
+  await expect(page.getByTestId('advance')).toHaveCount(0)
+  await skip(page)
   await page.getByTestId('advance').click()
   expect(page.url()).toContain('#/map')
   // Where the level just finished pops and the one it unlocked bounces.

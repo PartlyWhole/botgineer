@@ -15,21 +15,21 @@ test('the robot is introduced before it is asked anything', async ({ page }) => 
   expect(first.text).toContain(CROW_NAME)
   await expect(page.getByTestId('console-input')).toBeDisabled()
 
-  // Walk the introductions: the robot sleeps, wakes, the console is
-  // pointed at on the stage, and the robot shows what a thought looks like.
-  const seen = { asleep: false, pointer: false, demo: false }
+  // Walk the introductions: the robot sleeps, wakes, the console
+  // pulses where the typing goes, and the robot shows what a thought looks like.
+  const seen = { asleep: false, pulse: false, demo: false }
   while ((await beat(page)).listening) {
     const now = await page.evaluate(() => ({
       asleep: document.querySelector('[data-testid="actor-robot"]')?.getAttribute('data-asleep') === 'yes',
-      pointer: document.querySelector('[data-testid="prop"]')?.getAttribute('data-prop') === 'pointer',
+      pulse: document.querySelector('[data-testid="instrument"]')?.classList.contains('pulse') === true,
       demo: document.querySelector('[data-testid="thought"]')?.textContent === '7',
     }))
     seen.asleep ||= now.asleep
-    seen.pointer ||= now.pointer
+    seen.pulse ||= now.pulse
     seen.demo ||= now.demo
     await page.evaluate(() => window.botgineer.next())
   }
-  expect(seen).toEqual({ asleep: true, pointer: true, demo: true })
+  expect(seen).toEqual({ asleep: true, pulse: true, demo: true })
   const ask = await beat(page)
   expect(ask).toMatchObject({ kind: 'ask', asking: true, text: 'Make the robot think of a number.' })
   await expect(page.getByTestId('ask-tag')).toContainText('You answer')
@@ -66,8 +66,8 @@ test('the misses are shown and named, then a number is thought of and let go', a
   await expect(page.getByTestId('guide')).toContainText("It's thinking of 7, because that's what you wrote.")
   // Thought of and let go: nothing had a name.
   await expect(page.getByTestId('memory')).toContainText('Memory is empty')
-  // Finished, and the way on is offered at once (invariant 10).
-  await expect(page.getByTestId('advance')).toBeVisible()
+  // Finished, but the crow is still talking: Next, not Continue.
+  await expect(page.getByTestId('advance')).toHaveCount(0)
 
   await page.evaluate(() => window.botgineer.next())
   expect((await beat(page)).kind).toBe('outro')
@@ -77,6 +77,9 @@ test('the misses are shown and named, then a number is thought of and let go', a
   await expect(page.getByTestId('guide')).toContainText('lets the thought go')
   await expect(page.getByTestId('thought')).toHaveCount(0)
   await expect(page.getByTestId('takeaway')).toContainText('thinks of whatever you write')
+  // The last line said, the way on arrives (invariant 10), and Next is gone.
+  await expect(page.getByTestId('advance')).toBeVisible()
+  await expect(page.getByTestId('beat-next')).toHaveCount(0)
 })
 
 test('a sum typed is worked out, and the praise says so', async ({ page }) => {
