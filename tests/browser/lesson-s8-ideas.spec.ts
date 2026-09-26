@@ -46,7 +46,12 @@ test('Stage 8’s ideas open on Mira’s problem, and every call happens in memo
   expect(await targetOf(page, 'x')).toBe(five)
   expect(await targetOf(page, 'n')).toBeNull()
   await say(page, '5')
-  // It has run already, so the prediction also finished the check.
+  expect((await beat(page)).kind).toBe('praise')
+  // The run made while predicting does not count as the check: the check
+  // is its own step, after the prediction, and says what the robot got.
+  await skip(page)
+  expect((await beat(page)).kind).toBe('ask')
+  await say(page, 'double(x)')
   expect((await beat(page)).kind).toBe('praise')
 
   await say(page, 'def add(item, items=[]):\n    items.append(item)\n    return items\n')

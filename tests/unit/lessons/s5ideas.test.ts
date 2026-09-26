@@ -5,7 +5,7 @@
  * on what the loop left behind, not on a value typed in.
  */
 import { describe, expect, it } from 'vitest'
-import { guidance, progress, s5Ideas, script, type Evidence } from '../../../content/lessons'
+import { guidance, progress, s5Ideas, script, type Evidence, type LineMemory } from '../../../content/lessons'
 import type { MemorySnapshot, PyObject } from '../../../src/memory/model'
 import { NOTHING, failed, line, madeBy, snap, th, typed, value } from './fixtures'
 
@@ -34,11 +34,25 @@ const mem = (names: Record<string, number | number[]>): MemorySnapshot => {
   return snap(objects, bindings)
 }
 
-const ev = (history: MemorySnapshot[], ...said: [string, string, string][]): Evidence => ({
-  snapshot: history[history.length - 1]!,
-  history,
-  thoughts: said.map(([type, repr, source]) => ({ ...th(type, repr), source })),
-})
+/** An accepted line and the memory it left: what `everBy` judges. */
+const by = (source: string, memory: MemorySnapshot): LineMemory => ({ source, memory })
+type Entry = MemorySnapshot | LineMemory
+const memOf = (x: Entry): MemorySnapshot => ('memory' in x ? x.memory : x)
+
+/** Memory after each line (a bare snapshot is a line whose source does not
+ *  matter), and what the robot said. */
+const ev = (entries: Entry[], ...said: [string, string, string][]): Evidence => {
+  const history = entries.map(memOf)
+  return {
+    snapshot: history[history.length - 1]!,
+    history,
+    lines: entries.map((x) => ('memory' in x ? x : by('', x))),
+    thoughts: said.map(([type, repr, source]) => ({ ...th(type, repr), source })),
+  }
+}
+
+/** Mira's loop, with `total = 0` inside the body. */
+const BUG = 'for p in parcels:\n    total = 0\n    total = total + p'
 
 const P = [5, 7, 4]
 
@@ -51,7 +65,7 @@ describe('s5-ideas', () => {
 
   it('walks the accumulator, the pass count, the loop name, range, break and removal', () => {
     const at = (e: Evidence) => progress(s5Ideas, e)
-    const h: MemorySnapshot[] = [mem({ parcels: P })]
+    const h: Entry[] = [mem({ parcels: P })]
     const said: [string, string, string][] = []
     expect(at(ev(h))).toBe(1)
     h.push(mem({ parcels: P, total: 0 }))
@@ -64,23 +78,31 @@ describe('s5-ideas', () => {
     expect(at(ev([...h, mem({ parcels: P, total: 16 })], ...said))).toBe(3)
     h.push(mem({ parcels: P, total: 16, p: 4 }))
     expect(at(ev(h, ...said))).toBe(4)
-    said.push(['int', '3', '3'])
+    // Mira's loop, predicted: a 4 said before the 16 is not this answer.
+    expect(at(ev(h, ['int', '4', '4'], ...said))).toBe(4)
+    said.push(['int', '4', '4'])
     expect(at(ev(h, ...said))).toBe(5)
-    // Doubling the slots is not what the body does.
-    expect(at(ev([...h, mem({ parcels: [10, 14, 8], total: 16, p: 8 })], ...said))).toBe(5)
-    h.push(mem({ parcels: P, total: 16, p: 8 }))
+    // `total = 4` typed bare leaves her loop's memory without her loop.
+    expect(at(ev([...h, by('total = 4', mem({ parcels: P, total: 4, p: 4 }))], ...said))).toBe(5)
+    h.push(by(BUG, mem({ parcels: P, total: 4, p: 4 })))
     expect(at(ev(h, ...said))).toBe(6)
-    // Typing the list out is not range.
-    expect(at(ev(h, ...said, ['list', '[0, 3, 6]', '[0, 3, 6]']))).toBe(6)
-    said.push(['list', '[0, 3, 6]', 'list(range(0, 9, 3))'])
+    said.push(['int', '3', '3'])
     expect(at(ev(h, ...said))).toBe(7)
-    h.push(mem({ parcels: P, total: 16, p: 5 }))
+    // Doubling the slots is not what the body does.
+    expect(at(ev([...h, mem({ parcels: [10, 14, 8], total: 4, p: 8 })], ...said))).toBe(7)
+    h.push(mem({ parcels: P, total: 4, p: 8 }))
     expect(at(ev(h, ...said))).toBe(8)
-    said.push(['list', '[7]', '[7]'])
+    // Typing the list out is not range.
+    expect(at(ev(h, ...said, ['list', '[0, 3, 6]', '[0, 3, 6]']))).toBe(8)
+    said.push(['list', '[0, 3, 6]', 'list(range(0, 9, 3))'])
     expect(at(ev(h, ...said))).toBe(9)
+    h.push(mem({ parcels: P, total: 4, p: 5 }))
+    expect(at(ev(h, ...said))).toBe(10)
+    said.push(['list', '[7]', '[7]'])
+    expect(at(ev(h, ...said))).toBe(11)
     // Typing `parcels = [7]` is not the loop: the loop leaves `p` at `4`.
-    expect(at(ev([...h, mem({ parcels: [7], total: 16, p: 5 })], ...said))).toBe(9)
-    h.push(mem({ parcels: [7], total: 16, p: 4 }))
+    expect(at(ev([...h, mem({ parcels: [7], total: 4, p: 5 })], ...said))).toBe(11)
+    h.push(mem({ parcels: [7], total: 4, p: 4 }))
     expect(at(ev(h, ...said))).toBe(s5Ideas.steps.length)
   })
 
@@ -106,11 +128,12 @@ describe('s5-ideas', () => {
       mem({ parcels: P }),
       mem({ parcels: P, total: 0 }),
       mem({ parcels: P, total: 16, p: 4 }),
-      mem({ parcels: P, total: 16, p: 8 }),
-      mem({ parcels: P, total: 16, p: 5 }),
+      by(BUG, mem({ parcels: P, total: 4, p: 4 })),
+      mem({ parcels: P, total: 4, p: 8 }),
+      mem({ parcels: P, total: 4, p: 5 }),
     ]
-    const e = ev(h, ['int', '16', '16'], ['int', '3', '3'], ['list', '[0, 3, 6]', 'list(range(0, 9, 3))'])
-    expect(progress(s5Ideas, e)).toBe(8)
+    const e = ev(h, ['int', '16', '16'], ['int', '4', '4'], ['int', '3', '3'], ['list', '[0, 3, 6]', 'list(range(0, 9, 3))'])
+    expect(progress(s5Ideas, e)).toBe(10)
     // The break loop that finished the step before is not a miss here.
     expect(script(s5Ideas, madeBy(e, line('for p in parcels:\n    break', null))).items.at(-1)!.kind).toBe('ask')
     // As the workbench reports it, the guess is the newest thought.
@@ -124,6 +147,18 @@ describe('s5-ideas', () => {
     // Typed again, it did no step, and the robot is not the one to predict.
     const again = ev([mem({ parcels: P }), mem({ parcels: P, total: 0 }), mem({ parcels: P, total: 0 })])
     expect(guidance(s5Ideas, madeBy(again, line('total = 0', null))).text).toContain('Predict it first')
+  })
+
+  it('names a bare range, a tuple for a list, and Mira’s total typed by hand', () => {
+    expect(guidance(s5Ideas, typed(line('parcels = 5, 7, 4', null))).text).toContain('Square brackets')
+    const h = [mem({ parcels: P }), mem({ parcels: P, total: 0 }), mem({ parcels: P, total: 16, p: 4 })]
+    const bug = ev(h, ['int', '16', '16'], ['int', '4', '4'])
+    expect(guidance(s5Ideas, { ...bug, last: line('total = 4', null) }).text).toContain('Let the loop do it')
+    const three: [string, string, string][] = [['int', '16', '16'], ['int', '4', '4'], ['int', '3', '3']]
+    const bare = ['range', 'range(0, 9, 3)', 'range(0, 9, 3)'] as [string, string, string]
+    const r = ev([...h, by(BUG, mem({ parcels: P, total: 4, p: 4 })), mem({ parcels: P, total: 4, p: 8 })], ...three, bare)
+    expect(progress(s5Ideas, r)).toBe(8)
+    expect(guidance(s5Ideas, { ...r, last: line('range(0, 9, 3)', th('range', 'range(0, 9, 3)')) }).text).toContain('wrap it in')
   })
 
   it('never lets a bare expression through the first step', () => {

@@ -48,8 +48,19 @@ test('Stage 5’s ideas open on Mira’s total, and every loop happens in memory
   // A body with no indent is not inside the loop, and is answered.
   await say(page, 'for p in parcels:\ntotal = total + p\n')
   await expect(page.getByTestId('guide')).toContainText('spaces in front')
-  await block(page, 'for p in parcels:', 'total = total + p')
+  await say(page, 'for p in parcels:\n    total = total + p\n    print(p, total)\n')
   expect(await bound(page)).toMatchObject({ total: '16', p: '4', parcels: '[5, 7, 4]' })
+  expect((await beat(page)).kind).toBe('praise')
+
+  // Mira's loop, with `total = 0` inside the body: predicted, then run.
+  await say(page, '16')
+  await expect(page.getByTestId('guide')).toContainText('back to')
+  await say(page, '4')
+  expect((await beat(page)).kind).toBe('praise')
+  await say(page, 'total = 4')
+  await expect(page.getByTestId('guide')).toContainText('Let the loop do it')
+  await say(page, 'for p in parcels:\n    total = 0\n    total = total + p\n')
+  expect(await bound(page)).toMatchObject({ total: '4', p: '4', parcels: '[5, 7, 4]' })
   expect((await beat(page)).kind).toBe('praise')
 
   await say(page, '2')
@@ -61,6 +72,8 @@ test('Stage 5’s ideas open on Mira’s total, and every loop happens in memory
   expect(await bound(page)).toMatchObject({ p: '8', parcels: '[5, 7, 4]' })
 
   // The robot counts, and lets the list go: memory keeps only what has a name.
+  await say(page, 'range(0, 9, 3)')
+  await expect(page.getByTestId('guide')).toContainText('wrap it in')
   await say(page, 'list(range(0, 9, 3))')
   await expect(page.getByTestId('thought')).toHaveText('[0, 3, 6]')
   expect(Object.keys(await bound(page)).sort()).toEqual(['p', 'parcels', 'total'])
@@ -71,7 +84,7 @@ test('Stage 5’s ideas open on Mira’s total, and every loop happens in memory
   await say(page, '[]')
   await expect(page.getByTestId('guide')).toContainText('slides the rest left')
   await say(page, '[7]')
-  await block(page, 'for p in parcels:', 'parcels.remove(p)')
+  await say(page, 'for p in parcels:\n    parcels.remove(p)\n    print(p, parcels)\n')
   expect(await bound(page)).toMatchObject({ parcels: '[7]', p: '4' })
 
   await skip(page)

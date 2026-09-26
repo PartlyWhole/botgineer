@@ -1,6 +1,7 @@
 import { openerOf } from '../collection/story'
-import { errorType, heard, sameObject, targetOf, type Evidence, type Lesson, type Line } from './core'
+import { errorType, heard, sameObject, targetOf, type Evidence, type Heard, type Lesson, type Line } from './core'
 import type { MemorySnapshot, PyObject } from '../../src/memory/model'
+import type { Prop } from '../../src/scene/props'
 
 /**
  * Stage 8, the ideas: crossing a function boundary, told in beats.
@@ -29,7 +30,17 @@ import type { MemorySnapshot, PyObject } from '../../src/memory/model'
  *
  * Blocks are typed over several lines: Enter adds a line inside a block,
  * and Enter on the blank line sends it (`src/repl/program.ts`).
+ *
+ * Each prediction is about a function that is only in memory as a card,
+ * so its code is on the stage (a `code` picture) while it is read. A
+ * "let the robot check" step counts only what was done after the
+ * prediction (`after`, `since`): running the call while predicting must
+ * not quietly finish the check and skip the prediction's praise.
  */
+
+/** The functions read here, drawn as written. */
+const DOUBLE: Prop = { kind: 'code', text: 'def double(n):\n    n = n * 2\n    return n\n\nx = 5\ndouble(x)' }
+const ADD: Prop = { kind: 'code', text: 'def add(item, items=[]):\n    items.append(item)\n    return items\n\nadd("x")\nadd("y")' }
 
 const objectOf = (s: MemorySnapshot, name: string): PyObject | null => {
   const id = targetOf(s, name)
@@ -51,6 +62,26 @@ const defaultOf = (s: MemorySnapshot, fn: string): string | null =>
 /** A typed number and nothing else: a prediction, not a run. */
 const predicted = (e: Evidence, n: string) =>
   heard(e, (t) => t.type === 'int' && t.repr === n && (t.source ?? '').trim() === n)
+
+/** A thought passing `then`, thought after the first one passing `first`. */
+const after = (e: Evidence, first: (t: Heard) => boolean, then: (t: Heard) => boolean): boolean => {
+  const i = e.thoughts.findIndex(first)
+  return i >= 0 && e.thoughts.slice(i + 1).some(then)
+}
+
+/** A typed number and nothing else. */
+const typedInt = (n: string) => (t: Heard) => t.type === 'int' && t.repr === n && (t.source ?? '').trim() === n
+
+/**
+ * Some accepted line after the first one that is just `mark` typed (a
+ * prediction) passes: of its source and the memory it left. The lines
+ * carry every accepted line, a bare prediction included.
+ */
+const since = (e: Evidence, mark: string, holds: (source: string, s: MemorySnapshot) => boolean): boolean => {
+  const ls = e.lines ?? []
+  const i = ls.findIndex((l) => l.source.trim() === mark)
+  return i >= 0 && ls.slice(i + 1).some((l) => holds(l.source, l.memory))
+}
 
 /** How many items `fn`'s default list holds, or null. */
 const defaultItems = (s: MemorySnapshot, fn: string): number | null => {
@@ -83,6 +114,7 @@ export const s8Ideas: Lesson = {
         { say: openerOf(8) },
         { say: 'A function is lines written now and run later, each time something calls it.' },
         { say: '`def` builds a function object and binds a name to it, and the body does not run yet.' },
+        { say: '`return n` hands the object `n` points at back to the line that called the function.' },
         { say: 'A block goes in line by line: indent the body, then press Enter on a blank line.', focus: 'console' },
       ],
       say: 'Type `def double(n):`, then `n = n * 2` and `return n`, both indented under it.',
@@ -102,11 +134,12 @@ export const s8Ideas: Lesson = {
     },
     {
       beats: [
-        { say: 'A call runs the body, with `n` bound to the same object the brackets hand in.' },
-        { say: 'Then `n = n * 2` moves the arrow of `n` to a new object.' },
-        { say: 'Now read before you run: `x` points at `5`.', focus: 'memory' },
+        { say: 'A call runs the body, with `n` bound to the same object the brackets hand in.', show: DOUBLE },
+        { say: 'Then `n = n * 2` moves the arrow of `n` to a new object.', show: DOUBLE },
+        { say: 'Now read before you run: `x` points at `5`.', focus: 'memory', show: DOUBLE },
       ],
       say: 'After `double(x)`, what will `x` point at? Type just the number.',
+      show: DOUBLE,
       tag: 'you',
       done: (e) => predicted(e, '5'),
       praise: 'Five: `n = n * 2` moves the arrow of `n`, and `x` is a different name.',
@@ -117,10 +150,11 @@ export const s8Ideas: Lesson = {
       },
     },
     {
-      beats: [{ say: 'Now let the robot check your prediction.' }],
+      beats: [{ say: 'Now let the robot check your prediction.', show: DOUBLE }],
       say: 'Run `double(x)`, then look at `x`.',
+      show: DOUBLE,
       tag: 'robot',
-      done: (e) => heard(e, (t) => /^\s*double\s*\(\s*x\s*\)\s*$/.test(t.source ?? '')),
+      done: (e) => after(e, typedInt('5'), (t) => /^\s*double\s*\(\s*x\s*\)\s*$/.test(t.source ?? '')),
       praise: 'The robot thought of `10`, `x` still points at `5`, and there is no `n`: it left with the call.',
       nudge: (l) => (/=\s*double/.test(l.source) ? 'Just call it, binding nothing: `double(x)`.' : undefined),
     },
@@ -146,7 +180,7 @@ export const s8Ideas: Lesson = {
       say: 'Type `things = ["a"]`, then `same = add("b", things)`.',
       tag: 'you',
       done: (e) => sameObject(e.snapshot, 'same', 'things') && (itemsOf(e.snapshot, 'things') ?? 0) >= 2,
-      praise: '`things` has two items now, because `items` was bound to Mira’s list itself, not a copy.',
+      praise: '`things` changed too, because `items` was bound to Mira’s list itself, not a copy.',
       nudge: (l) => {
         if (l.thought && /add\s*\(/.test(l.source)) return 'Bind what comes back: `same = add("b", things)`.'
         if (/^\s*things\s*=/.test(l.source)) return 'Now hand it over: `same = add("b", things)`.'
@@ -157,10 +191,11 @@ export const s8Ideas: Lesson = {
     {
       beats: [
         { say: 'And `same` points at that very list: `return` hands back the object itself.', focus: 'memory' },
-        { say: 'Now leave `items` out, so each call uses the default list.' },
-        { say: 'Read before you run: that default was built once, when `def` ran.' },
+        { say: 'Now leave `items` out, so each call uses the default list.', show: ADD },
+        { say: 'Read before you run: that default was built once, when `def` ran.', show: ADD },
       ],
       say: 'After `add("x")`, then `add("y")`, how many items will the default list hold? Type the number.',
+      show: ADD,
       tag: 'you',
       done: (e) => predicted(e, '2'),
       praise: 'Two: both calls append to the one default list, because it was built once.',
@@ -171,12 +206,17 @@ export const s8Ideas: Lesson = {
       },
     },
     {
-      beats: [{ say: 'Now let the robot check, and watch the list on `add`.', focus: 'memory' }],
+      beats: [{ say: 'Now let the robot check, and watch the list on `add`.', focus: 'memory', show: ADD }],
       say: 'Type `add("x")`, then `add("y")`.',
+      show: ADD,
       tag: 'robot',
-      done: (e) => (defaultItems(e.snapshot, 'add') ?? 0) >= 2,
-      praise: 'Both items landed in the one default list, built once and shared by every call that leaves it out.',
-      nudge: (l) => (/^\s*add\s*\(\s*"x"\s*\)\s*$/.test(l.source) ? 'Now the second call: `add("y")`.' : undefined),
+      // The second call, after the prediction: a call made while predicting
+      // stays in the list, so only `add("y")` since then, with two or more
+      // items on the default, is the check.
+      done: (e) =>
+        since(e, '2', (src, s) => /^\s*add\s*\(\s*["']y["']\s*\)\s*$/.test(src) && (defaultItems(s, 'add') ?? 0) >= 2),
+      praise: 'Every call that left `items` out landed in the one default list, built once, at `def`.',
+      nudge: (l) => (/^\s*add\s*\(\s*["']x["']\s*\)\s*$/.test(l.source) ? 'Now the second call: `add("y")`.' : undefined),
     },
   ],
   outro: [

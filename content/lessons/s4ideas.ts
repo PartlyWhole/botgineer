@@ -1,5 +1,5 @@
 import { openerOf } from '../collection/story'
-import { ever, heard, targetOf, type Heard, type Lesson, type Line } from './core'
+import { ever, everBy, heard, targetOf, type Heard, type Lesson, type Line } from './core'
 import type { MemorySnapshot, ObjectId } from '../../src/memory/model'
 
 /**
@@ -27,6 +27,10 @@ import type { MemorySnapshot, ObjectId } from '../../src/memory/model'
  *
  * Memory draws a list's card as "2 items", so a step reads a list's value
  * by following its arrows (`valueOf`), never from its card.
+ *
+ * The two run steps whose praise names *how* (through the shared table;
+ * by `deepcopy`) ask the line that did it (`everBy`), so `plan[0].append`
+ * or a copy typed out by hand leaves the same memory without the praise.
  */
 
 /** A list's value, written as Python writes it, by following its arrows. */
@@ -98,7 +102,7 @@ export const s4Ideas: Lesson = {
       beats: [
         { say: 'Look below: the outer list holds arrows, and each arrow leads to a table.', focus: 'memory' },
         { say: '`new = plan` would only copy the arrow to `plan`, as you saw in Stage 1.' },
-        { say: '`plan[:]` builds a new outer list, as Stage 3 said.' },
+        { say: 'Leave out both numbers, `plan[:]`, and the slice takes every slot into a new outer list.' },
       ],
       say: 'Type `new = plan[:]`, and watch where its arrows go.',
       tag: 'you',
@@ -150,8 +154,17 @@ export const s4Ideas: Lesson = {
       beats: [{ say: 'Let the robot check it.' }],
       say: 'Type `new[0].append("Flo")`, and watch the first table.',
       tag: 'you',
-      done: (e) => ever(e, (s) => valueOf(s, slot(s, 'plan', 0)) === "['Ann', 'Flo']"),
+      done: (e) =>
+        everBy(e, (src, s) => {
+          if (!/\bnew\s*\[\s*0\s*\]\s*\.\s*append/.test(src)) return false
+          const table = valueOf(s, slot(s, 'plan', 0)) ?? ''
+          return slot(s, 'plan', 0) === slot(s, 'new', 0) && table.startsWith("['Ann'") && table.endsWith("'Flo']")
+        }),
       praise: '`plan` changed too, because the table was shared: that is what happened to Mira.',
+      nudge: (l) =>
+        l.ok && /\bplan\s*\[\s*0\s*\]\s*\.\s*append/.test(l.source)
+          ? 'That changed `plan` itself. Change it through the copy: `new[0].append("Flo")`.'
+          : undefined,
     },
     {
       beats: [
@@ -161,7 +174,8 @@ export const s4Ideas: Lesson = {
       say: 'Type `import copy`, then `safe = copy.deepcopy(plan)`.',
       tag: 'you',
       done: (e) =>
-        ever(e, (s) => {
+        everBy(e, (src, s) => {
+          if (!/deepcopy\s*\(/.test(src)) return false
           const p = slots(s, 'plan')
           const d = slots(s, 'safe')
           return (
@@ -173,6 +187,7 @@ export const s4Ideas: Lesson = {
       nudge: (l) => {
         if (l.error?.startsWith('NameError') && /copy\./.test(l.source)) return 'Bring the module in first: `import copy`.'
         if (l.ok && /^\s*import\s+copy\s*$/.test(l.source)) return 'Now make the copy: `safe = copy.deepcopy(plan)`.'
+        if (l.ok && /^\s*safe\s*=\s*\[/.test(l.source)) return 'Typed by hand, that’s a new list, not a copy. Let `copy.deepcopy(plan)` make it.'
         return undefined
       },
     },
@@ -194,7 +209,7 @@ export const s4Ideas: Lesson = {
     },
     {
       beats: [
-        { say: 'Look below: `grid` holds three arrows, and there is only one row card for them to reach.', focus: 'memory' },
+        { say: 'Look below: one arrow, labelled 0, 1, 2: all three slots of `grid` lead to the same row.', focus: 'memory' },
         { say: 'Mira writes a 1 at the start of the first row: `grid[0][0] = 1`.' },
       ],
       say: 'Before it runs, what will `grid[1]` be? Type the list you expect.',
@@ -216,9 +231,9 @@ export const s4Ideas: Lesson = {
     },
   ],
   outro: [
-    { say: 'For three real rows, write `[0] * 3` three times over, so each one builds its own list.' },
+    { say: 'For three real rows, write `[[0] * 3, [0] * 3, [0] * 3]`: each `[0] * 3` builds its own list.' },
     { say: 'When a change shows up somewhere else, ask: did I copy at all, and which level did I copy?' },
     { say: 'The exercises are next: draw the arrows, and say which level each copy made new.' },
   ],
-  takeaway: 'A copy makes some levels new and shares the rest, so ask which level was copied before you blame it.',
+  takeaway: 'A copy makes some levels new and shares the rest, so ask which level your copy made new.',
 }

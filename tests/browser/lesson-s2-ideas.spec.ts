@@ -37,6 +37,15 @@ test('Stage 2’s ideas: a change every name sees, and a move only one name make
   expect(await listOf(page, 'other')).toBe('[1, 2, 3]')
   expect(await listOf(page, 'nums')).toBe('[1, 2, 3, 4]')
 
+  // `.sort()` changes the list where it is: the same card, reordered.
+  await say(page, 'other = [3, 1, 2]')
+  await expect(page.getByTestId('guide')).toContainText('Now other.sort()')
+  const unsorted = await targetOf(page, 'other')
+  await say(page, 'other.sort()')
+  expect(await targetOf(page, 'other')).toBe(unsorted)
+  expect(await listOf(page, 'other')).toBe('[1, 2, 3]')
+  expect((await beat(page)).kind).toBe('praise')
+
   // A changing method hands back None, and keeping it loses the list.
   // The console echoes no None, so asking bare is answered, not accepted.
   await say(page, 'other.sort()')
@@ -59,6 +68,14 @@ test('Stage 2’s ideas: a change every name sees, and a move only one name make
     const at = (n: string) => s.objects[s.bindings.find((b) => b.name === n)!.target]!.repr
     return [at('n'), at('m')]
   })).toEqual(['11', '10'])
+
+  // A tuple, once: its arrows never move, but the list it points at can change.
+  await say(page, 'inner = [2]')
+  await say(page, 'pair = (1, inner)')
+  const tuple = await targetOf(page, 'pair')
+  await say(page, 'inner.append(3)')
+  expect(await targetOf(page, 'pair')).toBe(tuple)
+  expect(await listOf(page, 'inner')).toBe('[2, 3]')
 
   await skip(page)
   await expect(page.getByTestId('takeaway')).toContainText('every name on it sees')

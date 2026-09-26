@@ -1,5 +1,6 @@
 import { errorType, ever, everBy, heard, points, targetOf, type Evidence, type Lesson, type Line } from './core'
 import type { MemorySnapshot } from '../../src/memory/model'
+import type { Prop } from '../../src/scene/props'
 
 /**
  * Making Choices: `if`, told in beats.
@@ -18,16 +19,26 @@ import type { MemorySnapshot } from '../../src/memory/model'
  * 5. an `if` inside a loop's body, a block inside a block, asked again
  *    each pass: keep only the heavy parcels;
  * 6. `break` under an `if`, which stops the loop only on the pass the
- *    question says so.
+ *    question says so;
+ * 7. `continue` under an `if`, which skips the rest of one pass and goes
+ *    on (Stage 5's 5.11 and Stage 7's 7.7 read it).
  *
  * Evidence is memory after each accepted line (a block is one line), the
- * source of that line, and the robot's thoughts. Memory cannot tell an
- * `if` that ran from the line under it typed alone, so the `if` and
- * `else` steps ask which line made the change (`everBy`): it must have an
- * `if` in it, and for the `else` step an `else` too. The loop steps
- * cannot be typed out, because the loop leaves `w` behind.
- * Nothing here prints: printed output is not evidence.
+ * source of that line, and the robot's thoughts. Memory cannot tell a
+ * block that ran from its lines typed alone — `w = 3` leaves what the
+ * `break` loop leaves — so every step past the first comparison asks
+ * which line made the change (`everBy`): it must have the headers the
+ * step is about (`if`, `else`, `for` with `if`, and `break` or
+ * `continue`). Nothing here prints: printed output is not evidence.
+ *
+ * The one prediction is about a block that never runs, so the block is on
+ * the stage (a `code` picture) while it is read and asked about, and the
+ * robot's cloud stays empty: the question is the player's to ask.
  */
+
+/** The blocks read here, drawn as written. */
+const TRUCK: Prop = { kind: 'code', text: 'if weight > 10:\n    ride = "truck"' }
+const SKIP: Prop = { kind: 'code', text: 'for w in [12, 3, 15]:\n    if w == 3:\n        continue\n    heavy.append(w)' }
 
 /** This name points at a list whose slots point at these, slot by slot. */
 const listIs = (s: MemorySnapshot, name: string, repr: string): boolean => {
@@ -68,7 +79,7 @@ const indentMiss = (l: Line): string | undefined =>
     : undefined
 
 /** A line of this source that starts with this header: `if`, `else`. */
-const has = (source: string, word: 'if' | 'else') => new RegExp(`^\\s*${word}\\b`, 'm').test(source)
+const has = (source: string, word: 'if' | 'else' | 'for') => new RegExp(`^\\s*${word}\\b`, 'm').test(source)
 
 /** `ride = …` typed on its own, which chooses for the robot. */
 const bareRide = (l: Line): string | undefined =>
@@ -129,6 +140,7 @@ export const decide: Lesson = {
       beats: [
         { say: 'The robot thought `True` and let it go, but an `if` can act on the answer.' },
         { say: '`if weight > 10:` asks the question, and its colon opens a block under it.' },
+        { say: 'The question after `if` is called its **condition**, and it answers `True` or `False`.' },
         { say: 'The indented lines under it run only when the answer is `True`.' },
         { say: 'Type it the way you typed a loop: the header, the body indented, then a blank line.', focus: 'console' },
       ],
@@ -149,10 +161,11 @@ export const decide: Lesson = {
     },
     {
       beats: [
-        { say: 'Read this block before anything runs: `if weight > 10:`, with `ride = "truck"` under it.' },
-        { say: 'Ask its question in your head: is `weight`, at `3` now, more than `10`?', thought: 'weight > 10 ?', focus: 'memory' },
+        { say: 'Read this block before anything runs.', show: TRUCK },
+        { say: 'Ask its condition in your head: is `weight`, at `3` now, more than `10`?', thought: '', focus: 'memory', show: TRUCK },
       ],
       say: 'After that block, what will `ride` point at? Type it, in quotes.',
+      show: TRUCK,
       tag: 'you',
       done: (e) => saidText(e, "'van'"),
       praise: 'Still `\'van\'`, because `3 > 10` is `False`, so the robot skipped the block.',
@@ -211,7 +224,13 @@ export const decide: Lesson = {
       ],
       say: 'Type `for w in [12, 3, 15]:`, `if w > 10:` indented, `heavy.append(w)` indented deeper, then a blank line.',
       tag: 'you',
-      done: (e) => ever(e, (s) => listIs(s, 'heavy', '[12, 15]') && points(s, 'w', '15')),
+      // The loop with its `if`: a loop over `[12, 15]` alone, or the list
+      // typed out, leaves the same memory and chooses nothing.
+      done: (e) =>
+        everBy(
+          e,
+          (src, s) => has(src, 'for') && has(src, 'if') && listIs(s, 'heavy', '[12, 15]') && points(s, 'w', '15'),
+        ),
       praise: 'Only `12` and `15`, because the `append` ran only on passes where `w > 10` was `True`.',
       nudge: (l) => {
         const miss = headerMiss(l) ?? indentMiss(l)
@@ -232,16 +251,53 @@ export const decide: Lesson = {
       ],
       say: 'Type `for w in [12, 3, 15]:`, `if w == 3:` indented, `break` indented deeper, then a blank line.',
       tag: 'you',
-      done: (e) => ever(e, (s) => points(s, 'w', '3') && listIs(s, 'heavy', '[12, 15]')),
+      // The loop that broke: `w = 3` typed bare leaves the same memory.
+      done: (e) =>
+        everBy(
+          e,
+          (src, s) =>
+            has(src, 'for') && has(src, 'if') && /^\s*break\b/m.test(src) && points(s, 'w', '3') && listIs(s, 'heavy', '[12, 15]'),
+        ),
       praise: '`w` stopped at `3`, because `break` ran on the pass where `w == 3` was `True`.',
       nudge: (l) => {
         const miss = headerMiss(l) ?? indentMiss(l)
         if (miss) return miss
+        if (l.ok && /^\s*w\s*=/.test(l.source)) return 'Let the loop stop there: type the loop, with `break` under `if w == 3:`.'
         if (!l.ok || !/^\s*for\b/.test(l.source)) return undefined
         const g = guarded(l.source, /^break\b/)
         if (g && g.body <= g.cond) return 'The `break` isn’t inside the `if`, so it stopped the first pass: indent it deeper.'
         if (!/\bif\b/.test(l.source)) return 'A bare `break` stops the first pass: put `if w == 3:` above it.'
         return undefined
+      },
+    },
+    {
+      beats: [
+        { say: 'Look below: `w` stayed on `3`, and the loop never reached `15`.', focus: 'memory' },
+        { say: '`continue` is milder: it skips the rest of this pass, and the loop goes on to the next item.' },
+        { say: 'Here is a loop with one: on the `3`, `continue` skips the `append`.', show: SKIP },
+        { say: 'After `continue`, press Backspace once, so `heavy.append(w)` sits level with the `if`.', show: SKIP },
+      ],
+      say: 'Type `heavy = []` to start again, then the loop on the card, then a blank line.',
+      show: SKIP,
+      tag: 'you',
+      // The loop with `continue` in it, from an empty `heavy`: `[12, 15]`
+      // again, and `w` at the last parcel, because the loop went on.
+      done: (e) =>
+        everBy(
+          e,
+          (src, s) =>
+            has(src, 'for') && has(src, 'if') && /^\s*continue\b/m.test(src) && listIs(s, 'heavy', '[12, 15]') && points(s, 'w', '15'),
+        ),
+      praise: 'No `3`, because `continue` skipped the rest of that pass; then the loop went on to `15`.',
+      nudge: (l) => {
+        const miss = headerMiss(l) ?? indentMiss(l)
+        if (miss) return miss
+        if (l.ok && /^\s*heavy\s*=\s*\[\s*\]\s*$/.test(l.source)) return 'Now the loop on the card: `for w in [12, 3, 15]:`, and its body.'
+        if (!l.ok || !/^\s*for\b/.test(l.source)) return undefined
+        if (!/\bcontinue\b/.test(l.source)) return 'Put `continue` under `if w == 3:`, and `heavy.append(w)` after it, level with the `if`.'
+        const g = guarded(l.source, /append/)
+        if (g && g.body > g.cond) return 'The `append` is inside the `if`, so it never ran: Backspace it level with the `if`.'
+        return 'Right loop, but `heavy` wasn’t empty: type `heavy = []`, then run the loop again.'
       },
     },
   ],

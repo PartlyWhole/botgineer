@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest'
 import { guidance, progress, s8Ideas, script } from '../../../content/lessons'
 import type { Binding, MemorySnapshot, PyObject } from '../../../src/memory/model'
 import { NOTHING, failed, line, madeBy, snap, th, typed, value } from './fixtures'
-import type { Evidence } from '../../../content/lessons'
+import type { Evidence, LineMemory } from '../../../content/lessons'
 
 const fn = (uid: string, name: string, defaults: string[] = []): PyObject => ({
   id: uid,
@@ -30,11 +30,22 @@ const list = (uid: string, items: string[]): PyObject => ({
 
 const g = (name: string, target: string): Binding => ({ name, scope: 'global', target })
 
-const ev = (history: MemorySnapshot[], ...said: [string, string, string][]): Evidence => ({
-  snapshot: history[history.length - 1]!,
-  history,
-  thoughts: said.map(([type, repr, source]) => ({ ...th(type, repr), source })),
-})
+/** An accepted line and the memory it left: what `everBy` judges. */
+const by = (source: string, memory: MemorySnapshot): LineMemory => ({ source, memory })
+type Entry = MemorySnapshot | LineMemory
+const memOf = (x: Entry): MemorySnapshot => ('memory' in x ? x.memory : x)
+
+/** Memory after each line (a bare snapshot is a line whose source does not
+ *  matter), and what the robot said. */
+const ev = (entries: Entry[], ...said: [string, string, string][]): Evidence => {
+  const history = entries.map(memOf)
+  return {
+    snapshot: history[history.length - 1]!,
+    history,
+    lines: entries.map((x) => ('memory' in x ? x : by('', x))),
+    thoughts: said.map(([type, repr, source]) => ({ ...th(type, repr), source })),
+  }
+}
 
 const five = value('int', '5')
 const a = value('str', "'a'")
@@ -95,12 +106,32 @@ describe('s8-ideas', () => {
     expect(at(ev([m1, m2, m3, m4], ...said))).toBe(7)
 
     // One call is not yet the shared default.
+    const two = by('2', m4)
     const one = list('u3', [x.id])
-    const m5 = snap([dbl, five, add, one, things, a, b, x], [...baseB, g('things', 'u5'), g('same', 'u5')])
-    expect(at(ev([m1, m2, m3, m4, m5], ...said))).toBe(7)
+    const m5 = by('add("x")', snap([dbl, five, add, one, things, a, b, x], [...baseB, g('things', 'u5'), g('same', 'u5')]))
+    expect(at(ev([m1, m2, m3, m4, two, m5], ...said))).toBe(7)
     const full = list('u3', [x.id, y.id])
-    const m6 = snap([dbl, five, add, full, things, a, b, x, y], [...baseB, g('things', 'u5'), g('same', 'u5')])
-    expect(at(ev([m1, m2, m3, m4, m5, m6], ...said))).toBe(s8Ideas.steps.length)
+    const m6 = by('add("y")', snap([dbl, five, add, full, things, a, b, x, y], [...baseB, g('things', 'u5'), g('same', 'u5')]))
+    expect(at(ev([m1, m2, m3, m4, two, m5, m6], ...said))).toBe(s8Ideas.steps.length)
+  })
+
+  it('counts only the checks made after their predictions', () => {
+    const dbl = fn('u1', 'double')
+    const m1 = snap([dbl], [g('double', 'u1')])
+    const m2 = snap([dbl, five], [g('double', 'u1'), g('x', five.id)])
+    // `double(x)` run while predicting, then 5: the check is still owed.
+    const early = ev([m1, m2], ['int', '10', 'double(x)'], ['int', '5', '5'])
+    expect(progress(s8Ideas, early)).toBe(3)
+    // `add("x")` run while predicting, then 2, then one more `add("x")`:
+    // the default holds two, but `add("y")` never ran after the 2.
+    const dflt = list('u3', [x.id])
+    const add = fn('u4', 'add', ['u3'])
+    const things = list('u5', [a.id, b.id])
+    const base = [g('double', 'u1'), g('x', five.id), g('add', 'u4'), g('things', 'u5'), g('same', 'u5')]
+    const m4 = by('add("x")', snap([dbl, five, add, dflt, things, a, b, x], base))
+    const xx = by('add("x")', snap([dbl, five, add, list('u3', [x.id, x.id]), things, a, b, x], base))
+    const said: [string, string, string][] = [['int', '5', '5'], ['int', '10', 'double(x)'], ['int', '2', '2']]
+    expect(progress(s8Ideas, ev([m1, m2, m4, by('2', m4.memory), xx], ...said))).toBe(7)
   })
 
   it('arrives at each question asking it, not answering the line that did the step before', () => {

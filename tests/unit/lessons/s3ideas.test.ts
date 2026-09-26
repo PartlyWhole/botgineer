@@ -5,7 +5,7 @@
  * the prediction, which takes a typed number only.
  */
 import { describe, expect, it } from 'vitest'
-import { guidance, progress, s3Ideas, script, type Evidence } from '../../../content/lessons'
+import { guidance, progress, s3Ideas, script, type Evidence, type LineMemory } from '../../../content/lessons'
 import type { Binding, MemorySnapshot, PyObject } from '../../../src/memory/model'
 import { NOTHING, failed, line, snap, th, value } from './fixtures'
 
@@ -50,16 +50,29 @@ const mem = (names: Record<string, PyObject>): MemorySnapshot => {
   return snap([...all.values()], bindings)
 }
 
-const ev = (history: MemorySnapshot[], ...said: [string, string, string][]): Evidence => ({
-  snapshot: history[history.length - 1]!,
-  history,
-  thoughts: said.map(([type, repr, source]) => ({ ...th(type, repr), source })),
-})
+/** An accepted line and the memory it left: what `everBy` judges. */
+const by = (source: string, memory: MemorySnapshot): LineMemory => ({ source, memory })
+type Entry = MemorySnapshot | LineMemory
+const memOf = (x: Entry): MemorySnapshot => ('memory' in x ? x.memory : x)
+
+/** Memory after each line (a bare snapshot is a line whose source does not
+ *  matter), and what the robot said. */
+const ev = (entries: Entry[], ...said: [string, string, string][]): Evidence => {
+  const history = entries.map(memOf)
+  return {
+    snapshot: history[history.length - 1]!,
+    history,
+    lines: entries.map((x) => ('memory' in x ? x : by('', x))),
+    thoughts: said.map(([type, repr, source]) => ({ ...th(type, repr), source })),
+  }
+}
 
 const abc = list('1', [str('a'), str('b'), str('c')])
 const azc = list('1', [str('a'), str('z'), str('c')])
 const zc = list('2', [str('z'), str('c')])
 const ages = dict('3', [['ann', int(30)], ['bo', int(25)]])
+const agesT = dict('3', [['ann', int(30)], ['bo', int(25)]])
+agesT.elements!.push({ label: '(1, 2)', target: made(int(5)).id })
 const grid = list('6', [list('4', [int(1), int(2)]), list('5', [int(3), int(4)])])
 
 describe('s3-ideas', () => {
@@ -77,7 +90,7 @@ describe('s3-ideas', () => {
     expect(at(ev([m1], ...said))).toBe(1)
     said.push(['str', "'c'", 'items[-1]'])
     expect(at(ev([m1], ...said))).toBe(2)
-    const m2 = mem({ items: azc })
+    const m2 = by('items[1] = "z"', mem({ items: azc }))
     expect(at(ev([m1, m2], ...said))).toBe(3)
     said.push(['int', '2', '2'])
     expect(at(ev([m1, m2], ...said))).toBe(4)
@@ -91,10 +104,12 @@ describe('s3-ideas', () => {
     expect(at(ev([m1, m2, m3, m4], ...said))).toBe(8)
     said.push(['bool', 'False', '30 in ages'])
     expect(at(ev([m1, m2, m3, m4], ...said))).toBe(9)
-    const m5 = mem({ items: azc, part: zc, ages, grid })
-    expect(at(ev([m1, m2, m3, m4, m5], ...said))).toBe(9)
+    const m4t = by('ages[(1, 2)] = 5', mem({ items: azc, part: zc, ages: agesT }))
+    expect(at(ev([m1, m2, m3, m4, m4t], ...said))).toBe(10)
+    const m5 = mem({ items: azc, part: zc, ages: agesT, grid })
+    expect(at(ev([m1, m2, m3, m4, m4t, m5], ...said))).toBe(10)
     said.push(['int', '3', 'grid[1][0]'])
-    expect(at(ev([m1, m2, m3, m4, m5], ...said))).toBe(s3Ideas.steps.length)
+    expect(at(ev([m1, m2, m3, m4, m4t, m5], ...said))).toBe(s3Ideas.steps.length)
   })
 
   it('does not take a read typed out by hand', () => {
@@ -114,7 +129,7 @@ describe('s3-ideas', () => {
 
   it('takes only a typed number as the prediction, and answers the inclusive count', () => {
     const said: [string, string, string][] = [['str', "'b'", 'items[1]'], ['str', "'c'", 'items[-1]']]
-    const history = [mem({ items: abc }), mem({ items: azc })]
+    const history = [mem({ items: abc }), by('items[1] = "z"', mem({ items: azc }))]
     // The robot's own slice is not a prediction.
     const ran = ev([...history, mem({ items: azc, part: zc })], ...said)
     expect(progress(s3Ideas, ran)).toBe(3)
@@ -124,7 +139,12 @@ describe('s3-ideas', () => {
   })
 
   it('does not take `False` typed by hand for `in`, and names the missing key', () => {
-    const history = [mem({ items: abc }), mem({ items: azc }), mem({ items: azc, part: zc }), mem({ items: azc, part: zc, ages })]
+    const history = [
+      mem({ items: abc }),
+      by('items[1] = "z"', mem({ items: azc })),
+      mem({ items: azc, part: zc }),
+      mem({ items: azc, part: zc, ages }),
+    ]
     const said: [string, string, string][] = [
       ['str', "'b'", 'items[1]'],
       ['str', "'c'", 'items[-1]'],
@@ -136,6 +156,44 @@ describe('s3-ideas', () => {
     expect(guidance(s3Ideas, { ...e, last: failed('ages["cy"]', 'KeyError') }).text).toContain('`KeyError`')
     said.push(['int', '0', 'ages.get("cy", 0)'], ['bool', 'False', 'False'])
     expect(progress(s3Ideas, ev(history, ...said))).toBe(8)
+  })
+
+  it('finishes the write after the player rebinds `items` on the way (no softlock)', () => {
+    const said: [string, string, string][] = [['str', "'b'", 'items[1]'], ['str', "'c'", 'items[-1]']]
+    const fresh = list('9', [str('a'), str('b'), str('c')])
+    const written = list('9', [str('a'), str('z'), str('c')])
+    const rebound = [mem({ items: abc }), by('items = ["a", "b", "c"]', mem({ items: fresh }))]
+    expect(progress(s3Ideas, ev(rebound, ...said))).toBe(2)
+    expect(progress(s3Ideas, ev([...rebound, by('items[1] = "z"', mem({ items: written }))], ...said))).toBe(3)
+    // A rebinding with the `'z'` already in it is not the write.
+    const typedZ = [mem({ items: abc }), by('items = ["a", "z", "c"]', mem({ items: written }))]
+    expect(progress(s3Ideas, ev(typedZ, ...said))).toBe(2)
+  })
+
+  it('files a tuple as a key after the list is refused, and takes only the tuple line', () => {
+    const history = [
+      mem({ items: abc }),
+      by('items[1] = "z"', mem({ items: azc })),
+      mem({ items: azc, part: zc }),
+      mem({ items: azc, part: zc, ages }),
+    ]
+    const said: [string, string, string][] = [
+      ['str', "'b'", 'items[1]'],
+      ['str', "'c'", 'items[-1]'],
+      ['int', '2', '2'],
+      ['int', '30', 'ages["ann"]'],
+      ['int', '0', 'ages.get("cy", 0)'],
+      ['bool', 'False', '30 in ages'],
+    ]
+    const e = ev(history, ...said)
+    expect(progress(s3Ideas, e)).toBe(9)
+    expect(guidance(s3Ideas, { ...e, last: failed('ages[[1, 2]] = 5', 'TypeError') }).text).toContain('Now the tuple')
+    expect(progress(s3Ideas, ev([...history, by('ages[(1, 2)] = 5', mem({ items: azc, part: zc, ages: agesT }))], ...said))).toBe(10)
+  })
+
+  it('names counting from the end', () => {
+    const e = ev([mem({ items: abc })], ['str', "'b'", 'items[1]'])
+    expect(guidance(s3Ideas, { ...e, last: line('items[2]', th('str', "'c'")) }).text).toContain('count from the end')
   })
 
   it('says an index past the end is an IndexError', () => {
