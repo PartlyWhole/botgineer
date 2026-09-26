@@ -91,7 +91,7 @@ function glassMiss(l: Line): string | undefined {
   if (t?.type === 'int' && n === 1) return 'Full? The water only comes up to the middle.'
   if (t?.type === 'int') return 'No whole number fits: it\'s between `0` and `1`, so it needs a dot.'
   if (t?.type === 'float' && n !== null && n > 1) return 'More than full? It would spill! It\'s between `0` and `1`.'
-  if (t?.type === 'float' && n !== null) return `I filled the other glass to ${t.repr}. Compare them: the water is exactly halfway.`
+  if (t?.type === 'float' && n !== null) return `The robot filled the other glass to ${t.repr}: compare them, the water is exactly halfway.`
   if (/half/i.test(textOf(t) ?? '')) return 'That\'s the word. The robot writes half as `0.5`.'
   return measureMiss(l)
 }

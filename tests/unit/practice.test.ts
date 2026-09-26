@@ -175,7 +175,9 @@ describe('the generators', () => {
       const [, x, , v2] = ex.key.split(':')
       expect(ex.setup.some((l) => l === `${x} = ${v2}`), ex.key).toBe(false)
       expect(ex.then, ex.key).toEqual([`${x} = ${v2}`])
-      expect(ex.say).toMatch(/will/)
+      // Worded to hold whether or not the move is run after (see `then`).
+      expect(ex.lead?.join(' ')).toMatch(/Suppose .* runs next/)
+      expect(ex.say).toMatch(/would/)
     }
   })
 

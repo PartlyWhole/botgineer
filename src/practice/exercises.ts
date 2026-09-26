@@ -109,7 +109,9 @@ export type Exercise = {
    *  browser suite types to check the judge against real Python. */
   answer: string
   /** Lines to run once it is answered right, so memory confirms a
-   *  prediction the question asked for before they ran (`rebind`). */
+   *  prediction the question asked for before they ran (`rebind`). The
+   *  practice runner does not run them yet, so a question that has them
+   *  is worded to be true either way ("Suppose … runs next"). */
   then?: string[] | undefined
   /** Why it was right, said after a word of praise, as its own beat. */
   praise: string
@@ -825,8 +827,8 @@ export const GENERATORS: Record<string, Generator> = {
       key: `rebind:${x}:${v1}:${v2}`,
       skill: 'rebind',
       tag: 'you',
-      lead: [`\`${y} = ${x}\` pointed \`${y}\` at \`${x}\`’s object.`, `Next, \`${x} = ${v2}\` will run.`],
-      say: `When it has, what number will \`${y}\` point at?`,
+      lead: [`\`${y} = ${x}\` pointed \`${y}\` at \`${x}\`’s object.`, `Suppose \`${x} = ${v2}\` runs next.`],
+      say: `What number would \`${y}\` point at then?`,
       setup: [`${x} = ${v1}`, `${y} = ${x}`],
       then: [`${x} = ${v2}`],
       answer: String(v1),

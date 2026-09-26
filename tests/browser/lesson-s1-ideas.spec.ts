@@ -25,6 +25,12 @@ test('Stage 1’s ideas open on the bridge, and every idea happens in memory', a
   await say(page, '7')
   expect((await beat(page)).kind).toBe('praise')
   await say(page, 'shown = print(total)')
+  await say(page, 'print(total, 5)')
+  await expect(page.getByTestId('console')).toContainText('7 5')
+  // Counting by hand is answered: `len` is the robot counting.
+  await say(page, '4')
+  await expect(page.getByTestId('guide')).toContainText('you counting')
+  await say(page, 'len("Mira")')
   await say(page, 'a = [10, 20]')
   await say(page, 'b = a')
   // `==` on the lists asks something else, and is answered with what `id` is for.

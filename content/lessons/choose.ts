@@ -82,7 +82,7 @@ function quarterMiss(l: Line): string | undefined {
   if (t?.type === 'int') return 'No whole number fits: it\'s between `0` and `1`, so it needs a dot.'
   if (t?.type === 'float' && n !== null && n > 1) return 'More than full? It would spill! It\'s between `0` and `1`.'
   if (t?.type === 'float' && n === 0.5) return '`0.5` is half full. Compare the glasses: this one has less.'
-  if (t?.type === 'float') return `I filled the other glass to ${t.repr}. Compare them.`
+  if (t?.type === 'float') return `The robot filled the other glass to ${t.repr}: compare them.`
   if (/quarter/i.test(textOf(t) ?? '')) return 'That\'s the word. The robot writes a quarter as `0.25`.'
   return measured(l)
 }

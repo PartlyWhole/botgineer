@@ -1,4 +1,4 @@
-import { ever, heard, points, sameObject, targetOf, type Evidence, type Lesson, type Line } from './core'
+import { ever, everBy, heard, points, sameObject, targetOf, type Evidence, type Lesson, type Line } from './core'
 
 /**
  * Stage 1, the ideas: reading straight-line code, told in beats.
@@ -12,7 +12,8 @@ import { ever, heard, points, sameObject, targetOf, type Evidence, type Lesson, 
  *
  * 1. the right-hand side is worked out first (`total = total + 1`),
  *    predicted before it is run;
- * 2. `print` shows an object and hands back `None`;
+ * 2. `print` shows an object and hands back `None`, and shows two with a
+ *    space between; `len` counts a string's characters;
  * 3. a list is an object too, `b = a` shares it, and `id()` says which
  *    object a name points at — used on lists only, as the stage says,
  *    because small numbers and short strings are shared behind the scenes
@@ -20,7 +21,10 @@ import { ever, heard, points, sameObject, targetOf, type Evidence, type Lesson, 
  *
  * The picture is the memory graph (R6): every step makes something appear
  * or an arrow move there, and the beat after it points at it (focus
- * `memory`). It opens on the bridge into reading (R12, PEDAGOGY §3).
+ * `memory`). It opens on the bridge into reading (R12, PEDAGOGY §3), and
+ * names what Stage 1's exercises and keys lean on (R5): *program*,
+ * *expression*, *rebinding*, `print` with two things, `len`, *literal*,
+ * and *label* as the text's word for our arrow.
  */
 
 const typeOf = (e: Evidence, name: string): string | null => {
@@ -76,6 +80,7 @@ export const s1Ideas: Lesson = {
       beats: [
         { say: 'Now a line with `total` on both sides of the `=`.' },
         { say: 'Python always works out the right side first, before any arrow moves.' },
+        { say: 'The right side, `total + 1`, is an **expression**: Python works it out to one object.' },
         { say: 'So `total + 1` uses the `5`, and only then does `total` point at the answer.' },
       ],
       say: 'Type `total = total + 1`, and watch the arrow.',
@@ -86,7 +91,10 @@ export const s1Ideas: Lesson = {
         letGo(l) ? 'That worked out the answer and let it go. Point `total` at it: `total = total + 1`.' : undefined,
     },
     {
-      beats: [{ say: 'Now read before you run.', focus: 'memory' }],
+      beats: [
+        { say: 'Pointing a name at a new object like that is called **rebinding** it.', focus: 'memory' },
+        { say: 'Now read before you run.', focus: 'memory' },
+      ],
       say: 'If that line runs once more, what will `total` point at? Type just the number.',
       tag: 'you',
       done: (e) => heard(e, (t) => t.type === 'int' && t.repr === '7' && (t.source ?? '').trim() === '7'),
@@ -116,6 +124,34 @@ export const s1Ideas: Lesson = {
       nudge: (l) => {
         if (/^\s*print\s*\(/.test(l.source)) return 'That showed it, but kept nothing. Keep what `print` hands back: `shown = print(total)`.'
         if (/^\s*shown\s*=(?!=)/.test(l.source) && l.ok) return 'That points `shown` at something else. Point it at what `print` hands back: `shown = print(total)`.'
+        return undefined
+      },
+    },
+    {
+      beats: [{ say: 'Give `print` two things, and it shows both on one line, with a space between.' }],
+      say: 'Type `print(total, 5)`.',
+      tag: 'you',
+      // Not a thought: `print` hands back `None`, which the robot does not
+      // describe, so the line itself is the evidence (`everBy`).
+      done: (e) => everBy(e, (source) => /^\s*print\s*\(.+,.+\)/.test(source)),
+      praise: 'Both on one line, with a space between.',
+      nudge: (l) =>
+        /^\s*print\s*\(/.test(l.source) && l.ok && !/,/.test(l.source)
+          ? 'That gave `print` one thing. Give it two, with a comma between: `print(total, 5)`.'
+          : undefined,
+    },
+    {
+      beats: [
+        { say: '`len` is a function built into Python: it counts the characters in a string.' },
+        { say: '`len("hello")` is `5`, one for each letter.' },
+      ],
+      say: 'Ask the robot: `len("Mira")`.',
+      tag: 'robot',
+      done: (e) => heard(e, (t) => t.type === 'int' && t.repr === '4' && /len\s*\(/.test(t.source ?? '')),
+      praise: '`4`: the robot counted the letters in `"Mira"`.',
+      nudge: (l) => {
+        if (/^\s*\d+\s*$/.test(l.source)) return 'That\'s you counting. Let the robot count: `len("Mira")`.'
+        if (/len\s*\(\s*Mira\s*\)/.test(l.source)) return 'The word needs its quotes: `len("Mira")`.'
         return undefined
       },
     },
@@ -150,7 +186,10 @@ export const s1Ideas: Lesson = {
       nudge: (l) => idMiss(l, 'a', 'b'),
     },
     {
-      beats: [{ say: 'A second `[10, 20]`, typed out again, builds a new list.' }],
+      beats: [
+        { say: 'Brackets written out like `[10, 20]` are a **literal**, and each one builds a new list.' },
+        { say: 'So a second `[10, 20]`, typed out again, is a list of its own.' },
+      ],
       say: 'Type `c = [10, 20]`, then ask: `id(c) == id(a)`.',
       tag: 'robot',
       done: (e) =>
@@ -166,6 +205,7 @@ export const s1Ideas: Lesson = {
   outro: [
     { say: 'Every line did one thing to memory: made an object, moved an arrow, or showed something.' },
     { say: 'Read each line that way, and you know what the robot will do.' },
+    { say: 'The exercises sometimes call a name a **label**, stuck on its object: the same thing as our arrow.' },
     { say: 'Next, you\'ll write a program to wake the robot. Then the exercises: you read first, then it runs.' },
   ],
   takeaway: 'Read one line at a time: work out the right side, then see which arrow moves.',
