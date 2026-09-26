@@ -3,6 +3,10 @@ name: Checks
 
 on:
   pull_request:
+  # Also after every push to main, beside the deploy (which no longer
+  # waits for the browser journeys), so a regression still shows up.
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -26,5 +30,11 @@ jobs:
       - run: |
           npx playwright install --with-deps chromium
           npm run test:browser
+        env:
+          BASE_PATH: ${{ env.VITE_BASE }}
+      # The page-level collection audit: opt-in because it is slow, so it
+      # runs on pull requests only.
+      - if: github.event_name == 'pull_request'
+        run: npm run test:audit
         env:
           BASE_PATH: ${{ env.VITE_BASE }}

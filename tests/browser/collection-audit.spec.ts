@@ -10,6 +10,11 @@
  * at, with no isolation headers.
  *
  * One test per stage, so a failure says where.
+ *
+ * Opt-in (`npm run test:audit`): it plays ~214 items and is most of the
+ * browser suite's time, while the Node sweep checks the same keys against
+ * CPython in seconds. Pull requests run it; everyday runs and deploys do
+ * not.
  */
 import { expect, test, type Page } from '@playwright/test'
 import { readFileSync } from 'node:fs'
@@ -45,6 +50,8 @@ async function playRight(page: Page, id: string): Promise<string | null> {
   if (s.outcome.right) return null
   return `${id}: ${JSON.stringify(s.graded.filter((g) => g && !g.right))}`
 }
+
+test.skip(!process.env.AUDIT, 'the collection audit is opt-in: npm run test:audit')
 
 for (const stage of STAGES) {
   test(`Stage ${stage.stage}: every item, played with the key's answers, is right first time`, async ({ page }) => {

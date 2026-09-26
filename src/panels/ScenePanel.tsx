@@ -349,11 +349,9 @@ export function ScenePanel({
           </div>
         )}
 
-        {telling && telling.prompt !== '' && !telling.listening && !telling.resting && asking && (
-          <p className="ask-pointer" data-testid="ask-pointer" aria-hidden="true">
-            <span className="ask-pointer-text">{telling.prompt}</span>
-          </p>
-        )}
+        {/* No "Type your answer" pointer on the stage: two cues pointing off
+            the stage's edge at the console, from nowhere near it, read as
+            noise. The console's own prompt says it, where the typing is. */}
 
         {telling?.resting && telling.takeaway && (
           // The lesson in a sentence or two (R11), kept on screen once
@@ -369,8 +367,11 @@ export function ScenePanel({
         {/* The way on: back to the map, to see what finishing unlocked. It
             used to live inside the guide's bubble, which meant the two
             activities with no guide — the editor ones — had no way to
-            offer it at all. It belongs to the level. */}
-        {onAdvance && done && (
+            offer it at all. It belongs to the level.
+            Not while there is still something to say: finished lessons end
+            on closing lines, and Next and Continue side by side left the
+            player to guess which one. Continue arrives with the last line. */}
+        {onAdvance && done && !listening && (
           <button type="button" className="advance" onClick={onAdvance} data-testid="advance">
             Continue
           </button>

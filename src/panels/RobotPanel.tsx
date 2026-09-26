@@ -123,6 +123,7 @@ export function RobotPanel({
               disabled={disabled}
               greeting={greeting}
               listening={listening}
+              asked={asked}
             />
           ) : (
             <CodeEditor

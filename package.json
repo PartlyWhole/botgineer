@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:browser": "playwright test",
+    "test:audit": "AUDIT=1 playwright test tests/browser/collection-audit.spec.ts",
     "serve:subpath": "node scripts/serve-subpath.mjs",
     "collection": "node scripts/collection.mjs"
   },

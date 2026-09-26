@@ -14,8 +14,12 @@ const PORT = Number(process.env.PORT ?? 8619)
 
 export default defineConfig({
   testDir: './tests/browser',
-  fullyParallel: false,
-  workers: 1,
+  // One at a time by default. Each page boots its own CPython, and four
+  // side by side starved each other into three-minute timeouts (seven
+  // journeys, measured). Tests are independent, so WORKERS=2 is there for a
+  // machine with room.
+  fullyParallel: true,
+  workers: Number(process.env.WORKERS ?? 1),
   timeout: 90_000,
   expect: { timeout: 20_000 },
   reporter: process.env.CI ? 'line' : 'list',

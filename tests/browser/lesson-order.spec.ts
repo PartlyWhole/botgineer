@@ -4,7 +4,7 @@
  * lesson of the unit still has somewhere to send you.
  */
 import { expect, test } from '@playwright/test'
-import { WARM_UP, beat, open, say, seedProgress } from './helpers'
+import { WARM_UP, beat, open, say, seedProgress, skip } from './helpers'
 
 test('Mira talks, the robot keeps it, and works the weight out from what it kept', async ({ page }) => {
   await open(page, 'order')
@@ -58,6 +58,9 @@ test('the last lesson offers somewhere to go, and only once it is done', async (
   await say(page, 'parcels * 2')
 
   await expect(page.getByTestId('guide')).toContainText('Fourteen')
+  // Continue waits for the closing lines, then replaces Next.
+  await expect(page.getByTestId('advance')).toHaveCount(0)
+  await skip(page)
   await page.getByTestId('advance').click()
   expect(page.url()).toContain('#/map')
   // Which unlocks the unit's practice, bouncing on the way back.
