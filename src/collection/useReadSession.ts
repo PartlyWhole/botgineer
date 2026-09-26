@@ -212,7 +212,7 @@ export function useReadSession(ids: string[], env: ReadEnv, start = 0) {
   useEffect(() => {
     if (!current || !state || state.phase !== 'revealed' || state.outcome) return
     const parts = current.spec.parts
-    const firsts: { right: boolean; soft: boolean; err: ErrorType }[] = []
+    const firsts: { right: boolean; soft: boolean; err: ErrorType; mis: boolean }[] = []
     const item = itemById(current.id)
     const keyErrs = item ? errorTypesOf(item) : []
     for (const [k, p] of parts.entries()) {
@@ -221,10 +221,10 @@ export function useReadSession(ids: string[], env: ReadEnv, start = 0) {
       const err = g?.err ?? p.err ?? keyErrs[0] ?? 'object'
       if (p.kind === 'fix' || p.kind === 'write') {
         if (act?.first === null || act?.first === undefined) return
-        firsts.push({ right: act.first, soft: false, err })
+        firsts.push({ right: act.first, soft: false, err, mis: p.misconceptions !== false })
       } else {
         if (!g) return
-        firsts.push({ right: g.right, soft: g.soft === true, err })
+        firsts.push({ right: g.right, soft: g.soft === true, err, mis: p.misconceptions !== false })
       }
     }
     const right = firsts.every((f) => f.right || f.soft)
@@ -237,7 +237,9 @@ export function useReadSession(ids: string[], env: ReadEnv, start = 0) {
     recorded.current.add(at)
     const entries: [string, boolean][] = [[KEY.exercise(current.id), right]]
     for (const c of current.spec.concepts) entries.push([c, right])
-    for (const m of misconceptionsOf(current.id)) entries.push([KEY.misconception(m), right])
+    // A misconception is fallen for only by a miss on a part that tests it.
+    const misRight = firsts.every((f) => !f.mis || f.right || f.soft)
+    for (const m of misconceptionsOf(current.id)) entries.push([KEY.misconception(m), misRight])
     for (const l of lensesOf(current.id)) entries.push([KEY.lens(l), right])
     for (const e of new Set(firsts.filter((f) => !f.right).map((f) => f.err))) entries.push([KEY.error(e), false])
     recordAll(entries)

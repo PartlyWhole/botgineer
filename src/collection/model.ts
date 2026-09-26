@@ -186,6 +186,14 @@ type Common = {
   /** The kind of mistake a miss on this part is. Defaults to the key's
    *  first error type. */
   err?: ErrorType
+  /** For a repair or a program: what the crow asks for once the
+   *  predictions are in, when "the smallest repair" or "write it" would
+   *  misdescribe the part. Completes "Right so far, and …" (`actLine`). */
+  act?: string
+  /** False when a miss on this part is no evidence of the misconceptions
+   *  the item attacks: 9.C1's visit counts are flow, and missing one says
+   *  nothing about "indentation is cosmetic", which its blocks test. */
+  misconceptions?: false
 }
 
 export type Part = Common &

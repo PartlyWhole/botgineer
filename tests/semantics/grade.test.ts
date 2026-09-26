@@ -91,6 +91,42 @@ describe('a wrong answer is wrong', () => {
     expect(g.right).toBe(false)
   })
 
+  // The capstone's repairs, as the final review played them.
+  const capstoneFix = async (id: string, edit: (original: string) => string) => {
+    const { p, truth } = await truthOf(id)
+    const index = p.spec.parts.findIndex((x) => x.kind === 'fix')
+    const part = p.spec.parts[index] as Part & { kind: 'fix' }
+    const original = originalOf(p, part)
+    const source = edit(original)
+    const program = await runProgram(part, source, evaluate, p.spec.options)
+    return gradePart(part, { kind: 'fix', source }, { ...truth, program }, { index, original })
+  }
+
+  it('9.C6: a second board that nobody scores exposes nothing', async () => {
+    const add = (lines: string) => (o: string) => o + lines
+    // Scoring the first board again, beside a dummy or a real second board.
+    for (const cheat of ['board2 = [[0]]\nprint(record(board, 0, 0, 1))\n', 'board2 = new_board(3, 3)\nprint(record(board, 0, 0, 1))\n']) {
+      const g = await capstoneFix('9.C6', add(cheat))
+      expect(g.right, cheat).toBe(false)
+      expect(g.why).toMatch(/Leave the first board alone/)
+    }
+    // The key's two lines expose it.
+    expect((await capstoneFix('9.C6', add('board2 = new_board(3, 3)\nprint(record(board2, 0, 0, 1))\n'))).right).toBe(true)
+  })
+
+  it('9.C7: the key’s three fixes with the calls left as given are refused for the calls, and the output is not handed over', async () => {
+    const fixed = (o: string) =>
+      o
+        .replace('[[0] * cols] * rows', '[[0] * cols for _ in range(rows)]')
+        .replace('log=[]):', 'log=None):\n    if log is None:\n        log = []')
+        .replace('            best = i\n            break\n', '            best = i\n')
+    // The original of 9.C7 is the program as given; leave its calls alone.
+    const g = await capstoneFix('9.C7', (o) => fixed(o))
+    expect(g.right).toBe(false)
+    expect(g.why).toMatch(/pass `history` into the later `record` calls/)
+    expect(g.why).not.toMatch(/\[\[5, 0, 0\]/)
+  })
+
   it('9.C3: the three-separate-rows picture of the capstone board is wrong', async () => {
     const { p, truth } = await truthOf('9.C3')
     const index = p.spec.parts.findIndex((x) => x.kind === 'diagram')

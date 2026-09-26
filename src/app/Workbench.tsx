@@ -296,20 +296,22 @@ export function Workbench({ activity }: { activity: Activity }) {
 
   const readEnv = useMemo<ReadEnv>(() => ({ evaluate: quiet, show, ready: boot.state === 'ready' }), [quiet, show, boot.state])
   const read = useReadLevel(activity, readEnv)
-  // Each reading item opens with nothing shown (invariant 22): memory
-  // empty, no scrubber, no output. The shown run is otherwise only reset
-  // per activity or by the next run, so the item before's run stayed up
-  // under a card saying "Nothing has run yet" — and in the capstone,
-  // where every item shares one program, it showed the answers. Keyed on
-  // the session's position, so finishing the level clears it too.
-  const readAt = reading && read.level?.kind !== 'ideas' ? read.session.at : null
+  // A new reading item opens with nothing shown (invariant 22): memory
+  // empty, no scrubber, no output. The last item's run is cleared through
+  // the queue, so a show still in flight finishes first and cannot land
+  // on the new item — in the capstone, where every item shares one
+  // program, the run before would show the answers. The quiet run the
+  // pictures need is untouched.
+  const itemKey = reading && read.level?.kind !== 'ideas' ? (read.session.current?.id ?? `done:${read.session.finished}`) : null
   useEffect(() => {
-    if (readAt === null) return
-    stepsRef.current = []
-    setIndex(0)
-    setTranscript([])
-    setRunSeq((n) => n + 1)
-  }, [readAt])
+    if (itemKey === null) return
+    void enqueue(async () => {
+      stepsRef.current = []
+      setIndex(0)
+      setTranscript([])
+      setRunSeq((n) => n + 1)
+    })
+  }, [itemKey, enqueue])
   const [ideasCode, setIdeasCode] = useState<string | null>(null)
   const [ideasNote, setIdeasNote] = useState<string | null>(null)
   /** The beat an example was run on, and what it stopped with. The crow

@@ -11,23 +11,28 @@
 import { useState } from 'react'
 import { allUnlocked, resetProgress, setUnlockAll, useProgress } from '../progress/progress'
 import { resetMastery } from '../mastery/mastery'
+import { LEVEL_ORDER } from '../../content/roadmap'
 
 export function ProgressControls({ compact = false }: { compact?: boolean }) {
   const done = useProgress()
   const unlocked = allUnlocked(done)
+  // With every level finished there is nothing left to unlock.
+  const allDone = LEVEL_ORDER.every((id) => done.has(id))
   const [confirming, setConfirming] = useState(false)
 
   return (
     <div className={`progress-controls ${compact ? 'compact' : ''}`} data-testid="progress-controls">
-      <button
-        type="button"
-        className="progress-button"
-        aria-pressed={unlocked}
-        onClick={() => setUnlockAll(!unlocked)}
-        data-testid="unlock-all"
-      >
-        {unlocked ? 'Lock levels again' : 'Unlock every level'}
-      </button>
+      {!(allDone && !unlocked) && (
+        <button
+          type="button"
+          className="progress-button"
+          aria-pressed={unlocked}
+          onClick={() => setUnlockAll(!unlocked)}
+          data-testid="unlock-all"
+        >
+          {unlocked ? 'Lock levels again' : 'Unlock every level'}
+        </button>
+      )}
 
       {confirming ? (
         <div className="progress-confirm" role="group" aria-label="Start over?">

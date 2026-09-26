@@ -5,12 +5,14 @@
 import type { Check, ErrorType, Moment, Part, SnippetRef, Transform } from '../../../src/collection/model'
 import type { RunEvidence } from '../../../src/memory/extract'
 
-type Opt = { prompt?: string; err?: ErrorType; snippet?: SnippetRef }
+type Opt = { prompt?: string; err?: ErrorType; snippet?: SnippetRef; act?: string; misconceptions?: false }
 
 const extra = (o: Opt = {}) => ({
   ...(o.prompt !== undefined ? { prompt: o.prompt } : {}),
   ...(o.err !== undefined ? { err: o.err } : {}),
   ...(o.snippet !== undefined ? { snippet: o.snippet } : {}),
+  ...(o.act !== undefined ? { act: o.act } : {}),
+  ...(o.misconceptions === false ? { misconceptions: false as const } : {}),
 })
 
 /** What it prints; `raises` when it stops with an error. */

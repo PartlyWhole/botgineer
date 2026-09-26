@@ -334,7 +334,7 @@ export const STAGE_2: Record<string, Spec> = {
           ),
           requires(String.raw`\.(append|extend|insert|add|update)\(|\][ \t]*\.`, 'Then change the object inside it.'),
         ],
-        { prompt: 'Give a two-line example.' },
+        { prompt: 'Give a two-line example.', act: 'now write a two-line example that shows it.' },
       ),
     ],
   },

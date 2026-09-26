@@ -15,8 +15,13 @@ import { glossaryAnchor } from '../collection/glossaryTerms'
  *
  * Deliberately not a markdown parser: three constructs, no nesting, React
  * elements rather than HTML, and nothing that can inject anything.
+ *
+ * A code span is atomic, inside emphasis too: `**line 2, `[[0] * cols]`.**`
+ * is one strong run holding one piece of code, and the `*` in the code is
+ * Python, not a mark. (Matching `[^*]` there let the single-asterisk rule
+ * eat the code instead, and 9.C5's key came out garbled.)
  */
-const TOKEN = /(`[^`]+`|\*\*[^*]+\*\*|\*[^*\n]+\*)/g
+const TOKEN = /(`[^`]+`|\*\*(?:`[^`]*`|[^*])+?\*\*|\*(?:`[^`]*`|[^*\n])+?\*)/g
 
 export function richText(text: string): ReactNode {
   return text.split(TOKEN).map((part, i) => {
@@ -39,7 +44,7 @@ export function richText(text: string): ReactNode {
       )
     }
     if (part.startsWith('*') && part.endsWith('*') && part.length > 1) {
-      return <em key={i}>{part.slice(1, -1)}</em>
+      return <em key={i}>{richText(part.slice(1, -1))}</em>
     }
     return <Fragment key={i}>{part}</Fragment>
   })
