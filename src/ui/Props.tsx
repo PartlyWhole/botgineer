@@ -21,6 +21,7 @@
  */
 import { useLayoutEffect, useRef, type ReactNode } from 'react'
 import {
+  CHIP_CHARS,
   CHIP_ROWS,
   SLOTS,
   boolOf,
@@ -317,7 +318,7 @@ export function describe(view: PropView): string {
     }
     case 'numberline': {
       const at = n ?? p.mark
-      return `A number line from ${p.from} to ${p.to}.${at !== undefined ? ` A marker stops at ${p.unnamed && n === null ? 'a point between the ticks' : at}.` : ''}`
+      return `A number line from ${p.from} to ${p.to}.${at !== undefined ? ` A marker stops at ${p.unnamed && n === null ? 'a point between the ticks' : at}.` : ''}${waiting(view)}`
     }
     case 'letters':
       return `Letters floating up: ${p.chars.join(', ')}.`
@@ -1423,6 +1424,10 @@ const CUBBY_PITCH = 40.75
 const CHIP_TOP = 20
 const CHIP_PITCH = 13
 const CHIP_H = 11
+/** A chip of `n` lines fills the `n` rows it takes. */
+const chipH = (n: number) => CHIP_H + (n - 1) * CHIP_PITCH
+/** The distance between two lines inside one chip. */
+const CHIP_LEADING = 8.5
 /** A chip's inset from its slot's sides: as narrow as reads, because a
  *  row of `CHIP_CHARS` (8) has to fit across it. */
 const CHIP_X = 2
@@ -1494,14 +1499,18 @@ function Shelf({ view, p }: { view: PropView; p: Extract<Prop, { kind: 'shelf' }
               ) : (
                 <g
                   key={r.key}
-                  className={`chip ${r.cls} ${isLatest(k, r.text) ? 'latest' : ''}`}
+                  // A full row of `CHIP_CHARS` at the chip's own size touches
+                  // its outline, so a chip with one is set a little tighter.
+                  className={`chip ${r.cls} ${isLatest(k, r.text) ? 'latest' : ''} ${lines.some((l) => [...l].length >= CHIP_CHARS) ? 'tight' : ''}`}
                   data-kind={k}
                   transform={`translate(${CHIP_X},${y})`}
                   style={{ ['--j' as string]: at }}
                 >
-                  <rect width={CUBBY_W - 2 * CHIP_X} height={CHIP_H + (lines.length - 1) * CHIP_PITCH} rx="5.5" />
+                  <rect width={CUBBY_W - 2 * CHIP_X} height={chipH(lines.length)} rx="5.5" />
                   {lines.map((l, j) => (
-                    <text key={j} x={CUBBY_W / 2 - CHIP_X} y={8 + j * CHIP_PITCH}>
+                    // The lines sit together in the middle of the chip, not
+                    // a whole row apart, so the last is clear of its edge.
+                    <text key={j} x={CUBBY_W / 2 - CHIP_X} y={chipH(lines.length) / 2 + (j - (lines.length - 1) / 2) * CHIP_LEADING + 2.3}>
                       {l}
                     </text>
                   ))}
@@ -1537,7 +1546,10 @@ function Shelf({ view, p }: { view: PropView; p: Extract<Prop, { kind: 'shelf' }
 function NumberLine({ view, p }: { view: PropView; p: Extract<Prop, { kind: 'numberline' }> }) {
   const span = Math.max(p.to - p.from, 1e-9)
   const x = (v: number) => 20 + ((v - p.from) / span) * 160
-  const n = numberOf(view.answer)
+  // The right number typed by hand has measured nothing: no marker, and
+  // an amber `?` over the track where it would have stopped.
+  const waiting = unworked(view)
+  const n = waiting ? null : numberOf(view.answer)
   const value = n ?? p.mark
   const at = value === undefined ? null : clamp(value, p.from, p.to)
   const whole: number[] = []
@@ -1548,8 +1560,13 @@ function NumberLine({ view, p }: { view: PropView; p: Extract<Prop, { kind: 'num
   const written = n !== null ? view.answer!.repr : p.unnamed || p.mark === undefined ? null : String(p.mark)
   const fraction = at === null ? 0 : (at - p.from) / span
   return (
-    <g className="numberline">
+    <g className={`numberline ${waiting ? 'unworked' : ''}`}>
       <rect x="20" y="72" width="160" height="10" rx="5" className="track" />
+      {waiting && (
+        <text x="100" y="50" className="mark-value unworked-q">
+          ?
+        </text>
+      )}
       {/* The measured stretch: grows smoothly with the marker, never in steps. */}
       <rect x="20" y="72" width="160" height="10" rx="5" className="measured" style={{ transform: `scaleX(${fraction})` }} />
       {tenths.map((v) => (

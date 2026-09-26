@@ -209,6 +209,9 @@ describe('the right number, not worked out', () => {
     expect(rightNumber({ kind: 'scale', parcels: 7, each: 2 })).toBe(14)
     expect(rightNumber({ kind: 'expr', text: '2 + 3 * 4', first: '3 * 4', then: ['2 + 12', '14'] })).toBe(14)
     expect(rightNumber({ kind: 'letter', char: 'M' })).toBe(77)
+    // A number line asks for nothing unless the lesson says what.
+    expect(rightNumber({ kind: 'numberline', from: 0, to: 3, want: 2.5 })).toBe(2.5)
+    expect(rightNumber({ kind: 'numberline', from: 0, to: 3 })).toBeNull()
     // The lamps and the codes narrate; they draw no answer to refuse.
     expect(rightNumber({ kind: 'lamps', on: 2 })).toBeNull()
     expect(rightNumber({ kind: 'codes', chars: 'ABC' })).toBeNull()
@@ -268,6 +271,14 @@ describe('the right number, not worked out', () => {
       (h) => {
         expect(h).not.toContain('expr shown')
         expect(h).toContain('= ?')
+      },
+    ],
+    [
+      { kind: 'numberline', from: 0, to: 3, want: 2.5 },
+      '2.5',
+      (h) => {
+        expect(h).not.toContain('class="marker"')
+        expect(h).toContain('unworked-q')
       },
     ],
     [

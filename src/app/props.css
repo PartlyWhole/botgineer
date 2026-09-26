@@ -1768,6 +1768,9 @@
   font-size: 6.6px;
   font-weight: 800;
 }
+.shelf .chip.tight text {
+  font-size: 6px;
+}
 .shelf .chip.said rect,
 .shelf .chip.heard rect {
   stroke-width: 1.6;
@@ -2360,6 +2363,9 @@
 }
 .share .unworked-q {
   font-size: 14px;
+}
+.numberline .unworked-q {
+  fill: var(--unworked);
 }
 .scale .parcel rect {
   fill: #e2b77a;

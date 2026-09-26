@@ -149,8 +149,12 @@ export type Prop =
    *  between them when the line is short. A marker slides along from
    *  `from` and stops at `mark`, its value written between the ticks —
    *  unless `unnamed`, for the beat before the value has its name. A
-   *  number the robot thinks of moves the marker instead. */
-  | { kind: 'numberline'; from: number; to: number; mark?: number; unnamed?: boolean }
+   *  number the robot thinks of moves the marker instead.
+   *
+   *  `want` is the number the ask is after, when the ask is for the robot
+   *  to work one out (`2 + 0.5`): the same number typed by hand is then
+   *  drawn as not worked out yet (`unworked`), not as a measurement. */
+  | { kind: 'numberline'; from: number; to: number; mark?: number; unnamed?: boolean; want?: number }
   /** Letters floating up into the air where Mira reads them: characters,
    *  one at a time, which is all a person reads. */
   | { kind: 'letters'; chars: string[] }
@@ -323,6 +327,8 @@ export function rightNumber(p: Prop): number | null {
     }
     case 'letter':
       return p.char.codePointAt(0) ?? null
+    case 'numberline':
+      return p.want ?? null
     default:
       return null
   }

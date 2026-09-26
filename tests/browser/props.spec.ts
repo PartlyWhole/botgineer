@@ -86,7 +86,7 @@ async function walk(page: Page, answers: string[]): Promise<Set<string>> {
 }
 
 const LESSONS: { id: string; answers: string[]; pictures: string[] }[] = [
-  { id: 'sandbox', answers: ['7'], pictures: ['pointer'] },
+  { id: 'sandbox', answers: ['7'], pictures: [] },
   { id: 'types', answers: ['True', '-1', '0.5', '"M"', '"hello"'], pictures: ['shelf', 'lift', 'beads'] },
   {
     id: 'choose',

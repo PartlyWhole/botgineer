@@ -107,14 +107,15 @@ test('twelve questions, each miss drawn and named, each praise giving the reason
   await page.evaluate(() => window.botgineer.next())
   expect((await beat(page)).kind).toBe('outro')
   // No stock examples: every chip on it is one the player said, right.
-  const chips = await page.locator('[data-testid="prop"] .heard').allTextContents()
-  // A long str is shortened on its chip (`"0412 5…`), so a chip matches
-  // what was said, or the start of it.
+  // A long str wraps over two lines of its chip, broken at its space,
+  // rather than being cut short (`"0412 5…` once): each chip, its lines
+  // read in order, is what was said, whole.
+  const chips = await page
+    .locator('[data-testid="prop"] .heard')
+    .evaluateAll((els) => els.map((el) => [...el.querySelectorAll('text')].map((t) => t.textContent).join(' ')))
   const said = ['False', 'True', '6', '-1', '0.25', '1.4', '1.5', '"M"', '"Mira"', '"0412 555 019"', '"Yeah it is"']
   expect(chips).toHaveLength(said.length)
-  for (const text of said) {
-    expect(chips.some((c) => c === text || (c.endsWith('…') && text.startsWith(c.slice(0, -1))))).toBe(true)
-  }
+  for (const text of said) expect(chips).toContain(text)
   await expect(page.locator('[data-testid="prop"] .example')).toHaveCount(0)
   await page.evaluate(() => window.botgineer.next())
   await page.evaluate(() => window.botgineer.next())
