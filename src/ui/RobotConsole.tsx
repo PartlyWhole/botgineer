@@ -97,6 +97,29 @@ export function RobotConsole({ exchanges, onSubmit, busy, disabled, greeting, li
     if (el) el.scrollTop = el.scrollHeight
   }, [exchanges.length, buffer, busy])
 
+  // And when the console itself changes size — a window resized, a
+  // phone's keyboard opening, the gutter dragged — which moves nothing
+  // above and so re-ran none of the above: the prompt was left hidden
+  // under the gutter. Only if it was at the bottom, so a player reading
+  // back through the scrollback keeps their place.
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    let pinned = true
+    const onScroll = () => {
+      pinned = el.scrollHeight - el.scrollTop - el.clientHeight < 24
+    }
+    const ro = new ResizeObserver(() => {
+      if (pinned) el.scrollTop = el.scrollHeight
+    })
+    el.addEventListener('scroll', onScroll, { passive: true })
+    ro.observe(el)
+    return () => {
+      ro.disconnect()
+      el.removeEventListener('scroll', onScroll)
+    }
+  }, [])
+
   // Focus comes back whenever the line opens: after a run, and when the
   // narration hands the keyboard over at a question.
   useEffect(() => {

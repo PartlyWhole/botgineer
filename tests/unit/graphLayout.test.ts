@@ -26,6 +26,7 @@ import {
   place,
   scrolled,
   slotLabel,
+  spread,
   transformOf,
   type LayoutInput,
   type Placed,
@@ -252,6 +253,65 @@ describe('the arrows', () => {
       for (let j = i + 1; j < labels.length; j++) expect(Math.abs(labels[i]!.y - labels[j]!.y)).toBeGreaterThanOrEqual(20)
   })
 
+  it('routes an arrow round a card in its way, never through it', () => {
+    // `scores` → a list → `0`, and `total` → that same `0` from the row
+    // below: drawn straight, total's arrow went through the list card.
+    const total = box(0, 50)
+    const list = box(150, 0)
+    const zero = box(300, 0)
+    const inside = (x: number, y: number, o: ReturnType<typeof box>) =>
+      x > o.x - o.w / 2 && x < o.x + o.w / 2 && y > o.y - o.h / 2 && y < o.y + o.h / 2
+    const path = (d: string) => {
+      // Sample the path by its own geometry, in the browser's way.
+      const n = numbers(d)
+      const pts: [number, number][] = []
+      const cub = (p: number[], t: number) => {
+        const u = 1 - t
+        return u * u * u * p[0]! + 3 * u * u * t * p[1]! + 3 * u * t * t * p[2]! + t * t * t * p[3]!
+      }
+      // M x y C 6 L 2 C 6 (routed), or M x y C 6 (plain).
+      const segs: number[][] = []
+      let at = [n[0]!, n[1]!]
+      let i = 2
+      const letters = d.match(/[CL]/g)!
+      for (const l of letters) {
+        if (l === 'C') {
+          segs.push([at[0]!, n[i]!, n[i + 2]!, n[i + 4]!, at[1]!, n[i + 1]!, n[i + 3]!, n[i + 5]!])
+          at = [n[i + 4]!, n[i + 5]!]
+          i += 6
+        } else {
+          segs.push([at[0]!, at[0]!, n[i]!, n[i]!, at[1]!, at[1]!, n[i + 1]!, n[i + 1]!])
+          at = [n[i]!, n[i + 1]!]
+          i += 2
+        }
+      }
+      for (const s of segs) for (let k = 0; k <= 40; k++) pts.push([cub(s.slice(0, 4), k / 40), cub(s.slice(4), k / 40)])
+      return pts
+    }
+    const straight = curve(total, zero)
+    expect(path(straight.d).some(([x, y]) => inside(x, y, list))).toBe(true)
+    const routed = curve(total, zero, [total, list, zero])
+    expect(path(routed.d).some(([x, y]) => inside(x, y, list))).toBe(false)
+    // It still ends on the target's left edge, level with it.
+    const n = numbers(routed.d)
+    expect(n[n.length - 1]).toBe(0)
+    expect(n[n.length - 2]).toBeLessThan(300 - 30)
+    // A clear path is left alone.
+    expect(curve(box(0, 0), box(200, 50), [box(0, 0), box(200, 50), box(100, 200)]).d).toBe(curve(box(0, 0), box(200, 50)).d)
+  })
+
+  it('keeps labels off each other where arrows converge', () => {
+    // `0` and `1` from two cards ended on one spot and read as `61`.
+    const ys = spread([
+      { x: 100, y: 50, w: 8 },
+      { x: 102, y: 52, w: 8 },
+      { x: 300, y: 50, w: 8 },
+    ])
+    expect(Math.abs(ys[0]! - ys[1]!)).toBeGreaterThanOrEqual(12)
+    // One far enough away stays put.
+    expect(ys[2]).toBe(50)
+  })
+
   it('stands it on the loop of an arrow back to something already drawn', () => {
     const c = curve(box(300, 100), box(100, 0))
     expect(c.label.x).toBeGreaterThan(100 + 30)
@@ -305,6 +365,20 @@ describe('the overview', () => {
     const last = rows[rows.length - 1]!
     const shown = overview(rows, V, top, [last])
     expect(last.y + last.h / 2).toBeLessThanOrEqual(shown.y + V.h / shown.k / 2)
+  })
+
+  it('never scrolls the names column away to reveal a card on the right', () => {
+    // A phone's pane, and a row that runs past its right edge: `add`, its
+    // default list, and that list's strings.
+    const phone = { w: 358, h: 360 }
+    const row = [card(30, 15), card(160, 15), card(300, 15), card(440, 15), card(580, 15)]
+    const top = overview(row, phone, null)
+    const shown = overview(row, phone, top, [row[4]!])
+    expect(shown.x).toBe(top.x)
+    // The first column's left edge is on screen.
+    expect((30 - 30 - shown.x) * shown.k + phone.w / 2).toBeGreaterThanOrEqual(0)
+    // The player can still scroll there.
+    expect(scrolled(top, 400, 0, row, phone).x).toBeGreaterThan(top.x)
   })
 
   it('scrolls inside what there is to see, and no further', () => {

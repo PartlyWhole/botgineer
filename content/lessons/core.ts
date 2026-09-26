@@ -504,14 +504,27 @@ export type Script = {
   rest: number
 }
 
-/** `{CROW_NAME}` in a line becomes the crow's name, so a rename is one
- *  constant (docs/PEDAGOGY.md §8). */
-const named = (text: string): string => text.split('{CROW_NAME}').join(CROW_NAME)
+/**
+ * How the screen is laid out, which is all a line needs to know to say
+ * where the console is. Side by side, the robot panel is to the right of
+ * the stage; stacked (a phone, a narrow window), it is below it — and
+ * "write it on the right" pointed at nothing there.
+ */
+export type Layout = 'side' | 'stacked'
 
-const beatItem = (kind: 'beat' | 'outro', b: Beat, i: number, speaker?: string): ScriptItem => ({
+/** What `{CONSOLE}` says, per layout: where the console is from the stage. */
+export const CONSOLE_WHERE: Record<Layout, string> = { side: 'on the right', stacked: 'below' }
+
+/** `{CROW_NAME}` in a line becomes the crow's name, so a rename is one
+ *  constant (docs/PEDAGOGY.md §8). `{CONSOLE}` becomes where the console
+ *  is — "on the right", or "below" on a stacked layout. */
+const named = (text: string, layout: Layout = 'side'): string =>
+  text.split('{CROW_NAME}').join(CROW_NAME).split('{CONSOLE}').join(CONSOLE_WHERE[layout])
+
+const beatItem = (kind: 'beat' | 'outro', b: Beat, i: number, speaker: string | undefined, layout: Layout): ScriptItem => ({
   kind,
   asking: false,
-  text: named(b.say),
+  text: named(b.say, layout),
   speaker: b.speaker ?? speaker,
   show: b.show,
   thought: b.thought,
@@ -530,7 +543,7 @@ const beatItem = (kind: 'beat' | 'outro', b: Beat, i: number, speaker?: string):
  * for a step never changes shape under the workbench's index: a miss
  * swaps the ask for a reply in the same place, and nothing moves.
  */
-export function script(lesson: Lesson, evidence: Evidence): Script {
+export function script(lesson: Lesson, evidence: Evidence, layout: Layout = 'side'): Script {
   const { before, at } = moved(lesson, evidence)
   const n = lesson.steps.length
   const items: ScriptItem[] = []
@@ -538,17 +551,17 @@ export function script(lesson: Lesson, evidence: Evidence): Script {
   const prev = at > 0 ? lesson.steps[at - 1] : undefined
   if (prev?.praise !== undefined) {
     const text = typeof prev.praise === 'function' ? prev.praise(answerTo(lesson, evidence, at - 1)) : prev.praise
-    items.push({ kind: 'praise', asking: false, text: named(text) })
+    items.push({ kind: 'praise', asking: false, text: named(text, layout) })
   }
 
   if (at === n) {
     const outro = typeof lesson.outro === 'string' ? [{ say: lesson.outro }] : lesson.outro
-    outro.forEach((b, i) => items.push(beatItem('outro', b, i, lesson.outroSpeaker)))
+    outro.forEach((b, i) => items.push(beatItem('outro', b, i, lesson.outroSpeaker, layout)))
     return { at, before, finished: true, items, rest: items.length - 1 }
   }
 
   const step = lesson.steps[at]!
-  ;(step.beats ?? []).forEach((b, i) => items.push(beatItem('beat', b, i)))
+  ;(step.beats ?? []).forEach((b, i) => items.push(beatItem('beat', b, i, undefined, layout)))
   // A miss gets an answer rather than the question again. Only a line that
   // did not move the lesson is a miss, so a right answer is never
   // mistaken for a wrong one to the question after it.
@@ -556,7 +569,7 @@ export function script(lesson: Lesson, evidence: Evidence): Script {
   items.push({
     kind: reply ? 'reply' : 'ask',
     asking: true,
-    text: named(reply ?? step.say),
+    text: named(reply ?? step.say, layout),
     speaker: step.speaker,
     show: step.show,
     tag: step.tag,
@@ -571,8 +584,8 @@ export type Utterance = { text: string; speaker?: string | undefined }
  * the player comes to rest on — the ask, a reply to a miss, or the
  * outro's last line.
  */
-export function guidance(lesson: Lesson, evidence: Evidence): Utterance {
-  const s = script(lesson, evidence)
+export function guidance(lesson: Lesson, evidence: Evidence, layout: Layout = 'side'): Utterance {
+  const s = script(lesson, evidence, layout)
   const item = s.items[s.rest]!
   return { text: item.text, speaker: item.speaker }
 }
@@ -607,10 +620,19 @@ export type CloudFrom = { stale: Heard | undefined; answer: Heard | undefined }
  * Compared by identity: `thoughts` only grows (or starts over, for a
  * practice exercise), so a newest thought that is not the one the step
  * began with was thought since.
+ *
+ * `stopped`: the last line the player sent stopped the robot. It thought
+ * nothing, so the cloud empties — an older `42` over a `SyntaxError` read
+ * as the robot having answered after all. A beat's own thought still wins.
  */
-export function cloud(item: ScriptItem | undefined, newest: Heard | undefined, from: CloudFrom): string | null {
+export function cloud(
+  item: ScriptItem | undefined,
+  newest: Heard | undefined,
+  from: CloudFrom,
+  stopped = false,
+): string | null {
   if (item?.thought !== undefined) return item.thought
-  if (newest === undefined) return null
+  if (newest === undefined || stopped) return null
   if (newest !== from.stale) return newest.repr
   return item?.kind === 'praise' && newest === from.answer ? newest.repr : null
 }

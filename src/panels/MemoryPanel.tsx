@@ -76,7 +76,7 @@ export function MemoryPanel({
       />
       {empty && (
         <p className="memory-empty">
-          {emptyText ?? 'Memory is empty. Send the robot some code and whatever it builds turns up here.'}
+          {emptyText ?? 'Nothing kept yet. The robot lets each thought go, and what it keeps shows up here.'}
         </p>
       )}
     </div>

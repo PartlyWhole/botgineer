@@ -193,9 +193,16 @@ export type Built = {
  * being taught — and leaving it alone means the description belongs
  * unambiguously to the line just submitted. A statement is never wrapped,
  * so a submission that binds nothing reports no thought at all.
+ *
+ * The expression goes in its own parentheses, so it is always *one*
+ * argument: `1,5` handed over bare was two, and the console called the
+ * player's pair a `TypeError` where Python makes the tuple `(1, 5)` — the
+ * very comma-for-a-point miss the lessons plan a reply for. The closing
+ * parentheses go on a line of their own, so a trailing `# comment` cannot
+ * swallow them.
  */
 const compile = (entry: Entry, pending: boolean): string =>
-  pending && entry.echo ? `${THOUGHT} = ${DESCRIBE}(${entry.source.trim()})` : entry.source
+  pending && entry.echo ? `${THOUGHT} = ${DESCRIBE}((${entry.source.trim()}\n))` : entry.source
 
 /**
  * Builds the program for one submission.

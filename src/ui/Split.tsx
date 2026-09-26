@@ -110,3 +110,23 @@ export function useRemembered(key: string, fallback: number): [number, (n: numbe
   )
   return [value, set]
 }
+
+/** Below this width the workbench stacks its panels (styles.css): the
+ *  robot panel goes under the stage instead of beside it. The one place
+ *  the breakpoint is named in script. */
+export const STACKED = '(max-width: 1000px)'
+
+/** Whether the panels are stacked right now, following the window. */
+export function useStacked(): boolean {
+  const query = () => typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia(STACKED).matches
+  const [stacked, setStacked] = useState(query)
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return
+    const mq = window.matchMedia(STACKED)
+    const on = () => setStacked(mq.matches)
+    on()
+    mq.addEventListener('change', on)
+    return () => mq.removeEventListener('change', on)
+  }, [])
+  return stacked
+}
