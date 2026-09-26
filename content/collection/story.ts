@@ -34,8 +34,19 @@ export const STAGE_OPENERS: readonly string[] = [
   // 8 — the function boundary.
   'Mira handed her list to a function to read, and it came back changed.',
   // 9 — everything at once.
-  'Mira’s delivery program is long, and it has three bugs in it that nobody has found.',
+  'Mira’s scoreboard program is long, and it has three bugs in it that nobody has found.',
 ]
+
+/** Said at the capstone's first step, instead of its task line: the
+ *  program Stage 9's opener promised, and the stage's payoff. The done
+ *  line (`voice.doneLine`) closes her story. */
+export const CAPSTONE_OPENER = 'Here is Mira’s scoreboard program, three bugs and all: read it before the robot runs it.'
+
+/** The capstone brief's heading: the program is hers. */
+export const CAPSTONE_TITLE = 'Mira’s scoreboard program'
+
+/** The map's last card, with every level finished: the story's end. */
+export const ALL_DONE = 'You read Mira’s whole program and found all three bugs: the robot runs what you can now predict.'
 
 /** The bridge into reading, said once, at `s1-ideas` (§3). */
 export const BRIDGE = 'A good engineer knows what the robot will do before it does it.'

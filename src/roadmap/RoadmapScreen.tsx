@@ -23,6 +23,7 @@ import { LEVEL_NAMES, level, levelIndex, useMastery, type Mastery } from '../mas
 import { conceptsOfUnit, skillsOfUnit } from '../../content/concepts'
 import { reviewOwed } from '../collection/levels'
 import { ProgressControls } from './ProgressControls'
+import { ALL_DONE } from '../../content/collection/story'
 
 /**
  * A unit's stops as the map draws them: its levels, and — while a failed
@@ -163,7 +164,8 @@ export function RoadmapScreen() {
               <>
                 <p className="map-next-kicker">All done</p>
                 <h3>Every level, finished</h3>
-                <p className="map-next-brief">Replay any of them from the path. More are on the way.</p>
+                <p className="map-next-brief">{ALL_DONE}</p>
+                <p className="map-next-brief quiet">Replay any of them from the path.</p>
               </>
             )}
             <div className="map-bar">

@@ -14,14 +14,19 @@
 import { CodeView } from '../ui/CodeView'
 import { CROW_NAME } from '../../content/cast'
 import { richText } from '../ui/richText'
+import { NO_EXAMPLES } from '../collection/voice'
 
 export function IdeasPanel({
   code,
   traceLine,
   note,
   said,
+  runnable = true,
 }: {
   code: string | null
+  /** False when the stage's ideas have no example to run (Stage 9), so
+   *  the panel does not point at a "Run this" that is not there. */
+  runnable?: boolean
   traceLine: number | null
   note?: string | null
   said?: string | null
@@ -40,7 +45,9 @@ export function IdeasPanel({
             <CodeView code={code} traceLine={traceLine} label="The example" />
           </>
         ) : (
-          <p className="read-nocode quiet">Pick “Run this” under any example in the text, and the robot runs it here — memory draws what it builds.</p>
+          <p className="read-nocode quiet">
+            {runnable ? 'Pick “Run this” under any example in the text, and the robot runs it here — memory draws what it builds.' : NO_EXAMPLES}
+          </p>
         )}
       </div>
     </div>

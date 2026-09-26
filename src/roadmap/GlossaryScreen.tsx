@@ -24,6 +24,11 @@ export function GlossaryScreen({ term }: { term: string | null }) {
         <header className="skills-head">
           <h2>Glossary</h2>
           <Blocks blocks={GLOSSARY.intro} />
+          {/* The game has drawn and said "arrow" since the first lesson;
+              the collection's text says "label". One line links the two. */}
+          <p className="glossary-bridge" data-testid="glossary-bridge">
+            In the game a name is drawn as an arrow to its object; the text calls the same thing a label.
+          </p>
         </header>
         {GLOSSARY.groups.map((g) => (
           <section key={g.title} className="glossary-group card">
@@ -47,10 +52,10 @@ export function GlossaryScreen({ term }: { term: string | null }) {
                         className={`glossary-term ${term === termSlug(t.term) ? 'here' : ''}`}
                         data-testid={`term-${termSlug(t.term)}`}
                       >
-                        <td>{richText(t.plain)}</td>
-                        <td>{richText(t.formal.replace(/\*\*/g, ''))}</td>
-                        <td>{richText(t.meaning)}</td>
-                        <td>
+                        <td data-label="Plain phrase">{richText(t.plain)}</td>
+                        <td data-label="Formal term">{richText(t.formal.replace(/\*\*/g, ''))}</td>
+                        <td data-label="What it actually means">{richText(t.meaning)}</td>
+                        <td data-label="First met">
                           <a href={`#/x-${t.firstMet}`}>{t.firstMet}</a>
                         </td>
                       </tr>

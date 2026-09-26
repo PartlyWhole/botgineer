@@ -113,6 +113,40 @@ test('nothing runs until the prediction is committed', async ({ page }) => {
   await expect(page.getByTestId('output-0')).toHaveAttribute('readonly', '')
 })
 
+/** Nothing of a run is on screen: memory empty, no scrubber, no output. */
+async function nothingShown(page: Page) {
+  await expect(page.getByTestId('memory')).toHaveClass(/empty/)
+  await expect(page.getByTestId('scrubber')).toHaveCount(0)
+  // No output: the transcript is not drawn with no run shown, and never holds text.
+  await expect(page.getByTestId('transcript').filter({ hasText: /\S/ })).toHaveCount(0)
+  await expect(page.getByTestId('key-card')).toHaveCount(0)
+}
+
+test('the next item opens with nothing of the last one’s run on screen', async ({ page }) => {
+  await open(page, 's1-set-1')
+  const first = (await api(page).state()).item as string
+  await play(page, { next: false })
+  // The first item's run is on screen once it is committed…
+  await expect(page.getByTestId('memory')).not.toHaveClass(/empty/)
+  await page.getByTestId('next-item').click()
+  await expect.poll(async () => (await api(page).state()).item).not.toBe(first)
+  // …and gone when the second opens (invariant 22), while its quiet run
+  // still prepares the answers a picture choice needs.
+  await prepared(page)
+  await nothingShown(page)
+  if (process.env.SHOTS) await page.screenshot({ path: `${process.env.SHOTS}/X-reading-second-item.png` })
+})
+
+test('every capstone step after the first opens before its run, though all share one program', async ({ page }) => {
+  await open(page, 's9-capstone')
+  await play(page)
+  await expect.poll(async () => (await api(page).state()).item).toBe('9.C2')
+  await prepared(page)
+  await nothingShown(page)
+  // The capstone returns to Mira: her program, named.
+  await expect(page.getByTestId('capstone-brief')).toContainText('Mira’s scoreboard program')
+})
+
 test('a wrong prediction names the kind of mistake and where to go back', async ({ page }) => {
   await open(page, 'x-2.2')
   await prepared(page)
@@ -121,7 +155,8 @@ test('a wrong prediction names the kind of mistake and where to go back', async 
 
   await expect(page.getByTestId('verdict')).toHaveAttribute('data-right', 'no')
   await expect(page.getByTestId('error-type')).toHaveAttribute('data-err', 'object')
-  await expect(page.getByTestId('guide')).toContainText('object-model')
+  // Before Stage 6, the kind of mistake is said in plain words.
+  await expect(page.getByTestId('guide')).toContainText('where a name points')
   // The key opens in full: the reasoning is the actual content.
   await expect(page.getByTestId('key-card')).toContainText('Reasoning')
   await expect(page.getByTestId('go-back')).toContainText('1.3')
@@ -314,6 +349,9 @@ test('the capstone keeps all eight of its steps on screen', async ({ page }) => 
 
 test('unlocking opens every level without finishing any, and starting over forgets everything', async ({ page }) => {
   await page.goto('./#/map')
+  // The first load reloads itself once the isolation service worker is in;
+  // clearing storage before that races the navigation.
+  await page.waitForFunction(() => window.crossOriginIsolated)
   await page.evaluate(() => localStorage.clear())
   await page.reload()
   await expect(page.getByTestId('level-s9-capstone')).toHaveAttribute('data-state', 'locked')

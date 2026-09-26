@@ -92,6 +92,10 @@ print(record(board2, 0, 0, 1))
 
 /** Per call of `row_totals`: the program calls it twice (lines 31 and 32),
  *  and line 10 runs once per call. */
+/** 9.C1's visit counts: a miss is a flow mistake, and says nothing about
+ *  the blocks' misconception (indentation is cosmetic). */
+const COUNT = { err: 'flow', misconceptions: false } as const
+
 const perCall = (ev: Parameters<typeof visitsTo>[0], n: number) => visitsTo(ev, n) / visitsTo(ev, 10)
 
 export const STAGE_9: Record<string, Spec> = {
@@ -250,12 +254,12 @@ export const STAGE_9: Record<string, Spec> = {
     parts: [
       block(11, [12, 13, 14, 15], null, { prompt: 'Which lines are the body of the outer loop on line 11?' }),
       block(13, [14], null, { prompt: 'And of the inner loop on line 13?' }),
-      number('During one call of `row_totals`, how many visits does line 11 get?', (ev) => perCall(ev[0]!, 11), 4),
-      number('How many times does line 12 run in one call?', (ev) => perCall(ev[0]!, 12), 3),
-      number('How many visits does line 13 get on each pass of the outer loop?', (ev) => visitsTo(ev[0]!, 13) / visitsTo(ev[0]!, 12), 4),
-      number('How many times does line 14 run in one call?', (ev) => perCall(ev[0]!, 14), 9),
-      number('How many times does line 15 run in one call?', (ev) => perCall(ev[0]!, 15), 3),
-      number('How many times does line 16 run in one call?', (ev) => perCall(ev[0]!, 16), 1),
+      number('During one call of `row_totals`, how many visits does line 11 get?', (ev) => perCall(ev[0]!, 11), 4, COUNT),
+      number('How many times does line 12 run in one call?', (ev) => perCall(ev[0]!, 12), 3, COUNT),
+      number('How many visits does line 13 get on each pass of the outer loop?', (ev) => visitsTo(ev[0]!, 13) / visitsTo(ev[0]!, 12), 4, COUNT),
+      number('How many times does line 14 run in one call?', (ev) => perCall(ev[0]!, 14), 9, COUNT),
+      number('How many times does line 15 run in one call?', (ev) => perCall(ev[0]!, 15), 3, COUNT),
+      number('How many times does line 16 run in one call?', (ev) => perCall(ev[0]!, 16), 1, COUNT),
     ],
   },
 
@@ -331,13 +335,17 @@ export const STAGE_9: Record<string, Spec> = {
             "any(isinstance(v, list) and v is not board and v and all(isinstance(r, list) for r in v) for k, v in list(globals().items()) if not k.startswith('_'))",
             'Make a second board.',
           ),
+          py(
+            'board == [[5, 7, 12], [5, 7, 12], [5, 7, 12]]',
+            'Leave the first board alone and score the new one: the leak only shows when a different board gets the log.',
+          ),
           py('len(record.__defaults__[0]) > 3', 'Score the second board with `record`, leaving out the log — that is what shares it.'),
           printsLike(
             String.raw`\(0, 0, 5\), \(1, 1, 7\), \(2, 2, 12\), \(`,
             'Print the log that call hands back: the first board’s three entries should show up in it, with the new one after them.',
           ),
         ],
-        { prompt: 'Add two lines at the end that expose it.' },
+        { prompt: 'Add two lines at the end that expose it.', act: 'now add two lines that make the hidden bug show itself.' },
       ),
     ],
   },
@@ -349,12 +357,23 @@ export const STAGE_9: Record<string, Spec> = {
         REPAIRED +
           '\nboard = new_board(3, 3)\nhistory = record(board, 0, 0, 5)\nrecord(board, 1, 1, 7, history)\nrecord(board, 2, 2, 12, history)\nprint(board)\nprint(row_totals(board))\nprint(best_row(row_totals(board)))\nprint(history)\n',
         [
-          prints('[[5, 0, 0], [0, 7, 0], [0, 0, 12]]\n[5, 7, 12]\n2\n[(0, 0, 5), (1, 1, 7), (2, 2, 12)]'),
+          py(
+            "len(globals().get('history') or []) == 3",
+            'Each call now starts a log of its own, so pass `history` into the later `record` calls to keep one log.',
+          ),
+          prints(
+            '[[5, 0, 0], [0, 7, 0], [0, 0, 12]]\n[5, 7, 12]\n2\n[(0, 0, 5), (1, 1, 7), (2, 2, 12)]',
+            'The four printed lines still aren’t right: re-predict them after each fix.',
+          ),
           py('(lambda b: b[0] is not b[1] and b[1] is not b[2] and b[0] is not b[2])(new_board(3, 3))', '`new_board` must build a separate list for each row.'),
           py('record(new_board(2, 2), 0, 0, 1) == [(0, 0, 1)]', 'A fresh board’s first score must start a fresh log — nothing leaked from earlier calls.'),
           py('best_row([5, 7, 12]) == 2 and best_row([3, 1, 2]) == 0', '`best_row` must find the largest total, not the first improvement.'),
         ],
-        { small: 10 },
+        {
+          small: 10,
+          prompt: 'Fix all three defects with the smallest changes you can. A fix may change how a function is called, too.',
+          act: 'now fix all three bugs, and the calls too if needed.',
+        },
       ),
       choice('Which fix makes a previously invisible defect start giving wrong output?', [
         'Fixing the shared row (line 2) reveals the `break`: with equal totals it never fired, but with `[5, 7, 12]` it stops at row 1',

@@ -33,6 +33,7 @@
 import type { MemorySnapshot, PyObject } from '../memory/model'
 import { ERROR_NAMES, type Block, type ErrorType, type Form, type Stage } from './model'
 import { BRIDGE, STAGE_1_LEAD, openerOf } from '../../content/collection/story'
+export { CAPSTONE_OPENER } from '../../content/collection/story'
 
 export type Vocabulary = 'plain' | 'formal'
 
@@ -44,25 +45,94 @@ const TASK: Record<Form, [plain: string, formal: string]> = {
   fix: ['Something here doesn’t do what was meant, so first say what it actually does.', 'There is a defect: say what the code actually does, then repair it minimally.'],
   order: ['Number the lines in the order Python reaches them, twice for a line it reaches twice.', 'Number the control flow: every visit to every line, in order.'],
   table: ['Fill in the table, one row for each pass through the loop.', 'Build the trace table, one row per iteration.'],
-  block: ['Which lines are inside the block, and how many times does each one run?', 'Mark the block by its indentation, and count how many times each line runs.'],
+  block: ['Which lines are inside the block, and how many times does each one run?', 'Mark each block by its indentation, and count how many times each line runs.'],
   draw: ['Which picture shows the names, and the objects they point at?', 'Which diagram shows the bindings, and the objects they are bound to?'],
   write: ['Your turn to write it, and the robot will check it does what was asked.', 'Write the program, and the robot runs it to check the behaviour asked for.'],
   label: ['Say what each piece of the line does.', 'Label each piece of the line with its role.'],
   rule: ['Put the rule in your own words, then check it against the key.', 'State the rule in your own words, then mark yourself against the key.'],
 }
 
-export const taskLine = (form: Form, v: Vocabulary): string => TASK[form][v === 'plain' ? 0 : 1]
+/**
+ * Tasks read from what an item asks rather than the form the markdown
+ * gives it: a checkpoint question of counts, or of choices alone, or with
+ * no code at all, and a "fix" with nothing to repair (9.C5 finds three
+ * bugs and mends none). The form's own line would tell the player to do
+ * something the item does not ask.
+ */
+const PART_TASK: Record<'choice' | 'count' | 'nocode' | 'nocode-write' | 'diagnose', [plain: string, formal: string]> = {
+  choice: ['Pick the answer that explains it, and I’ll run it once you commit.', 'Pick the explanation, and the interpreter runs it once you commit.'],
+  count: ['Read it, count what the questions ask, and I’ll run it once you commit.', 'Count what each question asks, and the interpreter runs it once you commit.'],
+  nocode: ['No code this time: pick the answer that is true, then check the key.', 'No code this time: pick the answer that is true, then check the key.'],
+  'nocode-write': [
+    'No code this time: pick the answer, then write a short example that shows it.',
+    'No code this time: pick the answer, then write a short example that shows it.',
+  ],
+  diagnose: [
+    'Find where each bug really happens: the line of the event, not the line where it shows.',
+    'Find where each bug really happens: the line of the event, not the line where it shows.',
+  ],
+}
+
+export type Task = Form | keyof typeof PART_TASK
+
+export const taskLine = (form: Task, v: Vocabulary): string =>
+  (form in TASK ? TASK[form as Form] : PART_TASK[form as keyof typeof PART_TASK])[v === 'plain' ? 0 : 1]
 
 /** Every task line, for the tests that count words. */
-export const TASK_LINES: readonly string[] = Object.values(TASK).flat()
+export const TASK_LINES: readonly string[] = [...Object.values(TASK).flat(), ...Object.values(PART_TASK).flat()]
 
 export const CHECKPOINT_LINE = 'A checkpoint: nothing new, just what you know, and only first answers count.'
 
-/** After committing: right, or which kind of mistake, and where to look. */
-export function verdictLine(right: boolean, err: ErrorType | null, goBack: string[], soft = false): string {
-  if (right) return 'Right, and read the key anyway, because the reasoning is the point.'
+/** The kinds of mistake in plain words, before Stage 6: "object-model"
+ *  names nothing a player can act on. From Stage 6, the collection's own
+ *  names, which its keys and the skills screen use. */
+const PLAIN_ERROR: Record<ErrorType, string> = {
+  object: 'a mix-up over where a name points',
+  syntax: 'a misread piece of the line',
+  flow: 'a mistake about the order lines run',
+  vocabulary: 'a mistake in the word only',
+}
+
+export const RIGHT_LINE = 'Right, and read the key anyway, because the reasoning is the point.'
+
+/**
+ * The key's own reason, fit to say after "Right:": the first sentence of
+ * its reasoning, when that sentence is a reason. Not an instruction
+ * ("The rule must…", "Look left of…"), not a lead-in ("Two things are
+ * worth noticing."), and short enough to be one line (R2). Null
+ * otherwise, and the crow falls back on pointing at the key.
+ */
+export function reasonOf(blocks: readonly Block[]): string | null {
+  const text = blocks.find((b) => b.kind === 'p')?.text
+  if (!text) return null
+  // The first sentence, code spans kept whole (`1.5` is not a full stop).
+  const m = text.match(/^(?:`[^`]*`|[^.!?`])+[.!?]/)
+  if (!m) return null
+  const sentence = m[0].trim()
+  const prose = sentence.replace(/`[^`]*`/g, 'x')
+  if (/[:;"“]|\bmust\b|\byou\b|worth noticing|^(Look|Trace|Notice|See)\b/i.test(prose)) return null
+  const words = prose.replace(/\*/g, '').split(/\s+/).filter((w) => /\w/.test(w)).length
+  if (words < 5 || words + 1 > 20) return null
+  // "Right: the line…", not "Right: The line…", unless the word is a name.
+  const first = sentence.match(/^[A-Z][a-z]+\b/)?.[0]
+  const lower = first !== undefined && !['Python', 'True', 'False', 'None', 'Mira'].includes(first)
+  const line = `Right: ${lower ? sentence[0]!.toLowerCase() + sentence.slice(1) : sentence}`
+  return line.length <= 110 ? line : null
+}
+
+/** After committing: right (and why, from the key's reasoning), or which
+ *  kind of mistake, and where to look. */
+export function verdictLine(
+  right: boolean,
+  err: ErrorType | null,
+  goBack: string[],
+  soft = false,
+  v: Vocabulary = 'formal',
+  reason: string | null = null,
+): string {
+  if (right) return reason ?? RIGHT_LINE
   if (soft) return 'The idea is right and only the word is off, which is the cheapest mistake there is.'
-  const kind = err ? `${article(ERROR_NAMES[err])} ${ERROR_NAMES[err].toLowerCase()} mistake` : 'a miss'
+  const kind = !err ? 'a miss' : v === 'plain' ? PLAIN_ERROR[err] : `${article(ERROR_NAMES[err])} ${ERROR_NAMES[err].toLowerCase()} mistake`
   const back = goBack.length ? `, and the key sends you back to ${goBack.join(' and ')}` : ''
   return `Not quite: that’s ${kind}${back}.`
 }
@@ -78,9 +148,13 @@ export const ACT_LINE: Record<'fix' | 'write', string> = {
   write: 'now write it, and send it to the robot when it’s ready.',
 }
 
-/** The act line, after a lead or on its own. */
-export const actLine = (kind: 'fix' | 'write', lead: keyof typeof ACT_LEAD | null): string =>
-  lead ? ACT_LEAD[lead] + ACT_LINE[kind] : ACT_LINE[kind][0]!.toUpperCase() + ACT_LINE[kind].slice(1)
+/** The act line, after a lead or on its own. `act` is the part's own,
+ *  when it has one: 9.C6 asks for two lines that expose a bug, not a
+ *  repair, and 9.C7's repair changes the calls as well. */
+export const actLine = (kind: 'fix' | 'write', lead: keyof typeof ACT_LEAD | null, act?: string): string => {
+  const line = act ?? ACT_LINE[kind]
+  return lead ? ACT_LEAD[lead] + line : line[0]!.toUpperCase() + line.slice(1)
+}
 
 export const RULE_LINE = 'Now read the key’s rule, and mark yours honestly.'
 
@@ -91,7 +165,12 @@ export function doneLine(right: number, of: number, kind: 'set' | 'checkpoint' |
       : `${right} of ${of} right first time isn’t a pass yet, so there’s a short review on the map first.`
   }
   if (kind === 'review') return 'Review done, and the checkpoint is open again.'
-  if (kind === 'capstone') return `Capstone done with ${right} of ${of} right first time: you can read a real program now.`
+  // The capstone is Mira's program: her bugs are said found only when
+  // they were (all but one first time, the checkpoint's own mark).
+  if (kind === 'capstone')
+    return right >= of - 1
+      ? `Capstone done, ${right} of ${of} right first time: Mira’s three bugs are found, and you fixed them.`
+      : `Capstone done with ${right} of ${of} first time, and the steps you missed are worth another look.`
   return `Done: ${right} of ${of} right first time, and each one counts towards your concepts.`
 }
 
@@ -175,6 +254,42 @@ const EXAMPLE_INVITE = 'Every example can run: press Run this, and memory draws 
 
 export const IDEAS_CLOSE = 'That’s the idea, and next you read programs that use it and say what they do first.'
 
+/** The close for a stage with no new move (Stage 9: "None."). */
+export const IDEAS_CLOSE_NONE = 'No new idea this time: next, every idea at once, on a program too long to hold in your head.'
+
+/** Whether a stage brings no new move of its own. */
+export const noNewMove = (stage: Stage): boolean => /^none\b/i.test(stage.move.trim())
+
+/** Whether a stage's ideas have an example to run. */
+export const hasExamples = (stage: Stage): boolean =>
+  [...stage.adds, ...stage.ideas.flatMap((i) => i.blocks), ...(stage.capstone?.intro ?? [])].some(runnable)
+
+/** The robot panel's words for ideas with nothing to run. */
+export const NO_EXAMPLES = 'No examples to run in this one: the robot runs the capstone program at the end of the stage.'
+
+/**
+ * A method told a step a beat: Stage 9's "for each program, in this
+ * order" is six steps, and all six on one beat was six ideas on one beat
+ * (R2). Keyed by stage; the list is the stage's first ordered list of
+ * that many steps, and `after` is said over the block that follows it.
+ */
+const METHOD: Record<number, { steps: string[]; after: string }> = {
+  9: {
+    steps: [
+      'First, mark the blocks: which lines belong to which, by their indentation.',
+      'Then trace the flow: which lines run, how often, and in what order.',
+      'Then draw the objects: the names, their arrows, and what is shared.',
+      'Then predict: write the output down before anything runs.',
+      'Then diagnose: for each wrong result, find the line where it really went wrong.',
+      'Last, repair with the smallest change, and say why it works.',
+    ],
+    after: 'Step three most of all: every program here turns on something only the picture shows.',
+  },
+}
+
+/** Every method line, for the tests that count words. */
+export const METHOD_LINES: readonly string[] = Object.values(METHOD).flatMap((m) => [...m.steps, m.after])
+
 /** Stage 9's capstone: introduced here, met at the end of the stage. */
 const CAPSTONE_LINE = 'Last, the capstone, which you’ll meet at the end of this stage.'
 
@@ -228,8 +343,17 @@ export function ideaBeats(stage: Stage): IdeaBeat[] {
       afterExample(b)
     })
   } else {
+    const method = METHOD[stage.stage]
+    let stepped = false
     stage.adds.forEach((b, j) => {
-      block({ section: 0, block: j }, j === 0 ? opener : undefined)
+      if (method && !stepped && b.kind === 'list' && b.ordered && b.items.length === method.steps.length) {
+        stepped = true
+        b.items.forEach((_, row) => beats.push({ say: method.steps[row]!, at: { section: 0, block: j, row } }))
+        after = method.after
+        return
+      }
+      block({ section: 0, block: j }, j === 0 ? opener : after)
+      after = undefined
       afterExample(b)
     })
     if (stage.adds.length === 0) beats.push({ say: opener, at: null })
@@ -269,7 +393,7 @@ export function ideaBeats(stage: Stage): IdeaBeat[] {
     })
   }
 
-  beats.push({ say: IDEAS_CLOSE, at: null, end: true })
+  beats.push({ say: noNewMove(stage) ? IDEAS_CLOSE_NONE : IDEAS_CLOSE, at: null, end: true })
   return beats
 }
 

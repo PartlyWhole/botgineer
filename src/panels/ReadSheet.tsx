@@ -21,6 +21,7 @@ import { richText } from '../ui/richText'
 import { itemById, STAGES } from '../collection'
 import { ERROR_NAMES, type Block, type ErrorType } from '../collection/model'
 import type { ReadSession } from '../collection/useReadSession'
+import { CAPSTONE_TITLE } from '../../content/collection/story'
 
 /** The prompt without its code, which the robot panel shows instead. */
 function promptOnly(blocks: Block[]): Block[] {
@@ -44,7 +45,12 @@ export function ReadSheet({ session, title }: { session: ReadSession; title: str
   const item = itemById(current.id)
   if (!item) return null
   const revealed = state.phase === 'revealed'
-  const kicker = item.kind === 'exercise' ? `${item.exercise.id} · ${item.exercise.form}` : `Checkpoint question ${item.question.id}`
+  // A variant's id (`v:family:seed`) is bookkeeping, not a heading: the
+  // prompt already says which exercise it is a fresh version of.
+  const kicker =
+    item.kind === 'exercise'
+      ? `${current.id.startsWith('v:') ? 'Practice' : item.exercise.id} · ${item.exercise.form}`
+      : `Checkpoint question ${item.question.id}`
   const prompt = item.kind === 'exercise' ? item.exercise.prompt : item.question.prompt
   const outcome = state.outcome
   // Every capstone item is about the same program; each says what it is for.
@@ -76,7 +82,7 @@ export function ReadSheet({ session, title }: { session: ReadSession; title: str
 
       {capstone && (
         <article className="card capstone-card" data-testid="capstone-brief">
-          <p className="card-kicker">The capstone program</p>
+          <p className="card-kicker">{CAPSTONE_TITLE}</p>
           <Blocks blocks={capstone.brief} />
           {/* All eight steps, on every step: one program, read in order —
               mark, trace, draw, predict, diagnose, find the hidden one,
@@ -121,12 +127,12 @@ export function ReadSheet({ session, title }: { session: ReadSession; title: str
             item.exercise.key.sections.map((s, i) =>
               owed && hasCode(s.blocks) ? (
                 <section key={i} className="key-section key-held" data-testid="key-held">
-                  <h4>{s.label || 'The key’s code'}</h4>
+                  <h4>{s.label ? richText(s.label) : 'The key’s code'}</h4>
                   <p className="quiet">Held back until your version works — or until you ask to see the key’s.</p>
                 </section>
               ) : s.label ? (
                 <section key={i} className={`key-section key-${slug(s.label)}`}>
-                  <h4>{s.label}</h4>
+                  <h4>{richText(s.label)}</h4>
                   <Blocks blocks={s.blocks} />
                 </section>
               ) : (

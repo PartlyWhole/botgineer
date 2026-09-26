@@ -19,7 +19,7 @@ import { finishedLevels } from '../progress/progress'
 import { itemById, specOf, STAGES, vocabularyOf } from '../collection'
 import { passed, practiceItems, resumeAt, reviewItems } from '../collection/levels'
 import { useReadSession, type ReadEnv } from '../collection/useReadSession'
-import { actLine, CHECKPOINT_LINE, doneLine, ideaBeats, RULE_LINE, taskLine, verdictLine, type IdeaBeat } from '../collection/voice'
+import { actLine, CAPSTONE_OPENER, CHECKPOINT_LINE, doneLine, ideaBeats, reasonOf, RULE_LINE, taskLine, verdictLine, type IdeaBeat, type Task } from '../collection/voice'
 import type { ReadLevel } from '../../content/activities/reading'
 
 function idsFor(level: ReadLevel | undefined): string[] {
@@ -55,8 +55,8 @@ export function useReadLevel(activity: Activity, env: ReadEnv) {
     const item = itemById(current.id)
     if (state.phase === 'answering') {
       if (kind === 'checkpoint' && session.at === start) return CHECKPOINT_LINE
-      const form = item?.kind === 'exercise' ? item.exercise.kind : formOfParts(current.id)
-      return taskLine(form, vocab)
+      if (kind === 'capstone' && session.at === 0) return CAPSTONE_OPENER
+      return taskLine(taskOf(current.id, item?.kind === 'exercise' ? item.exercise.kind : null, current.snippets.length > 0), vocab)
     }
     const acting = current.spec.parts.findIndex((p, i) => (p.kind === 'fix' || p.kind === 'write') && !state.acts[i]?.result?.right)
     const marking = current.spec.parts.findIndex((p, i) => p.kind === 'rule' && !state.graded[i])
@@ -66,9 +66,12 @@ export function useReadLevel(activity: Activity, env: ReadEnv) {
     if (acting >= 0) {
       const lead = graded.length ? (predictionsRight ? 'right' : 'wrong') : null
       const p = current.spec.parts[acting]!
-      return actLine(p.kind as 'fix' | 'write', lead)
+      return actLine(p.kind as 'fix' | 'write', lead, p.act)
     }
-    if (state.outcome) return verdictLine(state.outcome.right, state.outcome.err, session.goBack, state.outcome.soft)
+    if (state.outcome) {
+      const reason = item?.kind === 'exercise' ? reasonOf(item.exercise.key.reasoning) : null
+      return verdictLine(state.outcome.right, state.outcome.err, session.goBack, state.outcome.soft, vocab, reason)
+    }
     return undefined
   }, [didPass, doneKind, firstTime, ids.length, kind, level, session, start, vocab])
 
@@ -79,13 +82,26 @@ export function useReadLevel(activity: Activity, env: ReadEnv) {
   return { level, session, stage, vocab, guide, complete, didPass, ids, ideas }
 }
 
-/** A checkpoint question's form, from what it asks. */
-function formOfParts(id: string) {
+/**
+ * What the crow asks for, from what the item asks. An exercise has its
+ * form, except a "fix" with nothing to repair (9.C5 diagnoses and mends
+ * nothing); a checkpoint question has only its parts, and a question of
+ * counts, of choices alone, or with no code at all is none of the forms.
+ */
+export function taskOf(id: string, form: Task | null, code: boolean): Task {
   const parts = specOf(id)?.parts ?? []
-  if (parts.some((p) => p.kind === 'order')) return 'order' as const
-  if (parts.some((p) => p.kind === 'diagram')) return 'draw' as const
-  if (parts.some((p) => p.kind === 'fix')) return 'fix' as const
-  if (parts.some((p) => p.kind === 'rule')) return 'rule' as const
-  if (parts.some((p) => p.kind === 'block')) return 'block' as const
-  return 'predict' as const
+  const has = (k: string) => parts.some((p) => p.kind === k)
+  const only = (k: string) => parts.length > 0 && parts.every((p) => p.kind === k)
+  if (form) return form === 'fix' && !has('fix') ? 'diagnose' : form
+  if (has('order')) return 'order'
+  if (has('diagram')) return 'draw'
+  if (has('fix')) return 'fix'
+  if (has('labels')) return 'label'
+  if (has('rule')) return 'rule'
+  if (has('block')) return 'block'
+  if (!code) return has('write') ? 'nocode-write' : 'nocode'
+  if (only('write')) return 'write'
+  if (only('number')) return 'count'
+  if (only('choice')) return 'choice'
+  return 'predict'
 }

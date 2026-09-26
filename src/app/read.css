@@ -237,6 +237,13 @@
   color: var(--ink-soft);
 }
 
+/* A label may hold Python (9.C5's `log=[]`, `break`): uppercased, it is
+   not Python any more. */
+.key-section h4 code {
+  text-transform: none;
+  letter-spacing: 0;
+}
+
 .key-reasoning,
 .key-explanation,
 .key-diagnosis {
@@ -991,7 +998,76 @@ a.term {
   font-size: 12px;
 }
 
+/* --------------------------- sideways scroll --------------------------- */
+
+/* A box wider than the phone scrolls sideways, and says so: a shadow on
+   the edge that has more behind it. The covers ride with the content
+   (\`local\`) and hide each shadow once its edge is reached, so a box that
+   fits shows none. (A key's annotated answer, a trace table and the
+   capstone listing were cut off at 390px with no sign they scrolled.) */
+.block-text,
+.table-wrap,
+.code-view {
+  --scroll-bg: var(--surface);
+  --scroll-shade: rgba(20, 30, 50, 0.3);
+  background:
+    linear-gradient(to right, var(--scroll-bg) 40%, transparent) left / 24px 100% no-repeat local,
+    linear-gradient(to left, var(--scroll-bg) 40%, transparent) right / 24px 100% no-repeat local,
+    radial-gradient(farthest-side at 0 50%, var(--scroll-shade), transparent) left / 12px 100% no-repeat scroll,
+    radial-gradient(farthest-side at 100% 50%, var(--scroll-shade), transparent) right / 12px 100% no-repeat scroll,
+    var(--scroll-bg);
+}
+
+.block-text {
+  --scroll-bg: #131a2a;
+  --scroll-shade: rgba(255, 255, 255, 0.35);
+}
+
+.form .table-wrap {
+  overflow-x: auto;
+  max-width: 100%;
+}
+
 /* ------------------------------ glossary ------------------------------ */
+
+.glossary-bridge {
+  margin: 0;
+  color: var(--ink-soft);
+}
+
+/* At phone width a glossary row is a small card: four columns do not fit
+   in 390px, and a table scrolled sideways hides the "First met" link. */
+@media (max-width: 560px) {
+  .glossary table,
+  .glossary tbody,
+  .glossary tr,
+  .glossary td {
+    display: block;
+    width: 100%;
+  }
+  .glossary thead {
+    display: none;
+  }
+  .glossary tr {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    margin: 0 0 10px;
+    padding: 6px 10px;
+  }
+  .glossary .card td {
+    border: 0;
+    padding: 2px 0;
+  }
+  .glossary td::before {
+    content: attr(data-label);
+    display: block;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+  }
+}
 
 .glossary {
   overflow-y: auto;

@@ -29,7 +29,8 @@ import { useEffect, useMemo, useRef } from 'react'
 import { Blocks } from '../ui/Blocks'
 import { richText } from '../ui/richText'
 import type { Block, Stage } from '../collection/model'
-import { heldTitle, ideaBeats, type Reach } from '../collection/voice'
+import { CAPSTONE_TITLE } from '../../content/collection/story'
+import { heldTitle, ideaBeats, noNewMove, type Reach } from '../collection/voice'
 
 export function IdeasSheet({
   stage,
@@ -107,11 +108,11 @@ export function IdeasSheet({
     const context = setup(blocks)
     return blocks.map((b, i) => {
       if (!shows(section, i)) return null
-      // A table told a row a beat shows the rows said so far.
+      // A table told a row a beat shows the rows said so far, and a list
+      // told a step a beat (Stage 9's method) the steps said so far.
+      const rowed = reach?.section === section && reach.block === i && reach.row !== undefined ? reach.row + 1 : null
       const partial =
-        b.kind === 'table' && reach?.section === section && reach.block === i && reach.row !== undefined
-          ? { ...b, rows: b.rows.slice(0, reach.row + 1) }
-          : b
+        rowed === null ? b : b.kind === 'table' ? { ...b, rows: b.rows.slice(0, rowed) } : b.kind === 'list' ? { ...b, items: b.items.slice(0, rowed) } : b
       const here = now?.section === section && now.block === i
       return (
         <div key={i} ref={here ? nowRef : undefined} className={`idea-block ${here ? 'now' : ''}`} data-testid={here ? 'idea-now' : undefined}>
@@ -161,14 +162,14 @@ export function IdeasSheet({
       )}
       {stage.capstone && shows(capstone, 0) && (
         <article className="card idea-card">
-          <h4 className="idea-title">The capstone program</h4>
+          <h4 className="idea-title">{CAPSTONE_TITLE}</h4>
           {told(capstone, stage.capstone.intro)}
           <p className="quiet">You will meet the program itself at the end of this stage, and predict it before it runs.</p>
         </article>
       )}
       {end && (
         <div className="ideas-end" data-testid="ideas-end">
-          <p>That is the stage’s idea. The exercises are next.</p>
+          <p>{noNewMove(stage) ? 'That is how to read a long program. The exercises are next.' : 'That is the stage’s idea. The exercises are next.'}</p>
         </div>
       )}
     </div>

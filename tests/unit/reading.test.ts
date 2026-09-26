@@ -21,6 +21,12 @@ import {
   heldTitle,
   ideaBeats,
   IDEAS_CLOSE,
+  IDEAS_CLOSE_NONE,
+  METHOD_LINES,
+  NO_EXAMPLES,
+  hasExamples,
+  reasonOf,
+  RIGHT_LINE,
   memoryNote,
   NOTHING_NAMED,
   noteAt,
@@ -32,7 +38,11 @@ import {
   taskLine,
   verdictLine,
 } from '../../src/collection/voice'
-import { BRIDGE, STAGE_1_LEAD, STAGE_OPENERS } from '../../content/collection/story'
+import { BRIDGE, CAPSTONE_OPENER, STAGE_1_LEAD, STAGE_OPENERS } from '../../content/collection/story'
+import { taskOf } from '../../src/app/useReadLevel'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { createElement, Fragment } from 'react'
+import { richText } from '../../src/ui/richText'
 import { EMPTY } from '../../src/memory/model'
 import { STAGES, itemById, lensesOf, playable, setsOf } from '../../src/collection'
 
@@ -225,6 +235,61 @@ describe('the rest', () => {
     expect(taskLine('draw', 'plain')).toMatch(/names/)
     expect(taskLine('draw', 'formal')).toMatch(/bindings/)
     expect(verdictLine(false, 'object', ['1.3'])).toBe('Not quite: that’s an object-model mistake, and the key sends you back to 1.3.')
+    // Before Stage 6 the kind of mistake is said in words a player can act on.
+    expect(verdictLine(false, 'object', ['1.3'], false, 'plain')).toBe(
+      'Not quite: that’s a mix-up over where a name points, and the key sends you back to 1.3.',
+    )
+    expect(verdictLine(false, 'flow', [], false, 'plain')).toBe('Not quite: that’s a mistake about the order lines run.')
+  })
+
+  it('praises a right answer with the key’s own reason, when its first sentence is one', () => {
+    const reason = (id: string) => {
+      const it = itemById(id)!
+      return it.kind === 'exercise' ? reasonOf(it.exercise.key.reasoning) : null
+    }
+    expect(reason('2.2')).toBe('Right: `b = a` gave one list two names.')
+    expect(reason('3.2')).toBe('Right: position 1 is the second item.')
+    // An instruction, a lead-in or a list is not a reason: the crow points at the key instead.
+    expect(reason('1.16')).toBeNull()
+    expect(reason('9.4')).toBeNull()
+    expect(reason('7.7')).toBeNull()
+    expect(verdictLine(true, null, [], false, 'plain', null)).toBe(RIGHT_LINE)
+    let given = 0
+    for (const s of STAGES)
+      for (const e of s.exercises) {
+        const r = reasonOf(e.key.reasoning)
+        if (!r) continue
+        given++
+        expect(r.length, r).toBeLessThanOrEqual(110)
+        expect(words(r), r).toBeLessThanOrEqual(20)
+        expect(sentences(r), r).toBe(1)
+      }
+    expect(given).toBeGreaterThan(60)
+  })
+
+  it('reads the task from what an item asks, not only its form', () => {
+    expect(taskOf('C1.3', null, true)).toBe('count')
+    expect(taskOf('C1.4', null, false)).toBe('nocode')
+    expect(taskOf('C2.4', null, false)).toBe('nocode-write')
+    expect(taskOf('C8.2', null, true)).toBe('choice')
+    expect(taskOf('C3.5', null, false)).toBe('label')
+    expect(taskOf('C1.2', null, true)).toBe('predict')
+    expect(taskOf('9.C5', 'fix', true)).toBe('diagnose')
+    expect(taskOf('9.C6', 'fix', true)).toBe('fix')
+    expect(taskLine('diagnose', 'formal')).not.toMatch(/repair/)
+    expect(taskLine('block', 'formal')).toMatch(/each block/)
+  })
+
+  it('draws a code span whole inside emphasis, `*` and all (9.C5’s key)', () => {
+    const html = (t: string) => renderToStaticMarkup(createElement(Fragment, null, richText(t)))
+    const c5 = itemById('9.C5')!
+    const text = c5.kind === 'exercise' ? (c5.exercise.key.sections[0]!.blocks[0] as { text: string }).text : ''
+    const out = html(text)
+    expect(out).toContain('<strong>Defect 1 — line 2, <code class="inline">[[0] * cols] * rows</code>.</strong>')
+    expect(out).toContain('<em>Event:</em> <code class="inline">[0] * cols</code> is evaluated <strong>once</strong>')
+    expect(out).toContain('that <code class="inline">*</code> on a list of lists')
+    expect(out).not.toContain('**')
+    expect(html('*see `a*b` here*')).toBe('<em>see <code class="inline">a*b</code> here</em>')
   })
 
   it('groups Stage 1 into three sets of five or six', () => {
@@ -261,13 +326,35 @@ describe('what the crow says (R2)', () => {
     STAGE_1_LEAD,
     ...STAGE_OPENERS,
     IDEAS_CLOSE,
+    IDEAS_CLOSE_NONE,
+    NO_EXAMPLES,
+    CAPSTONE_OPENER,
+    ...METHOD_LINES,
+    // A part's own act line, after either lead.
+    ...STAGES.flatMap((s) => [...s.exercises.map((e) => e.id), ...(s.checkpoint?.items.map((q) => q.id) ?? [])]).flatMap((id) =>
+      playable(id).spec.parts.flatMap((p) => (p.act ? [actLine('fix', 'right', p.act), actLine('fix', 'wrong', p.act)] : [])),
+    ),
     NOTHING_NAMED,
     raisedNote('NameError'),
   ]
-  const done = [doneLine(4, 5, 'set'), doneLine(5, 6, 'checkpoint', true), doneLine(3, 6, 'checkpoint', false), doneLine(1, 1, 'review'), doneLine(6, 8, 'capstone'), doneLine(2, 5, 'practice')]
+  const done = [
+    doneLine(4, 5, 'set'),
+    doneLine(5, 6, 'checkpoint', true),
+    doneLine(3, 6, 'checkpoint', false),
+    doneLine(1, 1, 'review'),
+    doneLine(8, 8, 'capstone'),
+    doneLine(6, 8, 'capstone'),
+    doneLine(2, 5, 'practice'),
+  ]
 
   it('keeps every fixed line to 20 words and 110 characters', () => {
-    for (const l of [...fixed, ...done, verdictLine(true, null, []), verdictLine(false, null, [], true), verdictLine(false, 'object', ['1.3', '2.2'])]) {
+    const verdicts = [
+      verdictLine(true, null, []),
+      verdictLine(false, null, [], true),
+      verdictLine(false, 'object', ['1.3', '2.2']),
+      ...(['object', 'syntax', 'flow'] as const).map((e) => verdictLine(false, e, ['1.3', '2.2'], false, 'plain')),
+    ]
+    for (const l of [...fixed, ...done, ...verdicts]) {
       expect(words(l), l).toBeLessThanOrEqual(20)
       expect(l.length, l).toBeLessThanOrEqual(110)
       expect(sentences(l), l).toBe(1)
@@ -337,7 +424,7 @@ describe('what the crow says (R2)', () => {
         expect(words(b.say), b.say).toBeLessThanOrEqual(20)
       }
       // Every block of every section is reached, and the reach only grows.
-      const reached = new Set(beats.filter((b) => b.at && b.at.row === undefined).map((b) => `${b.at!.section}:${b.at!.block}`))
+      const reached = new Set(beats.filter((b) => b.at).map((b) => `${b.at!.section}:${b.at!.block}`))
       const blocks = [s.adds, ...s.ideas.map((i) => i.blocks), ...(s.capstone ? [s.capstone.intro] : [])]
       expect(blocks).toHaveLength(sectionsOf(s))
       blocks.forEach((bs, section) =>
@@ -407,5 +494,26 @@ describe('what changed in memory, as the crow points at it', () => {
     const s = [EMPTY, snap([['x', 'v:int:7']], [int(7)]), snap([['x', 'v:int:7']], [int(7)])]
     expect(noteAt((i) => s[i]!, 2, 'plain')).toBe('Look at memory: `x` points at `7`.')
     expect(noteAt(() => EMPTY, 3, 'plain')).toMatch(/names nothing/)
+  })
+})
+
+describe('Stage 9 and the capstone', () => {
+  const nine = STAGES[8]!
+  it('tells the method a step a beat, and closes without claiming a new idea', () => {
+    const beats = ideaBeats(nine)
+    const steps = beats.filter((b) => b.at?.row !== undefined)
+    expect(steps.map((b) => b.say)).toEqual(METHOD_LINES.slice(0, 6))
+    // No line is said over three beats in a row.
+    beats.forEach((b, i) => expect(b.say === beats[i + 1]?.say && b.say === beats[i + 2]?.say, b.say).toBe(false))
+    expect(beats[beats.length - 1]!.say).toBe(IDEAS_CLOSE_NONE)
+    expect(hasExamples(nine)).toBe(false)
+    expect(hasExamples(STAGES[0]!)).toBe(true)
+  })
+
+  it('returns to Mira: the opener names her scoreboard, and the capstone’s end says her bugs are found only when they were', () => {
+    expect(STAGE_OPENERS[8]).toMatch(/scoreboard/)
+    expect(CAPSTONE_OPENER).toMatch(/Mira/)
+    expect(doneLine(7, 8, 'capstone')).toMatch(/Mira’s three bugs are found/)
+    expect(doneLine(0, 8, 'capstone')).not.toMatch(/Mira|can read/)
   })
 })
