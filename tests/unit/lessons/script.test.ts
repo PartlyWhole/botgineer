@@ -9,7 +9,7 @@
 import { describe, expect, it } from 'vitest'
 import { CROW_NAME } from '../../../content/cast'
 import { castAt, cloud, guidance, script, staging, type Lesson } from '../../../content/lessons'
-import { beforeLast, heard, points, targetOf, was, type Evidence, type Line } from '../../../content/lessons/core'
+import { beforeLast, everBy, heard, points, targetOf, was, type Evidence, type Line, type LineMemory } from '../../../content/lessons/core'
 import type { MemorySnapshot } from '../../../src/memory/model'
 import { EMPTY, NOTHING, bound, failed, line, snap, th, typed } from './fixtures'
 
@@ -306,19 +306,24 @@ describe('a line that moved the lesson through memory', () => {
   // line, then memory now; the last line carries the entry it added.
   const x10 = bound('x', 'int', '10')
   const named = snap([x10.object], [x10.binding])
-  const played = (lines: [Line, MemorySnapshot | null][]): Evidence => {
+  // `same`: the console's current snapshot *is* the last accepted entry
+  // (the workbench shows it, failed line or not); otherwise a copy, like a
+  // separate extraction.
+  const played = (lines: [Line, MemorySnapshot | null][], same = false): Evidence => {
     const memory: MemorySnapshot[] = []
+    const sources: LineMemory[] = []
     const thoughts: Evidence['thoughts'] = []
     let last: Line | null = null
     for (const [l, m] of lines) {
       const entry = m ? { ...m } : null
       last = l.ok && entry ? { ...l, memory: entry } : l
       if (l.ok && entry) memory.push(entry)
+      if (l.ok && entry) sources.push({ source: l.source, memory: entry })
       if (l.ok && l.thought) thoughts.push({ ...l.thought, source: l.source })
     }
     const now = memory[memory.length - 1] ?? EMPTY
-    // A copy, as the workbench's live snapshot is a separate extraction.
-    return { snapshot: { ...now }, thoughts, history: [...memory, { ...now }], last }
+    const shown = same ? now : { ...now }
+    return { snapshot: shown, thoughts, history: [...memory, shown], lines: sources, last }
   }
 
   const BIND: Lesson = {
@@ -348,6 +353,23 @@ describe('a line that moved the lesson through memory', () => {
     // A line that failed left nothing behind.
     const miss = { ...e, last: failed('y', 'NameError') }
     expect(beforeLast(miss)).toBe(miss)
+  })
+
+  it('takes it back out when memory now is the very entry it added, and its source with it', () => {
+    const e = played([[line('x = 10', null), named]], true)
+    expect(e.snapshot).toBe(e.history[0])
+    const was = beforeLast(e)
+    expect(targetOf(was.snapshot, 'x')).toBeNull()
+    expect(was.lines).toEqual([])
+    expect(everBy(e, (src, m) => src === 'x = 10' && points(m, 'x', '10'))).toBe(true)
+    expect(everBy(was, (src) => src === 'x = 10')).toBe(false)
+  })
+
+  it('everBy asks which line made the change, and holds of nothing with no sources', () => {
+    const e = played([[line('x = 10', null), named], [line('z = 1', null), named]])
+    expect(everBy(e, (src, m) => src.startsWith('x') && points(m, 'x', '10'))).toBe(true)
+    expect(everBy(e, (src, m) => src.startsWith('y') && points(m, 'x', '10'))).toBe(false)
+    expect(everBy({ ...e, lines: undefined }, () => true)).toBe(false)
   })
 
   it('does not answer the binding that did a step as a miss to the next', () => {

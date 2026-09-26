@@ -12,7 +12,7 @@
  */
 import { expect, test, type Page } from '@playwright/test'
 import { CROW_NAME } from '../../content/cast'
-import { beat, open, reachable, say, skip, speechSettled } from './helpers'
+import { OPS, beat, open, reachable, say, skip, speechSettled } from './helpers'
 
 /** Presses Next until the line moves on — the first press may only
  *  finish the typing. */
@@ -262,5 +262,57 @@ test.describe('at phone width', () => {
     expect(on.prop!.width).toBeGreaterThan(60)
     expect(clash(on.guide, on.prop)).toBe(false)
     expect(await reachable(page, 'beat-next')).toEqual({ inView: true, onTop: true, under: [] })
+  })
+})
+
+// Every beat, ask and praise of the two lessons whose pictures stand
+// nearest the speech: the scale between the robot and Mira, and the
+// crates. At a phone's width the bubble wraps to three or four lines,
+// and it must still stand over the picture and the faces, never on them.
+test.describe('at 390x844, every line of order and operations', () => {
+  test.use({ viewport: { width: 390, height: 844 } })
+
+  const WALKS: [string, string[]][] = [
+    ['order', ['customer = "Mira"', 'parcels = 7', 'parcels * 2']],
+    ['operations', OPS],
+  ]
+
+  /** The bubble clears the picture (and its question) and every face. */
+  async function clear(page: Page, where: string) {
+    await speechSettled(page)
+    const on = await boxes(page)
+    expect(on.guide, where).not.toBeNull()
+    expect(clash(on.guide, on.prop), `bubble on the picture, ${where}`).toBe(false)
+    expect(clash(on.guide, on.ask), `bubble on the question, ${where}`).toBe(false)
+    for (const actor of on.cast) expect(clash(on.guide, actor), `bubble on a face, ${where}`).toBe(false)
+    return on
+  }
+
+  for (const [level, answers] of WALKS) {
+    test(`${level}: the bubble never covers the picture or a face`, async ({ page }) => {
+      test.setTimeout(240_000)
+      await open(page, level)
+      let pictured = 0
+      for (let step = 0; step <= answers.length; step++) {
+        for (let guard = 0; guard < 20; guard++) {
+          const b = await beat(page)
+          const on = await clear(page, `step ${step}, ${b.kind} ${b.at}`)
+          if (on.prop) pictured++
+          if (!b.listening) break
+          await next(page)
+        }
+        if (step < answers.length) await say(page, answers[step]!)
+      }
+      // The walk saw pictures: it measured something.
+      expect(pictured).toBeGreaterThan(3)
+    })
+  }
+
+  test("order's ticket says all of `no customer`", async ({ page }) => {
+    await open(page, 'order')
+    const sign = page.getByTestId('actor-ticket').locator('.sign-body')
+    await expect(sign).toHaveText('no customer')
+    const fit = await sign.evaluate((el) => ({ need: el.scrollWidth, have: el.clientWidth }))
+    expect(fit.need).toBeLessThanOrEqual(fit.have)
   })
 })

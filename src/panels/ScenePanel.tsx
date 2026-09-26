@@ -899,8 +899,24 @@ export function speechLift(spec: SceneSpec): number {
   const lifts = spec.actors
     .filter((a) => a.stand === true)
     .map((a) => halfHeightPct(a) * 2)
+  // The lesson's picture stands on the same floor, so the band clears it
+  // too. Its slot is `w` wide at the picture's own aspect, which is a
+  // height in the band's unit (percent of the stage width) with nothing
+  // measured; `PROP_CLEAR` is for the answer tag and the demonstrations,
+  // which draw a little over the slot's top edge. Every picture today is
+  // shorter than the tallest actor, so this changes nothing yet — it is
+  // the rule that keeps it so when a picture grows.
+  if (spec.props && spec.floor && lifts.length > 0) lifts.push(propHeightPct(spec.props.w) + PROP_CLEAR)
   return lifts.length > 0 ? Math.max(...lifts) : 0
 }
+
+/** A picture's slot is drawn at 200 × 130 (`src/ui/Props.tsx`). */
+const PROP_ASPECT = 130 / 200
+/** How far a picture's ink may reach above its slot, in percent of width. */
+const PROP_CLEAR = 1.5
+
+/** The height of a props slot `w` percent wide, in percent of the width. */
+export const propHeightPct = (w: number): number => w * PROP_ASPECT
 
 /**
  * Where a bubble's rail sits, so its bottom edge is the top of the

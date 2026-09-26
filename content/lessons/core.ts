@@ -116,12 +116,39 @@ export type Evidence = {
    * without storing any progress.
    */
   history: MemorySnapshot[]
+  /**
+   * Each accepted line with the memory it left, oldest first: the same
+   * entries as `history` without the current snapshot on the end, each
+   * beside the source that made it (a practice exercise's setup lines are
+   * one entry, joined).
+   *
+   * Memory alone cannot say which line made a change: `ride = "van"` typed
+   * bare leaves exactly what the `if` block does. A step that is about
+   * *how* the change was made asks this, through `everBy`. Additive and
+   * derived like the rest — the workbench builds it from the accepted
+   * history it already keeps, and nothing about it is stored. Optional, so
+   * evidence that has no sources (and a step that never asks) is
+   * unchanged; `everBy` holds of nothing then.
+   */
+  lines?: LineMemory[] | undefined
   /** The line just typed. Only a reply reads it; progress never does. */
   last?: Line | null | undefined
 }
 
+/** An accepted line and memory as it left it. */
+export type LineMemory = { source: string; memory: MemorySnapshot }
+
 /** True if this held after any accepted line. */
 export const ever = (e: Evidence, holds: (s: MemorySnapshot) => boolean): boolean => e.history.some(holds)
+
+/**
+ * True if this held after an accepted line, of that line's source and the
+ * memory it left: `everBy(e, (src, s) => /\bif\b/.test(src) && …)` is
+ * "a line with an `if` in it made this true". Stays true once true, like
+ * `ever`, because accepted lines are only ever added.
+ */
+export const everBy = (e: Evidence, holds: (source: string, s: MemorySnapshot) => boolean): boolean =>
+  (e.lines ?? []).some((l) => holds(l.source, l.memory))
 
 /** The robot has worked this exact answer out. */
 export const worked = (e: Evidence, repr: string): boolean => e.thoughts.some((t) => t.repr === repr)
@@ -371,11 +398,14 @@ export function beforeLast(evidence: Evidence): Evidence {
   if (!last?.ok) return evidence
   const thought = last.thought !== null && evidence.thoughts.length > 0
   const thoughts = thought ? evidence.thoughts.slice(0, -1) : evidence.thoughts
-  const entry = last.memory ? evidence.history.lastIndexOf(last.memory) : -1
+  // The first sighting: the current snapshot on the end of `history` may
+  // be this very object too (the console shows the last accepted memory).
+  const entry = last.memory ? evidence.history.indexOf(last.memory) : -1
   if (entry === -1) return thought ? { ...evidence, thoughts, last: null } : evidence
   const kept = evidence.history.slice(0, entry)
   const then = kept[kept.length - 1] ?? EMPTY
-  return { snapshot: then, thoughts, history: [...kept, then], last: null }
+  const lines = evidence.lines?.filter((l) => kept.includes(l.memory))
+  return { snapshot: then, thoughts, history: [...kept, then], lines, last: null }
 }
 
 /**

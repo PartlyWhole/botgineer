@@ -509,6 +509,17 @@ button.route.current {
   white-space: nowrap;
 }
 
+/* A sign is sized by the stage's width and its words are not: at a
+   phone's width the counter's ticket, 26% of a 364px stage, cut its
+   `no customer` to `no custo…`. Smaller type and a tighter pad on a
+   narrow stage fit it, and a name the player types still ellipsises. */
+@container stage (max-width: 480px) {
+  .sign-body {
+    font-size: 11px;
+    padding: 5px 4px;
+  }
+}
+
 /* An overlay, not a row.
    
    In flow, this bar took its height out of the stage — so the moment the

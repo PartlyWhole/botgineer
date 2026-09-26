@@ -10,6 +10,7 @@ import {
   railAnchor,
   speechDrop,
   speechLift,
+  propHeightPct,
 } from '../../src/panels/ScenePanel'
 import { placement, readScene, widthOf, type Actor, type SceneSpec } from '../../src/scene/spec'
 import { ACTIVITIES } from '../../content/activities'
@@ -250,6 +251,27 @@ describe('standing on the floor', () => {
     // The lamp is mounted on a wall; it is not part of the cast.
     expect(speechLift(spec)).toBe(halfHeightPct({ ...robot, w: 30 }) * 2)
     expect(speechLift({ ...spec, actors: [lamp] })).toBe(0)
+  })
+
+  it('lifts the band over a picture taller than the cast, and never lowers it for a short one', () => {
+    const spec: SceneSpec = { id: 's', title: 's', floor, actors: [robot], watches: [] }
+    const cast = speechLift(spec)
+    // A short picture: the tallest head is still the band.
+    expect(speechLift({ ...spec, props: { x: 50, w: 10 } })).toBe(cast)
+    // A tall one: the band is its top, plus room for its ink.
+    const tall = speechLift({ ...spec, props: { x: 50, w: 90 } })
+    expect(tall).toBeGreaterThan(propHeightPct(90))
+    expect(tall).toBeGreaterThan(cast)
+    // Nobody standing, no band at all: a picture does not invent one.
+    expect(speechLift({ ...spec, actors: [lamp], props: { x: 50, w: 90 } })).toBe(0)
+  })
+
+  it('clears every activity\'s picture with its band', () => {
+    for (const a of ACTIVITIES) {
+      const s = a.scene
+      if (!s?.props || !s.floor) continue
+      expect(speechLift(s), a.id).toBeGreaterThan(propHeightPct(s.props.w))
+    }
   })
 
   it('never lowers a bubble below the speaker it belongs to', () => {

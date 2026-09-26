@@ -24,7 +24,7 @@ import { session, useRuntime } from '../runtime/shared'
 import type { StepRecord, TerminalRecord } from '../runtime/types'
 import { extractMemory, runEvidence, thought, type RunEvidence } from '../memory/extract'
 import { useHandles } from '../memory/handles'
-import { EMPTY, type MemorySnapshot } from '../memory/model'
+import { EMPTY } from '../memory/model'
 import { buildProgram, isExpression, type Entry } from '../repl/program'
 import { events } from '../game/events'
 import { useCast } from '../game/director'
@@ -39,6 +39,7 @@ import {
   type CloudFrom,
   type Heard,
   type Line,
+  type LineMemory,
   type ScriptItem,
   type Spoken,
 } from '../../content/lessons'
@@ -91,7 +92,7 @@ export function Workbench({ activity }: { activity: Activity }) {
   /** Memory after each accepted line. A lesson step asks what was *ever*
    *  true, because memory itself is not monotonic — rebinding a name
    *  un-answers a question the player has already answered. */
-  const [lineMemory, setLineMemory] = useState<MemorySnapshot[]>([])
+  const [lineMemory, setLineMemory] = useState<LineMemory[]>([])
   /** Bumped per run. Object handles are assigned on first sight and kept
    *  for a whole run, so they must start over when a new one does. */
   const [runSeq, setRunSeq] = useState(0)
@@ -154,7 +155,13 @@ export function Workbench({ activity }: { activity: Activity }) {
   // engine, and not something anyone asked to watch. Shown live, memory
   // emptied and refilled on every Enter, and the scene flickered back to
   // its unset state with it.
-  const snapshot = talking && busy ? (lineMemory[lineMemory.length - 1] ?? EMPTY) : live
+  //
+  // And after a line that failed, too. A failed line is never kept, so the
+  // robot's memory is still what the last accepted line left: an
+  // `IndentationError` never ran a step, and showing its empty run said
+  // "Memory is empty" about a robot that still had everything. The console
+  // has no scrubber, so the last accepted memory is simply what it shows.
+  const snapshot = talking ? (lineMemory[lineMemory.length - 1]?.memory ?? EMPTY) : live
 
   /**
    * Runs one program to completion.
@@ -425,7 +432,7 @@ export function Workbench({ activity }: { activity: Activity }) {
       if (outcome.ok) {
         spokenRef.current = outcome.output
         setHistory((h) => [...h, entry])
-        setLineMemory((m) => [...m, after])
+        setLineMemory((m) => [...m, { source, memory: after }])
         if (made) setThoughts((t) => [...t, { ...said!, source }])
       }
 
@@ -468,7 +475,7 @@ export function Workbench({ activity }: { activity: Activity }) {
       }
       const outcome = await execute(buildProgram(entries, null).source)
       spokenRef.current = outcome.output
-      setLineMemory([extractMemory(stepsRef.current[stepsRef.current.length - 1])])
+      setLineMemory([{ source: setup.join('\n'), memory: extractMemory(stepsRef.current[stepsRef.current.length - 1]) }])
     },
     [execute],
   )
@@ -509,7 +516,13 @@ export function Workbench({ activity }: { activity: Activity }) {
   // trace in memory — so the evidence includes everything the robot has
   // said back. Both halves only ever grow.
   const evidence = useMemo(
-    () => ({ snapshot, thoughts, history: [...lineMemory, snapshot], last: lastLine }),
+    () => ({
+      snapshot,
+      thoughts,
+      history: [...lineMemory.map((l) => l.memory), snapshot],
+      lines: lineMemory,
+      last: lastLine,
+    }),
     [snapshot, thoughts, lineMemory, lastLine],
   )
   const ideas = read.level?.kind === 'ideas'

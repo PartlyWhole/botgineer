@@ -492,6 +492,20 @@ test('a line that fails is reported and not kept', async ({ page }) => {
   await expect(page.getByTestId('echo').last()).toHaveText('4')
 })
 
+test('memory keeps what the robot has after a line that fails', async ({ page }) => {
+  await open(page, 'names')
+  await say(page, 'x = 10')
+  await expect(page.getByTestId('node-x')).toBeVisible()
+  // One that never runs a step, and one that stops part-way.
+  for (const bad of ['y = )', 'y = 1 / 0', 'nope']) {
+    await say(page, bad)
+    await expect(page.getByTestId('console-error').last()).toBeVisible()
+    await expect(page.getByTestId('memory')).not.toContainText('Memory is empty')
+    await expect(page.getByTestId('node-x')).toBeVisible()
+    expect(await page.evaluate(() => window.botgineer.snapshot().bindings.map((b) => b.name))).toEqual(['x'])
+  }
+})
+
 test('a block is collected over several lines before it runs', async ({ page }) => {
   await open(page, 'sandbox')
   await skip(page)

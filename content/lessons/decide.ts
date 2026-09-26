@@ -1,4 +1,4 @@
-import { errorType, ever, heard, points, targetOf, type Evidence, type Lesson, type Line } from './core'
+import { errorType, ever, everBy, heard, points, targetOf, type Evidence, type Lesson, type Line } from './core'
 import type { MemorySnapshot } from '../../src/memory/model'
 
 /**
@@ -20,10 +20,12 @@ import type { MemorySnapshot } from '../../src/memory/model'
  * 6. `break` under an `if`, which stops the loop only on the pass the
  *    question says so.
  *
- * Evidence is memory after each accepted line (a block is one line) and
- * the robot's thoughts. Memory cannot tell an `if` that ran from the line
- * under it typed alone, so the if-only steps take what memory shows; the
- * loop steps cannot be typed out, because the loop leaves `w` behind.
+ * Evidence is memory after each accepted line (a block is one line), the
+ * source of that line, and the robot's thoughts. Memory cannot tell an
+ * `if` that ran from the line under it typed alone, so the `if` and
+ * `else` steps ask which line made the change (`everBy`): it must have an
+ * `if` in it, and for the `else` step an `else` too. The loop steps
+ * cannot be typed out, because the loop leaves `w` behind.
  * Nothing here prints: printed output is not evidence.
  */
 
@@ -63,6 +65,15 @@ function headerMiss(l: Line): string | undefined {
 const indentMiss = (l: Line): string | undefined =>
   errorType(l) === 'IndentationError'
     ? 'The block needs spaces in front of it, so Python knows it is inside.'
+    : undefined
+
+/** A line of this source that starts with this header: `if`, `else`. */
+const has = (source: string, word: 'if' | 'else') => new RegExp(`^\\s*${word}\\b`, 'm').test(source)
+
+/** `ride = …` typed on its own, which chooses for the robot. */
+const bareRide = (l: Line): string | undefined =>
+  l.ok && /^\s*ride\s*=/.test(l.source) && !has(l.source, 'if')
+    ? 'Let the robot decide: put that line inside an `if`.'
     : undefined
 
 /** The line the `if` sits on and the line it guards, if both were typed. */
@@ -117,9 +128,9 @@ export const decide: Lesson = {
       ],
       say: 'Type `if weight > 10:`, then `ride = "van"` indented under it, then a blank line.',
       tag: 'you',
-      done: (e) => ever(e, (s) => points(s, 'weight', '12') && points(s, 'ride', "'van'")),
+      done: (e) => everBy(e, (src, s) => has(src, 'if') && points(s, 'weight', '12') && points(s, 'ride', "'van'")),
       praise: '`ride` points at `\'van\'`, because `weight > 10` was `True`, so the block ran.',
-      nudge: (l) => headerMiss(l) ?? indentMiss(l),
+      nudge: (l) => headerMiss(l) ?? indentMiss(l) ?? bareRide(l),
     },
     {
       beats: [{ say: 'Mira’s next parcel is light: only 3 kilos.', focus: 'memory' }],
@@ -159,10 +170,14 @@ export const decide: Lesson = {
       ],
       say: 'Type `if weight > 10:`, `ride = "van"` indented, `else:`, `ride = "bike"` indented, then a blank line.',
       tag: 'you',
-      done: (e) => ever(e, (s) => points(s, 'weight', '3') && points(s, 'ride', "'bike'")),
+      done: (e) =>
+        everBy(
+          e,
+          (src, s) => has(src, 'if') && has(src, 'else') && points(s, 'weight', '3') && points(s, 'ride', "'bike'"),
+        ),
       praise: '`ride` points at `\'bike\'`, because `3 > 10` was `False`, so the `else` block ran instead.',
       nudge: (l) => {
-        const miss = headerMiss(l) ?? indentMiss(l)
+        const miss = headerMiss(l) ?? indentMiss(l) ?? bareRide(l)
         if (miss) return miss
         if (l.ok && /^\s*if\b/.test(l.source) && !/else/.test(l.source))
           return 'That `if` had no `else`, so a `False` answer skipped it. Add `else:` and its block.'

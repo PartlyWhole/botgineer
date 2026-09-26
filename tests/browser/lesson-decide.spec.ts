@@ -57,8 +57,22 @@ test('Making Choices: the robot asks, and the answer decides which lines run', a
   // A header without its colon stops the robot, and is answered.
   await say(page, 'if weight > 10')
   await expect(page.getByTestId('guide')).toContainText('colon')
+  // A body typed without its indent stops the robot, and memory still
+  // shows what the robot has: a failed line is never kept, so nothing in
+  // memory changed.
+  await block(page, 'if weight > 10:', 'ride = "van"')
+  await expect(page.getByTestId('guide')).toContainText('spaces in front')
+  await expect(page.getByTestId('memory')).not.toContainText('Memory is empty')
+  await expect(page.getByTestId('node-weight')).toBeVisible()
+  expect(await bound(page)).toEqual({ weight: '12' })
+  // Pointing `ride` by hand chooses for the robot: the same memory as the
+  // block, and not the step.
+  await say(page, 'ride = "van"')
+  await expect(page.getByTestId('guide')).toContainText('Let the robot decide')
+  expect((await beat(page)).kind).toBe('reply')
   await block(page, 'if weight > 10:', '    ride = "van"')
   expect(await bound(page)).toMatchObject({ weight: '12', ride: "'van'" })
+  expect((await beat(page)).kind).toBe('praise')
 
   await say(page, 'weight = 3')
   // Predict: the block would say "truck", but its question answers False.
@@ -68,6 +82,10 @@ test('Making Choices: the robot asks, and the answer decides which lines run', a
   expect((await beat(page)).kind).toBe('praise')
   expect(await bound(page)).toMatchObject({ weight: '3', ride: "'van'" })
 
+  // And `ride = "bike"` by hand is not the `else` block either.
+  await say(page, 'ride = "bike"')
+  await expect(page.getByTestId('guide')).toContainText('Let the robot decide')
+  expect((await beat(page)).kind).toBe('reply')
   await block(page, 'if weight > 10:', '    ride = "van"', 'else:', '    ride = "bike"')
   expect(await bound(page)).toMatchObject({ ride: "'bike'" })
 
