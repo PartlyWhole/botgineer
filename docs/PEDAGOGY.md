@@ -3,7 +3,11 @@
 **Status:** design of record for every lesson, practice and reading level.
 The review that produced it lives in the Claude doc *BotGineer — Pedagogy
 Review*; this file is the part the code is held to. Where the two differ,
-this file wins, because it records the decisions taken since.
+this file wins, because it records the decisions taken since. Where what
+shipped differs from a script below, the script's section says so under
+**As shipped**, and §8 lists the decision; the lesson file's header says
+why in more detail. How to write any of this is
+[AUTHORING.md](AUTHORING.md).
 
 ---
 
@@ -74,8 +78,15 @@ content defines.
 | 4 Names (`names`) | Forgets everything the moment it has thought it | Keep things, under names |
 | 5 Taking an order (`order`) | Mira needs something remembered and worked out | Be useful to a person |
 | 6 Practice: remembering (`practice-remembering`) | — | — |
+| Stage 1 ideas (`s1-ideas`) | Others will write its programs now | Read one line at a time: right side first, then which arrow moves |
 | 7 Wake the robot (`wake`) | One line at a time is slow | Run a whole program |
 | Stages 1–9 | Others wrote programs for it; it runs them faithfully, bugs and all | You can say what a short program will do *before* it runs |
+| Making Choices (`decide`), in Stage 5 | It runs every line it is given | Choose which lines run, with `if` and `else` |
+
+As shipped, levels 4–6, the Stage 1 ideas and Wake are the start of
+Stage 1's unit on the map (in that order: `names`, `order`,
+`practice-remembering`, `s1-ideas`, `wake`, then Stage 1's sets), and
+Making Choices plays between `s5-ideas` and Stage 5's first set (§6).
 
 The bridge into reading is said once, by the crow, at `s1-ideas`: *"A good
 engineer knows what the robot will do before it does it."*
@@ -98,11 +109,24 @@ changes or the level remounts; never stored). **Which step** is still
 `progress(lesson, evidence)` — invariant 11 holds: a beat is narration, not
 a step, and was never checked.
 
-Controls: **Next** (dimmed while a line types or a demonstration plays;
-first press finishes the line, second advances), **Back** (previous beat
-of the current run of beats), **Replay** (the current demonstration). When
-the ask arrives, Next gives way to the console glowing and a pointer:
-"Type your answer →".
+Controls: **Next** (the button, Enter or Space; the first press finishes
+the line, the second advances), **Back** (previous beat of the current
+run of beats), and, once finished, **Replay** on the takeaway bar (tells
+the closing lines again). A picture's demonstration replays when the
+picture is pressed. When the ask arrives, Next gives way to the console
+glowing, and the console's own prompt says where the answer goes.
+
+As shipped there is **no pointer on the stage** at the ask: two cues
+pointing off the stage's edge at the console, from nowhere near it, read
+as noise, so the prompt sits where the typing is. **Continue** appears
+only once the closing lines have been said, beside the takeaway: Next and
+Continue side by side left the player to guess which one moved them on.
+
+**The robot's cloud** shows a beat's demonstration `thought` during that
+beat only (never evidence), and otherwise the robot's newest real
+thought only while it belongs to what is being told — one thought since
+this step began, or the answer while its praise is read. An old answer
+left up read as an answer to the next question.
 
 ### The speech bubble
 
@@ -115,7 +139,7 @@ the ask arrives, Next gives way to the console glowing and a pointer:
 | Reveal | Types on at ~45 chars/s with brief pauses at `,` and `.`; code chips pop in whole |
 | Speaker in sync | The speaker animates (talks) while text types; the others look at them |
 | Continue cue | A small bouncing ▸ bottom-right once the line has finished |
-| Ask state | Border takes the colour of what is asked when known (`--k-bool`…); a dotted pointer towards the console |
+| Ask state | Border in the brand colour (not yet the kind's colour); a *You answer* or *Robot works it out* tag; the console glows (no pointer on the stage, see above) |
 | Reply state | A softer tint, never red. A miss is a conversation, not an error |
 | Entrance | Scale .96→1 + fade from the tail, ~180ms; a speaker change slides the bubble instead of re-popping |
 | Reduced motion | No typing, no fly; text whole; cue static |
@@ -146,6 +170,17 @@ during that beat.
 Takeaway: "The robot does nothing until you give it an instruction — and it thinks of whatever you write."
 
 Replies: a bare word → `NameError` → "The robot doesn't know the word `seven`. Try digits: `7`." A comma decimal → tuple → "Python writes the dot as a full stop: `1.5`."
+
+**As shipped** (`content/lessons/meet.ts`): **one ask**, not two. Beat 8,
+"Another one", is not a step: what is being learned is only that a line
+typed here becomes a thought over there, and one number shows it; a
+second identical ask was a toll, not a lesson. The praise names where
+the thought came from ("because that's what you wrote", or "it worked
+that out from what you wrote" for `3 + 4`). Beat 9 is two closing beats,
+the second emptying the cloud as it says the thought is let go. Replies
+also cover quotes round the digits and a `bool`. Takeaway as shipped:
+"The robot does nothing until you give it an instruction. Then it thinks
+of whatever you write."
 
 ### 1b — Five data types (`types`)
 
@@ -251,6 +286,16 @@ Takeaway: "Every value has a data type, and the question you are answering decid
   it remember." Takeaway: "An operation makes a new value, and its type
   depends on the operation."
 
+**As shipped** (`content/lessons/operations.ts`, whose header has the
+full table): thirteen asks, each one operator or one type rule. The
+`==` balance can only draw `2 + 2 == 4`, so its lamp answers *that* on a
+narration beat, and **the ask is Mira's crates: "Is `7 * 6` the same as
+`42`?"** (`7 * 6 == 42` → `True`), drawn on Lesson 1's lamp — a balance on
+the ask would keep the narration's lamp lit and give the answer away.
+Takeaway as shipped: "An operation makes a new value. Its type depends on
+the operation, and on what you give it." — the second clause is `2 + 0.5`
+and `"7" + "7"`, which the lesson is as much about as the operator.
+
 ### Level 4 — Names (`names`)
 
 - **Bug:** "ask for it back: just `x`" must require the thought's source to
@@ -282,11 +327,56 @@ Four beats before the task: the editor arrives ("Now you can give it a
 whole list of instructions"), Run is shown, the lamp, sign and gauge are
 pointed at, then the task.
 
+**As shipped: seven beats**, one idea each (R2), where the plan had four
+ideas in four: the robot has nodded off and needs three things at once;
+the editor holds a whole list; typing in it alone does nothing now;
+"Send to robot" (the button's own words) runs it top to bottom; then the
+lamp, the sign and the battery, one beat each, each saying where it is
+and **what kind of value it needs** (`True`; words in quotes; a number
+0–100) while the fixture hops. Without the kinds, `power = 0` or
+`charge = "full"` failed for a reason nobody had said (R5). The robot
+wakes on the first closing beat, which names what it just ran: a
+program. It plays after Stage 1's ideas, not before them.
+
+### Making Choices (`decide`) — shipped, not in the original plan
+
+Stage 5's exercises (5.10–5.13, C5.4) put an `if` in a loop's body, and
+nothing before them taught one. So a console lesson teaches it, and it
+plays **straight after `s5-ideas`**, before Stage 5's sets: it needs what
+those ideas teach — a `for` block, typed over several lines, and `break`
+— and the sets need what it teaches. Nine asks, in Mira's story (heavy
+parcels in the van, light ones on the bike):
+
+1. `weight = 12`; 2. ask the robot `weight > 10` (a condition is a
+`bool`, as in Working things out); 3. an `if` block that points `ride`
+at `"van"`; 4. `weight = 3`; 5. **predict**, never run, what `ride`
+points at after an `if` whose condition is now `False` — a skipped block
+leaves no trace, so only a prediction can show it; 6. `if … else`, with
+`else` optional; 7. `heavy = []`; 8. an `if` inside a loop's body, one
+indent deeper, asked again each pass; 9. `break` under `if w == 3`.
+
+Steps 3 and 6 are about *how* memory changed, not what it holds: a bare
+`ride = "van"` leaves exactly what the `if` block leaves, so they ask
+which line made the change (`everBy`), and a bare `ride = …` gets
+"Let the robot decide: put that line inside an `if`." Takeaway: "An `if`
+runs its indented block only when its condition is `True`, and an `else`
+block only when it is `False`."
+
 ### The reading stages
 
-- Each stage opens with one line from the crow, in the story (R12).
-- Ideas are shown one paragraph a beat, the example running in place; the
-  markdown stays the source of truth.
+- Each stage opens with one line from the crow, in the story (R12):
+  `content/collection/story.ts`. Stage 1 opens on the bridge into reading
+  instead.
+- **As shipped, Stages 1–8's ideas are console lessons**
+  (`content/lessons/s1ideas.ts` … `s8ideas.ts`), not the collection's
+  prose shown a paragraph a beat. The ideas are about what a line does to
+  memory, and memory is on screen beside the console: typed and watched,
+  each idea is shown (R1, R6) where a paragraph could only describe it,
+  and much of Stage 1's prose was already taught by Names and Taking an
+  Order. Each lesson takes the stage's ideas, not its text, and the
+  markdown stays the source of truth for the collection's own prose.
+  **Stage 9's ideas** ("how to read a long program") still read, one
+  block of text a beat, every example running in place.
 - Stage 6's switch to formal words is a labelled beat per term: "You've
   been saying *a name pointing at an object*. The formal word is **binding**."
 - `voice.ts` task lines ≤ 20 words (R2).
@@ -299,11 +389,15 @@ What the code must look like, so that separate pieces of work fit.
 
 ### Lessons are files
 
-`content/lessons/` is a directory. `content/lessons/index.ts` exports the
-types, `progress`, `guidance`, `staging`, the predicates and the `LESSONS`
-registry; each lesson is its own file (`meet.ts`, `types.ts`,
-`choose.ts`, `operations.ts`, `names.ts`, `order.ts`, `wake.ts`).
-Importers keep importing `content/lessons`.
+`content/lessons/` is a directory. `core.ts` holds the types, `progress`,
+`script`, `guidance`, `staging`, `castAt`, `cloud` and the predicates;
+`index.ts` re-exports all of it with the `LESSONS` registry. Each lesson
+is its own file (`meet.ts`, `types.ts`, `choose.ts`, `operations.ts`,
+`names.ts`, `order.ts`, `wake.ts`, `decide.ts`, `s1ideas.ts` …
+`s8ideas.ts`) and imports `./core`, never `./index`, which imports it.
+Importers keep importing `content/lessons`. Who speaks is
+`content/cast.ts`; the stages' story lines are
+`content/collection/story.ts`.
 
 ### The beat model (additive — nothing existing is removed)
 
@@ -319,7 +413,7 @@ type Beat = {
 type LessonStep = {
   say: string                 // the ASK: the question alone (R3)
   beats?: Beat[]              // told before the ask
-  praise?: string             // the first beat shown once this step is done (R9)
+  praise?: string | ((answer: Heard | null) => string)  // the first beat once this step is done (R9); a function is handed the thought that did it
   tag?: 'you' | 'robot'       // who does the work (R4)
   // unchanged: speaker, show, ask, done, nudge
 }
@@ -333,13 +427,19 @@ type Lesson = {
 `guidance()` stays pure and derived. What it shows at step `at` is the
 sequence `[praise of step at-1] + beats of step at + ask of step at`
 (or `[praise of the last step] + outro` when finished); the workbench
-holds only the index into that sequence. A reply to a miss replaces the
-ask while it applies, as today.
+holds only the index into that sequence, keyed on the step. A reply to a
+miss replaces the ask while it applies, as today.
+
+As shipped, a step's `done` reads `Evidence`: memory now, every thought,
+memory after each accepted line (`history`, for `ever`), and each
+accepted line beside its source (`lines`, for `everBy`), so a step can
+ask not only what memory holds but which line made it so.
 
 ### Test surface
 
 `window.botgineer` keeps its shape (invariant 14) and gains
-`beat(): { at: number; of: number; text: string; asking: boolean }`,
+`beat(): { at: number; of: number; text: string; asking: boolean }` (as
+shipped also `speaker`, `kind` and `listening`),
 `next()` and `skip()` (jump to the ask). **`say(line)` skips any narration
 first**, so a test can still answer a lesson by typing.
 
@@ -361,3 +461,13 @@ rather than editing another workstream's files.
 | `talking` / `words` | Folded into Level 1 and 2; `words` leaves the roadmap | `content/roadmap.ts` |
 | Metaphor | Arrow, with a bridging line in Stage 1 | `stage-01-straight-line-code.md` |
 | Returning mid-level | Resume at the derived step and replay its beats | the workbench's beat index |
+| Meet the robot's second number | Dropped: one ask, any number | `meet.ts` |
+| Working things out's `==` ask | Narration answers `2 + 2 == 4` on the balance; the ask is `7 * 6 == 42` on the lamp | `operations.ts` |
+| Operations' takeaway | "…Its type depends on the operation, and on what you give it." | `operations.ts` |
+| Wake's beats | Seven, one idea each; each fixture names the kind it needs | `wake.ts` |
+| Where Wake plays | After Stage 1's ideas, before its sets | `content/activities/reading.ts` (`stageLevelIds`) |
+| Stages 1–8's ideas | Console lessons, typed and watched in memory; Stage 9's still read | `content/lessons/sNideas.ts`, `content/activities/index.ts` |
+| Teaching `if` | Making Choices, after `s5-ideas` and before Stage 5's sets: it needs `for` and `break`; the sets need `if` | `stageLevelIds`, `decide.ts` |
+| A step about how memory changed | Judged on the line that made the change (`everBy`), not on memory alone | `core.ts` |
+| A pointer at the console on the ask | None on the stage; the console's prompt says it | `ScenePanel.tsx` |
+| When Continue appears | Only once the closing lines are said | `ScenePanel.tsx` |

@@ -4,7 +4,9 @@ Static GitHub Pages site: a Python learning game. Real CPython 3.14 runs in
 a Web Worker via PyTrace + Pyodide. Deploys as a **project site**
 (`https://partlywhole.github.io/botgineer/`) — the sub-path is load-bearing.
 
-Design of record: [docs/DESIGN.md](docs/DESIGN.md).
+Design of record: [docs/DESIGN.md](docs/DESIGN.md). What a lesson must
+say, and in what order: [docs/PEDAGOGY.md](docs/PEDAGOGY.md). How to write
+one, a beat and a picture, as built: [docs/AUTHORING.md](docs/AUTHORING.md).
 
 **The one idea: one snapshot, several views.** The worker produces records;
 `memory/extract.ts` turns the current one into a `MemorySnapshot`; the
@@ -21,14 +23,30 @@ to see an object appear is the moment they made it. Keep the chrome thin
 notes or briefs.
 
 **The beginner gets a console, not an editor.** An activity declares
-`mode: 'console' | 'editor' | 'read'`. The console is one line at a time,
-and it is where the game starts; the editor is what a later activity
-unlocks. They are not two engines — see invariant 7.
+`mode: 'console' | 'editor' | 'read'`. The console is one line at a time
+(a block is typed over several lines and accepted as one), and it is where
+the game starts and where almost everything is taught; the editor arrives
+once, at `wake`, when there is a whole program worth writing. They are not
+two engines — see invariant 7.
+
+**Lessons are told in beats.** A lesson step is a short run of narration
+the player advances with Next, ending on a question that opens the
+console (invariants 11 and 26; the rules for what to say are
+`docs/PEDAGOGY.md`). The console is closed while a character talks and
+open while they wait.
 
 **Then the map is the Reading Python collection.** After the warm-up, the
 nine stages of `content/collection/` are the game: read a program, commit
 a prediction, *then* watch the robot run it, and read the key. `read` mode
-is the same two panels and the same one snapshot (invariants 21–25).
+is the same two panels and the same one snapshot (invariants 21–25). Each
+stage opens on its **ideas**, and for Stages 1–8 those are console
+lessons (`content/lessons/sNideas.ts`), not the collection's prose: the
+ideas are about what a line does to memory, and memory is on screen right
+beside the console, so the player types each idea and watches it happen.
+The markdown stays the source of truth for the collection's own text.
+Stage 9's ideas ("how to read a long program") still read. Making Choices
+(`decide`), a console lesson on `if`, sits between Stage 5's ideas and its
+sets, because those sets use `if` and nothing before taught it.
 
 ## Commands
 
@@ -36,7 +54,8 @@ is the same two panels and the same one snapshot (invariants 21–25).
 npm run dev           # vite, base '/'
 npm run typecheck
 npm run test          # unit tests, and tests/semantics: the real engine in Node
-npm run test:browser  # playwright against the PRODUCTION build at /botgineer/
+npm run test:browser  # playwright against the PRODUCTION build at /botgineer/ (WORKERS=n to parallelise)
+npm run test:audit    # every collection item played in the page with the key's answers (slow, opt-in)
 npm run collection    # regenerate content/collection/generated/ from the markdown
 ```
 
@@ -51,8 +70,13 @@ npm run collection    # regenerate content/collection/generated/ from the markdo
 | `src/memory/model.ts` | **the canonical model**: names bind to objects; objects have id/type/value; collections hold pointers |
 | `src/memory/extract.ts` | the ONLY module that knows both the wire format and the model |
 | `src/repl/program.ts` | the console's program builder: expression-or-statement, continuation, and the replay that makes a line-at-a-time session possible. Pure and unit-tested |
-| `src/ui/RobotConsole.tsx` | the console. Owns the caret and the input history and nothing else; it cannot run anything |
-| `content/lessons.ts` | guided lessons. A step's progress is **derived from evidence**, never stored: the snapshot, what the robot thought, and memory after each accepted line. A step may also `show` a picture, `nudge` a miss, and an `ordered` lesson counts a thought only for the step that asked (invariant 26) |
+| `src/repl/indent.ts` | the console's block indentation: Enter after a `:` header indents four, Tab adds four, Backspace in the indent takes four back, a line of indent alone closes the block. Pure, on `(text, caret)` |
+| `src/ui/RobotConsole.tsx` | the console. Owns the caret, the input history and the block buffer and nothing else; it cannot run anything |
+| `content/lessons/core.ts` | the lesson model and everything derived from it: `progress`, `script` (beats → ask), `guidance`, `staging`, `castAt`, `cloud`, the predicates (`ever`, `everBy`, `heard` …) and the reply helpers. A step's progress is **derived from evidence**, never stored (invariants 11, 26) |
+| `content/lessons/index.ts` | the `LESSONS` registry, keyed by id; re-exports all of `core`, so importers import `content/lessons` |
+| `content/lessons/<id>.ts` | one file per lesson: `meet`, `types`, `choose`, `operations`, `names`, `order`, `wake`, `decide`, `s1ideas` … `s8ideas`. Each imports `./core`, never `./index` (a cycle). Its header says what it teaches and why it is shaped that way |
+| `content/cast.ts` | who speaks: `CROW_NAME` (one constant; `{CROW_NAME}` in a line is filled in) and each speaker's name-tag colour |
+| `content/collection/story.ts` | the story the stages are told in: the crow's opening line for each stage, and the bridge into reading |
 | `src/scene/props.ts` | the pictures a lesson step stands on the stage, and how an answer is read into them (`numberOf`, `boolOf`, `textOf`). Pure |
 | `src/ui/Props.tsx` | draws them: one small SVG per picture, the answer drawn in, a CSS demonstration on arrival, pressed to replay |
 | `src/app/props.css` | the pictures' look, and one colour per kind (`--k-bool` …), deliberately separate |
@@ -70,7 +94,7 @@ npm run collection    # regenerate content/collection/generated/ from the markdo
 | `content/roadmap.ts` | the levels, grouped into units, in play order. The only place the order lives |
 | `src/progress/progress.ts` | which levels are finished (localStorage) and what that unlocks. One of the **two stored things** — see invariant 19 |
 | `src/roadmap/RoadmapScreen.tsx` | the home screen: a Duolingo-style winding path of levels, one unit per coloured stretch, the cast beside it |
-| `content/concepts.ts` | the concepts: the warm-up's 14 skills (a lesson's `teaches` introduces them, practice exercises them) and the collection's ~45, tagged by its specs. Mastery tracks each |
+| `content/concepts.ts` | the concepts: the warm-up's 15 skills (a lesson's `teaches` introduces them, practice exercises them) and the collection's ~45, tagged by its specs. Mastery tracks each |
 | `src/practice/python.ts` | just enough Python (literals, names, `+ - * / // % <` …) to know an exercise's answer before asking it. Pure; checked against CPython by the browser suite |
 | `src/practice/exercises.ts` | one seeded generator per skill: the question, setup lines, a working answer, and a judge that names the mistake |
 | `src/practice/session.ts` | which exercises a session asks, weighted towards weak and faded skills. Pure and seeded |
@@ -103,6 +127,10 @@ npm run collection    # regenerate content/collection/generated/ from the markdo
 | `src/ui/CodeView.tsx`, `forms/`, `Blocks.tsx` | clickable read-only code; one widget per interaction; the collection's prose |
 | `src/roadmap/GlossaryScreen.tsx` | `#/glossary` and `#/glossary/<term>` |
 | `src/app/read.css` | reading's styling, deliberately separate |
+| `tests/unit/lessons/` | one test file per lesson, plus `every.test.ts`, which holds every registered lesson to the shared rules (line length, registration) |
+| `tests/browser/lesson-<id>.spec.ts` | each lesson played through in the production page, beats and all |
+| `docs/PEDAGOGY.md` | the rubric every lesson step is checked against, the cast, the scripts, and the decisions taken |
+| `docs/AUTHORING.md` | how to write a lesson, a beat and a picture, as built: the API, the rules the engine enforces, the test helpers |
 | `tests/semantics/` | the shipped wheel in the shipped Pyodide, in Node: the collection audit and sweep, graders on crafted misses, variants |
 | `public/runtime/pyodide/` | copied from the pinned npm package at build time; gitignored |
 
@@ -166,9 +194,9 @@ npm run collection    # regenerate content/collection/generated/ from the markdo
    What survives is a *description* — `type(v).__name__` and `repr(v)`,
    under a hidden name (`THOUGHT` in `repl/program`, read by `thought()`
    in `extract.ts`). The object is already gone by the time anything reads
-   it. The description is what the robot's thought bubble shows and what
-   the first two lessons are judged on, since they bind nothing and so
-   leave no memory to judge.
+   it. The description is what the robot's thought cloud shows and what
+   the warm-up's first four lessons are judged on, since they bind
+   nothing and so leave no memory to judge.
 
    Only the **pending** line is asked to describe itself. A replayed
    history expression is emitted exactly as typed — `10` alone is a legal
@@ -194,22 +222,60 @@ npm run collection    # regenerate content/collection/generated/ from the markdo
    the one it unlocked bounces (`goToMap(id)`; the router remembers the
    arrival in memory only). It lived inside the guide's speech bubble
    once, which meant the activities with no guide could not offer it at
-   all. Every level has it, the last included. `next` on an activity is
-   now only the play order, and must agree with `content/roadmap`.
+   all. Every level has it, the last included. It appears only once the
+   closing lines have been said — finished *and* resting on the last line
+   of the outro (`done && !listening` in `ScenePanel`) — because a
+   finished lesson still has its outro to tell, and Next and Continue side
+   by side left the player to guess which one moved them on. Continue
+   arrives with the last line, beside the takeaway. `next` on an activity
+   is now only the play order, and must agree with `content/roadmap`.
 11. **A lesson's progress is derived, never stored.** It is the first step
-   whose test the snapshot fails. That is why the guide cannot disagree
+   whose test the evidence fails. That is why the guide cannot disagree
    with the robot, why replay makes progress monotonic for free, and why
    scrubbing walks the guide backwards. A step whose test cannot be
-   answered from memory alone is a paragraph, not a step.
+   answered from the evidence is a paragraph, not a step — though it can
+   be a **beat**.
+
+   The evidence (`Evidence` in `content/lessons/core.ts`) is memory now;
+   every thought the robot has had; `history`, memory after each accepted
+   line, so a step can ask what was *ever* true (`ever`) — rebinding `x`
+   would otherwise un-answer a question already answered; and `lines`,
+   those same accepted lines beside their source, so a step can ask which
+   line *made* the change (`everBy`). Memory alone cannot tell
+   `ride = "van"` typed bare from the same line under an `if`, and Making
+   Choices is about the difference. All four only grow, so everything
+   derived from them stays monotonic, and the workbench builds them from
+   the accepted history it already keeps.
+
+   **Beats are narration, and which one shows is view state.** `script()`
+   lays out what is said at a step — `[praise of the step before] + its
+   beats + its ask`, or `[praise of the last step] + outro` once finished
+   — purely from the lesson and the evidence. The workbench holds one
+   index into that list, **keyed on the step**: when the step changes the
+   index is back at that step's first line, and a remount starts there
+   too, so returning to a level resumes at the derived step and replays
+   its beats. The index is never stored and never checked; a beat cannot
+   be a step. The praise stays in the list for as long as the step does
+   and a miss swaps the ask for a reply in the same place, so the list
+   never changes shape under the index. The cast is folded the same way
+   (`castAt`): who is on stage, asleep or waving at a beat is a function
+   of the beats up to it, so Back and resuming both give the right cast.
 12. **The scene causes nothing.** It declares watches and renders the
    snapshot. No scene code may call into a run or hold state of its own.
 13. **Decode partially, fail cleanly.** Unsupported kinds and
    budget-elided values are marked `partial` and said so, never shown as
    complete.
 14. **`window.botgineer` is the test surface.** Browser tests drive
-   `setProgram`/`getProgram`/`run`/`say`/`snapshot`/`state` — and, for
-   reading, `read.state`/`answer`/`commit`/`submit`/`mark`/`next`/`models`
-   — rather than typing into a contenteditable. Keep the shape stable. Readiness is
+   `setProgram`/`getProgram`/`run`/`say`/`snapshot`/`state`/`exercise`;
+   for beats, `beat()` (`{ at, of, text, asking, speaker, kind,
+   listening }`), `next()` (advances without waiting for the typing) and
+   `skip()` (straight to the ask, or a finished lesson's last line); and,
+   for reading, `read.state`/`answer`/`commit`/`submit`/`mark`/`next`/
+   `models`/`program` — rather than typing into a contenteditable.
+   **`say(line)` skips any narration first**, as a player pressing Next
+   through it would, so a journey can still answer a lesson by typing
+   (and in practice it waits for the next exercise's clean start). Keep
+   the shape stable. Readiness is
    `.app[data-boot="ready"]`, not a visible badge. The editor journeys run
    against an activity that still has an editor (`EDITOR` in the spec),
    because the starting activity is a console.
@@ -218,15 +284,29 @@ npm run collection    # regenerate content/collection/generated/ from the markdo
    names in one column in that order, each name's object starting its
    row, a collection's elements in the next column in index order, and an
    object already drawn never drawn again, so aliasing is arrows
-   converging on one card. The component only *tweens* to those
+   converging on one card. Every pointer from a collection carries its
+   slot's label — the index or the key — always, not only on a picked
+   card: indexing and keys are what Stages 3 and 6 are about, and hiding
+   the labels behind a click hid the lesson. They sit halfway along the
+   arrow, where a fan's and a convergence's arrows are apart; slots
+   holding one object share one label (`0, 2`); a column's gap widens to
+   its longest label. The component only *tweens* to those
    positions. Two consequences are load-bearing. First, nothing already
    drawn moves when a line adds something: the overview is anchored top
    left and its zoom depends on the pane, **never on memory**. Centring,
    or fitting the content, moved every card on every Enter. Second, the
-   graph stays mounted when memory is empty, and the console shows the
-   last accepted memory while it replays (`Workbench`), because
+   graph stays mounted when memory is empty, and the console always shows
+   the last accepted memory (`Workbench`) — while it replays, because
    rebuilding from nothing on every submission was the whole of the
-   jitter. A memory bigger than the pane scrolls; it does not shrink past
+   jitter, and after a line that failed, because a failed line is never
+   kept, so the robot still has everything the last accepted line left
+   (showing the failed run's empty memory said "Memory is empty" about a
+   robot that had not lost a thing).
+   In the console, memory gets most of the column: until the player drags
+   the gutter it takes 62% (`--memory-h` unset; `styles.css`), since the
+   console needs a line and its answer and memory is what a console lesson
+   is about. Each mode remembers its own split (`RobotPanel`).
+   A memory bigger than the pane scrolls; it does not shrink past
    `OVERVIEW_MIN_K`. There is no dragging: a card's place is a property
    of the program. (It was a force layout until the rewrite; the header
    of `graphLayout.ts` has the measurements that retired it.)
@@ -248,6 +328,18 @@ npm run collection    # regenerate content/collection/generated/ from the markdo
 18. **Tests run like production.** Playwright serves the built site at the
    sub-path with **no** isolation headers, so the `coi-serviceworker` path
    is what gets exercised. Do not add COOP/COEP to the test server.
+   Journeys run one at a time unless `WORKERS` says otherwise: each page
+   boots its own CPython, and four side by side starved each other into
+   timeouts.
+
+   **The deploy does not run the browser journeys.** Installing Chromium
+   and playing them took most of a twelve-minute deploy, so `deploy.yml`
+   typechecks, runs the unit and semantic tests, builds, publishes and
+   smoke-tests the published URLs. The journeys run in **Checks**
+   (`checks.yml`) on every pull request and every push to main, beside the
+   deploy rather than in front of it, so a regression still shows up. The
+   page-level collection audit is opt-in (`npm run test:audit`, which sets
+   `AUDIT`) because it is slow, and Checks runs it on pull requests only.
 19. **Two things are stored, and only two.** Finished level ids
    (`progress.ts`) and mastery (`mastery.ts`), both in this
    browser's localStorage through `storage.ts`. Mastery is keyed: a
@@ -324,7 +416,7 @@ npm run collection    # regenerate content/collection/generated/ from the markdo
 26. **A lesson's picture is the same evidence, drawn.** A step's `show`
    stands in the scene's `props` slot, and what it shows is a function of
    the step, the last line and what the robot thought of it — the same
-   evidence the crow reads (`staging` in `content/lessons.ts`). A right
+   evidence the crow reads (`staging` in `content/lessons/core.ts`). A right
    answer's picture leaves *as the same element* (one keyed list), so its
    effect plays as a transition and its demonstration is not replayed; a
    miss is drawn into the picture that asked. Demonstrations are CSS
@@ -334,9 +426,29 @@ npm run collection    # regenerate content/collection/generated/ from the markdo
    not move the lesson, so it never mistakes a right answer for a wrong
    one to the next question. An **ordered** lesson walks the thoughts in
    order and counts each for at most one step, and only for the step that
-   was asking — still derived, still monotonic. The warm-up's three lessons
-   are ordered because a type-only step answered early skipped the line
-   that named it. Animate an SVG piece placed by its own `transform`
-   attribute with the individual `translate`/`scale`/`rotate` properties:
-   a `transform` keyframe replaces the placement for the length of the
-   demonstration.
+   was asking — still derived, still monotonic. The warm-up's four
+   lessons (`meet`, `types`, `choose`, `operations`) are ordered because
+   a type-only step answered early skipped the line that named it.
+
+   **The robot's cloud follows what is being told** (`cloud` in
+   `core.ts`). A beat's demonstration `thought` shows during that beat
+   only (`''` empties it) and is never evidence. Otherwise the cloud shows
+   the robot's newest real thought only while it belongs to this step:
+   one thought since the step began, or the answer while its praise is
+   read. Left up, an old answer read as an answer to the next question
+   (`42` over "Ask for it back: `x`"). Where the step's telling began is
+   view state taken when the step changes, like the beat index.
+
+   **A refused answer is never drawn as a yes.** A miss the picture would
+   draw the way it draws the right answer (`looksRight`: `3.0` apples in a
+   basket of three, a lamp lit by a typed `True`) is drawn *refused*, in
+   amber, in the picture's own idiom (`refused`). The right answer typed
+   by hand where the robot was to work it out (`unworked`) draws nothing
+   done at all and waits, with an amber `?` where the working goes. What
+   the player sees must agree with what the crow says.
+
+   Animate an SVG piece placed by its own `transform` attribute with the
+   individual `translate`/`scale`/`rotate` properties: a `transform`
+   keyframe replaces the placement for the length of the demonstration.
+   The props slot paints behind the cast (no z-index), so a picture never
+   covers a face.
