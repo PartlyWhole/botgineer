@@ -43,6 +43,8 @@ async function block(page: Page, ...lines: string[]) {
 }
 
 test('Making Choices: the robot asks, and the answer decides which lines run', async ({ page }) => {
+  // Ten blocks and lines, each a full replay of the session so far.
+  test.setTimeout(180_000)
   await open(page, 'decide')
   await expect(page.getByTestId('guide')).toContainText('van')
 
@@ -97,8 +99,17 @@ test('Making Choices: the robot asks, and the answer decides which lines run', a
   // One `=` in the question is a SyntaxError, and is named.
   await block(page, 'for w in [12, 3, 15]:', '    if w = 3:', '        break')
   await expect(page.getByTestId('guide')).toContainText('==')
+  // `w = 3` typed bare leaves what the break loop leaves, and is not it.
+  await say(page, 'w = 3')
+  await expect(page.getByTestId('guide')).toContainText('Let the loop stop there')
   await block(page, 'for w in [12, 3, 15]:', '    if w == 3:', '        break')
   expect(await bound(page)).toMatchObject({ w: '3', heavy: '[12, 15]' })
+  expect((await beat(page)).kind).toBe('praise')
+
+  // `continue` skips the rest of one pass, and the loop goes on.
+  await say(page, 'heavy = []')
+  await block(page, 'for w in [12, 3, 15]:', '    if w == 3:', '        continue', '    heavy.append(w)')
+  expect(await bound(page)).toMatchObject({ w: '15', heavy: '[12, 15]' })
 
   await skip(page)
   await expect(page.getByTestId('takeaway')).toContainText('only when its condition is')

@@ -1976,7 +1976,7 @@ function Code({ text, mark }: { text: string; mark?: number | undefined }) {
             <text
               x={10 + indent * w}
               y={y + lh * 0.75}
-              style={{ fontFamily: 'var(--mono)', fontSize: size, fill: 'var(--ink)', fontWeight: 600 }}
+              style={{ fontFamily: 'var(--mono)', fontSize: size, fill: 'var(--ink)', fontWeight: 600, textAnchor: 'start', whiteSpace: 'pre' }}
             >
               {l.trimStart()}
             </text>

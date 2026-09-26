@@ -35,10 +35,15 @@ test('Stage 3’s ideas open on Mira’s wrong slot, and every bracket happens i
   await say(page, 'items[-1]')
   expect((await beat(page)).kind).toBe('praise')
 
+  // Rebinding `items` is the miss the write step names, and it must not
+  // lock the step: the write into the new list still finishes it.
+  await say(page, 'items = ["a", "b", "c"]')
+  await expect(page.getByTestId('guide')).toContainText('built a new list')
   const list = await targetOf(page, 'items')
   await say(page, 'items[1] = "z"')
   // The same list, changed: no name moved.
   expect(await targetOf(page, 'items')).toBe(list)
+  expect((await beat(page)).kind).toBe('praise')
   expect(await slot(page, 'items', '1')).toBe("'z'")
 
   // Predict before running: running it is answered, not accepted.
@@ -61,7 +66,16 @@ test('Stage 3’s ideas open on Mira’s wrong slot, and every bracket happens i
   await say(page, 'ages.get("cy")')
   await expect(page.getByTestId('guide')).toContainText('Give it a default')
   await say(page, 'ages.get("cy", 0)')
+  await say(page, '"cy" in ages')
+  await expect(page.getByTestId('guide')).toContainText('no key of')
   await say(page, '30 in ages')
+  expect((await beat(page)).kind).toBe('praise')
+
+  // What may be a key: the list is refused, the tuple is filed.
+  await say(page, 'ages[[1, 2]] = 5')
+  await expect(page.getByTestId('guide')).toContainText('Now the tuple')
+  await say(page, 'ages[(1, 2)] = 5')
+  expect(await slot(page, 'ages', '(1, 2)')).toBe('5')
   expect((await beat(page)).kind).toBe('praise')
 
   await say(page, 'grid = [[1, 2], [3, 4]]')

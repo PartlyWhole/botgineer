@@ -58,6 +58,6 @@ test('Stage 4’s ideas: one level copied, every level copied, and one row three
   await say(page, 'grid[0][0] = 1')
   expect((await beat(page)).kind).toBe('praise')
   await skip(page)
-  await expect(page.getByTestId('takeaway')).toContainText('which level was copied')
+  await expect(page.getByTestId('takeaway')).toContainText('which level your copy made new')
   await expect(page.getByTestId('advance')).toBeVisible()
 })

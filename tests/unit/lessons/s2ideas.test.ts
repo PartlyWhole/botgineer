@@ -52,7 +52,8 @@ const run = (steps: [string, MemorySnapshot][], ...said: [string, string, string
   lines: steps.map(([source, memory]) => ({ source, memory })),
 })
 
-const TUPLE = (inner: number[]): PyObject => ({
+/** `(1, inner)`: slot 1 always points at the list `i`, whatever it holds. */
+const TUPLE = (): PyObject => ({
   id: 't',
   type: 'tuple',
   kind: 'reference',
@@ -82,11 +83,11 @@ const PLAY: [string, MemorySnapshot][] = [
   ['inner = [2]', mem({ b: [1, 2, 3, 4, 5], i: [2] }, { nums: 'b', other: 'b', n: ELEVEN.id, m: TEN.id, inner: 'i' }, [TEN, ELEVEN])],
   [
     'pair = (1, inner)',
-    mem({ b: [1, 2, 3, 4, 5], i: [2] }, { nums: 'b', other: 'b', n: ELEVEN.id, m: TEN.id, inner: 'i', pair: 't' }, [TEN, ELEVEN, TUPLE([2])]),
+    mem({ b: [1, 2, 3, 4, 5], i: [2] }, { nums: 'b', other: 'b', n: ELEVEN.id, m: TEN.id, inner: 'i', pair: 't' }, [TEN, ELEVEN, TUPLE()]),
   ],
   [
     'inner.append(3)',
-    mem({ b: [1, 2, 3, 4, 5], i: [2, 3] }, { nums: 'b', other: 'b', n: ELEVEN.id, m: TEN.id, inner: 'i', pair: 't' }, [TEN, ELEVEN, TUPLE([2, 3])]),
+    mem({ b: [1, 2, 3, 4, 5], i: [2, 3] }, { nums: 'b', other: 'b', n: ELEVEN.id, m: TEN.id, inner: 'i', pair: 't' }, [TEN, ELEVEN, TUPLE()]),
   ],
 ]
 const SAID: [string, string, string] = ['list', '[1, 2, 3]', '[1, 2, 3]']

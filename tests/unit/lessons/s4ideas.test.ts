@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { guidance, progress, s4Ideas, script } from '../../../content/lessons'
-import type { Evidence } from '../../../content/lessons'
+import type { Evidence, LineMemory } from '../../../content/lessons'
 import type { MemorySnapshot, PyObject } from '../../../src/memory/model'
 import { NOTHING, failed, line, madeBy, snap, th, typed, value } from './fixtures'
 
@@ -56,11 +56,25 @@ const REAL_ROWS = mem([plan, t1f, t2, n3, ed, ...deep, list('g', 'r0', 'r1', 'r2
 const row1 = list('r', NUMS[1]!.id, NUMS[0]!.id, NUMS[0]!.id)
 const WRITTEN = mem([plan, t1f, t2, n3, ed, ...deep, list('g', 'r', 'r', 'r'), row1], { plan: 'p', new: 'n', safe: 'd', grid: 'g' })
 
-const ev = (history: MemorySnapshot[], ...said: [string, string, string][]): Evidence => ({
-  snapshot: history[history.length - 1]!,
-  history,
-  thoughts: said.map(([type, repr, source]) => ({ ...th(type, repr), source })),
-})
+/** An accepted line and the memory it left: what `everBy` judges. */
+const by = (source: string, memory: MemorySnapshot): LineMemory => ({ source, memory })
+type Entry = MemorySnapshot | LineMemory
+const memOf = (x: Entry): MemorySnapshot => ('memory' in x ? x.memory : x)
+
+/** Memory after each line (a bare snapshot is a line whose source does not
+ *  matter), and what the robot said. */
+const ev = (entries: Entry[], ...said: [string, string, string][]): Evidence => {
+  const history = entries.map(memOf)
+  return {
+    snapshot: history[history.length - 1]!,
+    history,
+    lines: entries.map((x) => ('memory' in x ? x : by('', x))),
+    thoughts: said.map(([type, repr, source]) => ({ ...th(type, repr), source })),
+  }
+}
+
+const seated = by('new[0].append("Flo")', SEATED)
+const deepened = by('safe = copy.deepcopy(plan)', DEEP)
 
 const at = (e: Evidence) => progress(s4Ideas, e)
 
@@ -86,17 +100,30 @@ describe('s4-ideas', () => {
     expect(at(ev([PLAN, SHALLOW, ADDED, SEATED], ...said, ['list', "['Ann', 'Flo']", 'plan[0]']))).toBe(4)
     said.push(['list', "['Ann', 'Flo']", '["Ann", "Flo"]'])
     expect(at(ev([PLAN, SHALLOW, ADDED], ...said))).toBe(5)
-    const h = [PLAN, SHALLOW, ADDED, SEATED]
+    const h = [PLAN, SHALLOW, ADDED, seated]
     expect(at(ev(h, ...said))).toBe(6)
-    expect(at(ev([...h, NOT_DEEP], ...said))).toBe(6)
-    expect(at(ev([...h, DEEP], ...said))).toBe(7)
+    expect(at(ev([...h, by('safe = copy.deepcopy(plan)', NOT_DEEP)], ...said))).toBe(6)
+    expect(at(ev([...h, deepened], ...said))).toBe(7)
     // Three rows built separately are not the trap.
-    expect(at(ev([...h, DEEP, REAL_ROWS], ...said))).toBe(7)
-    expect(at(ev([...h, DEEP, GRID], ...said))).toBe(8)
-    expect(at(ev([...h, DEEP, GRID], ...said, ['list', '[1, 0, 0]', 'grid[1]']))).toBe(8)
+    expect(at(ev([...h, deepened, REAL_ROWS], ...said))).toBe(7)
+    expect(at(ev([...h, deepened, GRID], ...said))).toBe(8)
+    expect(at(ev([...h, deepened, GRID], ...said, ['list', '[1, 0, 0]', 'grid[1]']))).toBe(8)
     said.push(['list', '[1, 0, 0]', '[1, 0, 0]'])
-    expect(at(ev([...h, DEEP, GRID], ...said))).toBe(9)
-    expect(at(ev([...h, DEEP, GRID, WRITTEN], ...said))).toBe(s4Ideas.steps.length)
+    expect(at(ev([...h, deepened, GRID], ...said))).toBe(9)
+    expect(at(ev([...h, deepened, GRID, WRITTEN], ...said))).toBe(s4Ideas.steps.length)
+  })
+
+  it('credits the shared table and `deepcopy` only to the lines that used them', () => {
+    const said: [string, string, string][] = [['int', '2', '2'], ['list', "['Ann', 'Flo']", '["Ann", "Flo"]']]
+    // `plan[0].append` leaves the same memory, but changed `plan` directly.
+    const direct = ev([PLAN, SHALLOW, ADDED, by('plan[0].append("Flo")', SEATED)], ...said)
+    expect(at(direct)).toBe(5)
+    expect(guidance(s4Ideas, { ...direct, last: line('plan[0].append("Flo")', null) }).text).toContain('through the copy')
+    // A deep copy typed out by hand is a new list, not a copy.
+    const hand = 'safe = [["Ann", "Flo"], ["Bo"]]'
+    const typedOut = ev([PLAN, SHALLOW, ADDED, seated, by(hand, DEEP)], ...said)
+    expect(at(typedOut)).toBe(6)
+    expect(guidance(s4Ideas, { ...typedOut, last: line(hand, null) }).text).toContain('Typed by hand')
   })
 
   it('answers the likely misses', () => {
@@ -117,7 +144,7 @@ describe('s4-ideas', () => {
     const before = ev([PLAN, SHALLOW, ADDED], ['int', '2', '2'], ['list', "['Ann']", '["Ann"]'])
     const old = { ...before, last: line('["Ann"]', th('list', "['Ann']")) }
     expect(guidance(s4Ideas, old).text).toContain('same table')
-    const noModule = { ...ev([PLAN, SHALLOW, ADDED, SEATED], ['int', '2', '2'], ['list', "['Ann', 'Flo']", '["Ann", "Flo"]']) }
+    const noModule = { ...ev([PLAN, SHALLOW, ADDED, seated], ['int', '2', '2'], ['list', "['Ann', 'Flo']", '["Ann", "Flo"]']) }
     expect(guidance(s4Ideas, { ...noModule, last: failed('safe = copy.deepcopy(plan)', 'NameError') }).text).toContain('import copy')
     expect(guidance(s4Ideas, { ...noModule, last: line('import copy', null) }).text).toContain('safe = copy.deepcopy(plan)')
   })

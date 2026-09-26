@@ -4,7 +4,7 @@
  * robot's working — and the grid steps must tell one shared row from two.
  */
 import { describe, expect, it } from 'vitest'
-import { guidance, progress, s7Ideas, script, type Evidence } from '../../../content/lessons'
+import { guidance, progress, s7Ideas, script, type Evidence, type LineMemory } from '../../../content/lessons'
 import type { Binding, MemorySnapshot, PyObject } from '../../../src/memory/model'
 import { NOTHING, failed, line, madeBy, snap, th, value } from './fixtures'
 
@@ -28,16 +28,29 @@ const mem = (ints: Record<string, number>, lists: PyObject[] = [], refs: Record<
   return snap(objects, bindings)
 }
 
-const ev = (history: MemorySnapshot[], ...said: [string, string][]): Evidence => ({
-  snapshot: history[history.length - 1]!,
-  history,
-  thoughts: said.map(([repr, source]) => ({ ...th('int', repr), source })),
-})
+/** An accepted line and the memory it left: what `everBy` judges. */
+const by = (source: string, memory: MemorySnapshot): LineMemory => ({ source, memory })
+type Entry = MemorySnapshot | LineMemory
+const memOf = (x: Entry): MemorySnapshot => ('memory' in x ? x.memory : x)
 
+/** Memory after each line (a bare snapshot is a line whose source does not
+ *  matter), and the numbers the robot said. */
+const ev = (entries: Entry[], ...said: [string, string][]): Evidence => {
+  const history = entries.map(memOf)
+  return {
+    snapshot: history[history.length - 1]!,
+    history,
+    lines: entries.map((x) => ('memory' in x ? x : by('', x))),
+    thoughts: said.map(([repr, source]) => ({ ...th('int', repr), source })),
+  }
+}
+
+const COUNTING = 'for r in range(3):\n    for c in range(2): n = n + 1'
+const SEARCHING = 'for shelf in range(3):\n    for spot in range(2): break'
 const printed = mem({ r: 1, c: 1 })
 const zero = mem({ r: 1, c: 1, n: 0 })
-const six = mem({ r: 2, c: 1, n: 6 })
-const searched = mem({ r: 2, c: 1, n: 6, shelf: 2, spot: 0 })
+const six = by(COUNTING, mem({ r: 2, c: 1, n: 6 }))
+const searched = by(SEARCHING, mem({ r: 2, c: 1, n: 6, shelf: 2, spot: 0 }))
 const lists = (grid: PyObject, ...more: PyObject[]) =>
   mem({ r: 1, c: 1, n: 6, shelf: 2, spot: 0 }, [grid, ...more], { grid: grid.id, row: 'row' })
 
@@ -89,8 +102,7 @@ describe('s7-ideas', () => {
   it('does not answer the line that finished the step before as a miss', () => {
     // A memory step moves on without a thought; the line that did it
     // names its entry in memory, so it is known to have moved the lesson.
-    const counting = 'for r in range(3):\n    for c in range(2): n = n + 1'
-    const e = madeBy(ev([printed, zero, six], ['6', '6']), line(counting, null))
+    const e = madeBy(ev([printed, zero, six], ['6', '6']), line(COUNTING, null))
     expect(progress(s7Ideas, e)).toBe(4)
     expect(guidance(s7Ideas, e).text).toBe(s7Ideas.steps[4]!.say)
     const z = madeBy(ev([printed, zero]), line('n = 0', null))
@@ -98,6 +110,17 @@ describe('s7-ideas', () => {
     // Typed again, it did no step: the prediction is still owed.
     const again = madeBy(ev([printed, zero, zero]), line('n = 0', null))
     expect(guidance(s7Ideas, again).text).toContain('Predict it first')
+  })
+
+  it('does not take the answer typed by hand for the robot’s run', () => {
+    const typedSix = by('n = 6', mem({ r: 1, c: 1, n: 6 }))
+    const e = ev([printed, zero, typedSix], ['6', '6'])
+    expect(progress(s7Ideas, e)).toBe(3)
+    expect(guidance(s7Ideas, { ...e, last: line('n = 6', null) }).text).toContain('typed the answer')
+    const handShelf = [printed, zero, six, by('shelf = 2', mem({ r: 2, c: 1, n: 6, shelf: 2 })), by('spot = 0', mem({ r: 2, c: 1, n: 6, shelf: 2, spot: 0 }))]
+    const s = ev(handShelf, ['6', '6'], ['2', '2'])
+    expect(progress(s7Ideas, s)).toBe(5)
+    expect(guidance(s7Ideas, { ...s, last: line('spot = 0', null) }).text).toContain('typed the answer')
   })
 
   it('answers the misses a nested loop invites', () => {
