@@ -98,3 +98,18 @@ test('finishing a lesson offers the way back to the map, and only then', async (
   await expect(page.locator('[data-cheer="done"] [data-testid="level-names"]')).toHaveCount(1)
   await expect(page.locator('[data-cheer="unlocked"] [data-testid="level-order"]')).toHaveCount(1)
 })
+
+test('moving y instead of x shows the same thing, and finishes', async ({ page }) => {
+  // It used to strand the player: `x = 99` could no longer pass, and the
+  // reply said `x` and `y` still shared an object they did not.
+  await open(page, 'names')
+  await say(page, '7 * 6')
+  await say(page, 'x = 10')
+  await say(page, 'x')
+  await say(page, 'y = x')
+  await say(page, 'y = 5')
+  expect(await bound(page)).toEqual({ x: '10', y: '5' })
+  const end = await beat(page)
+  expect(end.kind).toBe('outro')
+  expect(end.text).toContain('one arrow moved, and the other name still points where it did')
+})

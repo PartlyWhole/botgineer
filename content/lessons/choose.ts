@@ -162,13 +162,19 @@ function lockedMiss(l: Line): string | undefined {
 
 /** A no, in words: `"not locked"`, `"unlocked"`, `"no"`, `"It isn't"`. */
 const saysNo = (text: string) => /\b(not|no|nope|nah)\b|n't\b|\bunlock/i.test(text)
-/** A yes, in words: `"yes"`, `"Yeah it is"`, `"Yep"`, `"It is"`, `"locked"`. */
-const saysYes = (text: string) => !saysNo(text) && /\b(yes|yeah|yep|yup|it is|it's|locked)\b/i.test(text)
+/** Words that turn a yes round: `not`, `isn't`, `unlocked`. */
+const negated = (text: string) => /\bnot\b|n't\b|\bunlock/i.test(text)
+/** A yes, in words: `"yes"`, `"Yeah it is"`, `"Yep"`, `"It is"`, `"locked"`. One that
+ *  starts with a yes, or says it is locked, is a yes even with a stray `no` in it
+ *  (`"Yes, it's locked, no worries"`), as long as nothing turns it round. */
+const saysYes = (text: string) =>
+  (!negated(text) && (/^\W*(yes|yeah|yep|yup)\b/i.test(text) || /\bit(?:'s| is) locked\b/i.test(text))) ||
+  (!saysNo(text) && /\b(yes|yeah|yep|yup|it is|it's|locked)\b/i.test(text))
 
 function tellMiraMiss(l: Line): string | undefined {
   const t = l.thought
   if (t?.type === 'bool') return 'That\'s robot for yes, and it leaves Mira\'s note blank. Mira reads words.'
-  if (textOf(t) !== null && saysNo(textOf(t)!)) return 'It *is* locked, I checked. Tell her yes, in words.'
+  if (textOf(t) !== null && !saysYes(textOf(t)!) && saysNo(textOf(t)!)) return 'It *is* locked, I checked. Tell her yes, in words.'
   if (textOf(t) !== null && textOf(t)!.trim() !== '') return 'Mira asked if her door is locked. Answer her: yes, in words.'
   return wordsMiss(l, '"Yes, it\'s locked"')
 }
@@ -181,7 +187,8 @@ export const choose: Lesson = {
   steps: [
     {
       beats: [
-        { say: 'Now you choose: I\'ll ask, and you give the robot the answer.', show: SHELF },
+        { say: 'The robot knows five kinds now, but it can\'t tell which one a question needs.', show: SHELF },
+        { say: 'So you choose: I\'ll ask, and you give the robot the answer.', show: SHELF },
         { say: 'Pick the right data type each time, and the shelf is here if you need it.', show: SHELF },
       ],
       say: 'Is a fish a bird?',
@@ -258,7 +265,7 @@ export const choose: Lesson = {
       nudge: breakfastMiss,
     },
     {
-      beats: letGo([{ speaker: 'courier', say: 'Can the robot keep my phone number, 0412 555 019?' }]),
+      beats: letGo([{ speaker: 'courier', say: 'Can the robot write down my phone number, 0412 555 019?' }]),
       say: 'Type Mira\'s number.',
       ask: 'Mira\'s number.',
       show: { kind: 'phone', number: PHONE },
@@ -291,7 +298,7 @@ export const choose: Lesson = {
       nudge: lockedMiss,
     },
     {
-      beats: letGo([{ say: 'Now tell *Mira*, and she needs words.' }]),
+      beats: letGo([{ say: 'Now tell *Mira*, who reads words, not `True`.' }]),
       say: 'Tell Mira: is it locked?',
       ask: 'A note for Mira.',
       show: { kind: 'door' },
@@ -303,7 +310,7 @@ export const choose: Lesson = {
   ],
   outro: [
     { say: 'Every answer you gave had a data type, and you picked the right one.', show: { ...FINALE, cheer: true } },
-    { say: 'The question tells you the type: yes or no, how many, how much, or words.' },
+    { say: 'The question tells you the type: yes or no, how many, measured, one letter, or words.' },
     { say: 'Next, the robot works things out for itself.' },
   ],
   takeaway: 'Every value has a data type, and the question you are answering decides which one.',

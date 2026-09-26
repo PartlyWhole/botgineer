@@ -28,6 +28,29 @@ const typeOf = (e: Evidence, name: string): string | null => {
   return id === null ? null : (e.snapshot.objects[id]?.type ?? null)
 }
 
+/** `name` points at a list holding `10` then `20`, read from its slots
+ *  (a list's own repr is only its shape, `2 items`). */
+const tenTwenty = (e: Evidence, name: string): boolean => {
+  const id = targetOf(e.snapshot, name)
+  const o = id === null ? undefined : e.snapshot.objects[id]
+  if (o?.type !== 'list' || !o.elements) return false
+  return o.elements.map((el) => e.snapshot.objects[el.target]?.repr).join(', ') === '10, 20'
+}
+
+/** The line asks `id` of both names: `id(a) == id(b)`, either way round. */
+const ids = (source: string | undefined, p: string, q: string): boolean =>
+  [p, q].every((n) => new RegExp(`id\\s*\\(\\s*${n}\\s*\\)`).test(source ?? ''))
+
+/** The misses at an `id` question: a typed answer, `==` on the lists
+ *  themselves, or one name asked about twice. */
+function idMiss(l: Line, p: string, q: string): string | undefined {
+  const ask = `\`id(${p}) == id(${q})\``
+  if (/^\s*(True|False)\s*$/.test(l.source)) return `That's you saying \`${l.source.trim()}\`. Let the robot check: ${ask}.`
+  if (/==/.test(l.source) && !/id\s*\(/.test(l.source)) return `\`==\` asks if they look the same. \`id\` asks if they are one object: ${ask}.`
+  if (/id\s*\(/.test(l.source) && l.thought?.type === 'bool') return `Ask about both names, one on each side: ${ask}.`
+  return undefined
+}
+
 /** The line was a bare expression, worked out and let go. */
 const letGo = (l: Line) => l.ok && l.thought !== null && !/=/.test(l.source.replace(/==/g, ''))
 
@@ -37,7 +60,8 @@ export const s1Ideas: Lesson = {
   steps: [
     {
       beats: [
-        { say: 'From here on, other people write the programs, and the robot runs them.' },
+        { say: 'Instructions in a row, run one after another, are called a program.' },
+        { say: 'Soon you\'ll read programs other people wrote, and the robot will run them.' },
         { say: 'A good engineer knows what the robot will do before it does it.' },
         { say: 'So we read a program one line at a time, and ask what each line does to memory.' },
         { say: 'Start with a name to work on.', focus: 'console' },
@@ -78,7 +102,7 @@ export const s1Ideas: Lesson = {
       say: 'Run `total = total + 1` again.',
       tag: 'you',
       done: (e) => ever(e, (s) => points(s, 'total', '7')),
-      praise: 'Seven, as you said. That is reading a line.',
+      praise: '`total` points at `7` now, as you predicted. That is reading a line.',
     },
     {
       beats: [
@@ -88,7 +112,12 @@ export const s1Ideas: Lesson = {
       say: 'Type `shown = print(total)`, then look at what `shown` points at.',
       tag: 'you',
       done: (e) => points(e.snapshot, 'shown', 'None'),
-      praise: 'The `7` was printed, but `shown` points at `None`. Showing is not producing.',
+      praise: '`shown` points at `None`: `print` shows things, but hands back nothing. Showing is not producing.',
+      nudge: (l) => {
+        if (/^\s*print\s*\(/.test(l.source)) return 'That showed it, but kept nothing. Keep what `print` hands back: `shown = print(total)`.'
+        if (/^\s*shown\s*=(?!=)/.test(l.source) && l.ok) return 'That points `shown` at something else. Point it at what `print` hands back: `shown = print(total)`.'
+        return undefined
+      },
     },
     {
       beats: [
@@ -99,6 +128,7 @@ export const s1Ideas: Lesson = {
       tag: 'you',
       done: (e) => typeOf(e, 'a') === 'list',
       praise: 'One list, with its own card, and `a` pointing at it.',
+      nudge: (l) => (letGo(l) && /^\s*\[/.test(l.source) ? 'That list was built and let go. Give it a name: `a = [10, 20]`.' : undefined),
     },
     {
       beats: [{ say: '`b = a` copies the arrow, not the list.' }],
@@ -115,24 +145,28 @@ export const s1Ideas: Lesson = {
       ],
       say: 'Ask the robot: `id(a) == id(b)`.',
       tag: 'robot',
-      done: (e) => heard(e, (t) => t.type === 'bool' && t.repr === 'True' && /id\s*\(/.test(t.source ?? '')),
+      done: (e) => heard(e, (t) => t.type === 'bool' && t.repr === 'True' && ids(t.source, 'a', 'b')),
       praise: '`True`: `a` and `b` share one list.',
+      nudge: (l) => idMiss(l, 'a', 'b'),
     },
     {
       beats: [{ say: 'A second `[10, 20]`, typed out again, builds a new list.' }],
       say: 'Type `c = [10, 20]`, then ask: `id(c) == id(a)`.',
       tag: 'robot',
       done: (e) =>
-        typeOf(e, 'c') === 'list' &&
-        heard(e, (t) => t.type === 'bool' && t.repr === 'False' && /id\s*\(\s*[ca]\s*\)/.test(t.source ?? '')),
+        tenTwenty(e, 'c') &&
+        heard(e, (t) => t.type === 'bool' && t.repr === 'False' && ids(t.source, 'c', 'a')),
       praise: '`False`: it looks the same, but `c` has a list of its own.',
-      nudge: (l) => (/^\s*c\s*=/.test(l.source) ? 'Now ask the robot: `id(c) == id(a)`.' : undefined),
+      nudge: (l) => {
+        if (/^\s*c\s*=(?!=)/.test(l.source) && l.ok) return 'Now ask the robot: `id(c) == id(a)`.'
+        return idMiss(l, 'c', 'a')
+      },
     },
   ],
   outro: [
     { say: 'Every line did one thing to memory: made an object, moved an arrow, or showed something.' },
     { say: 'Read each line that way, and you know what the robot will do.' },
-    { say: 'The exercises are next: you read first, then the robot runs it.' },
+    { say: 'Next, you\'ll write a program to wake the robot. Then the exercises: you read first, then it runs.' },
   ],
   takeaway: 'Read one line at a time: work out the right side, then see which arrow moves.',
 }

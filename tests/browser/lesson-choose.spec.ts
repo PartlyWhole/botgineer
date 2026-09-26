@@ -21,7 +21,7 @@ test('twelve questions, each miss drawn and named, each praise giving the reason
   await open(page, 'choose')
   // Mira is here from the start, and the shelf is the reference.
   await expect(page.getByTestId('actor-courier')).toHaveAttribute('data-offstage', 'no')
-  expect((await beat(page)).text).toMatch(/Now you choose/)
+  expect((await beat(page)).text).toMatch(/which one a question needs/)
   await expect(prop(page)).toHaveAttribute('data-prop', 'shelf')
 
   // 1. Is a fish a bird? A word is a note stuck on the fish.

@@ -95,10 +95,13 @@ test('five data types, each shown, named and used, with the misses drawn', async
   await page.evaluate(() => window.botgineer.next())
   expect(await beat(page)).toMatchObject({ speaker: 'courier' })
   await expect(page.getByTestId('guide')).toHaveAttribute('data-speaker', 'courier')
-  await readTo(page, '`"7"` is a thing to read')
-  await expect(prop(page)).toHaveAttribute('aria-label', /Side by side: 7, int; and "7", str · length 1/)
+  // The str is named before any card is tagged `str · length 1`.
   await readTo(page, 'no char type')
   await expect(page.getByTestId('thought')).toHaveText("'A'")
+  await readTo(page, 'either kind of quote')
+  await expect(page.getByTestId('thought')).toHaveText("'A'")
+  await readTo(page, '`"7"` is a thing to read')
+  await expect(prop(page)).toHaveAttribute('aria-label', /Side by side: 7, int; and "7", str · length 1/)
 
   await say(page, 'M')
   await expect(page.getByTestId('guide')).toContainText('Quotes make it a character')
@@ -130,7 +133,7 @@ test('five data types, each shown, named and used, with the misses drawn', async
     expect(shelf).toContain(slot)
   }
   await page.evaluate(() => window.botgineer.next())
-  await expect(page.getByTestId('takeaway')).toContainText('bool, int, float, char and str')
+  await expect(page.getByTestId('takeaway')).toContainText('bool, int, float, char and str, and Python keeps a char')
   // Memory stayed empty the whole way: nothing had a name.
   await expect(page.getByTestId('memory')).toContainText('Memory is empty')
 })

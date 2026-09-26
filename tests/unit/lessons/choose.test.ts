@@ -128,7 +128,7 @@ describe('choose', () => {
   })
 
   it('reads a yes for Mira in the words people use', () => {
-    for (const yes of ['Yes', 'Yeah it is', 'Yep', 'It is', "It's locked", 'locked']) {
+    for (const yes of ['Yes', 'Yeah it is', 'Yep', 'It is', "It's locked", 'locked', "Yes, it's locked, no worries", "It's locked, no problem"]) {
       const right = line(JSON.stringify(yes), th('str', `'${yes.replace(/'/g, "\\'")}'`))
       expect(progress(choose, typed(...upTo(11), right))).toBe(12)
     }
