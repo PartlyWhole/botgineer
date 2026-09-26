@@ -17,8 +17,12 @@ import {
   chipText,
   codeLine,
   kindOf,
+  looksRight,
   numberOf,
+  refused,
   rightNumber,
+  rightText,
+  tilesMake,
   sameProp,
   shelfRoom,
   shelved,
@@ -302,6 +306,116 @@ describe('the right number, not worked out', () => {
     const right = drawn(view(prop, th(type, repr), 'right'))
     expect(right).not.toContain('data-worked')
     expect(right).not.toContain('unworked')
+  })
+})
+
+describe('a sum of tiles', () => {
+  it('knows what a sum makes, and nothing else', () => {
+    expect(tilesMake(['"bot"', '+', '"gineer"'])).toEqual({ text: 'botgineer' })
+    expect(tilesMake(['"ha"', '*', '5'])).toEqual({ text: 'hahahahaha' })
+    expect(tilesMake(['3', '+', '4'])).toEqual({ number: 7 })
+    expect(tilesMake(['7', '*', '6'])).toEqual({ number: 42 })
+    // Not a sum: a lone word asks about a letter, a comparison is a
+    // beat, and mixed operators would need an order guessed.
+    expect(tilesMake(['"gear"'])).toBeNull()
+    expect(tilesMake(['2', '+', '2', '==', '4'])).toBeNull()
+    expect(tilesMake(['2', '+', '3', '*', '4'])).toBeNull()
+    expect(tilesMake(['"a"', '+', '3'])).toBeNull()
+  })
+
+  it('refuses the glued word typed whole, as not worked out', () => {
+    const glue: Prop = { kind: 'tiles', parts: ['"bot"', '+', '"gineer"'] }
+    expect(rightText(glue)).toBe('botgineer')
+    expect(rightNumber({ kind: 'tiles', parts: ['3', '+', '4'] })).toBe(7)
+    expect(unworked(view(glue, th('str', "'botgineer'"), 'miss'))).toBe(true)
+    expect(unworked(view(glue, th('str', "'bot gineer'"), 'miss'))).toBe(false)
+    const html = drawn(view(glue, th('str', "'botgineer'"), 'miss'))
+    expect(html).toContain('data-worked="no"')
+    expect(html).not.toContain('side by side')
+    expect(html).toContain('= ?')
+    expect(drawn(view(glue, th('str', "'botgineer'"), 'right'))).toContain('side by side')
+  })
+})
+
+describe('a miss that would look right', () => {
+  /** A miss each picture would once have drawn as its yes, and a miss it
+   *  already drew as a no. */
+  const cases: [Prop, { type: string; repr: string }, { type: string; repr: string }][] = [
+    [{ kind: 'lamp' }, th('bool', 'True'), th('str', "'True'")],
+    [{ kind: 'fish' }, th('bool', 'False'), th('bool', 'True')],
+    [{ kind: 'basket', apples: 3 }, th('float', '3.0'), th('int', '4')],
+    [{ kind: 'lift', lowest: -2, highest: 3 }, th('float', '-1.0'), th('float', '1.5')],
+    [{ kind: 'glass', level: 0.5 }, th('float', '0.5'), th('float', '0.8')],
+    [{ kind: 'height' }, th('int', '2'), th('float', '3.4')],
+    [{ kind: 'carton', slots: 6 }, th('float', '6.0'), th('int', '4')],
+    [{ kind: 'plate' }, th('bool', 'True'), th('str', "'yes'")],
+    [{ kind: 'match' }, th('float', '1.5'), th('float', '1.3')],
+    [{ kind: 'card' }, th('str', "'Mira'"), th('int', '7')],
+    [{ kind: 'door' }, th('str', "'not locked'"), th('bool', 'True')],
+    [{ kind: 'phone', number: '0412555019' }, th('str', "'0412 555 019'"), th('int', '412555019')],
+    [{ kind: 'tiles', parts: ['"gear"'] }, th('str', "'G'"), th('str', "'gear'")],
+    [{ kind: 'crates', crates: 7, each: 6 }, th('int', '43'), th('int', '13')],
+    [{ kind: 'share', litres: 9, robots: 2 }, th('int', '5'), th('int', '4')],
+    [{ kind: 'bolts', have: 20, use: 7 }, th('float', '13.5'), th('int', '27')],
+    [{ kind: 'letter', char: 'M' }, th('int', '109'), th('str', "'M'")],
+  ]
+
+  it.each(cases)('%j: draws %j refused, and an honest miss as before', (prop, looks, honest) => {
+    expect(looksRight(view(prop, looks))).toBe(true)
+    expect(refused(view(prop, looks, 'miss'))).toBe(true)
+    // Right, or not yet tried, it is drawn as ever.
+    expect(refused(view(prop, looks, 'right'))).toBe(false)
+    expect(refused(view(prop, looks, null))).toBe(false)
+    expect(refused(view(prop, honest, 'miss'))).toBe(false)
+
+    const miss = drawn(view(prop, looks, 'miss'))
+    expect(miss).toContain('data-refused="yes"')
+    expect(miss).toMatch(/class="[^"]*\brefused\b/)
+    expect(sentence(view(prop, looks, 'miss'))).toContain('is not the answer yet')
+    const right = drawn(view(prop, looks, 'right'))
+    expect(right).not.toContain('refused')
+    expect(drawn(view(prop, honest, 'miss'))).not.toContain('refused')
+  })
+
+  it('never both waits and refuses', () => {
+    // The right number typed by hand is not worked out: it waits.
+    const crates: Prop = { kind: 'crates', crates: 7, each: 6 }
+    expect(looksRight(view(crates, th('int', '42')))).toBe(true)
+    expect(unworked(view(crates, th('int', '42'), 'miss'))).toBe(true)
+    expect(refused(view(crates, th('int', '42'), 'miss'))).toBe(false)
+  })
+
+  it('draws what the picture refuses in its own idiom', () => {
+    const lift = drawn(view({ kind: 'lift', lowest: -2, highest: 3 }, th('float', '-1.0'), 'miss'))
+    expect(lift).toMatch(/class="car\s+refused/)
+    expect(lift).not.toContain('floor-num here')
+    expect(lift).toMatch(/refused-floor[^>]*>-1\.0</)
+    expect(drawn(view({ kind: 'lift', lowest: -2, highest: 3 }, th('int', '-1'), 'right'))).toContain('floor-num here')
+
+    const lamp = drawn(view({ kind: 'lamp' }, th('bool', 'True'), 'miss'))
+    expect(lamp).toMatch(/class="lamp on refused/)
+
+    // Another character's code never turns the tile: its back is M's.
+    const letter = drawn(view({ kind: 'letter', char: 'M' }, th('int', '109'), 'miss'))
+    expect(letter).not.toMatch(/class="letter turned/)
+    expect(letter).toContain('≠  109')
+
+    // More each than the jug holds: it says it only had nine.
+    const share = drawn(view({ kind: 'share', litres: 9, robots: 2 }, th('int', '5'), 'miss'))
+    expect(share).toContain('only 9 L')
+    expect(share).not.toContain('L left')
+
+    // The right digits, refused, ring nobody.
+    expect(drawn(view({ kind: 'phone', number: '0412555019' }, th('str', "'0412555019'"), 'miss'))).not.toContain('calling')
+    expect(drawn(view({ kind: 'phone', number: '0412555019' }, th('str', "'0412555019'"), 'right'))).toContain('calling Mira')
+  })
+
+  it('leaves the pictures that cannot look right on a miss alone', () => {
+    // The balance answers only once right; the shelf sorts by type.
+    expect(looksRight(view({ kind: 'balance', left: 3, right: 5, op: '>' }, th('bool', 'False')))).toBe(false)
+    expect(looksRight(view({ kind: 'shelf', filled: [] }, th('int', '3')))).toBe(false)
+    expect(looksRight(view({ kind: 'expr', text: '2 + 3 * 4', first: '3 * 4', then: ['2 + 12', '14'] }, th('int', '20')))).toBe(false)
+    expect(looksRight(view({ kind: 'lamps', on: 2 }, th('int', '2')))).toBe(false)
   })
 })
 
