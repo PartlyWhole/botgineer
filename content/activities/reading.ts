@@ -69,7 +69,7 @@ export function stageLevelIds(n: number): string[] {
   const sets = setsOf(stage).map((_, k) => `s${n}-set-${k + 1}`)
   if (n === 1) return ['names', 'order', 'practice-remembering', 's1-ideas', 'wake', ...sets, 's1-practice', 's1-checkpoint']
   if (stage.capstone) return [`s${n}-ideas`, ...sets, `s${n}-capstone`]
-  return [`s${n}-ideas`, ...sets, `s${n}-practice`, `s${n}-checkpoint`]
+  return [`s${n}-ideas`, ...(n === 5 ? ['decide'] : []), ...sets, `s${n}-practice`, `s${n}-checkpoint`]
 }
 
 function stageActivities(n: number): Activity[] {
