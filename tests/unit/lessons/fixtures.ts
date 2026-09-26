@@ -81,4 +81,11 @@ export const typed = (...lines: Line[]): Evidence => ({
  * back out (`beforeLast`) and see that a binding moved it on, so the next
  * step's reply is never asked about the line that did the step before.
  */
-export const madeBy = (e: Evidence, l: Line): Evidence => ({ ...e, last: { ...l, memory: e.history[e.history.length - 1] } })
+export const madeBy = (e: Evidence, l: Line): Evidence => {
+  // Each accepted line leaves its own memory object, as the workbench's
+  // do; a fixture that reuses one object for two lines would have the
+  // line's memory found at the earlier of them.
+  const memory = { ...e.history[e.history.length - 1]! }
+  const history = [...e.history.slice(0, -1), memory]
+  return { ...e, snapshot: memory, history, last: { ...l, memory } }
+}
