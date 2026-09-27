@@ -194,7 +194,7 @@ export const operations: Lesson = {
       tag: 'robot',
       show: { kind: 'share', litres: 9, robots: 2 },
       done: (e) => heard(e, (t) => t.type === 'float' && t.repr === '4.5' && SLASH.test(src(t)) && just(t, 9, 2)),
-      praise: '`4.5`, a `float`: a share can land between whole numbers, so `/` measures.',
+      praise: '`4.5`, a `float`: a share can land between whole numbers.',
       nudge: (l) => {
         const t = l.thought
         if (/\/\//.test(l.source) && t?.type === 'int') return '`//` is a different sign: it shares whole litres only, and one is left in the jug. Use `/`.'

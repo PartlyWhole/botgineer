@@ -1567,7 +1567,10 @@ code.inline {
     .scene-pane:has(.stage[data-props]) {
       /* 740px on a 390px phone, and more for a wider one: the picture
          and the cast grow with the width, the words do not shrink. */
-      height: max(740px, calc(85vw + 408px));
+      /* 92vw: the picture with its answer band (200 × 162) is 84% of
+         the stage wide, so 68vw tall; with the rest, Next still fits on
+         an 844px phone under the header. */
+      height: max(764px, calc(92vw + 404px));
     }
   }
 

@@ -175,7 +175,7 @@
   border-radius: 999px;
   background: var(--surface);
   font-family: var(--mono);
-  font-size: clamp(10px, 6.5cqw, 14px);
+  font-size: clamp(12px, 6.5cqw, 14px);
   font-weight: 700;
   line-height: 1.25;
   white-space: nowrap;
@@ -191,7 +191,8 @@
 
 .answer-tag .answer-kind {
   font-family: ui-sans-serif, system-ui, sans-serif;
-  font-size: 0.8em;
+  /* Never under 10px: at the 12px floor, 0.84em. */
+  font-size: max(10px, 0.84em);
   font-weight: 800;
   letter-spacing: 0.02em;
 }
