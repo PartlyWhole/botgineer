@@ -228,4 +228,114 @@ test.describe('at desktop width', () => {
     expect(await smallestType(page, '[data-testid="prop"] .shelf .chip text')).toBeGreaterThanOrEqual(9)
     expect(await smallestType(page, '[data-testid="prop"] .shelf .slot-label')).toBeGreaterThanOrEqual(9.5)
   })
+
+  // The chips' type was sized from a per-character estimate that ran
+  // short of the stage's face: `"hello"` overran its chip's outline by a
+  // pixel, `"Mira"` by 0.6, and the char slot's tag and the `later` label
+  // were set under 9px. The shelf now measures what it drew.
+  for (const lesson of [
+    { id: 'types', answers: ['True', '-1', '0.5', '"M"', '"hello"'], min: 9 },
+    { id: 'choose', answers: ['False', '6', '0.25', '"Mira"', '-1', '"M"', '1.7', 'True', '"0412 555 019"', '1.5', 'True', '"Yeah it is"'], min: 0 },
+  ])
+    test(`${lesson.id}: every shelf chip's text sits inside its chip, with room`, async ({ page }) => {
+      test.setTimeout(180_000)
+      await open(page, lesson.id)
+      const queue = [...lesson.answers]
+      const problems = new Set<string>()
+      const seen = { chips: new Set<string>(), tag: false, later: false }
+      for (let i = 0; i < 160; i++) {
+        if (await page.locator('[data-testid="prop"] .shelf').count()) {
+          // Settled: the chips fly in scaled, and a size measured mid-
+          // flight is not the size a reader gets.
+          await expect
+            .poll(() => page.evaluate(() => document.querySelector('[data-testid="prop"]')?.getAnimations({ subtree: true }).every((a) => a.playState !== 'running') ?? true), { timeout: 5_000 })
+            .toBe(true)
+            .catch(() => undefined)
+          const m = await page.evaluate((min) => {
+            const out: string[] = []
+            const chips: string[] = []
+            for (const chip of document.querySelectorAll('[data-testid="prop"] .shelf .chip')) {
+              const r = chip.querySelector('rect')!.getBoundingClientRect()
+              for (const t of chip.querySelectorAll('text')) {
+                chips.push(t.textContent ?? '')
+                const b = t.getBoundingClientRect()
+                // Room across; down, only inside: a text's box is the
+                // face's whole ascent and descent, not its ink.
+                const side = Math.min(b.left - r.left, r.right - b.right)
+                const end = Math.min(b.top - r.top, r.bottom - b.bottom)
+                if (side < 1) out.push(`${t.textContent} is ${side.toFixed(1)}px from its chip's side`)
+                if (end < -0.5) out.push(`${t.textContent} crosses its chip's top or bottom by ${(-end).toFixed(1)}px`)
+              }
+            }
+            const px = (t: SVGTextElement) => parseFloat(getComputedStyle(t).fontSize) * t.ownerSVGElement!.getScreenCTM()!.a
+            const small = (sel: string) =>
+              [...document.querySelectorAll<SVGTextElement>(sel)].filter((t) => px(t) < min - 0.05).map((t) => `${t.textContent} at ${px(t).toFixed(1)}px`)
+            out.push(...small('[data-testid="prop"] .shelf .chip text'), ...small('[data-testid="prop"] .shelf .char-tag text'), ...small('[data-testid="prop"] .shelf .later-tag text'))
+            return {
+              out,
+              chips,
+              tag: document.querySelector('[data-testid="prop"] .shelf .char-tag') != null,
+              later: document.querySelector('[data-testid="prop"] .shelf .later-tag') != null,
+            }
+          }, lesson.min)
+          m.out.forEach((o) => problems.add(o))
+          m.chips.forEach((c) => seen.chips.add(c))
+          seen.tag ||= m.tag
+          seen.later ||= m.later
+        }
+        const b = await page.evaluate(() => window.botgineer.beat())
+        if (b.listening) await page.evaluate(() => window.botgineer.next())
+        else if (queue.length) await say(page, queue.shift()!)
+        else break
+      }
+      expect([...problems]).toEqual([])
+      expect([...seen.chips]).toContain(lesson.id === 'types' ? '"hello"' : '"Mira"')
+      if (lesson.id === 'types') expect(seen.tag && seen.later, 'saw the char tag and the later label').toBe(true)
+    })
+})
+
+// The answer tag hung 40px under the picture's slot, on whatever the
+// stage put there: at a narrow stage, beside Next on the order outro.
+// It lives in the slot's own box now, at every size.
+for (const vp of [
+  { name: 'desktop', width: 1400, height: 860 },
+  { name: 'stacked', width: 900, height: 1000 },
+  { name: 'phone', width: 390, height: 844 },
+]) {
+  test(`at ${vp.name} width, the scale's answer tag stays inside the picture`, async ({ page }) => {
+    test.setTimeout(120_000)
+    await page.setViewportSize({ width: vp.width, height: vp.height })
+    await open(page, 'order')
+    for (const line of ['customer = "Mira"', 'parcels = 7', 'parcels * 2']) await say(page, line)
+    await expect(page.getByTestId('answer-tag')).toBeVisible()
+    await page.evaluate(() => window.botgineer.skip())
+    await page.waitForTimeout(600)
+    const out = await page.evaluate(() => {
+      const slot = document.querySelector('[data-testid="props"]')!.getBoundingClientRect()
+      return [...document.querySelectorAll('[data-testid="answer-tag"]')].map((tag) => {
+        const b = tag.getBoundingClientRect()
+        return Math.min(b.left - slot.left, slot.right - b.right, b.top - slot.top, slot.bottom - b.bottom)
+      })
+    })
+    expect(out.length).toBeGreaterThan(0)
+    for (const inset of out) expect(inset).toBeGreaterThanOrEqual(-0.5)
+  })
+}
+
+// A phone's stage gives the picture a slot about 300px across. Every
+// picture scales with its slot, so at that size its smallest type must
+// read at 11px or more.
+test('on a phone, a 300px slot draws the shelf and its chips at 11px or more', async ({ page }) => {
+  test.setTimeout(120_000)
+  await page.setViewportSize({ width: 390, height: 844 })
+  await open(page, 'types')
+  await page.addStyleTag({ content: '.stage .props-slot { width: 300px !important }' })
+  const answers = ['True', '-1', '0.5', '"M"', '"hello"']
+  for (let i = 0; i < 80; i++) {
+    if ((await page.locator('[data-testid="prop"] .shelf .char-tag').count()) > 0) break
+    if ((await page.evaluate(() => window.botgineer.beat())).listening) await page.evaluate(() => window.botgineer.next())
+    else await say(page, answers.shift()!)
+  }
+  await page.waitForTimeout(1500)
+  expect(await smallestType(page, '[data-testid="prop"] .shelf text')).toBeGreaterThanOrEqual(11)
 })

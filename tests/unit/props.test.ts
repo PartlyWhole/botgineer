@@ -38,6 +38,7 @@ import {
   type PropView,
 } from '../../src/scene/props'
 import { PropLayer, describe as sentence } from '../../src/ui/Props'
+import { LESSONS } from '../../content/lessons'
 
 const th = (type: string, repr: string) => ({ type, repr })
 
@@ -532,6 +533,23 @@ describe('the code card', () => {
     expect(short).toBeGreaterThan(12)
     expect(tall).toBeLessThan(short)
     expect(codeSize(['x' .repeat(60)]) * 0.6 * 60).toBeLessThanOrEqual(200 - 18 + 1e-9)
+  })
+
+  it("reads at 11px on a phone's 300px slot, for every card a lesson shows", () => {
+    // Every picture scales with its slot, so a slot 300px across draws a
+    // unit at 1.5px: 11px of type is 7.33 units. Walk the lessons for
+    // every code card they stand on the stage.
+    const cards = new Set<string>()
+    const walk = (x: unknown, seen = new Set<unknown>()) => {
+      if (!x || typeof x !== 'object' || seen.has(x)) return
+      seen.add(x)
+      const o = x as Record<string, unknown>
+      if (o['kind'] === 'code' && typeof o['text'] === 'string') cards.add(o['text'])
+      for (const v of Object.values(o)) walk(v, seen)
+    }
+    walk(LESSONS)
+    expect(cards.size).toBeGreaterThan(5)
+    for (const text of cards) expect(codeSize(codeLines(text)) * (300 / 200), text).toBeGreaterThanOrEqual(11)
   })
 
   it('draws every line, marks one, and says it for a screen reader', () => {
