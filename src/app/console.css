@@ -636,6 +636,49 @@
   }
 }
 
+/* ----------------------- the picture on a narrow stage -----------------------
+
+   On the floor between the cast, a phone's picture was a thumbnail: 32%
+   of a 364px stage came out 116x76px, and the shelf's labels a few pixels
+   tall — a small band at the foot of a stage that was empty above the
+   cast. So a narrow stage stands the picture at the top instead, as wide
+   as the stage allows (84%: 306px on a 390px phone), under whatever hangs
+   along the top (`--props-top`, measured by the scene), and the speech
+   takes the room between the picture and the cast. Top to bottom: the
+   bar, the picture (and its question), the thought and the speech, the
+   cast on the floor, Next. Nothing shares a place, so nothing overlaps.
+
+   The rail's top moves down to the picture's foot, and its column still
+   stands on the speech band (the auto margin on its first child), so the
+   speech does not move when a picture comes or goes. The stage is made
+   tall enough for all of it on a phone (styles.css, `.scene-pane`).
+   `cqw` is the stage's width: it is the container. */
+@container stage (max-width: 480px) {
+  .scene-panel:not(.compact) .stage > .props-slot {
+    left: 50%;
+    width: 84%;
+    top: var(--props-top, 30px);
+    bottom: auto;
+  }
+  .scene-panel:not(.compact) .stage:has(> .props-slot) > .bubble-rail {
+    top: calc(var(--props-top, 30px) + 84cqw * 130 / 200);
+  }
+  /* The question hangs under the picture (`.prop-ask`, 8px under it and
+     one line tall; it may wrap to two). */
+  .scene-panel:not(.compact) .stage:has(> .props-slot > .prop-ask) > .bubble-rail {
+    top: calc(var(--props-top, 30px) + 84cqw * 130 / 200 + 44px);
+  }
+  /* The takeaway's place at the top is the picture's now: it goes just
+     under the floor line, full width, over Continue — the strip Next
+     stood in. Hung from the floor rather than stacked on Continue, so a
+     long one grows down towards the button and never up over the cast's
+     feet (`--floor-at`, from the scene). */
+  .scene-panel:not(.compact) .stage:has(> .props-slot) > .takeaway {
+    top: calc(var(--floor-at, 76%) + 6px);
+    bottom: auto;
+  }
+}
+
 /* ------------------------------ the cast ------------------------------
 
    What a beat has the cast do (`CastAction`). Cosmetic, and derived from

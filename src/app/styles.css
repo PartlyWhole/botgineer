@@ -313,6 +313,17 @@ button.route.current {
     radial-gradient(120% 80% at 50% 8%, #ffffff 0%, #eef3ff 55%, #e4ebfb 100%);
 }
 
+/* Where the lesson's picture stands: on the floor between the cast, at
+   the scene's own `props` (handed down as custom properties by the
+   scene). How it looks is `props.css`'s; where it goes is the stage's.
+   A narrow stage stands it elsewhere (console.css, "the picture on a
+   narrow stage"). */
+.stage > .props-slot {
+  left: var(--prop-x);
+  width: var(--prop-w);
+  bottom: var(--prop-b);
+}
+
 .actor {
   position: absolute;
   transform: translate(-50%, -50%);
@@ -741,6 +752,67 @@ kbd {
 
 .graph .world {
   transform-origin: 0 0;
+}
+
+/* More memory past an edge (MemoryGraph, `data-more-*`): the edge fades
+   into the field, and a small button there scrolls the rest into view.
+   Over the cards, so the fade is over what it cuts; the strip takes no
+   presses of its own, so a card under it is still pressed through it,
+   and only the button does. Hidden (not only transparent) when there is
+   nothing past the edge, so it is never a tab stop to nowhere. */
+.graph-more {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 3;
+  width: 56px;
+  display: flex;
+  align-items: center;
+  pointer-events: none;
+  visibility: hidden;
+  opacity: 0;
+  transition:
+    opacity 180ms ease,
+    visibility 0s 180ms;
+}
+
+.graph-more.right {
+  right: 0;
+  justify-content: flex-end;
+  background: linear-gradient(to right, rgb(243 246 253 / 0), #f3f6fd 85%);
+}
+
+.graph-more.left {
+  left: 0;
+  width: 40px;
+  justify-content: flex-start;
+  background: linear-gradient(to left, rgb(248 250 255 / 0), #f8faff 85%);
+}
+
+.graph[data-more-right='yes'] .graph-more.right,
+.graph[data-more-left='yes'] .graph-more.left {
+  visibility: visible;
+  opacity: 1;
+  transition: opacity 180ms ease;
+}
+
+.graph-more button {
+  pointer-events: auto;
+  margin: 0 6px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--brand-line);
+  background: var(--surface);
+  box-shadow: 0 2px 0 var(--brand-line);
+  color: var(--brand-deep);
+  font: 800 12px/1.2 'Nunito', ui-rounded, system-ui, sans-serif;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.graph-more button:focus-visible {
+  outline: 2px solid var(--brand-deep);
+  outline-offset: 2px;
 }
 
 .edge path {
@@ -1482,6 +1554,21 @@ code.inline {
      answer. So the height has a floor of its own, and grows from there. */
   .scene-pane {
     height: clamp(480px, calc(30vw + 360px), 640px);
+  }
+
+  /* A phone's stage stands the lesson's picture over the speech rather
+     than on the floor between the cast (console.css, "the picture on a
+     narrow stage"), so a scene with a picture slot needs the height for
+     the picture as well: the bar, the picture, a thought over three
+     lines of speech, the cast and Next, one above the other. Only a
+     scene that has a slot, and whether or not a picture is up, so the
+     stage does not change height between beats. */
+  @media (max-width: 506px) {
+    .scene-pane:has(.stage[data-props]) {
+      /* 740px on a 390px phone, and more for a wider one: the picture
+         and the cast grow with the width, the words do not shrink. */
+      height: max(740px, calc(85vw + 408px));
+    }
   }
 
   .robot-pane {
