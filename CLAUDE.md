@@ -340,9 +340,12 @@ npm run collection    # regenerate content/collection/generated/ from the markdo
    deploy rather than in front of it, so a regression still shows up. The
    page-level collection audit is opt-in (`npm run test:audit`, which sets
    `AUDIT`) because it is slow, and Checks runs it on pull requests only.
-19. **Two things are stored, and only two.** Finished level ids
-   (`progress.ts`) and mastery (`mastery.ts`), both in this
-   browser's localStorage through `storage.ts`. Mastery is keyed: a
+19. **Two things are stored about the player, and only two.** Finished
+   level ids (`progress.ts`) and mastery (`mastery.ts`), both in this
+   browser's localStorage through `storage.ts`. (The panels' gutter sizes
+   are remembered too, by `ui/Split`'s `useRemembered` under
+   `botgineer.wb.*` and `botgineer.rp.*` — a convenience about the
+   window, never read by anything that decides progress.) Mastery is keyed: a
    concept by its bare id, `ex:<item>`, `mis:<misconception>`,
    `lens:<lens>`, and `err:<kind>` (misses only). The progress set can also hold
    `*unlock-all`, the player's choice to open every level

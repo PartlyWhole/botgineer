@@ -513,7 +513,30 @@ export function Workbench({ activity }: { activity: Activity }) {
     () => (activity.practice ? skillsOfUnit(activity.practice.unit).map((s) => s.id) : null),
     [activity],
   )
-  const practice = usePractice(pool, restart, boot.state === 'ready')
+  // An answered exercise's \`then\`, typed into the console like any line;
+  // practice ignores them as answers, since the next exercise has not
+  // started when they run.
+  //
+  // Practice asks for them from inside the answer's own run, so each line
+  // waits for the robot to be free and then goes through the newest \`say\`
+  // (the one of that moment still thinks the robot is busy, and the engine
+  // runs one program at a time: invariant 5).
+  const sayRef = useRef(say)
+  sayRef.current = say
+  const busyRef = useRef(busy)
+  busyRef.current = busy
+  const runLines = useCallback(async (lines: string[]) => {
+    const free = async () => {
+      for (let i = 0; i < 400 && busyRef.current; i++) await new Promise((r) => setTimeout(r, 25))
+      // One more frame, so the render after the run has updated the refs.
+      await new Promise((r) => setTimeout(r, 25))
+    }
+    for (const l of lines) {
+      await free()
+      await sayRef.current(l)
+    }
+  }, [])
+  const practice = usePractice(pool, restart, boot.state === 'ready', runLines)
   const attemptRef = useRef<((a: Attempt) => void) | null>(null)
   attemptRef.current = practice?.onAttempt ?? null
 

@@ -767,7 +767,11 @@ kbd {
   z-index: 3;
   width: 56px;
   display: flex;
-  align-items: center;
+  /* The button in the bottom corner, not the middle: centred, it sat on
+     the last card in the row it was pointing past. */
+  align-items: flex-end;
+  padding-bottom: 10px;
+  box-sizing: border-box;
   pointer-events: none;
   visibility: hidden;
   opacity: 0;

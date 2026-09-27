@@ -174,6 +174,9 @@ export function usePractice(
   pool: string[] | null,
   restart: (setup: string[]) => Promise<void>,
   ready: boolean,
+  /** Runs lines in the console as if typed: an answered exercise's
+   *  \`then\`, so memory confirms what was predicted. */
+  run?: (lines: string[]) => Promise<void>,
 ): PracticeState | null {
   const [exercises] = useState<Exercise[]>(() =>
     pool ? planSession(pool, currentMastery(), Date.now(), Math.floor(Math.random() * 2 ** 31)) : [],
@@ -191,6 +194,9 @@ export function usePractice(
    *  out while the praise is read. */
   const [answered, setAnswered] = useState<Answered | null>(null)
   const started = useRef(-1)
+  /** An answered exercise's `then` is running: those lines are practice's
+   *  own, typed for the player to watch, and no answer to anything. */
+  const following = useRef(false)
   /** The line the workbench last said it was telling, for which exercise;
    *  null until it says anything, which is what leaves a session unpaced. */
   const [heard, setHeard] = useState<{ at: number; beat: number } | null>(null)
@@ -219,7 +225,7 @@ export function usePractice(
     (a: Attempt) => {
       // A line typed before this exercise started was typed at the last
       // one's memory, and is no answer to this one.
-      if (!current || started.current !== at) return
+      if (!current || started.current !== at || following.current) return
       const { verdict, why } = current.judge(a)
       if (verdict === 'ignore') return
       const thought = a.ok ? a.thought : null
@@ -240,6 +246,20 @@ export function usePractice(
         setSaid(null)
         setReply(null)
         setMisses(0)
+        // A prediction confirmed: the move it was about runs first, so memory
+        // shows it under the praise, and only then does the next exercise
+        // begin. Moving on first let an answer typed while it ran arrive
+        // before the next exercise was set up, where it was ignored.
+        if (current.then?.length && run) {
+          following.current = true
+          void run(current.then)
+            .catch(() => undefined)
+            .finally(() => {
+              following.current = false
+              setAt(at + 1)
+            })
+          return
+        }
         setAt(at + 1)
         return
       }
@@ -249,7 +269,7 @@ export function usePractice(
       setSaid(thought)
       setReply(replyOf(current, why, n))
     },
-    [at, current, misses, results, rights],
+    [at, current, misses, results, rights, run],
   )
 
   if (!pool) return null

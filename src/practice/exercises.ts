@@ -109,9 +109,9 @@ export type Exercise = {
    *  browser suite types to check the judge against real Python. */
   answer: string
   /** Lines to run once it is answered right, so memory confirms a
-   *  prediction the question asked for before they ran (`rebind`). The
-   *  practice runner does not run them yet, so a question that has them
-   *  is worded to be true either way ("Suppose … runs next"). */
+   *  prediction the question asked for before they ran (`rebind`): the
+   *  practice runner types them into the console while the praise is read,
+   *  and the next exercise waits for them. */
   then?: string[] | undefined
   /** Why it was right, said after a word of praise, as its own beat. */
   praise: string
@@ -833,7 +833,7 @@ export const GENERATORS: Record<string, Generator> = {
       then: [`${x} = ${v2}`],
       answer: String(v1),
       expect: { type: 'int', repr: String(v1) },
-      praise: `\`${y}\` got \`${x}\`’s object, not \`${x}\` itself, so moving \`${x}\` leaves it alone.`,
+      praise: `\`${y}\` got \`${x}\`’s object, not \`${x}\`: look below, \`${x}\` moves and \`${y}\` stays.`,
       judge(a) {
         const said = a.source.trim()
         if (said === y) return { verdict: 'wrong', why: 'This one is yours: type the number you think it is.' }
