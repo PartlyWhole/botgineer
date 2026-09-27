@@ -565,39 +565,17 @@ export const CHIP_ROWS = 5
 export const CHIP_CHARS = 8
 
 /**
- * A chip's text as the shelf writes it: one row when it fits, else two,
- * broken at a space where there is one (`"0412` / `555 019"`, `"Yeah it`
- * / `is"`), and cut short only past two full rows. A phone number and a
- * short sentence are what the choose lesson files under str, and a chip
- * that reads `"0412 5…` hides the very thing the lesson is about — that
- * it is text, spaces and all.
+ * A chip's text as the shelf writes it: one row, and a value too long for
+ * it cut short with an ellipsis, at the length of `"hello"`, so it draws
+ * at the same size as the chips beside it. Over two rows, the choose
+ * close's phone number and short sentence came out at 6.8px and 8.1px on
+ * a desktop shelf; shortened, they read at the shelf's own size. The whole
+ * value is still in the shelf's sentence for a screen reader (`shelved`).
  */
 export function chipLines(text: string, width = CHIP_CHARS): string[] {
-  if ([...text].length <= width) return [text]
-  const out: string[] = []
-  let line = ''
-  const push = (w: string) => {
-    // A word too long for a row is broken inside it: a phone number with
-    // no spaces is still read whole, over two rows.
-    let rest = [...w]
-    while (rest.length > width) {
-      out.push(rest.slice(0, width).join(''))
-      rest = rest.slice(width)
-    }
-    line = rest.join('')
-  }
-  for (const w of text.split(' ')) {
-    const next = line ? `${line} ${w}` : w
-    if ([...next].length <= width) line = next
-    else {
-      if (line) out.push(line)
-      push(w)
-    }
-  }
-  if (line) out.push(line)
-  if (out.length <= 2) return out
-  const second = [...out[1]!]
-  return [out[0]!, `${second.slice(0, width - 1).join('')}…`]
+  const chars = [...text]
+  if (chars.length <= width) return [text]
+  return [`${chars.slice(0, width - 2).join('').trimEnd()}…`]
 }
 
 /** The rows a chip takes: one per line of its text. */

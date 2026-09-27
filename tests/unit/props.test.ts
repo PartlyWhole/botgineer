@@ -445,21 +445,18 @@ describe('the balance', () => {
 })
 
 describe('the shelf, drawn', () => {
-  it('breaks a long chip over two rows instead of cutting it short', () => {
+  it('cuts a long chip short, to one row as long as "hello"', () => {
     expect(chipLines('"True"')).toEqual(['"True"'])
-    expect(chipLines('"0412 555 019"')).toEqual(['"0412', '555 019"'])
-    expect(chipLines('"Yeah it is"')).toEqual(['"Yeah it', 'is"'])
-    expect(chipLines('"0412555019"')).toEqual(['"0412555', '019"'])
-    for (const l of chipLines('"a sentence far too long for two rows"')) expect([...l].length).toBeLessThanOrEqual(CHIP_CHARS)
-    expect(chipLines('"a sentence far too long for two rows"')).toHaveLength(2)
+    expect(chipLines('"0412 555 019"')).toEqual(['"0412…'])
+    expect(chipLines('"Yeah it is"')).toEqual(['"Yeah…'])
+    expect(chipLines('"0412555019"')).toEqual(['"04125…'])
+    for (const t of ['"0412 555 019"', '"a sentence far too long"']) expect([...chipLines(t)[0]!].length).toBeLessThanOrEqual(CHIP_CHARS - 1)
   })
 
-  it('counts a two-row chip as two rows of room', () => {
+  it('counts every chip as one row of room', () => {
     const heard = [th('str', "'0412 555 019'"), th('str', "'hi'"), th('str', "'Yeah it is'")]
-    // Room for three rows: the newest (two rows) and "hi" (one).
-    expect(shelved(['str'], heard, {}, { str: 3 }).str.heard).toEqual(['"hi"', '"Yeah it is"'])
-    // Room for two: only the newest, whole.
-    expect(shelved(['str'], heard, {}, { str: 2 }).str.heard).toEqual(['"Yeah it is"'])
+    expect(shelved(['str'], heard, {}, { str: 2 }).str.heard).toEqual(['"hi"', '"Yeah it is"'])
+    expect(shelved(['str'], heard, {}, { str: 3 }).str.heard).toEqual(['"0412 555 019"', '"hi"', '"Yeah it is"'])
   })
 
   it('gives each slot the rows its examples and tag leave', () => {
@@ -481,14 +478,16 @@ describe('the shelf, drawn', () => {
     }
   })
 
-  it('draws a phone number and a short sentence whole', () => {
+  it('draws a phone number and a short sentence cut short, and says them whole', () => {
     // The choose lesson's close: no stock examples, and its three str
     // answers, two of them long, on the shelf together.
     const heard = [th('str', "'Mira'"), th('str', "'0412 555 019'"), th('str', "'Yeah it is'")]
     const none = { bool: [], int: [], float: [], char: [], str: [] }
     const html = drawn(view({ kind: 'shelf', filled: ['bool', 'int', 'float', 'char', 'str'], examples: none }, null, null, heard))
-    for (const part of ['"Mira"', '"0412', '555 019"', '"Yeah it', 'is"']) expect(html).toContain(`>${part.replaceAll('"', '&quot;')}<`)
-    expect(html).not.toContain('…')
+    for (const part of ['"Mira"', '"0412…', '"Yeah…']) expect(html).toContain(`>${part.replaceAll('"', '&quot;')}<`)
+    // A screen reader still hears every value in full.
+    expect(html).toContain('0412 555 019')
+    expect(html).toContain('Yeah it is')
   })
 })
 
