@@ -166,6 +166,36 @@ test('a wrong prediction names the kind of mistake and where to go back', async 
   await expect(page.getByTestId('level-label')).toContainText('Exercise 1.3')
 })
 
+test('1.14’s crow says why both arrows end on one 6, after the commit and for 1.14 only', async ({ page }) => {
+  const NOTE = 'Python keeps one copy of small numbers'
+  await open(page, 'x-1.14')
+  await prepared(page)
+  // Commit before run: nothing of it is said while the predictions are open.
+  await expect(page.getByTestId('guide')).not.toContainText(NOTE)
+  await play(page, { next: false })
+  await expect(page.getByTestId('guide')).toContainText(NOTE)
+  // The picture it explains: both names on one `6` card.
+  const one = await page.evaluate(() => {
+    const s = (window as any).botgineer.snapshot()
+    const at = (n: string) => s.bindings.find((b: { name: string }) => b.name === n)?.target
+    return at('a') !== undefined && at('a') === at('b')
+  })
+  expect(one).toBe(true)
+  if (process.env.SHOTS) {
+    await page.waitForTimeout(4000) // let the bubble type on
+    await page.screenshot({ path: `${process.env.SHOTS}/C-content-114-note-2.png` })
+  }
+
+  // The item beside it does not have it; and wrong or right, 1.14 does.
+  await open(page, 'x-1.13')
+  await play(page, { next: false })
+  await expect(page.getByTestId('guide')).not.toContainText(NOTE)
+  await open(page, 'x-1.14')
+  await play(page, { wrong: true, next: false })
+  await expect(page.getByTestId('guide')).toContainText('Not quite')
+  await expect(page.getByTestId('guide')).toContainText(NOTE)
+})
+
 test('a picture choice is drawn by the real memory grid, and only the truth is right', async ({ page }) => {
   await open(page, 'x-1.3')
   await prepared(page)

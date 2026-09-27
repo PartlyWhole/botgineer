@@ -25,6 +25,7 @@ import { errorTypesOf, goBackOf, itemById, lensesOf, misconceptionsOf, playable 
 import { gradePart, type Truth } from './grade'
 import type { Answer, ErrorType, Graded, Part } from './model'
 import { isPrediction, originalOf, prepare, runProgram, type Evaluate, type Playable } from './runner'
+import { itemNote } from './voice'
 
 export type Phase = 'answering' | 'revealed'
 
@@ -267,6 +268,9 @@ export function useReadSession(ids: string[], env: ReadEnv, start = 0) {
     canCommit,
     resolved,
     goBack: current ? goBackOf(itemById(current.id)!) : [],
+    /** The crow's note for this item, once its run and key are shown
+     *  (`voice.itemNote`): commit before run holds for it too. */
+    note: !finished && current && state?.phase === 'revealed' ? itemNote(current.id) : null,
     setAnswer,
     commit,
     submit,
