@@ -1446,5 +1446,12 @@ test.describe('a memory wider than its pane says so', () => {
     await back.click()
     await expect(graph).toHaveAttribute('data-more-left', 'no')
     await expect(page.getByTestId('node-box')).toBeInViewport()
+
+    // Scrolled away again, a new line brings the names column back.
+    await more.click()
+    await expect(graph).toHaveAttribute('data-more-left', 'yes')
+    await say(page, 'y = 6')
+    await expect(graph).toHaveAttribute('data-more-left', 'no')
+    await expect(page.getByTestId('node-y')).toBeInViewport()
   })
 })

@@ -82,6 +82,14 @@ const indentMiss = (l: Line): string | undefined =>
 const has = (source: string, word: 'if' | 'else' | 'for') => new RegExp(`^\\s*${word}\\b`, 'm').test(source)
 
 /** `ride = …` typed on its own, which chooses for the robot. */
+/** An `if` whose question is not about `weight` (`if True:`): its block
+ *  runs, but nothing about the parcel decided it. */
+const noQuestion = (l: Line): string | undefined =>
+  l.ok && /^\s*if\b/m.test(l.source) && !ASKS_WEIGHT_LINE.test(l.source)
+    ? 'That `if` asks nothing about the parcel. Let `weight` decide: `if weight > 10:`.'
+    : undefined
+const ASKS_WEIGHT_LINE = /^\s*if\b[^\n]*\bweight\b/m
+
 const bareRide = (l: Line): string | undefined =>
   l.ok && /^\s*ride\s*=/.test(l.source) && !has(l.source, 'if')
     ? 'Let the robot decide: put that line inside an `if`.'
@@ -98,7 +106,10 @@ function guarded(source: string, inner: RegExp): { cond: number; body: number } 
 /** An `if` header whose indented block points `ride`, and an `else`
  *  header whose block does: the line that made the change, not only one
  *  that happened to have the keyword in it. */
-const IF_SETS_RIDE = /^\s*if\b[^\n]*:\s*\n(?:[ \t]+[^\n]*\n)*?[ \t]+ride\s*=/m
+// The header must ask about `weight`: `if True:` over `ride = "van"` also
+// leaves `ride` on 'van', and teaches nothing about the question deciding.
+const ASKS_WEIGHT = /^\s*if\b[^\n]*\bweight\b[^\n]*:/m
+const IF_SETS_RIDE = /^\s*if\b[^\n]*\bweight\b[^\n]*:\s*\n(?:[ \t]+[^\n]*\n)*?[ \t]+ride\s*=/m
 const ELSE_SETS_RIDE = /^\s*else\s*:\s*\n(?:[ \t]+[^\n]*\n)*?[ \t]+ride\s*=/m
 
 export const decide: Lesson = {
@@ -150,7 +161,7 @@ export const decide: Lesson = {
       // bare `ride = "van"` leaves the same memory and proves nothing.
       done: (e) => everBy(e, (src, s) => IF_SETS_RIDE.test(src) && points(s, 'weight', '12') && points(s, 'ride', "'van'")),
       praise: '`ride` points at `\'van\'`, because `weight > 10` was `True`, so the block ran.',
-      nudge: (l) => headerMiss(l) ?? indentMiss(l) ?? bareRide(l),
+      nudge: (l) => headerMiss(l) ?? indentMiss(l) ?? bareRide(l) ?? noQuestion(l),
     },
     {
       beats: [{ say: 'Mira’s next parcel is light: only 3 kilos.', focus: 'memory' }],
@@ -194,11 +205,11 @@ export const decide: Lesson = {
       done: (e) =>
         everBy(
           e,
-          (src, s) => has(src, 'if') && ELSE_SETS_RIDE.test(src) && points(s, 'weight', '3') && points(s, 'ride', "'bike'"),
+          (src, s) => ASKS_WEIGHT.test(src) && ELSE_SETS_RIDE.test(src) && points(s, 'weight', '3') && points(s, 'ride', "'bike'"),
         ),
       praise: '`ride` points at `\'bike\'`, because `3 > 10` was `False`, so the `else` block ran instead.',
       nudge: (l) => {
-        const miss = headerMiss(l) ?? indentMiss(l) ?? bareRide(l)
+        const miss = headerMiss(l) ?? indentMiss(l) ?? bareRide(l) ?? noQuestion(l)
         if (miss) return miss
         if (l.ok && /^\s*if\b/.test(l.source) && !/else/.test(l.source))
           return 'That `if` had no `else`, so a `False` answer skipped it. Add `else:` and its block.'

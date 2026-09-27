@@ -205,6 +205,7 @@ export function ScenePanel({
   const line = guideShown ? `${guide.key ?? ''}\u0000${guide.text}` : null
   const who = guideShown ? speaker.actor.id : null
   useSpeechPop(speechRef, tailRef, line, who)
+  useTailReach(railRef, speechRef, tailRef, speaker?.actor.x ?? null, [line, who])
   usePop(thoughtRef, thoughtShown ? (thinking ? '\u2026' : (thought ?? '')) : null, THOUGHT_POP)
 
   // The line, typed on: one span per character, each with its delay, and
@@ -670,6 +671,48 @@ function useBeside(ref: { current: HTMLDivElement | null }, lean: number, deps: 
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps)
+}
+
+/**
+ * Widens the tail until its root is under the bubble. The tail is centred
+ * on the speaker and its root is one half of it (\`TAIL\`), 16px across; a
+ * bubble kept off the stage's edge by more than that (the 900px stacked
+ * stage: the crow at 104px, the bubble from 134px) left the tail floating
+ * beside it. Widened, the same shape slants from inside the bubble down to
+ * the speaker. Measured where the bubble settles (\`settled\`), written
+ * straight to the element as \`--tail-w\`: drawing, never state.
+ */
+function useTailReach(
+  rail: { current: HTMLDivElement | null },
+  speech: { current: HTMLDivElement | null },
+  tail: { current: HTMLSpanElement | null },
+  x: number | null,
+  deps: unknown[],
+) {
+  useLayoutEffect(() => {
+    const r = rail.current
+    const b = speech.current
+    const t = tail.current
+    if (!r || !b || !t || x === null) return
+    const place = () => {
+      const at = (r.clientWidth * x) / 100
+      const s = settled(b)
+      // The root reaches 14px inside the bubble's edge, clear of its rounding.
+      const need = at < s.left + 14 ? 2 * (s.left + 14 - at) : at > s.right - 14 ? 2 * (at - (s.right - 14)) : 0
+      if (need > 32) t.style.setProperty('--tail-w', `${Math.round(need)}px`)
+      else t.style.removeProperty('--tail-w')
+    }
+    place()
+    b.addEventListener('transitionend', place)
+    const watch = new ResizeObserver(place)
+    watch.observe(r)
+    watch.observe(b)
+    return () => {
+      b.removeEventListener('transitionend', place)
+      watch.disconnect()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [x, ...deps])
 }
 
 /**

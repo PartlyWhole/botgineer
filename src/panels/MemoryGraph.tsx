@@ -239,6 +239,10 @@ export function MemoryGraph({ snapshot, handles, runKey, picked, onPick, fit = f
       target.current = frame(boxes(null), viewport.current, 16, 1)
     } else if (ids === null) {
       const show = boxes(new Set(reveal))
+      // Something new arrived (a line was typed): back to the names
+      // column, which a sideways scroll may have left behind. Only across;
+      // down is where the newcomer is revealed.
+      if (reveal.length > 0 && scroll.current) scroll.current = { x: -Infinity, y: scroll.current.y }
       target.current = overview(boxes(null), viewport.current, scroll.current, show)
       scroll.current = { x: target.current.x, y: target.current.y }
     } else {
