@@ -1523,17 +1523,161 @@ const chipH = (n: number) => CHIP_H + (n - 1) * CHIP_PITCH
 /** The distance between two lines inside one chip. */
 const CHIP_LEADING = 10
 /** A chip's inset from its slot's sides. */
-const CHIP_X = 1.5
+const CHIP_X = 1
 /** A chip's type: as large as `CHIP_FONT`, and smaller only as far as its
- *  longest line needs to fit across the chip (`CHIP_TEXT_W`). Measured by
- *  estimate, per character, in the stage's face — a picture is drawn
- *  once, on the server in the unit tests too, so there is nothing to
- *  measure with. */
+ *  longest line needs to fit across the chip (`CHIP_TEXT_W`, which leaves
+ *  2 units clear on each side of the chip's 36.5).
+ *
+ *  Drawn first by estimate, per character, in the stage's face at the
+ *  chips' weight (measured in Chromium's system-ui at 800 and display
+ *  size: `"` is 0.47 em, a digit 0.67) — a picture is drawn on the
+ *  server in the unit tests too, where there is nothing to measure with.
+ *  Then, in a browser, `fitText` measures what the face really drew and
+ *  sets the size from that, before paint: an estimate is only ever right
+ *  for one face at one size, and the old one ran `"hello"` a pixel past
+ *  its chip — at 9px the same face is set in a wider cut. */
 const CHIP_FONT = 10.5
-const CHIP_TEXT_W = 30
+const CHIP_TEXT_W = 32.5
 const emOf = (text: string): number =>
-  [...text].reduce((w, c) => w + (/[MWmw@]/.test(c) ? 0.86 : /["']/.test(c) ? 0.36 : /[il.,:;!|1 ]/.test(c) ? 0.3 : /[frtjI()\[\]-]/.test(c) ? 0.38 : /\d/.test(c) ? 0.57 : 0.56), 0)
+  [...text].reduce(
+    (w, c) =>
+      w +
+      (/[W%]/.test(c)
+        ? 0.98
+        : /[Mm@w]/.test(c)
+          ? 0.88
+          : c === '"'
+            ? 0.48
+            : /['il.,:;!|j]/.test(c)
+              ? 0.28
+              : c === ' '
+                ? 0.22
+                : /[frtI()\[\]{}\/\\]/.test(c)
+                  ? 0.41
+                  : c === '1'
+                    ? 0.5
+                    : /[\d]/.test(c)
+                      ? 0.67
+                      : /[A-Z]/.test(c)
+                        ? 0.73
+                        : /[-*]/.test(c)
+                          ? 0.47
+                          : 0.61),
+    0,
+  )
 const chipFont = (lines: string[]): number => Math.min(CHIP_FONT, ...lines.map((l) => CHIP_TEXT_W / Math.max(emOf(l), 0.01)))
+
+/** The char slot's tag: its size, and the width its longer line
+ *  (`length 1`) may take across the slot. */
+const TAG_FONT = 10.2
+const TAG_TEXT_W = 35
+/** The least the shelf's type is fitted down to before it is narrowed
+ *  instead: 9px on a desktop stage, whose shelf is about 179px across. */
+const FIT_MIN = 10.1
+
+/** How far `fitText` may narrow a line's glyphs to keep its type at
+ *  `data-min`: 14%, enough for `"hello"` at 9px with 2 units of room
+ *  each side, and short of where condensed type stops reading as the
+ *  same face. */
+const MAX_SQUASH = 0.86
+
+/**
+ * Sets each `[data-fit]` group's type from what the browser really drew:
+ * as large as its `data-max`, and no wider than its `data-width` (its
+ * longest line, measured). Lines that share a group share one size, and a
+ * line with `data-mid` is re-centred on it, so a chip's text stays in the
+ * middle of the chip at whatever size it ends.
+ *
+ * A group with a `data-min` that had to shrink below it narrows its lines
+ * (`textLength`, at most `MAX_SQUASH`) instead of shrinking them further,
+ * as far as the minimum: legible type is the point of the minimum, and a
+ * few percent of width is not something a reader sees. `"hello"` keeps
+ * the minimum that way; a line that needs more than the narrowing allows
+ * (a phone number over two rows) is still shrunk, only less.
+ *
+ * Written straight to the elements, like `--beat`: this is how the
+ * picture is drawn, not state, and it runs before paint.
+ */
+function fitText(root: SVGGElement | null) {
+  if (!root || typeof SVGTextElement === 'undefined' || typeof SVGTextElement.prototype.getComputedTextLength !== 'function') return
+  // Every line is measured on a probe that stands in the picture's root,
+  // not on the line itself. A chip flies in scaled, and Chromium sets SVG
+  // type at its size on screen, so a line measured mid-flight came back
+  // wider than it rests (`"hello"` fitted to 7.5px instead of 9). The
+  // probe copies the line's face and is gone again before paint.
+  const probe = document.createElementNS('http://www.w3.org/2000/svg', 'text')
+  probe.setAttribute('visibility', 'hidden')
+  probe.setAttribute('aria-hidden', 'true')
+  root.appendChild(probe)
+  try {
+    for (const g of root.querySelectorAll<SVGGElement>('[data-fit]')) {
+      const texts = [...g.querySelectorAll<SVGTextElement>('text')]
+      if (!texts.length) continue
+      const max = Number(g.dataset['max'])
+      const width = Number(g.dataset['width'])
+      const min = Number(g.dataset['min'] ?? 0)
+      const faces = texts.map((t) => {
+        const cs = getComputedStyle(t)
+        const spacing = parseFloat(cs.letterSpacing) / parseFloat(cs.fontSize)
+        return { family: cs.fontFamily, weight: cs.fontWeight, style: cs.fontStyle, spacing: Number.isFinite(spacing) ? spacing : 0 }
+      })
+      const measure = (size: number) =>
+        texts.map((t, i) => {
+          const f = faces[i]!
+          probe.style.fontFamily = f.family
+          probe.style.fontWeight = f.weight
+          probe.style.fontStyle = f.style
+          probe.style.letterSpacing = `${f.spacing}em`
+          probe.style.fontSize = `${size}px`
+          probe.textContent = t.textContent
+          return probe.getComputedTextLength()
+        })
+      // Measured from a known size, so the answer does not depend on the
+      // size the last fit left behind. A face's width is not proportional
+      // to its size — system faces switch to wider, looser cuts for small
+      // type — so the size is refined from a second and third measure
+      // rather than scaled once.
+      let size = max
+      for (let pass = 0; pass < 3; pass++) {
+        const longest = Math.max(...measure(size))
+        if (!(longest > 0)) break
+        if (longest <= width && (size === max || longest > width * 0.985)) break
+        size = Math.min(max, (size * width) / longest) * (longest > width ? 0.995 : 1)
+      }
+      // Shrunk below the minimum: take back what narrowing can, towards
+      // the minimum — all of it for `"hello"`, some of it for a phone
+      // number.
+      let squash: number[] | null = null
+      if (size < min) {
+        let c = Math.min(min, size / MAX_SQUASH)
+        for (let pass = 0; pass < 3 && c > size; pass++) {
+          const at = measure(c)
+          const longest = Math.max(...at)
+          if (longest * MAX_SQUASH <= width) {
+            size = c
+            squash = at
+            break
+          }
+          c = ((c * width) / (longest * MAX_SQUASH)) * 0.995
+        }
+      }
+      texts.forEach((t, i) => {
+        t.style.fontSize = `${size.toFixed(2)}px`
+        if (squash && squash[i]! > width) {
+          t.setAttribute('textLength', String(width))
+          t.setAttribute('lengthAdjust', 'spacingAndGlyphs')
+        } else {
+          t.removeAttribute('textLength')
+          t.removeAttribute('lengthAdjust')
+        }
+        const mid = t.dataset['mid']
+        if (mid !== undefined) t.setAttribute('y', (Number(mid) + size * 0.34).toFixed(2))
+      })
+    }
+  } finally {
+    probe.remove()
+  }
+}
 
 type ShelfRow = { key: string; text: string; cls: string; tag?: boolean }
 
@@ -1555,8 +1699,21 @@ function Shelf({ view, p }: { view: PropView; p: Extract<Prop, { kind: 'shelf' }
     ...(tagRows(k) ? [{ key: 'tag', text: '', cls: '', tag: true }] : []),
     ...s[k].heard.map((h) => ({ key: `h:${h}`, text: h, cls: 'heard' })),
   ]
+  const ref = useRef<SVGGElement | null>(null)
+  // Every render: a chip's text is what changes between them, and a
+  // chip React kept keeps the size the last fit wrote.
+  useLayoutEffect(() => fitText(ref.current))
+  // And once more when the page's faces have loaded, in case the first
+  // measure ran in a fallback.
+  useLayoutEffect(() => {
+    let live = true
+    document.fonts?.ready.then(() => live && fitText(ref.current))
+    return () => {
+      live = false
+    }
+  }, [])
   return (
-    <g className={`shelf ${p.pulse ? 'pulse' : ''} ${p.cheer ? 'cheer' : ''}`}>
+    <g ref={ref} className={`shelf ${p.pulse ? 'pulse' : ''} ${p.cheer ? 'cheer' : ''}`}>
       {p.title && (
         <g className="shelf-title">
           <path d="M 34 7 h 30 M 136 7 h 30" />
@@ -1595,9 +1752,22 @@ function Shelf({ view, p }: { view: PropView; p: Extract<Prop, { kind: 'shelf' }
               if (row > CHIP_ROWS) return null
               const y = CHIP_TOP + at * CHIP_PITCH
               return r.tag ? (
-                <g key={r.key} className="char-tag" transform={`translate(${CUBBY_W / 2},${y})`} style={{ ['--j' as string]: at }}>
-                  <text y="10">str ·</text>
-                  <text y="21">length 1</text>
+                <g
+                  key={r.key}
+                  className="char-tag"
+                  transform={`translate(${CUBBY_W / 2},${y})`}
+                  style={{ ['--j' as string]: at }}
+                  data-fit=""
+                  data-max={TAG_FONT}
+                  data-min={FIT_MIN}
+                  data-width={TAG_TEXT_W}
+                >
+                  <text y="10.5" style={{ fontSize: `${TAG_FONT}px` }}>
+                    str ·
+                  </text>
+                  <text y="22" style={{ fontSize: `${TAG_FONT}px` }}>
+                    length 1
+                  </text>
                 </g>
               ) : (
                 <g
@@ -1606,20 +1776,28 @@ function Shelf({ view, p }: { view: PropView; p: Extract<Prop, { kind: 'shelf' }
                   data-kind={k}
                   transform={`translate(${CHIP_X},${y})`}
                   style={{ ['--j' as string]: at }}
+                  data-fit=""
+                  data-max={CHIP_FONT}
+                  data-min={FIT_MIN}
+                  data-width={CHIP_TEXT_W}
                 >
                   <rect width={CUBBY_W - 2 * CHIP_X} height={chipH(lines.length)} rx="6" />
-                  {lines.map((l, j) => (
+                  {lines.map((l, j) => {
                     // The lines sit together in the middle of the chip, not
                     // a whole row apart, so the last is clear of its edge.
-                    <text
-                      key={j}
-                      x={CUBBY_W / 2 - CHIP_X}
-                      y={chipH(lines.length) / 2 + (j - (lines.length - 1) / 2) * CHIP_LEADING + chipFont(lines) * 0.34}
-                      style={{ fontSize: `${chipFont(lines).toFixed(2)}px` }}
-                    >
-                      {l}
-                    </text>
-                  ))}
+                    const mid = chipH(lines.length) / 2 + (j - (lines.length - 1) / 2) * CHIP_LEADING
+                    return (
+                      <text
+                        key={j}
+                        x={CUBBY_W / 2 - CHIP_X}
+                        y={(mid + chipFont(lines) * 0.34).toFixed(2)}
+                        data-mid={mid}
+                        style={{ fontSize: `${chipFont(lines).toFixed(2)}px` }}
+                      >
+                        {l}
+                      </text>
+                    )
+                  })}
                 </g>
               )
             })}
@@ -1638,8 +1816,8 @@ function Shelf({ view, p }: { view: PropView; p: Extract<Prop, { kind: 'shelf' }
             ]
           </text>
           <g transform="translate(160,118)" className="later-tag">
-            <rect x="-19" y="-7" width="38" height="14" rx="7" />
-            <text y="3.4">later</text>
+            <rect x="-19" y="-7.5" width="38" height="15" rx="7.5" />
+            <text y="3.7">later</text>
           </g>
         </g>
       )}
