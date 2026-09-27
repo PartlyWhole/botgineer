@@ -1,6 +1,6 @@
 import type { MemorySnapshot, PyObject } from '../../src/memory/model'
 import { STAGE_OPENERS } from '../collection/story'
-import { ever, everBy, errorType, heard, targetOf, type Lesson, type Line } from './core'
+import { bareWord, ever, everBy, errorType, heard, targetOf, type Evidence, type Heard, type Lesson, type Line } from './core'
 
 /**
  * Stage 3, the ideas: brackets and keys, told in beats.
@@ -10,12 +10,14 @@ import { ever, everBy, errorType, heard, targetOf, type Lesson, type Line } from
  * its text, and keeps what Stage 3 adds:
  *
  * 1. `items[i]` reads a slot, counting from 0, and a minus counts from the
- *    end; a slot that is not there is an `IndexError`;
+ *    end; a slot that is not there is an `IndexError` — predicted, then
+ *    seen;
  * 2. `items[i] = v` writes a slot: the same list changes, no name moves;
  * 3. a slice `items[a:b]` stops before `b` and builds a new list —
  *    predicted before it is run;
  * 4. a dictionary's slots are labelled by keys: `d[k]` reads one, a
- *    missing key is a `KeyError`, `.get` hands back a default instead (a
+ *    missing key is a `KeyError` (predicted, then seen), `.get` hands
+ *    back a default instead (a
  *    bare `None` is not said aloud by the console, so the ask gives one), and
  *    `in` asks about keys, never values;
  * 5. what may be a key: a tuple can, a list cannot, because a key must
@@ -30,6 +32,16 @@ import { ever, everBy, errorType, heard, targetOf, type Lesson, type Line } from
  * The write step judges the line that wrote (`everBy`), not the first list
  * `items` ever named: a player who rebinds `items` on the way (the miss
  * its nudge names) can still finish it by writing into the new list.
+ *
+ * The two errors are predictions, not asks to trigger them. A line that
+ * stops the robot is never accepted, so it leaves no thought and no
+ * memory: nothing derived could say it happened, and a step judged on it
+ * would forget it on the next line. So the learner says what the robot
+ * will say — the error's name, typed as a word in quotes, which the robot
+ * does think of — and the step after asks them to see it happen first,
+ * where its nudge greets the error they named. The reads step no longer
+ * names `IndexError` for an index past the end, since that would give the
+ * prediction away.
  *
  * The picture is the memory graph (R6): a list's slots carry their
  * numbers there and a dictionary's carry their keys, so every read has
@@ -52,6 +64,45 @@ const slot = (s: MemorySnapshot, name: string, label: string): string | null => 
 }
 
 const from = (t: { source?: string | undefined }, re: RegExp) => re.test(t.source ?? '')
+
+/** The error's name typed as a word in quotes: a prediction, not a run. */
+const named = (name: string) => (t: Heard) =>
+  t.type === 'str' && t.repr === `'${name}'` && new RegExp(`^\\s*(["'])${name}\\1\\s*$`).test(t.source ?? '')
+
+/**
+ * The robot thought something `then` passes after thinking something each
+ * of `first` passes. Thoughts are only ever appended, so this stays true
+ * once true, like `heard`. It is how a prediction counts only once its
+ * question is up: `"KeyError"`, guessed wrong for the missing index, must
+ * not answer the missing key two steps later.
+ */
+const heardAfter = (e: Evidence, first: ((t: Heard) => boolean)[], then: (t: Heard) => boolean): boolean => {
+  const at = first.map((f) => e.thoughts.findIndex(f))
+  if (at.some((i) => i < 0)) return false
+  const last = Math.max(...at)
+  return e.thoughts.some((t, i) => i > last && then(t))
+}
+
+const readB = (t: Heard) => t.type === 'str' && t.repr === "'b'" && from(t, /items\s*\[/)
+const readC = (t: Heard) => t.type === 'str' && t.repr === "'c'" && from(t, /items\s*\[\s*-/)
+const readAnn = (t: Heard) => t.type === 'int' && t.repr === '30' && from(t, /ages\s*\[/)
+
+/**
+ * The misses on "what will the robot say?": running it instead, the error
+ * itself without quotes, a word the robot does not know, and the other
+ * error. `what` is what was asked for, `run` the line that would show it.
+ */
+const predictMiss = (l: Line, name: string, other: string, what: string, run: RegExp): string | undefined => {
+  const src = l.source.trim()
+  if (errorType(l) === name && run.test(src)) return 'That ran it. Predict first: type the error’s name, in quotes.'
+  if (run.test(src)) return 'Predict it first: type the error’s name, in quotes.'
+  if (src === name) return `That’s the error itself. Say its name as a word, in quotes: \`"${name}"\`.`
+  if (bareWord(l)) return 'Without quotes the robot looks for a name. Put the error’s name in quotes.'
+  if (l.thought?.type === 'str' && l.thought.repr === `'${other}'`)
+    return other === 'KeyError' ? 'A `KeyError` is a missing key. A list’s slots have numbers: which error is that?' : `The \`${other}\` was the list’s. A dictionary’s slots have keys: which error is that?`
+  if (l.thought?.type === 'str') return `Not that one: you asked for ${what} that isn’t there. Which error is that?`
+  return undefined
+}
 
 /** A line the player typed out by hand, rather than letting the robot read. */
 const byHand = (l: Line, name: string) => l.ok && l.thought !== null && !new RegExp(`\\b${name}\\b`).test(l.source)
@@ -79,12 +130,10 @@ export const s3Ideas: Lesson = {
       ],
       say: 'Ask the robot for `items[1]`, then for `items[-1]`.',
       tag: 'robot',
-      done: (e) =>
-        heard(e, (t) => t.type === 'str' && t.repr === "'b'" && from(t, /items\s*\[/)) &&
-        heard(e, (t) => t.type === 'str' && t.repr === "'c'" && from(t, /items\s*\[\s*-/)),
+      done: (e) => heard(e, readB) && heard(e, readC),
       praise: 'Slot 1 is `\'b\'`, the second, because counting starts at 0, and -1 is the last, `\'c\'`.',
       nudge: (l) => {
-        if (errorType(l) === 'IndexError') return 'There is no such slot: this list has only 0, 1 and 2, so the robot stopped with an `IndexError`.'
+        if (errorType(l) === 'IndexError') return 'There is no such slot: this list has only 0, 1 and 2, so the robot stopped.'
         if (byHand(l, 'items')) return 'Let the robot read the slot: `items[1]`.'
         if (l.thought?.repr === "'b'") return '`\'b\'` is in slot 1. Now the last slot: `items[-1]`.'
         if (l.thought?.repr === "'c'" && !/-/.test(l.source)) return 'Right slot, counted from the front. Now count from the end: `items[-1]`.'
@@ -95,20 +144,33 @@ export const s3Ideas: Lesson = {
     },
     {
       beats: [
-        { say: 'Ask for a slot that isn’t there, like `items[3]`, and the robot stops with an `IndexError`.' },
-        { say: 'Brackets on the left of `=` write into a slot instead of reading it.' },
+        { say: 'A slot’s number is its index, and `items` has indexes 0, 1 and 2 only.', focus: 'memory' },
+        { say: 'Ask for index 3, and there is no slot to read, so the robot stops with an error.' },
+        { say: 'Its errors are named for what went wrong, like the `NameError` for a name it didn’t know.' },
+      ],
+      say: 'What will the robot say to `items[3]`? Type the error’s name, in quotes.',
+      tag: 'you',
+      done: (e) => heardAfter(e, [readB, readC], named('IndexError')),
+      praise: 'Yes, an `IndexError`: there is no index 3 in a list of three, and the robot won’t guess.',
+      nudge: (l) => predictMiss(l, 'IndexError', 'KeyError', 'an index', /items\s*\[/),
+    },
+    {
+      beats: [
+        { say: 'Now see it happen: type `items[3]`, and the robot stops, leaving memory as it was.' },
+        { say: 'Then brackets on the left of `=`, which write into a slot instead of reading it.' },
         { say: 'No name moves: the same list changes, as in Stage 2.' },
       ],
-      say: 'Type `items[1] = "z"`, and watch slot 1.',
+      say: 'Type `items[3]` to see it, then `items[1] = "z"`, and watch slot 1.',
       tag: 'you',
       // The line that wrote into slot 1, whichever list `items` names by
       // then: a rebinding typed out with a `'z'` in it does not count.
       done: (e) => everBy(e, (src, s) => /^\s*items\s*\[\s*1\s*\]\s*=[^=]/.test(src) && slot(s, 'items', '1') === "'z'"),
       praise: 'Slot 1’s arrow moved to `\'z\'`, and `items` still points at the same list.',
-      nudge: (l) =>
-        /^\s*items\s*=/.test(l.source)
-          ? 'That built a new list and moved the name. Write into the slot: `items[1] = "z"`.'
-          : undefined,
+      nudge: (l) => {
+        if (errorType(l) === 'IndexError') return 'There it is, the `IndexError` you said, and memory is unchanged. Now `items[1] = "z"`.'
+        if (/^\s*items\s*=/.test(l.source)) return 'That built a new list and moved the name. Write into the slot: `items[1] = "z"`.'
+        return undefined
+      },
     },
     {
       beats: [
@@ -162,7 +224,7 @@ export const s3Ideas: Lesson = {
       ],
       say: 'Ask the robot for `ages["ann"]`.',
       tag: 'robot',
-      done: (e) => heard(e, (t) => t.type === 'int' && t.repr === '30' && from(t, /ages\s*\[/)),
+      done: (e) => heard(e, readAnn),
       praise: '`30`: the robot found the key `"ann"`, not a position.',
       nudge: (l) => {
         if (errorType(l) === 'KeyError') return 'No slot has that key. The keys are `"ann"` and `"bo"`, in quotes.'
@@ -172,16 +234,27 @@ export const s3Ideas: Lesson = {
     },
     {
       beats: [
-        { say: 'Ask for a key that isn’t there, like `ages["cy"]`, and the robot stops with a `KeyError`.' },
+        { say: 'No slot of `ages` is labelled `"cy"`: look below, only `\'ann\'` and `\'bo\'`.', focus: 'memory' },
+        { say: 'A missing index was an `IndexError`, named for the index; a dictionary’s slots have keys.' },
+      ],
+      say: 'What will the robot say to `ages["cy"]`? Type the error’s name, in quotes.',
+      tag: 'you',
+      done: (e) => heardAfter(e, [readAnn], named('KeyError')),
+      praise: 'Yes, a `KeyError`: no slot has the key `"cy"`, so there is nothing to hand back.',
+      nudge: (l) => predictMiss(l, 'KeyError', 'IndexError', 'a key', /ages\s*\[/),
+    },
+    {
+      beats: [
+        { say: 'Now see it happen: `ages["cy"]` stops the robot, and memory stays as it was.' },
         { say: '`.get` asks more gently: for a missing key, it hands back a default you choose.' },
         { say: 'In `ages.get("cy", 0)`, the default is `0`; leave it out, and you get `None`.' },
       ],
-      say: 'Ask the robot for `ages.get("cy", 0)`.',
+      say: 'Type `ages["cy"]` to see it, then ask the robot for `ages.get("cy", 0)`.',
       tag: 'robot',
       done: (e) => heard(e, (t) => t.type === 'int' && t.repr === '0' && from(t, /ages\s*\.\s*get\s*\(/)),
       praise: '`0`: there is no key `"cy"`, so `.get` handed back the default instead of stopping.',
       nudge: (l) => {
-        if (errorType(l) === 'KeyError') return 'That was the `KeyError`. Now ask gently: `ages.get("cy", 0)`.'
+        if (errorType(l) === 'KeyError') return 'There it is, the `KeyError` you said. Now ask gently: `ages.get("cy", 0)`.'
         if (l.ok && l.thought === null && /\.get\s*\(/.test(l.source))
           return 'That handed back `None`, which the robot doesn’t say aloud. Give it a default: `ages.get("cy", 0)`.'
         if (l.thought !== null && /get/.test(l.source)) return 'Ask for a key that isn’t there: `ages.get("cy", 0)`.'

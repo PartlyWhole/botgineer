@@ -32,7 +32,7 @@
  */
 import type { MemorySnapshot, PyObject } from '../memory/model'
 import { ERROR_NAMES, type Block, type ErrorType, type Form, type Stage } from './model'
-import { BRIDGE, STAGE_1_LEAD, openerOf } from '../../content/collection/story'
+import { BRIDGE, ITEM_NOTES, STAGE_1_LEAD, openerOf } from '../../content/collection/story'
 export { CAPSTONE_OPENER } from '../../content/collection/story'
 
 export type Vocabulary = 'plain' | 'formal'
@@ -120,8 +120,13 @@ export function reasonOf(blocks: readonly Block[]): string | null {
   return line.length <= 110 ? line : null
 }
 
+/** The crow's line for this one item once its run and key are shown
+ *  (`story.ITEM_NOTES`), or null: most items have none. */
+export const itemNote = (id: string): string | null => ITEM_NOTES[id] ?? null
+
 /** After committing: right (and why, from the key's reasoning), or which
- *  kind of mistake, and where to look. */
+ *  kind of mistake, and where to look — then the item's own note, if it
+ *  has one (`itemNote`), right or wrong alike. */
 export function verdictLine(
   right: boolean,
   err: ErrorType | null,
@@ -129,7 +134,13 @@ export function verdictLine(
   soft = false,
   v: Vocabulary = 'formal',
   reason: string | null = null,
+  note: string | null = null,
 ): string {
+  const line = verdictOf(right, err, goBack, soft, v, reason)
+  return note ? `${line} ${note}` : line
+}
+
+function verdictOf(right: boolean, err: ErrorType | null, goBack: string[], soft: boolean, v: Vocabulary, reason: string | null): string {
   if (right) return reason ?? RIGHT_LINE
   if (soft) return 'The idea is right and only the word is off, which is the cheapest mistake there is.'
   const kind = !err ? 'a miss' : v === 'plain' ? PLAIN_ERROR[err] : `${article(ERROR_NAMES[err])} ${ERROR_NAMES[err].toLowerCase()} mistake`

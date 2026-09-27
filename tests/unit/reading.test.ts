@@ -37,8 +37,9 @@ import {
   TASK_LINES,
   taskLine,
   verdictLine,
+  itemNote,
 } from '../../src/collection/voice'
-import { BRIDGE, CAPSTONE_OPENER, STAGE_1_LEAD, STAGE_OPENERS } from '../../content/collection/story'
+import { BRIDGE, CAPSTONE_OPENER, ITEM_NOTES, STAGE_1_LEAD, STAGE_OPENERS } from '../../content/collection/story'
 import { taskOf } from '../../src/app/useReadLevel'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { createElement, Fragment } from 'react'
@@ -240,6 +241,24 @@ describe('the rest', () => {
       'Not quite: that’s a mix-up over where a name points, and the key sends you back to 1.3.',
     )
     expect(verdictLine(false, 'flow', [], false, 'plain')).toBe('Not quite: that’s a mistake about the order lines run.')
+  })
+
+  it('says 1.14’s note after its verdict, right or wrong, and no other item’s', () => {
+    // 1.14 ends with `a` and `b` on one `6` card while the key says they
+    // are not connected: the crow says why both are true.
+    const note = itemNote('1.14')!
+    expect(note).toMatch(/one `6`/)
+    expect(note).toMatch(/by itself/)
+    expect(verdictLine(true, null, [], false, 'plain', null, note)).toBe(`${RIGHT_LINE} ${note}`)
+    expect(verdictLine(false, 'object', ['1.2'], false, 'plain', null, note)).toMatch(/^Not quite: .*1\.2\. Both arrows/)
+    expect(verdictLine(true, null, [], false, 'plain', null)).toBe(RIGHT_LINE)
+    // Keyed by a real item, and 1.14 alone.
+    expect(Object.keys(ITEM_NOTES)).toEqual(['1.14'])
+    for (const s of STAGES) for (const e of s.exercises) if (e.id !== '1.14') expect(itemNote(e.id), e.id).toBeNull()
+    expect(itemById('1.14')).toBeTruthy()
+    expect(words(note), note).toBeLessThanOrEqual(20)
+    expect(note.length, note).toBeLessThanOrEqual(110)
+    expect(sentences(note), note).toBe(1)
   })
 
   it('praises a right answer with the key’s own reason, when its first sentence is one', () => {

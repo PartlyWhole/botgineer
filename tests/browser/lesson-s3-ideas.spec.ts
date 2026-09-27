@@ -29,11 +29,33 @@ test('Stage 3’s ideas open on Mira’s wrong slot, and every bracket happens i
   // Typed by hand is not a read.
   await say(page, '"b"')
   await expect(page.getByTestId('guide')).toContainText('Let the robot read the slot')
+  // An index past the end stops the robot, but the reads do not name
+  // the error: that is the next step's prediction.
   await say(page, 'items[3]')
-  await expect(page.getByTestId('guide')).toContainText('IndexError')
+  await expect(page.getByTestId('guide')).toContainText('no such slot')
+  await expect(page.getByTestId('guide')).not.toContainText('IndexError')
   await say(page, 'items[1]')
   await say(page, 'items[-1]')
   expect((await beat(page)).kind).toBe('praise')
+
+  // Predict the missing index's error by name, then see it happen.
+  await say(page, 'items[3]')
+  await expect(page.getByTestId('guide')).toContainText('Predict first')
+  await say(page, '"KeyError"')
+  await expect(page.getByTestId('guide')).toContainText('slots have numbers')
+  await say(page, '"IndexError"')
+  expect((await beat(page)).kind).toBe('praise')
+  await expect(page.getByTestId('guide')).toContainText('no index 3')
+  const before = await targetOf(page, 'items')
+  await say(page, 'items[3]')
+  await expect(page.getByTestId('guide')).toContainText('the IndexError you said')
+  // A line that stopped the robot changed nothing.
+  expect(await targetOf(page, 'items')).toBe(before)
+  expect(await slot(page, 'items', '1')).toBe("'b'")
+  if (process.env.SHOTS) {
+    await page.waitForTimeout(4000) // let the bubble type on
+    await page.screenshot({ path: `${process.env.SHOTS}/C-content-s3-indexerror-2.png` })
+  }
 
   // Rebinding `items` is the miss the write step names, and it must not
   // lock the step: the write into the new list still finishes it.
@@ -60,8 +82,19 @@ test('Stage 3’s ideas open on Mira’s wrong slot, and every bracket happens i
   await say(page, 'ages = {"ann": 30, "bo": 25}')
   expect(await slot(page, 'ages', "'ann'")).toBe('30')
   await say(page, 'ages["ann"]')
+  // The missing key, predicted by name, then seen.
   await say(page, 'ages["cy"]')
-  await expect(page.getByTestId('guide')).toContainText('KeyError')
+  await expect(page.getByTestId('guide')).toContainText('Predict first')
+  await say(page, '"IndexError"')
+  await expect(page.getByTestId('guide')).toContainText('slots have keys')
+  await say(page, '"KeyError"')
+  expect((await beat(page)).kind).toBe('praise')
+  await say(page, 'ages["cy"]')
+  await expect(page.getByTestId('guide')).toContainText('the KeyError you said')
+  if (process.env.SHOTS) {
+    await page.waitForTimeout(4000) // let the bubble type on
+    await page.screenshot({ path: `${process.env.SHOTS}/C-content-s3-keyerror-2.png` })
+  }
   // A bare None is not said aloud, so the robot is asked for a default.
   await say(page, 'ages.get("cy")')
   await expect(page.getByTestId('guide')).toContainText('Give it a default')

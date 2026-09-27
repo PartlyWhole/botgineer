@@ -58,3 +58,17 @@ export const BRIDGE = 'A good engineer knows what the robot will do before it do
 export const STAGE_1_LEAD = 'At the console a name was an arrow, and the text here calls it a label: same idea.'
 
 export const openerOf = (stage: number): string => STAGE_OPENERS[stage - 1] ?? ''
+
+/**
+ * A line from the crow for one item, said after its commit, when the run
+ * and the key are on screen: where the picture and the key seem to
+ * disagree, and the key is right. Keyed by item id; content, not the
+ * collection's markdown (invariant 21), and one sentence ≤ 110 (R2).
+ *
+ * 1.14: `a` and `b` both end on `6`, and CPython keeps one object for a
+ * small int, so memory draws both arrows on one card (invariant 4) while
+ * the key says the names are not connected. Both are true.
+ */
+export const ITEM_NOTES: Readonly<Record<string, string>> = {
+  '1.14': 'Both arrows end on one `6` because Python keeps one copy of small numbers; each name got there by itself.',
+}

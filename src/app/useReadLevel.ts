@@ -70,7 +70,7 @@ export function useReadLevel(activity: Activity, env: ReadEnv) {
     }
     if (state.outcome) {
       const reason = item?.kind === 'exercise' ? reasonOf(item.exercise.key.reasoning) : null
-      return verdictLine(state.outcome.right, state.outcome.err, session.goBack, state.outcome.soft, vocab, reason)
+      return verdictLine(state.outcome.right, state.outcome.err, session.goBack, state.outcome.soft, vocab, reason, session.note)
     }
     return undefined
   }, [didPass, doneKind, firstTime, ids.length, kind, level, session, start, vocab])
