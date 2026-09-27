@@ -22,6 +22,7 @@ import { itemById, STAGES } from '../collection'
 import { ERROR_NAMES, type Block, type ErrorType } from '../collection/model'
 import type { ReadSession } from '../collection/useReadSession'
 import { CAPSTONE_TITLE } from '../../content/collection/story'
+import { CROW_NAME } from '../../content/cast'
 
 /** The prompt without its code, which the robot panel shows instead. */
 function promptOnly(blocks: Block[]): Block[] {
@@ -121,6 +122,13 @@ export function ReadSheet({ session, title }: { session: ReadSession; title: str
       {revealed && (
         <article className="card key-card" data-testid="key-card" ref={keyRef}>
           <p className="card-kicker">The key</p>
+          {/* The item's own note (\`voice.itemNote\`), in the crow's name:
+              at the top of the key, where the run it explains is read. */}
+          {session.note && (
+            <p className="key-note" data-testid="key-note">
+              <span className="key-note-who">{CROW_NAME}</span> {richText(session.note)}
+            </p>
+          )}
           {outcome && !outcome.right && outcome.err && <ErrorChip err={outcome.err} />}
           {outcome?.soft && <ErrorChip err="vocabulary" />}
           {item.kind === 'exercise' ? (

@@ -112,7 +112,17 @@ export const WHO_WORKS: Record<Worker, string> = {
 }
 
 /** What the crow says when a right answer is in: a word, then the reason. */
-export const praiseOf = (ex: Exercise, at: number) => `${PRAISE[at % PRAISE.length]} ${ex.praise}`
+/** A cheer, then the reason (R9) — unless the reason is long enough on
+ *  its own: with the cheer in front, a 72-character reason ran to three
+ *  lines on a phone and the bubble came down on the cast. */
+export const praiseOf = (ex: Exercise, at: number) => {
+  const reason = ex.praise ?? ''
+  return reason.replace(/`/g, '').length > PRAISE_ROOM ? reason : `${PRAISE[at % PRAISE.length]} ${reason}`.trim()
+}
+
+/** The longest reason a cheer still goes in front of: the two lines a
+ *  phone's bubble holds, less the longest cheer. */
+export const PRAISE_ROOM = 80 - Math.max(...PRAISE.map((p) => p.length + 1))
 
 /** The line for a miss: the reason, and after two, a line that works. */
 export const replyOf = (ex: Exercise, why: string | undefined, misses: number) =>

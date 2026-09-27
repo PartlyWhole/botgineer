@@ -1428,8 +1428,8 @@ function Door({ view }: { view: PropView }) {
         <rect x="-9" y="0" width="18" height="15" rx="3" className="lock-body" />
       </g>
       <g className="knows" transform="translate(143,8)">
-        <rect x="-36" y="-7" width="72" height="14" rx="7" data-kind="bool" />
-        <text y="3.2">locked: True</text>
+        <rect x="-45" y="-8" width="90" height="16" rx="8" data-kind="bool" />
+        <text y="3.8">locked: True</text>
       </g>
       {/* Words on the note, refused (a no, or not an answer to her): the
           note is edged in amber, dashed — written, and not sent. */}

@@ -208,7 +208,7 @@ describe('s3-ideas', () => {
   it('does not give the prediction away when an index past the end stops the reads', () => {
     const e = ev([mem({ items: abc })])
     const reply = guidance(s3Ideas, { ...e, last: failed('items[3]', 'IndexError') }).text
-    expect(reply).toContain('no such slot')
+    expect(reply).toMatch(/no such slot/i)
     expect(reply).not.toContain('IndexError')
   })
 

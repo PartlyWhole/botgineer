@@ -32,7 +32,7 @@ test('Stage 3’s ideas open on Mira’s wrong slot, and every bracket happens i
   // An index past the end stops the robot, but the reads do not name
   // the error: that is the next step's prediction.
   await say(page, 'items[3]')
-  await expect(page.getByTestId('guide')).toContainText('no such slot')
+  await expect(page.getByTestId('guide')).toContainText(/no such slot/i)
   await expect(page.getByTestId('guide')).not.toContainText('IndexError')
   await say(page, 'items[1]')
   await say(page, 'items[-1]')

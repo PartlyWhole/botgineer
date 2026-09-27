@@ -171,9 +171,10 @@ test('1.14’s crow says why both arrows end on one 6, after the commit and for 
   await open(page, 'x-1.14')
   await prepared(page)
   // Commit before run: nothing of it is said while the predictions are open.
-  await expect(page.getByTestId('guide')).not.toContainText(NOTE)
+  await expect(page.getByTestId('key-note')).toHaveCount(0)
   await play(page, { next: false })
-  await expect(page.getByTestId('guide')).toContainText(NOTE)
+  await expect(page.getByTestId('key-note')).toContainText(NOTE)
+  await expect(page.getByTestId('guide')).not.toContainText(NOTE)
   // The picture it explains: both names on one `6` card.
   const one = await page.evaluate(() => {
     const s = (window as any).botgineer.snapshot()
@@ -189,11 +190,11 @@ test('1.14’s crow says why both arrows end on one 6, after the commit and for 
   // The item beside it does not have it; and wrong or right, 1.14 does.
   await open(page, 'x-1.13')
   await play(page, { next: false })
-  await expect(page.getByTestId('guide')).not.toContainText(NOTE)
+  await expect(page.getByTestId('key-note')).toHaveCount(0)
   await open(page, 'x-1.14')
   await play(page, { wrong: true, next: false })
   await expect(page.getByTestId('guide')).toContainText('Not quite')
-  await expect(page.getByTestId('guide')).toContainText(NOTE)
+  await expect(page.getByTestId('key-note')).toContainText(NOTE)
 })
 
 test('a picture choice is drawn by the real memory grid, and only the truth is right', async ({ page }) => {

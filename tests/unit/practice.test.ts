@@ -12,7 +12,7 @@ import { bin, evaluate, float, int, name, render, repr, str } from '../../src/pr
 import { GENERATORS, generate, rng, type Attempt } from '../../src/practice/exercises'
 import { holdDays, level, record, strength, due, type Mastery } from '../../src/mastery/mastery'
 import { planSession, SESSION_LENGTH } from '../../src/practice/session'
-import { OPENING, SHELVED, WHO_WORKS, closingOf, mayStart, replyOf, scriptOf } from '../../src/practice/usePractice'
+import { OPENING, SHELVED, WHO_WORKS, closingOf, mayStart, praiseOf, replyOf, scriptOf } from '../../src/practice/usePractice'
 import { EMPTY, type MemorySnapshot } from '../../src/memory/model'
 
 const v = (e: Parameters<typeof evaluate>[0], env = {}) => repr(evaluate(e, env))
@@ -568,5 +568,19 @@ describe('a session', () => {
   it('draws from a seeded generator, not Math.random', () => {
     const r = rng(1)
     expect(r()).toBe(rng(1)())
+  })
+})
+
+describe('the praise fits a phone', () => {
+  it('is at most two lines of a phone bubble, cheer included, for every generator', () => {
+    for (const [skill, g] of Object.entries(GENERATORS)) {
+      for (let s = 0; s < 300; s++) {
+        const ex = g(rng(s))
+        for (let at = 0; at < 6; at++) {
+          const said = praiseOf(ex, at).replace(/`/g, '')
+          expect(said.length, `${skill} seed ${s}: ${said}`).toBeLessThanOrEqual(80)
+        }
+      }
+    }
   })
 })

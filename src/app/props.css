@@ -665,7 +665,7 @@
 }
 .lift .floor-num {
   font-family: var(--mono);
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 800;
   text-anchor: end;
   fill: var(--ink-soft);
@@ -835,7 +835,7 @@
 }
 .height .height-mark text {
   font-family: var(--mono);
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 800;
   fill: var(--k-float);
   text-anchor: start;
@@ -1276,7 +1276,7 @@
 }
 .door .knows text {
   font-family: var(--mono);
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 800;
   fill: var(--k-bool);
 }
@@ -1433,7 +1433,7 @@
 }
 .share .jug-label {
   font-family: var(--mono);
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 800;
 }
 .share .tank-body {
@@ -2104,7 +2104,7 @@
   fill: var(--kc);
 }
 .contrast .side-label {
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
 }
 @keyframes drop-in {
@@ -2268,7 +2268,7 @@
 }
 .lamps .sum-kind {
   font-family: var(--mono);
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 800;
   fill: var(--k-int);
 }

@@ -1222,3 +1222,18 @@ a.term {
   font-weight: 700;
   color: var(--brand-deep);
 }
+
+/* An item's own note, from the crow, at the top of the key (ReadSheet). */
+.key-note {
+  margin: 0 0 10px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--brand-soft);
+  border: 1px solid var(--brand-line);
+  font-size: 14px;
+  line-height: 1.45;
+}
+.key-note-who {
+  font-weight: 800;
+  margin-right: 4px;
+}

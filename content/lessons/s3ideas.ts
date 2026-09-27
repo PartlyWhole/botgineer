@@ -133,7 +133,8 @@ export const s3Ideas: Lesson = {
       done: (e) => heard(e, readB) && heard(e, readC),
       praise: 'Slot 1 is `\'b\'`, the second, because counting starts at 0, and -1 is the last, `\'c\'`.',
       nudge: (l) => {
-        if (errorType(l) === 'IndexError') return 'There is no such slot: this list has only 0, 1 and 2, so the robot stopped.'
+        // The console names the error; say so, since a question about it is coming.
+        if (errorType(l) === 'IndexError') return 'No such slot: this list has only 0, 1 and 2. Remember what the robot said, and read one that is there.'
         if (byHand(l, 'items')) return 'Let the robot read the slot: `items[1]`.'
         if (l.thought?.repr === "'b'") return '`\'b\'` is in slot 1. Now the last slot: `items[-1]`.'
         if (l.thought?.repr === "'c'" && !/-/.test(l.source)) return 'Right slot, counted from the front. Now count from the end: `items[-1]`.'
@@ -227,7 +228,7 @@ export const s3Ideas: Lesson = {
       done: (e) => heard(e, readAnn),
       praise: '`30`: the robot found the key `"ann"`, not a position.',
       nudge: (l) => {
-        if (errorType(l) === 'KeyError') return 'No slot has that key. The keys are `"ann"` and `"bo"`, in quotes.'
+        if (errorType(l) === 'KeyError') return 'No slot has that key: remember what the robot said. The keys are `"ann"` and `"bo"`.'
         if (byHand(l, 'ages')) return 'Let the robot look it up: `ages["ann"]`.'
         return undefined
       },
