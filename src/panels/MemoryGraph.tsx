@@ -26,6 +26,7 @@ import {
   curve,
   ease,
   frame,
+  hidden,
   orderNames,
   overview,
   place,
@@ -59,6 +60,10 @@ type Props = {
    */
   fit?: boolean
 }
+
+/** Screen pixels of memory off an edge before the pane says so: a card's
+ *  shadow or a sliver of padding is not "more". */
+const EDGE_SLACK = 6
 
 type Edge = { from: string; to: string; label: string | null; key: string }
 
@@ -181,6 +186,16 @@ export function MemoryGraph({ snapshot, handles, runKey, picked, onPick, fit = f
       l.el.setAttribute('y', String(ys[i]))
       l.el.setAttribute('text-anchor', l.anchor)
     })
+    // Whether memory runs off either side of the pane, for the fade and
+    // the `more` button at that edge. Of where the camera is *going*, so
+    // the cue does not flicker while it travels; and only for the
+    // overview, which is the one view that cuts memory off.
+    const host = hostRef.current
+    if (host) {
+      const off = fit || nearRef.current !== null ? { left: 0, right: 0 } : hidden(target.current, cards, v)
+      host.dataset['moreLeft'] = off.left > EDGE_SLACK ? 'yes' : 'no'
+      host.dataset['moreRight'] = off.right > EDGE_SLACK ? 'yes' : 'no'
+    }
   }
   const paintRef = useRef(paint)
   paintRef.current = paint
@@ -375,6 +390,17 @@ export function MemoryGraph({ snapshot, handles, runKey, picked, onPick, fit = f
     [],
   )
 
+  /** The `more` buttons: most of a pane sideways, eased like any other
+   *  camera move, and never past what there is (`scrolled` clamps). */
+  const pan = (dir: 1 | -1) => {
+    const v = viewport.current
+    const next = scrolled(target.current, dir * v.w * 0.7, 0, boxes(null), v)
+    target.current = next
+    scroll.current = { x: next.x, y: next.y }
+    if (reduced()) camera.current = next
+    loopRef.current()
+  }
+
   const pick = (id: string) => {
     if (id === pickedId) {
       onPick(null)
@@ -445,6 +471,27 @@ export function MemoryGraph({ snapshot, handles, runKey, picked, onPick, fit = f
           })}
         </g>
       </svg>
+
+      {/* A memory wider than the pane is cut at an edge (the overview
+          stays anchored at the left, invariant 15), and a cut with nothing
+          to say about it read as all there is. So the cut edge fades, and
+          a small button there scrolls the rest into view — the same move a
+          sideways wheel or swipe makes. Shown by `data-more-*` on the
+          host, which `paint` keeps, never through React. */}
+      {!fit && (
+        <>
+          <div className="graph-more left" data-testid="memory-more-left">
+            <button type="button" onClick={() => pan(-1)} aria-label="Scroll memory left">
+              ◂
+            </button>
+          </div>
+          <div className="graph-more right" data-testid="memory-more-right">
+            <button type="button" onClick={() => pan(1)} aria-label="Scroll memory right">
+              more ▸
+            </button>
+          </div>
+        </>
+      )}
 
       <div className="world" ref={worldRef}>
         {nodes.map((spec) => (

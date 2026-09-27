@@ -316,3 +316,84 @@ test.describe('at 390x844, every line of order and operations', () => {
     expect(fit.need).toBeLessThanOrEqual(fit.have)
   })
 })
+
+// The picture's room. On the floor between the cast, a phone's picture
+// came out 116x76px — the shelf's labels a few pixels tall — at the foot
+// of a stage that was empty above the cast. A narrow stage now stands it
+// at the top, as wide as the stage allows, with the speech between it
+// and the cast (console.css, "the picture on a narrow stage"). The 900px
+// stacked stage is wide enough to keep it on the floor. Either way the
+// slot is a size a picture can be read at, and nothing that says or
+// shows something stands on anything else.
+const PICTURES: { level: string; kind: string; answers: string[] }[] = [
+  { level: 'types', kind: 'shelf', answers: ['True', '-1', '0.5', '"M"', '"hello"'] },
+  { level: 'operations', kind: 'crates', answers: OPS },
+  { level: 'order', kind: 'scale', answers: ['customer = "Mira"', 'parcels = 7', 'parcels * 2'] },
+  { level: 's5-ideas', kind: 'code', answers: ['parcels = [5, 7, 4]', 'total = 0', '16'] },
+]
+
+/** Every pair of things on the stage that overlap, by name. */
+const overlaps = (page: Page) =>
+  page.evaluate(() => {
+    const on = (sel: string) =>
+      [...document.querySelectorAll<HTMLElement>(sel)]
+        .filter((el) => el.closest('[data-offstage="yes"]') === null)
+        .map((el) => ({ sel: el.dataset['testid'] ?? sel, r: el.getBoundingClientRect() }))
+    const all = [
+      ...on('[data-testid="guide"]'),
+      ...on('[data-testid="thought"]'),
+      ...on('[data-testid="props"]'),
+      ...on('[data-testid="prop-ask"]'),
+      ...on('.stage .actor.robot, .stage .actor.crow, .stage .actor.courier'),
+      ...on('[data-testid="beat-next"]'),
+      ...on('[data-testid="takeaway"]'),
+      ...on('[data-testid="advance"]'),
+    ]
+    const hit = (a: DOMRect, b: DOMRect) => !(a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top)
+    const out: string[] = []
+    for (let i = 0; i < all.length; i++)
+      for (let j = i + 1; j < all.length; j++) {
+        const [a, b] = [all[i]!, all[j]!]
+        // The question hangs from the picture's slot, as part of it.
+        if (a.sel === 'props' && b.sel === 'prop-ask') continue
+        if (hit(a.r, b.r)) out.push(`${a.sel} on ${b.sel}`)
+      }
+    return out
+  })
+
+for (const viewport of [
+  { width: 390, height: 844, least: 300 },
+  { width: 900, height: 900, least: 250 },
+]) {
+  test.describe(`the picture's room at ${viewport.width}x${viewport.height}`, () => {
+    test.use({ viewport: { width: viewport.width, height: viewport.height } })
+
+    for (const { level, kind, answers } of PICTURES) {
+      test(`${level}: the ${kind} is at least ${viewport.least}px wide, and nothing overlaps`, async ({ page }) => {
+        test.setTimeout(240_000)
+        await open(page, level)
+        const queue = [...answers]
+        let measured = 0
+        for (let i = 0; i < 120 && measured < 4; i++) {
+          const b = await beat(page)
+          const shown = await page.getByTestId('prop').first().getAttribute('data-prop', { timeout: 50 }).catch(() => null)
+          if (shown === kind) {
+            await speechSettled(page)
+            const where = `${b.kind} ${b.at}`
+            const slot = (await page.getByTestId('props').boundingBox())!
+            const stage = (await page.locator('.stage').boundingBox())!
+            expect(slot.width, `slot width at ${where}`).toBeGreaterThanOrEqual(viewport.least)
+            expect(slot.y, where).toBeGreaterThanOrEqual(stage.y)
+            expect(slot.y + slot.height, where).toBeLessThanOrEqual(stage.y + stage.height)
+            expect(await overlaps(page), where).toEqual([])
+            measured++
+          }
+          if (b.listening) await page.evaluate(() => window.botgineer.next())
+          else if (queue.length) await say(page, queue.shift()!)
+          else break
+        }
+        expect(measured, `never saw the ${kind}`).toBeGreaterThan(0)
+      })
+    }
+  })
+}

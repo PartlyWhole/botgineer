@@ -500,6 +500,27 @@ export function scrolled(c: Camera, dx: number, dy: number, nodes: Box[], v: Vie
   return overview(nodes, v, { x: c.x + dx / c.k, y: c.y + dy / c.k }, [], pad)
 }
 
+/**
+ * How much of memory the overview camera leaves off each side of the
+ * pane, in screen pixels — so a memory wider than its pane can *say* it
+ * is, rather than being cut on the right with nothing to tell the player
+ * that a sideways scroll or swipe would show the rest.
+ *
+ * Only a report: it moves nothing, and the overview stays anchored at the
+ * left with its zoom set by the pane (invariant 15). Measured against the
+ * cards themselves, not the overview's padding, so a memory that fits
+ * reports nothing hidden.
+ */
+export function hidden(c: Camera, nodes: Box[], v: Viewport): { left: number; right: number } {
+  if (nodes.length === 0 || v.w === 0) return { left: 0, right: 0 }
+  const b = bounds(nodes)
+  const half = v.w / 2 / c.k
+  return {
+    left: Math.max(0, (c.x - half - b.left) * c.k),
+    right: Math.max(0, (b.right - (c.x + half)) * c.k),
+  }
+}
+
 function bounds(nodes: Box[]) {
   let left = Infinity
   let right = -Infinity

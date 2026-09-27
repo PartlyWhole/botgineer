@@ -14,6 +14,7 @@ import {
   ease,
   frame,
   grid,
+  hidden,
   LABEL_CHAR,
   LABEL_ROOM,
   MAX_K,
@@ -394,6 +395,27 @@ describe('the overview', () => {
   it('does not scroll a memory that fits', () => {
     const one = overview([card(30, 15)], V, null)
     expect(scrolled(one, 0, 300, [card(30, 15)], V)).toEqual(one)
+  })
+
+  // A memory wider than a phone's pane is cut on the right. What is off
+  // each side is reported, so the pane can say so; it moves nothing.
+  it('reports what a wide memory leaves off the right, and nothing for one that fits', () => {
+    const phone = { w: 358, h: 360 }
+    const row = [card(30, 15), card(160, 15), card(300, 15), card(440, 15), card(580, 15)]
+    const top = overview(row, phone, null)
+    const off = hidden(top, row, phone)
+    expect(off.left).toBe(0)
+    expect(off.right).toBeGreaterThan(100)
+    // Scrolled all the way over, the right is shown and the left is not.
+    const end = scrolled(top, 1e6, 0, row, phone)
+    expect(hidden(end, row, phone).right).toBe(0)
+    expect(hidden(end, row, phone).left).toBeGreaterThan(100)
+    // And asking changed nothing about where the overview looks.
+    expect(overview(row, phone, null)).toEqual(top)
+
+    const small = [card(30, 15), card(160, 15)]
+    expect(hidden(overview(small, V, null), small, V)).toEqual({ left: 0, right: 0 })
+    expect(hidden(overview([], V, null), [], V)).toEqual({ left: 0, right: 0 })
   })
 })
 

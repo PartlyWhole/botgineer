@@ -268,10 +268,18 @@ export function ScenePanel({
 
   const panelRef = useRef<HTMLDivElement | null>(null)
   useFootRoom(panelRef, view.waitingFor.length)
+  const stageRef = useRef<HTMLDivElement | null>(null)
+  usePropsTop(stageRef, [spec, meter !== undefined, telling !== undefined && telling.steps > 0])
 
   return (
     <div ref={panelRef} className={`scene-panel ${compact ? 'compact' : ''}`} data-testid="scene">
-      <div className="stage" data-scene={spec.id}>
+      <div
+        ref={stageRef}
+        className="stage"
+        data-scene={spec.id}
+        data-props={spec.props ? 'yes' : undefined}
+        style={spec.floor ? { ['--floor-at' as string]: `${spec.floor.at}%` } : undefined}
+      >
         {/* Drawn before the cast, so everyone stands in front of it. */}
         {spec.floor && (
           <div
@@ -386,10 +394,14 @@ export function ScenePanel({
           <div
             className="props-slot"
             data-testid="props"
+            // As custom properties, not `left`/`width`/`bottom`: a narrow
+            // stage stands the picture elsewhere (`styles.css`, "the
+            // picture on a narrow stage"), and an inline position would
+            // win over any stylesheet.
             style={{
-              left: `${spec.props.x}%`,
-              width: `${spec.props.w}%`,
-              bottom: `${100 - (spec.floor?.at ?? 80)}%`,
+              ['--prop-x' as string]: `${spec.props.x}%`,
+              ['--prop-w' as string]: `${spec.props.w}%`,
+              ['--prop-b' as string]: `${100 - (spec.floor?.at ?? 80)}%`,
             }}
           >
             {/* One keyed list, so the picture the player just answered is
@@ -627,7 +639,7 @@ function useBeside(ref: { current: HTMLDivElement | null }, lean: number, deps: 
       // are about to overlap. Offsets ignore transforms; both are
       // positioned children of the rail, so they share one origin.
       const t = box(thought as HTMLElement)
-      const b = box(speech as HTMLElement)
+      const b = settled(speech as HTMLElement)
       // The puffs reach about 11px past the cloud's box; the rest is air.
       const room = 20
       // How far the cloud must lean to clear the speech: away from it, on
@@ -644,12 +656,57 @@ function useBeside(ref: { current: HTMLDivElement | null }, lean: number, deps: 
       rail.style.setProperty('--aside', fits ? `${Math.round(need)}px` : '0px')
     }
     place()
-    // A dragged gutter changes the stage's width, and with it both widths.
+    // A dragged gutter changes the stage's width, and with it both widths;
+    // a new value or a rewrapped line changes one of them without the
+    // rail's size changing at all. And once a slide has ended, measure the
+    // settled box itself rather than trust the prediction.
     const watch = new ResizeObserver(place)
     watch.observe(rail)
-    return () => watch.disconnect()
+    for (const el of rail.querySelectorAll(':scope > .thought, :scope > .bubble')) watch.observe(el)
+    rail.addEventListener('transitionend', place)
+    return () => {
+      watch.disconnect()
+      rail.removeEventListener('transitionend', place)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps)
+}
+
+/**
+ * The speech's layout box where it is going, not where it is.
+ *
+ * This was the clash `useBeside` kept finding that the settled layout
+ * does not have. A change of speaker slides the bubble across (its `left`
+ * is a 250ms transition), and the offsets are read in the same frame the
+ * slide starts — so after Mira's ask and the crow's praise of `7 * 6`,
+ * the box measured was still over by Mira and the robot, the cloud was
+ * called in the way, and it stayed stacked a whole bubble (173px) above
+ * the robot. Widening the lean could not help: the numbers were from the
+ * wrong place. The transition knows where it ends, so the box is moved
+ * there; `transitionend` re-measures in case it was cut short.
+ */
+function settled(el: HTMLElement) {
+  const b = box(el)
+  const slide =
+    typeof el.getAnimations === 'function'
+      ? el
+          .getAnimations()
+          .find((a): a is CSSTransition => a instanceof CSSTransition && a.transitionProperty === 'left')
+      : undefined
+  const frames = slide?.effect instanceof KeyframeEffect ? slide.effect.getKeyframes() : []
+  const now = parseFloat(getComputedStyle(el).left)
+  // A keyframe holds the computed value, which for a percentage `left`
+  // is still a percentage — of the rail's width, the bubble being
+  // relatively positioned in it.
+  const to = String(frames[frames.length - 1]?.['left'] ?? '').trim()
+  const end = /^-?[\d.]+%$/.test(to)
+    ? (parseFloat(to) / 100) * (el.parentElement?.clientWidth ?? 0)
+    : /^-?[\d.]+px$/.test(to)
+      ? parseFloat(to)
+      : NaN
+  if (!Number.isFinite(now) || !Number.isFinite(end)) return b
+  const dx = end - now
+  return { left: b.left + dx, right: b.right + dx, top: b.top }
 }
 
 /**
@@ -683,6 +740,47 @@ function useFootRoom(ref: { current: HTMLDivElement | null }, hints: number) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hints])
+}
+
+/**
+ * Where a narrow stage's picture may start: under whatever hangs along the
+ * top of the stage — the beat bar or the practice meter, and scenery that
+ * does not stand on the floor, like the order counter's ticket board.
+ *
+ * On a narrow stage the picture cannot stand on the floor between the
+ * cast (32% of a phone's stage is a 116px thumbnail), so it stands at the
+ * top, as wide as the stage allows, over the room where the speech is
+ * (`styles.css`, "the picture on a narrow stage"). What it must clear up
+ * there depends on the scene and on how a board's words laid out, which
+ * only layout knows, so it is measured and written to the stage as
+ * `--props-top` — drawing, like `useBeside`, and the scene still holds no
+ * state. Unmeasured, the stylesheet's default applies.
+ */
+function usePropsTop(ref: { current: HTMLDivElement | null }, deps: unknown[]) {
+  useLayoutEffect(() => {
+    const stage = ref.current
+    if (!stage) return
+    const place = () => {
+      const h = stage.clientHeight
+      let top = 0
+      for (const el of stage.querySelectorAll<HTMLElement>(
+        ':scope > .beat-bar, :scope > .practice-meter, :scope > .actor:not(.standing)',
+      )) {
+        const r = el.getBoundingClientRect()
+        const s = stage.getBoundingClientRect()
+        // Only what hangs in the top third: a board lower down is beside
+        // the cast, not over the picture's room.
+        if (r.height === 0 || r.top - s.top > h / 3) continue
+        top = Math.max(top, r.bottom - s.top)
+      }
+      stage.style.setProperty('--props-top', `${Math.ceil(top) + 10}px`)
+    }
+    place()
+    const watch = new ResizeObserver(place)
+    watch.observe(stage)
+    return () => watch.disconnect()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps)
 }
 
 const box = (el: HTMLElement) => ({

@@ -1238,11 +1238,12 @@ for (const width of [null, 320]) {
   })
 }
 
-// FIXME: in the operations workshop (Mira beside the robot) the cloud
-// still stacks a bubble above the robot after the praise, though it would
-// fit beside the speech: useBeside in ScenePanel measures a clash that the
-// settled layout does not have. Cosmetic; the cloud is over the robot.
-test.fixme('the thought comes down to the robot when the speech is elsewhere', async ({ page }) => {
+// In the operations workshop Mira asks and the crow praises, so the
+// bubble slides across from her to the crow as the cloud arrives. The
+// clash used to be measured in that first frame, with the bubble still
+// over by Mira and the robot, and the cloud stayed a whole bubble (173px)
+// above the robot; `useBeside` now measures where the slide ends.
+test('the thought comes down to the robot when the speech is elsewhere', async ({ page }) => {
   // The crow is at one end of the workshop and the robot at the other, so
   // a short value does not need to be stacked above the crow's line —
   // and stacked, it floated a whole speech bubble above the robot's head.
@@ -1398,4 +1399,52 @@ test('each reading item opens with nothing of the item before shown', async ({ p
   await expect(page.getByTestId('memory')).toHaveClass(/empty/)
   await expect(page.getByTestId('scrubber')).toHaveCount(0)
   await expect(page.getByTestId('transcript')).toHaveCount(0)
+})
+
+// A memory wider than its pane is cut on the right (the overview stays
+// anchored at the left, invariant 15), and nothing used to say so: the
+// rest was a sideways swipe away that the player had no reason to try.
+// Now the cut edge fades and a `more` button there scrolls to it.
+test.describe('a memory wider than its pane says so', () => {
+  test.use({ viewport: { width: 390, height: 844 } })
+
+  test('a wide memory shows `more` at the edge it is cut at, and a narrow one does not', async ({ page }) => {
+    await open(page, 's2-ideas')
+    const graph = page.getByTestId('graph')
+    const more = page.getByTestId('memory-more-right').getByRole('button')
+    const back = page.getByTestId('memory-more-left').getByRole('button')
+
+    await say(page, 'x = 5')
+    await expect(graph).toHaveAttribute('data-more-right', 'no')
+    await expect(more).toBeHidden()
+    await expect(back).toBeHidden()
+
+    await say(page, 'box = [["alpha", ["beta", ["gamma"]]]]')
+    await expect(graph).toHaveAttribute('data-more-right', 'yes')
+    await expect(more).toBeVisible()
+    // Nothing moved to make room for it: the names column is where it was.
+    const before = (await page.getByTestId('node-box').boundingBox())!
+    expect(before.x).toBeGreaterThanOrEqual((await graph.boundingBox())!.x)
+
+    // Pressed, it scrolls the rest into view, and the cut is on the left.
+    await more.click()
+    await expect(graph).toHaveAttribute('data-more-right', 'no')
+    await expect(graph).toHaveAttribute('data-more-left', 'yes')
+    await expect(back).toBeVisible()
+    // The camera eases there; the deepest card arrives inside the pane.
+    const edge = await graph.evaluate((el) => el.getBoundingClientRect().right)
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const card = [...document.querySelectorAll('[data-testid="graph"] .node.object')].find((el) =>
+            el.textContent?.includes("'gamma'"),
+          )
+          return card?.getBoundingClientRect().right ?? Infinity
+        }),
+      )
+      .toBeLessThanOrEqual(edge)
+    await back.click()
+    await expect(graph).toHaveAttribute('data-more-left', 'no')
+    await expect(page.getByTestId('node-box')).toBeInViewport()
+  })
 })
