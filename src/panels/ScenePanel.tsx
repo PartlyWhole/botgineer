@@ -624,10 +624,32 @@ export function ScenePanel({
 const KIND_OPTION = new Set(['bool', 'int', 'float', 'str'])
 
 /**
- * A multiple-choice question's options: one button each, numbered, so
- * 1–4 on the keyboard pick them too. Focus goes to the first one not yet
- * tried when the question arrives, the way it goes to Next during
- * narration.
+ * The options in an order of the question's own: lessons write the right
+ * answer first, and a learner soon learns that it is always A. Sorted by a
+ * hash of the question and the option, so the order is the same on every
+ * visit and after a wrong pick — drawing, never state. The four data types
+ * keep their own order, bool · int · float · str, the shelf's.
+ */
+function shuffled<T extends { id: string }>(question: string, options: T[]): T[] {
+  if (options.length === 4 && options.every((o) => KIND_OPTION.has(o.id))) return options
+  const hash = (text: string) => {
+    let h = 0x811c9dc5
+    for (let i = 0; i < text.length; i++) {
+      h ^= text.charCodeAt(i)
+      h = Math.imul(h, 0x01000193) >>> 0
+    }
+    return h
+  }
+  return [...options].sort((a, b) => hash(`${question}:${a.id}`) - hash(`${question}:${b.id}`))
+}
+
+/**
+ * A multiple-choice question's options: one button each, lettered A, B, C…
+ * Letters, not numbers: a question about a list's slots (`hotbar[2]`) put
+ * a number beside every option, and "2" read as an answer about slot 2.
+ * Answered by clicking only. Nothing is focused when the question arrives:
+ * the first option focused wore a ring that read as a hint, and Enter,
+ * pressed to move on as it does through narration, answered with it.
  */
 function Options({
   choices,
@@ -636,30 +658,11 @@ function Options({
   choices: NonNullable<ScriptItem['choices']>
   onChoose: (choice: string) => void
 }) {
-  const row = useRef<HTMLDivElement | null>(null)
   const tried = choices.tried
-  useEffect(() => {
-    const first = row.current?.querySelector<HTMLButtonElement>('button:not([disabled])')
-    first?.focus({ preventScroll: true })
-  }, [tried.length])
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.altKey || e.ctrlKey || e.metaKey) return
-      const t = e.target as Element | null
-      if (t?.closest('input, textarea, [contenteditable], .cm-editor')) return
-      const n = Number(e.key)
-      const o = Number.isInteger(n) ? choices.options[n - 1] : undefined
-      if (o && !tried.includes(o.id)) {
-        e.preventDefault()
-        onChoose(o.id)
-      }
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [choices.options, tried, onChoose])
+  const options = shuffled(choices.id, choices.options)
   return (
-    <div ref={row} className="choices" role="group" aria-label="Choose an answer" data-testid="choices">
-      {choices.options.map((o, i) => {
+    <div className="choices" role="group" aria-label="Choose an answer" data-testid="choices">
+      {options.map((o, i) => {
         const no = tried.includes(o.id)
         return (
           <button
@@ -670,10 +673,16 @@ function Options({
             data-tried={no ? 'yes' : 'no'}
             disabled={no}
             aria-label={no ? `${o.label}, already tried` : o.label}
-            onClick={() => onChoose(o.id)}
+            // A click, and only a click. Enter or Space on a focused option
+            // is a click with no pointer behind it (`detail` 0), and was
+            // how a learner answered A by pressing Enter to move on.
+            onClick={(e) => {
+              if (e.detail === 0) return
+              onChoose(o.id)
+            }}
           >
             <span className="choice-key" aria-hidden="true">
-              {i + 1}
+              {String.fromCharCode(65 + i)}
             </span>
             <span className="choice-label">{richText(o.label)}</span>
           </button>

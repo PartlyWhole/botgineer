@@ -1051,7 +1051,8 @@
 
    A question the player answers by picking, not by instructing the
    robot: the options stand where Next stands during narration, as the
-   map's chunky buttons, numbered so 1–4 pick them too. An option named
+   map's chunky buttons, lettered A, B, C… (numbers beside the options
+   read as slot numbers in a question about a list). An option named
    after a data type wears that type's colour, the way the shelf does. A
    wrong pick stays on the row, amber and crossed, so the next try is
    among the rest. */
