@@ -1,0 +1,611 @@
+/**
+ * The robot panel, version 2: the robot's own terminal and its storage
+ * bank. Everything here is scoped under `.robot-panel[data-look='v2']`
+ * (or `.console.v2`), so v1 levels look exactly as they did.
+ *
+ * The panel explains itself by how it looks, not by what it says:
+ *
+ * - **Waiting for you**: the prompt glows, the row it sits on is lit, and
+ *   a solid block cursor blinks where the first key will land. The lamp
+ *   in the corner is green.
+ * - **Someone is talking**: the row goes dark, the cursor is an empty
+ *   outline that does not blink, and a padlock sits at the row's end. The
+ *   lamp is amber. Nothing about it says "type here".
+ * - **Working**: the cursor is replaced by three cells lighting in turn,
+ *   and the lamp blinks cyan.
+ * - **An empty memory** is a bank of empty sockets, a name's socket wired
+ *   to an object's, where the grid will put them — empty and ready.
+ *
+ * A dark screen in a light app, on purpose: this is the machine. Every
+ * text colour below is measured against the darkest background it sits
+ * on (--t-bg, #07101d) and clears WCAG AA with room: typed #e8f4ee 17:1,
+ * answers #7df0c9 13:1, printed output #a9bdd3 10:1, errors #ff9d8e 9:1,
+ * the dim locked prompt #7c90a8 6:1. Atmosphere (scanlines, glow) is
+ * painted *under* the text, never over it.
+ */
+
+.robot-panel[data-look='v2'] {
+  --t-bg: #07101d;
+  --t-bg-2: #0c1a2c;
+  --t-edge: #1c2c44;
+  --t-phos: #5dffa8;
+  --t-ink: #e8f4ee;
+  --t-soft: #a9bdd3;
+  --t-dim: #7c90a8;
+  --t-answer: #7df0c9;
+  --t-err: #ff9d8e;
+  --t-amber: #ffc861;
+  --t-cyan: #5ad8ff;
+  --t-ghost: #c9d6ea;
+  background: var(--t-bg);
+}
+
+/* The gutter between terminal and bank is the device's seam. */
+.robot-panel[data-look='v2'] .views {
+  background: #050b15;
+}
+
+.robot-panel[data-look='v2'] .gutter::after {
+  background: #2a3a55;
+}
+
+.robot-panel[data-look='v2'] .gutter:hover::after,
+.robot-panel[data-look='v2'] .gutter:focus-visible::after {
+  background: var(--t-phos);
+}
+
+.robot-panel[data-look='v2'] .views .memory-view {
+  border-top-color: var(--t-edge);
+}
+
+/* A question handed over: the whole screen lights at its edge. */
+.robot-panel[data-look='v2'] .view.instrument.glow {
+  outline: none;
+  box-shadow:
+    inset 0 0 0 2px rgb(93 255 168 / 0.55),
+    inset 0 0 22px rgb(93 255 168 / 0.12);
+}
+
+.robot-panel[data-look='v2'] .transport {
+  background: var(--t-bg-2);
+  border-top-color: var(--t-edge);
+}
+
+.robot-panel[data-look='v2'] .transport button {
+  background: #3a1016;
+  border-color: #ff7a6b;
+  color: #ffd9d3;
+  font-weight: 700;
+}
+
+/* ------------------------------ terminal ------------------------------ */
+
+.console.v2 {
+  position: relative;
+  color: var(--t-ink);
+  /* Under the text: faint scanlines, a phosphor bloom from the top, the
+     screen's own dark. Readable first, atmospheric second. */
+  background:
+    repeating-linear-gradient(0deg, rgb(255 255 255 / 0.022) 0 1px, transparent 1px 3px),
+    radial-gradient(130% 80% at 50% 0%, rgb(93 255 168 / 0.06), transparent 70%),
+    linear-gradient(var(--t-bg-2), var(--t-bg));
+}
+
+.console.v2 .scrollback {
+  padding: 14px 30px 18px 16px;
+  font-size: 14px;
+  scrollbar-color: #2a3a55 transparent;
+}
+
+.console.v2 ::selection {
+  background: rgb(93 255 168 / 0.3);
+}
+
+/* The status lamp: one light, one colour per state. */
+.console.v2 .lamp {
+  position: absolute;
+  top: 10px;
+  right: 11px;
+  z-index: 1;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--t-phos);
+  box-shadow: 0 0 8px var(--t-phos);
+  pointer-events: none;
+}
+
+.console.v2[data-state='locked'] .lamp,
+.console.v2[data-state='demo'] .lamp {
+  background: var(--t-amber);
+  box-shadow: 0 0 7px rgb(255 200 97 / 0.7);
+}
+
+.console.v2[data-state='busy'] .lamp {
+  background: var(--t-cyan);
+  box-shadow: 0 0 9px var(--t-cyan);
+}
+
+.console.v2 .prompt {
+  color: var(--t-phos);
+  text-shadow: 0 0 6px rgb(93 255 168 / 0.55);
+}
+
+.console.v2 .typed {
+  color: var(--t-ink);
+}
+
+/* ---- the input row ---- */
+
+.console.v2 .prompt-row {
+  position: relative;
+  margin: 2px -8px 0;
+  padding: 2px 8px;
+  border-left: 2px solid transparent;
+  border-radius: 4px;
+  transition:
+    background 200ms ease,
+    border-color 200ms ease;
+}
+
+.console.v2[data-state='open'] .prompt-row {
+  background: rgb(93 255 168 / 0.07);
+  border-left-color: var(--t-phos);
+}
+
+.console.v2[data-state='open'][data-asked='yes'] .prompt-row {
+  background: rgb(93 255 168 / 0.11);
+}
+
+.console.v2[data-state='locked'] .prompt,
+.console.v2[data-state='demo'] .prompt,
+.console.v2[data-state='busy'] .prompt {
+  color: var(--t-dim);
+  text-shadow: none;
+}
+
+.console.v2 .line-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+}
+
+.console.v2 .line {
+  color: var(--t-ink);
+  caret-color: var(--t-phos);
+  caret-shape: block;
+}
+
+/* Empty: the drawn block cursor stands where the caret is, so the
+   native caret steps aside rather than doubling it. */
+.console.v2[data-empty='yes'] .line {
+  caret-color: transparent;
+}
+
+.console.v2 .line:disabled {
+  opacity: 1;
+  color: var(--t-dim);
+}
+
+.console.v2 .cursor {
+  position: absolute;
+  left: 0;
+  top: 0.24em;
+  width: 0.62em;
+  height: 1.2em;
+  border-radius: 1px;
+  background: var(--t-phos);
+  box-shadow: 0 0 8px rgb(93 255 168 / 0.6);
+  pointer-events: none;
+}
+
+/* Locked: an empty outline that does not blink — the port is there, and
+   it is off. */
+.console.v2[data-state='locked'] .cursor,
+.console.v2[data-state='demo'] .line-wrap > .cursor {
+  background: transparent;
+  box-shadow: none;
+  border: 1.5px solid var(--t-dim);
+}
+
+.console.v2 .lock-mark {
+  flex: none;
+  align-self: center;
+  width: 15px;
+  height: 15px;
+  margin-left: 6px;
+  stroke: var(--t-amber);
+}
+
+/* The crow typing: the text as it arrives, the cursor riding after it. */
+.console.v2 .demo-typing {
+  flex: 1;
+  min-width: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--t-ghost);
+}
+
+.console.v2 .demo-typing .cursor {
+  position: relative;
+  display: inline-block;
+  top: 0.22em;
+  margin-left: 1px;
+  background: var(--t-ghost);
+  box-shadow: 0 0 6px rgb(201 214 234 / 0.5);
+  vertical-align: top;
+}
+
+/* Working: three cells lighting in turn where the cursor was. */
+.console.v2 .working {
+  position: absolute;
+  left: 0;
+  top: 0.24em;
+  display: inline-flex;
+  gap: 3px;
+  height: 1.2em;
+}
+
+.console.v2 .working .cell {
+  width: 0.5em;
+  height: 100%;
+  border-radius: 1px;
+  background: var(--t-cyan);
+  box-shadow: 0 0 6px rgb(90 216 255 / 0.6);
+}
+
+/* ---- what came back ---- */
+
+.console.v2 .said {
+  padding-left: 0;
+  margin-left: 3.4ch;
+}
+
+.console.v2 .mark {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  margin-top: 0.3em;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.console.v2 .mark .fill {
+  fill: currentColor;
+  stroke: none;
+}
+
+/* The robot's answer, on a lit band behind its own mark: the same green
+   the memory bank uses for a value. */
+.console.v2 .said.value {
+  display: flex;
+  gap: 8px;
+  width: fit-content;
+  max-width: calc(100% - 3.4ch);
+  margin-top: 2px;
+  margin-bottom: 2px;
+  padding: 1px 10px 1px 7px;
+  border-left: 2px solid var(--t-answer);
+  border-radius: 0 4px 4px 0;
+  background: rgb(125 240 201 / 0.09);
+  color: var(--t-answer);
+  font-weight: 700;
+}
+
+.console.v2 .said-text {
+  min-width: 0;
+}
+
+.console.v2 .said.out {
+  color: var(--t-soft);
+}
+
+.console.v2 .said.err {
+  display: flex;
+  gap: 8px;
+  color: var(--t-err);
+}
+
+/* ---- lines that are not the player's ---- */
+
+.console.v2 .exchange.given {
+  opacity: 0.8;
+}
+
+.console.v2 .given-tag {
+  background: #1d2c47;
+  color: #c9d6ff;
+}
+
+/* The crow's demonstration: framed, ghosted and tagged with the crow's
+   name the way the speech bubble is, so it never reads as the player's
+   own line. It is narration and leaves with the beat. */
+.console.v2 .exchange.demo {
+  position: relative;
+  margin: 12px 0 8px -8px;
+  padding: 5px 8px 4px;
+  border: 1px dashed rgb(201 214 234 / 0.45);
+  border-radius: 8px;
+  background: rgb(201 214 234 / 0.04);
+}
+
+.console.v2 .exchange.demo .typed,
+.console.v2 .exchange.demo .prompt {
+  color: var(--t-ghost);
+  text-shadow: none;
+}
+
+.console.v2 .demo-tag {
+  position: absolute;
+  top: -10px;
+  right: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 7px 0 5px;
+  border-radius: 6px;
+  background: #e8eefc;
+  color: var(--ink);
+  font: 800 10.5px/18px 'Nunito', ui-rounded, system-ui, sans-serif;
+  letter-spacing: 0.02em;
+}
+
+.console.v2 .demo-tag .mark {
+  width: 12px;
+  height: 12px;
+  margin: 0;
+}
+
+/* ------------------------------ storage bank ------------------------------ */
+
+.robot-panel[data-look='v2'] .graph {
+  background:
+    radial-gradient(circle, rgb(120 160 220 / 0.2) 1px, transparent 1.6px) 0 0 / 18px 18px,
+    linear-gradient(90deg, rgb(90 216 255 / 0.045) 1px, transparent 1px) 0 0 / 108px 100%,
+    linear-gradient(#0b1628, #081221);
+}
+
+.robot-panel[data-look='v2'] .graph-more.right {
+  background: linear-gradient(to right, rgb(8 18 33 / 0), #081221 85%);
+}
+
+.robot-panel[data-look='v2'] .graph-more.left {
+  background: linear-gradient(to left, rgb(11 22 40 / 0), #0b1628 85%);
+}
+
+.robot-panel[data-look='v2'] .edge path {
+  stroke: #7186ab;
+}
+
+.robot-panel[data-look='v2'] .edge marker path,
+.robot-panel[data-look='v2'] .edges marker path {
+  fill: #7186ab;
+}
+
+.robot-panel[data-look='v2'] .has-pick .edge path {
+  stroke: #2a3953;
+}
+
+.robot-panel[data-look='v2'] .has-pick .edge.lit path {
+  stroke: #9db2ff;
+}
+
+.robot-panel[data-look='v2'] .edge-label {
+  fill: #c3d0ea;
+  stroke: #0a1526;
+}
+
+.robot-panel[data-look='v2'] .has-pick .edge .edge-label {
+  fill: #53627f;
+}
+
+.robot-panel[data-look='v2'] .has-pick .edge.lit .edge-label {
+  fill: #b4c4ff;
+}
+
+/* Cards plugged into the bank glow faintly at their edge. A shadow, not
+   a border: the grid measures these cards (invariant 16). */
+.robot-panel[data-look='v2'] .node.name:not(.picked) {
+  box-shadow: 0 0 12px rgb(120 150 255 / 0.28);
+}
+
+.robot-panel[data-look='v2'] .node.object.value:not(.picked) {
+  box-shadow: 0 0 12px rgb(125 240 201 / 0.22);
+}
+
+.robot-panel[data-look='v2'] .node.object.reference:not(.picked) {
+  box-shadow: 0 0 12px rgb(255 200 97 / 0.2);
+}
+
+/* A marked name glows gold on the dark bank: not a kind's colour, not
+   the phosphor of "your turn". */
+.robot-panel[data-look='v2'] .graph {
+  --mark: #ffd166;
+  --mark-glow: rgb(255 209 102 / 0.45);
+}
+
+.robot-panel[data-look='v2'] .edge.marked path {
+  stroke: var(--mark);
+}
+
+.robot-panel[data-look='v2'] .edges .tip-marked path {
+  fill: var(--mark);
+}
+
+/* The crow's example: the console demonstration's ghosted dashed frame. */
+.robot-panel[data-look='v2'] .memory-demo-frame {
+  border-color: rgb(201 214 234 / 0.5);
+  background: rgb(201 214 234 / 0.035);
+}
+
+/* Wipe: a dark key on the bank, lit phosphor on hover and focus. */
+.robot-panel[data-look='v2'] .memory-reset {
+  background: #0f1d33;
+  border-color: #2a3a55;
+  color: #a9bdd3;
+  opacity: 0.7;
+}
+
+.robot-panel[data-look='v2'] .memory-reset:hover:not(:disabled),
+.robot-panel[data-look='v2'] .memory-reset:focus-visible {
+  opacity: 1;
+  color: var(--t-phos);
+  border-color: rgb(93 255 168 / 0.6);
+  box-shadow: 0 0 10px rgb(93 255 168 / 0.25);
+}
+
+.robot-panel[data-look='v2'] .memory-reset:focus-visible {
+  outline-color: var(--t-phos);
+}
+
+.robot-panel[data-look='v2'] .memory-reset:disabled {
+  opacity: 0.3;
+  box-shadow: none;
+}
+
+/* Empty: rows of sockets where names and objects will go. */
+.bank-empty {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  padding: 18px 16px;
+  pointer-events: none;
+}
+
+.bank-empty .sockets {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.bank-empty .socket-row {
+  display: flex;
+  align-items: center;
+  opacity: calc(1 - var(--i) * 0.28);
+}
+
+.bank-empty .socket {
+  flex: none;
+  border: 1.5px dashed;
+  background: rgb(255 255 255 / 0.02);
+}
+
+.bank-empty .socket.name {
+  width: 64px;
+  height: 24px;
+  border-radius: 999px;
+  border-color: rgb(157 178 255 / 0.5);
+}
+
+.bank-empty .socket.object {
+  width: 58px;
+  height: 40px;
+  border-radius: 10px;
+  border-color: rgb(125 240 201 / 0.45);
+}
+
+.bank-empty .wire {
+  position: relative;
+  flex: none;
+  width: 40px;
+  height: 0;
+  margin: 0 4px;
+  border-top: 1.5px dashed rgb(113 134 171 / 0.6);
+}
+
+.bank-empty .wire::after {
+  content: '';
+  position: absolute;
+  right: -2px;
+  top: -5px;
+  border: 4px solid transparent;
+  border-left: 6px solid rgb(113 134 171 / 0.6);
+  border-right: 0;
+}
+
+/* ------------------------------ motion ------------------------------ */
+
+@media (prefers-reduced-motion: no-preference) {
+  .console.v2[data-state='open'] .line-wrap > .cursor {
+    animation: v2-blink 1.06s steps(1, end) infinite;
+  }
+
+  .console.v2[data-state='busy'] .lamp {
+    animation: v2-blink 0.5s steps(1, end) infinite;
+  }
+
+  .console.v2 .working .cell {
+    animation: v2-cell 0.9s ease-in-out infinite;
+  }
+  .console.v2 .working .cell:nth-child(2) {
+    animation-delay: 0.15s;
+  }
+  .console.v2 .working .cell:nth-child(3) {
+    animation-delay: 0.3s;
+  }
+
+  .console.v2 .exchange.demo {
+    animation: v2-demo-in 220ms ease-out backwards;
+  }
+
+  .bank-empty .socket {
+    animation: v2-socket 3.2s ease-in-out infinite;
+    animation-delay: calc(var(--i) * 0.35s);
+  }
+  .bank-empty .socket.object {
+    animation-delay: calc(var(--i) * 0.35s + 0.2s);
+  }
+
+  @keyframes v2-blink {
+    50% {
+      opacity: 0;
+    }
+  }
+  @keyframes v2-cell {
+    0%,
+    100% {
+      opacity: 0.18;
+    }
+    40% {
+      opacity: 1;
+    }
+  }
+  @keyframes v2-demo-in {
+    from {
+      opacity: 0;
+      translate: 0 4px;
+    }
+  }
+  @keyframes v2-socket {
+    0%,
+    100% {
+      background: rgb(255 255 255 / 0.02);
+    }
+    50% {
+      background: rgb(157 178 255 / 0.1);
+    }
+  }
+}
+
+/* Reduced motion: the working cells hold a still, readable pattern. */
+@media (prefers-reduced-motion: reduce) {
+  .console.v2 .working .cell:nth-child(2) {
+    opacity: 0.55;
+  }
+  .console.v2 .working .cell:nth-child(3) {
+    opacity: 0.25;
+  }
+}
+
+/* Beside the off cursor when the line is empty; at the row's end when
+   something typed is waiting under the lock. */
+.console.v2 .line-wrap > .lock-mark {
+  position: absolute;
+  left: 0.95em;
+  top: 0.32em;
+  margin: 0;
+}

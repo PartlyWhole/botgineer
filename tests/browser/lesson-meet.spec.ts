@@ -36,7 +36,7 @@ test('the robot is introduced before it is asked anything', async ({ page }) => 
   await expect(page.getByTestId('console-input')).toBeEnabled()
 })
 
-test('the misses are shown and named, then a number is thought of and let go', async ({ page }) => {
+test('the misses are shown and named, then a number is thought of and let go', { tag: '@smoke' }, async ({ page }) => {
   await open(page, 'sandbox')
   await skip(page)
 

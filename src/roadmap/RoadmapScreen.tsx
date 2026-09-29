@@ -12,7 +12,7 @@
  * and the levels are visibly one world.
  */
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { LEVEL_ORDER, ROADMAP, levelActivity, type Unit } from '../../content/roadmap'
+import { LEVEL_ORDER as V1_ORDER, ROADMAP, levelActivity, type Unit } from '../../content/roadmap'
 import { levelStates, unitDone, useProgress, type LevelState } from '../progress/progress'
 import { arrivedFrom, goTo } from '../app/router'
 import { Robot, Courier } from '../ui/Characters'
@@ -45,14 +45,16 @@ export function stopsOf(unit: Unit, states: Map<string, LevelState>, done: Reado
   return { levels, states: next }
 }
 
-export function RoadmapScreen() {
+/** The map of one version's lessons: v1's `ROADMAP` unless told another. */
+export function RoadmapScreen({ roadmap = ROADMAP }: { roadmap?: Unit[] } = {}) {
+  const LEVEL_ORDER = roadmap === ROADMAP ? V1_ORDER : roadmap.flatMap((u) => u.levels)
   const done = useProgress()
   const mastery = useMastery()
   const linear = levelStates(LEVEL_ORDER, done)
   // Reviews owed, folded in: each one becomes current, and its checkpoint
   // waits for it.
   const states = new Map(linear)
-  const stretches = ROADMAP.map((u) => {
+  const stretches = roadmap.map((u) => {
     const s = stopsOf(u, linear, done, mastery)
     // Only this unit's own stops: another unit's view of the whole map
     // would put back what this one changed.
@@ -108,7 +110,7 @@ export function RoadmapScreen() {
   }, [open])
 
   const nextId = order.find((id) => states.get(id) === 'current') ?? null
-  const nextUnit = nextId ? ROADMAP.find((u) => u.levels.includes(nextId)) : undefined
+  const nextUnit = nextId ? roadmap.find((u) => u.levels.includes(nextId)) : undefined
 
   return (
     <main className="map" data-testid="map" ref={mapRef}>
@@ -118,7 +120,7 @@ export function RoadmapScreen() {
             <span className="map-tally-count">{finished}</span> of {LEVEL_ORDER.length} levels done
           </p>
 
-          {ROADMAP.map((unit, u) => (
+          {roadmap.map((unit, u) => (
             <UnitStretch
               key={unit.id}
               unit={unit}
@@ -131,6 +133,7 @@ export function RoadmapScreen() {
               currentRef={currentRef}
               focus={focus}
               arrived={arrived}
+              order={LEVEL_ORDER}
             />
           ))}
 
@@ -138,7 +141,7 @@ export function RoadmapScreen() {
             <Signpost />
             <p className="map-end-title">More levels on the way</p>
             <p className="map-end-note">The robot is still learning. So are we.</p>
-            <ProgressControls />
+            <ProgressControls order={LEVEL_ORDER} />
           </div>
         </div>
 
@@ -189,7 +192,7 @@ export function RoadmapScreen() {
                 />
               </div>
             </div>
-            <ProgressControls compact />
+            <ProgressControls compact order={LEVEL_ORDER} />
           </div>
         </aside>
       </div>
@@ -208,7 +211,9 @@ function UnitStretch({
   currentRef,
   focus,
   arrived,
+  order,
 }: {
+  order: string[]
   unit: Unit
   levels: string[]
   index: number
@@ -274,7 +279,7 @@ function UnitStretch({
             <LevelNode
               key={id}
               id={id}
-              number={LEVEL_ORDER.indexOf(id) + 1}
+              number={order.indexOf(id) + 1}
               waiting={id === `s${unit.stage}-checkpoint` && levels.includes(`s${unit.stage}-review`)}
               state={state}
               x={stop.x}

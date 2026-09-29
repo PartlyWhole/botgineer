@@ -69,6 +69,9 @@ export type GuideLine = {
   /** Identity of this line in the script, so the same words said again
    *  as a new beat still type on again. */
   key?: string | undefined
+  /** A multiple-choice question: the options, drawn on the stage, and the
+   *  ones already tried. */
+  choices?: ScriptItem['choices']
 }
 
 /**
@@ -100,6 +103,7 @@ export function ScenePanel({
   snapshot,
   moods,
   guide,
+  onChoose,
   onAdvance,
   triumph,
   thought,
@@ -121,6 +125,9 @@ export function ScenePanel({
    *  scene still causes nothing and decides nothing, it just draws the
    *  sentence it was given, next to whoever is saying it. */
   guide?: GuideLine | undefined
+  /** A multiple-choice option was picked. Handed straight back to the
+   *  workbench, which keeps the picks; the scene still decides nothing. */
+  onChoose?: ((choice: string) => void) | undefined
   /** Offered once the lesson is finished. Navigation only: it starts no
    *  run and holds no state, so the scene still causes nothing that could
    *  change what memory says. */
@@ -205,7 +212,8 @@ export function ScenePanel({
   const line = guideShown ? `${guide.key ?? ''}\u0000${guide.text}` : null
   const who = guideShown ? speaker.actor.id : null
   useSpeechPop(speechRef, tailRef, line, who)
-  useTailReach(railRef, speechRef, tailRef, speaker?.actor.x ?? null, [line, who])
+  useTail(railRef, speechRef, tailRef, [line, who, speaker?.actor.x])
+  useCloud(thoughtRef, [thought, thinking, robot?.actor.x, guide?.text])
   usePop(thoughtRef, thoughtShown ? (thinking ? '\u2026' : (thought ?? '')) : null, THOUGHT_POP)
 
   // The line, typed on: one span per character, each with its delay, and
@@ -271,6 +279,10 @@ export function ScenePanel({
   useFootRoom(panelRef, view.waitingFor.length)
   const stageRef = useRef<HTMLDivElement | null>(null)
   usePropsTop(stageRef, [spec, meter !== undefined, telling !== undefined && telling.steps > 0])
+  // A goal memory is read row by row, so it stands up top, where it can be
+  // large, rather than on the floor between the cast (`useRaised`).
+  const raise = staging?.current?.prop.kind === 'goal'
+  useRaised(stageRef, raise, spec.props?.w ?? 0, [guide?.text, thought])
 
   return (
     <div ref={panelRef} className={`scene-panel ${compact ? 'compact' : ''}`} data-testid="scene">
@@ -361,6 +373,15 @@ export function ScenePanel({
           </div>
         )}
 
+        {guide?.choices && onChoose && (
+          // A multiple-choice question is the player answering the crow,
+          // not instructing the robot, so its answers stand here, where
+          // Next stands during narration, and the console stays closed.
+          // An option already tried stays marked, and cannot be picked
+          // again.
+          <Options key={guide.choices.id} choices={guide.choices} onChoose={onChoose} />
+        )}
+
         {/* No "Type your answer" pointer on the stage: two cues pointing off
             the stage's edge at the console, from nowhere near it, read as
             noise. The console's own prompt says it, where the typing is. */}
@@ -393,7 +414,7 @@ export function ScenePanel({
           // Stands on the floor between the cast, drawn before them so a
           // character's shadow is never under a picture's edge.
           <div
-            className="props-slot"
+            className={raise ? 'props-slot raised' : 'props-slot'}
             data-testid="props"
             // As custom properties, not `left`/`width`/`bottom`: a narrow
             // stage stands the picture elsewhere (`styles.css`, "the
@@ -494,11 +515,16 @@ export function ScenePanel({
                 <span className="thought-value">
                   {thinking ? <span className="dots" aria-label="thinking" /> : thought}
                 </span>
-                <span className="thought-trail" aria-hidden="true">
-                  <i />
-                  <i />
-                  <i />
-                </span>
+                {/* The cloud and its trail, drawn around the value's box
+                    (`useCloud`): even puffs all the way round, one outline,
+                    and three shrinking puffs that fall towards the
+                    robot's head. */}
+                <svg className="thought-shape" aria-hidden="true">
+                  <path className="cloud" />
+                  <circle />
+                  <circle />
+                  <circle />
+                </svg>
               </div>
             )}
             {guideShown && (
@@ -552,27 +578,23 @@ export function ScenePanel({
             {guideShown && (
               // The band sits at the tallest actor's head, so a shorter
               // speaker is some way below it. The tail reaches down that
-              // far (`--drop`, in the same width units as the band), or
-              // the bubble would point at the air above the crow.
+              // far (`data-drop`, in percent of the stage's width), or the
+              // bubble would point at the air above the crow.
               //
-              // Short and curved, and it leans: its root is pulled towards
-              // the bubble's body, so when the clamp has slid the body away
-              // from a speaker near the edge the tail still grows out of
-              // the bubble rather than beside it. Its `left` is
-              // transitioned, so a change of speaker swings it across.
+              // Drawn from where the bubble really is (`useTail`): its root
+              // always on the flat of the bubble's bottom edge, clear of the
+              // rounded corners, and its tip on the speaker's head, however
+              // far the clamp has slid the body away from them.
               <span
                 ref={tailRef}
                 className="bubble-tail"
                 aria-hidden="true"
-                data-lean={lean(speaker.actor.x)}
-                style={{
-                  left: `${speaker.actor.x}%`,
-                  ['--drop' as string]: `${speechDrop(speaker.actor, spec.floor, lift)}%`,
-                }}
+                data-x={speaker.actor.x}
+                data-drop={speechDrop(speaker.actor, spec.floor, lift)}
               >
-                <svg viewBox="0 0 32 10" preserveAspectRatio="none">
-                  <path className="tail-fill" d={TAIL[lean(speaker.actor.x)].fill} />
-                  <path className="tail-edge" d={TAIL[lean(speaker.actor.x)].edge} />
+                <svg>
+                  <path className="tail-fill" />
+                  <path className="tail-edge" />
                 </svg>
               </span>
             )}
@@ -594,6 +616,69 @@ export function ScenePanel({
           </ul>
         </div>
       )}
+    </div>
+  )
+}
+
+/** The data types, drawn in their own colours as the shelf draws them. */
+const KIND_OPTION = new Set(['bool', 'int', 'float', 'str'])
+
+/**
+ * A multiple-choice question's options: one button each, numbered, so
+ * 1–4 on the keyboard pick them too. Focus goes to the first one not yet
+ * tried when the question arrives, the way it goes to Next during
+ * narration.
+ */
+function Options({
+  choices,
+  onChoose,
+}: {
+  choices: NonNullable<ScriptItem['choices']>
+  onChoose: (choice: string) => void
+}) {
+  const row = useRef<HTMLDivElement | null>(null)
+  const tried = choices.tried
+  useEffect(() => {
+    const first = row.current?.querySelector<HTMLButtonElement>('button:not([disabled])')
+    first?.focus({ preventScroll: true })
+  }, [tried.length])
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.altKey || e.ctrlKey || e.metaKey) return
+      const t = e.target as Element | null
+      if (t?.closest('input, textarea, [contenteditable], .cm-editor')) return
+      const n = Number(e.key)
+      const o = Number.isInteger(n) ? choices.options[n - 1] : undefined
+      if (o && !tried.includes(o.id)) {
+        e.preventDefault()
+        onChoose(o.id)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [choices.options, tried, onChoose])
+  return (
+    <div ref={row} className="choices" role="group" aria-label="Choose an answer" data-testid="choices">
+      {choices.options.map((o, i) => {
+        const no = tried.includes(o.id)
+        return (
+          <button
+            key={o.id}
+            type="button"
+            className={`choice ${KIND_OPTION.has(o.id) ? `kind-${o.id}` : ''} ${no ? 'tried' : ''}`}
+            data-testid={`choice-${o.id}`}
+            data-tried={no ? 'yes' : 'no'}
+            disabled={no}
+            aria-label={no ? `${o.label}, already tried` : o.label}
+            onClick={() => onChoose(o.id)}
+          >
+            <span className="choice-key" aria-hidden="true">
+              {i + 1}
+            </span>
+            <span className="choice-label">{richText(o.label)}</span>
+          </button>
+        )
+      })}
     </div>
   )
 }
@@ -632,6 +717,7 @@ function useBeside(ref: { current: HTMLDivElement | null }, lean: number, deps: 
       if (!thought || !speech) {
         rail.style.removeProperty('--beside')
         rail.style.removeProperty('--aside')
+        rail.style.removeProperty('--push')
         return
       }
       // Layout boxes, not client rects: both are popping in when this
@@ -640,7 +726,11 @@ function useBeside(ref: { current: HTMLDivElement | null }, lean: number, deps: 
       // are about to overlap. Offsets ignore transforms; both are
       // positioned children of the rail, so they share one origin.
       const t = box(thought as HTMLElement)
-      const b = settled(speech as HTMLElement)
+      // Where the speech would be without the step aside this wrote last
+      // time, so the measurement cannot chase its own answer.
+      const pushed = parseFloat(rail.style.getPropertyValue('--push')) || 0
+      const s = settled(speech as HTMLElement)
+      const b = { left: s.left - pushed, right: s.right - pushed, top: s.top }
       // The puffs reach about 11px past the cloud's box; the rest is air.
       const room = 20
       // How far the cloud must lean to clear the speech: away from it, on
@@ -648,13 +738,27 @@ function useBeside(ref: { current: HTMLDivElement | null }, lean: number, deps: 
       const clear = t.right + room <= b.left || b.right + room <= t.left
       const right = t.left + t.right >= b.left + b.right
       const need = clear ? 0 : right ? b.right + room - t.left : b.left - room - t.right
+      // The cloud leans as far as keeps it over the robot, and the speech
+      // steps the rest of the way aside, away from it — its tail is drawn
+      // to wherever it ends up, so it still points at its speaker. Only
+      // while both stay on the stage; otherwise they stack.
+      const W = rail.clientWidth
+      const most = W * lean
+      const aside = Math.max(-most, Math.min(most, need))
+      const push = -(need - aside)
+      const edge = 8
       const fits =
-        Math.abs(need) <= rail.clientWidth * lean && t.left + need >= 0 && t.right + need <= rail.clientWidth
+        t.left + aside >= 0 &&
+        t.right + aside <= W &&
+        b.left + push >= edge &&
+        b.right + push <= W - edge &&
+        Math.abs(push) <= W * 0.2
       // Everything from the top of the speech to the foot of the rail is
       // what the thought can come down by.
       const drop = rail.offsetHeight - b.top
       rail.style.setProperty('--beside', fits ? `${Math.round(drop)}px` : '0px')
-      rail.style.setProperty('--aside', fits ? `${Math.round(need)}px` : '0px')
+      rail.style.setProperty('--aside', fits ? `${Math.round(aside)}px` : '0px')
+      rail.style.setProperty('--push', fits ? `${Math.round(push)}px` : '0px')
     }
     place()
     // A dragged gutter changes the stage's width, and with it both widths;
@@ -674,45 +778,216 @@ function useBeside(ref: { current: HTMLDivElement | null }, lean: number, deps: 
 }
 
 /**
- * Widens the tail until its root is under the bubble. The tail is centred
- * on the speaker and its root is one half of it (\`TAIL\`), 16px across; a
- * bubble kept off the stage's edge by more than that (the 900px stacked
- * stage: the crow at 104px, the bubble from 134px) left the tail floating
- * beside it. Widened, the same shape slants from inside the bubble down to
- * the speaker. Measured where the bubble settles (\`settled\`), written
- * straight to the element as \`--tail-w\`: drawing, never state.
+ * Draws the tail from the bubble to the speaker's head.
+ *
+ * It used to be one of three fixed shapes, centred on the speaker and
+ * stretched to fit. When the clamp had slid the bubble away from a speaker
+ * near the edge, the stretched root landed in the bubble's rounded corner
+ * or beside it, and the tail read as a separate sliver floating under the
+ * bubble. Now its root is always on the flat of the bottom edge (inset by
+ * the corner's radius) and its tip is on the speaker, so the tail can
+ * only ever grow out of the bubble.
+ *
+ * Measured from the bubble's live layout box, not a prediction: while the
+ * bubble slides to a new speaker (its `left` transition), the tail is
+ * redrawn every frame, so the two move as one. The element's box is the
+ * tail's own, centred on the tip, which is what a test measuring "does it
+ * reach the speaker" wants. Written straight to the elements: drawing,
+ * never state.
  */
-function useTailReach(
+function useTail(
   rail: { current: HTMLDivElement | null },
   speech: { current: HTMLDivElement | null },
   tail: { current: HTMLSpanElement | null },
-  x: number | null,
   deps: unknown[],
 ) {
   useLayoutEffect(() => {
     const r = rail.current
     const b = speech.current
     const t = tail.current
-    if (!r || !b || !t || x === null) return
+    if (!r || !b || !t) return
+    const fill = t.querySelector<SVGPathElement>('.tail-fill')
+    const edge = t.querySelector<SVGPathElement>('.tail-edge')
     const place = () => {
-      const at = (r.clientWidth * x) / 100
-      const s = settled(b)
-      // The root reaches 14px inside the bubble's edge, clear of its rounding.
-      const need = at < s.left + 14 ? 2 * (s.left + 14 - at) : at > s.right - 14 ? 2 * (at - (s.right - 14)) : 0
-      if (need > 32) t.style.setProperty('--tail-w', `${Math.round(need)}px`)
-      else t.style.removeProperty('--tail-w')
+      const x = Number(t.dataset.x)
+      const drop = Number(t.dataset.drop ?? 0)
+      if (!Number.isFinite(x)) return
+      const shape = tailShape({
+        at: (r.clientWidth * x) / 100,
+        tip: r.offsetHeight - 4 + (drop * r.clientWidth) / 100,
+        left: b.offsetLeft,
+        right: b.offsetLeft + b.offsetWidth,
+        bottom: b.offsetTop + b.offsetHeight,
+        radius: parseFloat(getComputedStyle(b).borderBottomLeftRadius) || 20,
+      })
+      Object.assign(t.style, {
+        left: `${shape.box.left}px`,
+        top: `${shape.box.top}px`,
+        width: `${shape.box.width}px`,
+        height: `${shape.box.height}px`,
+      })
+      fill?.setAttribute('d', shape.fill)
+      edge?.setAttribute('d', shape.edge)
     }
     place()
-    b.addEventListener('transitionend', place)
+    // Follow a slide frame by frame, and settle on where it ends.
+    let frame = 0
+    const follow = () => {
+      place()
+      frame = requestAnimationFrame(follow)
+    }
+    const start = () => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(follow)
+    }
+    const stop = () => {
+      cancelAnimationFrame(frame)
+      place()
+    }
+    b.addEventListener('transitionrun', start)
+    b.addEventListener('transitionend', stop)
+    b.addEventListener('transitioncancel', stop)
     const watch = new ResizeObserver(place)
     watch.observe(r)
     watch.observe(b)
     return () => {
-      b.removeEventListener('transitionend', place)
+      cancelAnimationFrame(frame)
+      b.removeEventListener('transitionrun', start)
+      b.removeEventListener('transitionend', stop)
+      b.removeEventListener('transitioncancel', stop)
       watch.disconnect()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [x, ...deps])
+  }, deps)
+}
+
+/**
+ * Draws the thought's cloud around its value: a stadium just outside the
+ * value's box, cut into even puffs, so a short value is a round little
+ * cloud and a long one a long cloud with the same size of puff. It was a
+ * ring of radial gradients at fixed percentages, which came out lumpy —
+ * big and small puffs side by side, and uneven gaps — and the trail pointed
+ * straight down whether or not the robot was there. Now the trail steps
+ * towards the robot's head. Written straight to the SVG: drawing, never
+ * state.
+ */
+function useCloud(ref: { current: HTMLDivElement | null }, deps: unknown[]) {
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const svg = el.querySelector('svg.thought-shape')
+    if (!svg) return
+    const place = () => {
+      const w = el.offsetWidth
+      const h = el.offsetHeight
+      svg.querySelector('path.cloud')?.setAttribute('d', cloudPath(w, h))
+      // Towards the robot: its centre, relative to the cloud's. Centres,
+      // so the pop's scale (from the cloud's foot) does not move them.
+      const robot = el.closest('.stage')?.querySelector('[data-testid="actor-robot"]')
+      const me = el.getBoundingClientRect()
+      const them = robot?.getBoundingClientRect()
+      const dx = them ? them.left + them.width / 2 - (me.left + me.width / 2) : 0
+      const toward = Math.max(-w / 2, Math.min(w / 2, dx))
+      const puffs = svg.querySelectorAll('circle')
+      const trail = [
+        { t: 0.18, r: 5.5 },
+        { t: 0.55, r: 4 },
+        { t: 0.88, r: 2.5 },
+      ]
+      trail.forEach(({ t, r }, i) => {
+        const c = puffs[i]
+        if (!c) return
+        c.setAttribute('cx', (w / 2 + toward * (0.25 + t * 0.6)).toFixed(1))
+        c.setAttribute('cy', (h + 6 + t * 26).toFixed(1))
+        c.setAttribute('r', String(r))
+      })
+    }
+    place()
+    const watch = new ResizeObserver(place)
+    watch.observe(el)
+    const rail = el.parentElement
+    if (rail) watch.observe(rail)
+    return () => watch.disconnect()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps)
+}
+
+/** How far apart the puffs are, around the cloud's edge. */
+const PUFF_STEP = 19
+
+/**
+ * A cloud around a `w` × `h` box: points spaced evenly round a stadium a
+ * little outside it, joined by outward arcs. Pure.
+ */
+export function cloudPath(w: number, h: number): string {
+  const e = 3
+  const W = w + 2 * e
+  const H = h + 2 * e
+  const rr = H / 2
+  const flat = Math.max(0, W - H)
+  const perimeter = 2 * flat + 2 * Math.PI * rr
+  const k = Math.max(7, Math.round(perimeter / PUFF_STEP))
+  const step = perimeter / k
+  const x0 = -e
+  const y0 = -e
+  // Clockwise from the top-left end of the top edge.
+  const at = (s: number): [number, number] => {
+    s = ((s % perimeter) + perimeter) % perimeter
+    if (s < flat) return [x0 + rr + s, y0]
+    s -= flat
+    const arc = Math.PI * rr
+    if (s < arc) {
+      const a = -Math.PI / 2 + s / rr
+      return [x0 + rr + flat + rr * Math.cos(a), y0 + rr + rr * Math.sin(a)]
+    }
+    s -= arc
+    if (s < flat) return [x0 + rr + flat - s, y0 + H]
+    s -= flat
+    const a = Math.PI / 2 + s / rr
+    return [x0 + rr + rr * Math.cos(a), y0 + rr + rr * Math.sin(a)]
+  }
+  // A puff centred on the middle of the top edge, so the cloud is symmetric.
+  const start = flat / 2 + step / 2
+  const f = (n: number) => n.toFixed(1)
+  const pts = Array.from({ length: k }, (_, i) => at(start + i * step))
+  const bulge = step * 0.62
+  let d = `M ${f(pts[0]![0])} ${f(pts[0]![1])}`
+  for (let i = 1; i <= k; i++) {
+    const [x, y] = pts[i % k]!
+    d += ` A ${f(bulge)} ${f(bulge)} 0 0 1 ${f(x)} ${f(y)}`
+  }
+  return `${d} Z`
+}
+
+/** Half the width of the tail where it leaves the bubble. */
+const TAIL_ROOT = 13
+
+/**
+ * The tail's outline, in pixels of the rail: from a root on the flat of
+ * the bubble's bottom edge to a rounded tip at `at, tip`. `fill` is closed;
+ * `edge` is the two sides only, since the root is inside the bubble's
+ * border. The root sits 3px above the bottom so its fill covers the
+ * border and the lip under it. Pure.
+ */
+export function tailShape(g: { at: number; tip: number; left: number; right: number; bottom: number; radius: number }) {
+  const h = TAIL_ROOT
+  const inset = g.radius + h + 2
+  const cx = g.right - g.left < 2 * inset ? (g.left + g.right) / 2 : Math.max(g.left + inset, Math.min(g.right - inset, g.at))
+  const top = g.bottom - 3
+  const len = Math.max(8, g.tip - top)
+  const half = Math.max(Math.abs(cx - h - g.at), Math.abs(cx + h - g.at)) + 2
+  const ox = g.at - half
+  // Local coordinates: the box's top left is (ox, top).
+  const L = cx - h - ox
+  const R = cx + h - ox
+  const T = half
+  const f = (n: number) => n.toFixed(1)
+  // Gently pinched sides, meeting in a small round tip.
+  const sides =
+    `M ${f(L)} 0 Q ${f(L + (T - L) * 0.5)} ${f(len * 0.45)} ${f(T - 1.4)} ${f(len - 1.2)} ` +
+    `Q ${f(T)} ${f(len + 0.8)} ${f(T + 1.4)} ${f(len - 1.2)} ` +
+    `Q ${f(R + (T - R) * 0.5)} ${f(len * 0.45)} ${f(R)} 0`
+  return { fill: `${sides} Z`, edge: sides, box: { left: ox, top, width: 2 * half, height: len } }
 }
 
 /**
@@ -742,11 +1017,17 @@ function settled(el: HTMLElement) {
   // is still a percentage — of the rail's width, the bubble being
   // relatively positioned in it.
   const to = String(frames[frames.length - 1]?.['left'] ?? '').trim()
+  // A percentage, pixels, or `calc(a% ± bpx)` once the speech has been
+  // stepped aside (`--push`).
+  const width = el.parentElement?.clientWidth ?? 0
+  const mixed = /^calc\((-?[\d.]+)%\s*([+-])\s*([\d.]+)px\)$/.exec(to)
   const end = /^-?[\d.]+%$/.test(to)
-    ? (parseFloat(to) / 100) * (el.parentElement?.clientWidth ?? 0)
+    ? (parseFloat(to) / 100) * width
     : /^-?[\d.]+px$/.test(to)
       ? parseFloat(to)
-      : NaN
+      : mixed
+        ? (parseFloat(mixed[1]!) / 100) * width + (mixed[2] === '-' ? -1 : 1) * parseFloat(mixed[3]!)
+        : NaN
   if (!Number.isFinite(now) || !Number.isFinite(end)) return b
   const dx = end - now
   return { left: b.left + dx, right: b.right + dx, top: b.top }
@@ -824,6 +1105,75 @@ function usePropsTop(ref: { current: HTMLDivElement | null }, deps: unknown[]) {
     return () => watch.disconnect()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps)
+}
+
+/**
+ * Stands a picture that is read row by row (a goal memory) at the top of
+ * a wide stage, as large as the room above the speech allows.
+ *
+ * On the floor between the cast it is the scene's props slot, a third of
+ * the stage: a goal of a list and two names came out in 7-pixel type. The
+ * top of a wide stage is empty above the bubbles, so the picture goes
+ * there — as a narrow stage already puts every picture — at up to 90% of
+ * the width, and only as tall as leaves the speech and the thought their
+ * room above the cast. Measured, since
+ * how tall the speech came out only layout knows, and written to the
+ * stage as `--raised-w` and `data-raised`: drawing, never state. Too little
+ * room to be much larger, and it stays on the floor.
+ */
+function useRaised(ref: { current: HTMLDivElement | null }, raise: boolean, slotPct: number, deps: unknown[]) {
+  useLayoutEffect(() => {
+    const stage = ref.current
+    if (!stage) return
+    const clear = () => {
+      delete stage.dataset.raised
+      stage.style.removeProperty('--raised-w')
+    }
+    if (!raise) {
+      clear()
+      return
+    }
+    const place = () => {
+      const W = stage.clientWidth
+      const H = stage.clientHeight
+      // A narrow stage already stands every picture at the top.
+      if (W <= 480) return clear()
+      const top = parseFloat(getComputedStyle(stage).getPropertyValue('--props-top')) || 30
+      const rail = stage.querySelector<HTMLElement>(':scope > .bubble-rail')
+      // The speech band: where the rail stands, or near the floor.
+      const band = rail ? rail.offsetTop + rail.offsetHeight - 14 : H * 0.6
+      const speech = rail?.querySelector<HTMLElement>(':scope > .bubble')?.offsetHeight ?? 110
+      const cloud = rail?.querySelector<HTMLElement>(':scope > .thought')
+      const thinking = cloud ? cloud.offsetHeight + 42 : 0
+      // A goal draws no answer under itself, so it needs only its own
+      // 200 × 130 and not the answer's band; its question is the crow's
+      // (the caption under it is dropped, `console.css`). What is left for
+      // it is the room over the speech, less a little air.
+      const room = band - top - 16 - (speech + 30) - thinking
+      const w = Math.min(W * 0.9, 720, (room * 200) / 130)
+      if (w < (W * slotPct) / 100 * 1.15) return clear()
+      stage.dataset.raised = 'yes'
+      stage.style.setProperty('--raised-w', `${Math.floor(w)}px`)
+    }
+    place()
+    // Again once this frame's layout has settled, and whenever what the
+    // rail holds changes: the robot's cloud going away on the ask gives
+    // the picture room without resizing anything a size observer watches.
+    const frame = requestAnimationFrame(place)
+    const watch = new ResizeObserver(place)
+    watch.observe(stage)
+    const rail = stage.querySelector(':scope > .bubble-rail')
+    if (rail) for (const el of rail.children) watch.observe(el)
+    const changes = new MutationObserver(place)
+    changes.observe(stage, { childList: true })
+    if (rail) changes.observe(rail, { childList: true })
+    return () => {
+      cancelAnimationFrame(frame)
+      watch.disconnect()
+      changes.disconnect()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [raise, slotPct, ...deps])
 }
 
 const box = (el: HTMLElement) => ({
@@ -956,35 +1306,6 @@ export function typeOn(nodes: ReactNode): { nodes: ReactNode; ms: number } {
 /** Keys the player uses on these elements, so Enter and Space there are
  *  theirs and not Next's. */
 const INTERACTIVE = 'button, a[href], input, textarea, select, [contenteditable], [role="slider"], .graph, .cm-editor'
-
-/**
- * Which way the tail leans: towards the bubble's body, when the clamp has
- * slid it away from the speaker; straight down when it has not.
- */
-const lean = (x: number): 'left' | 'none' | 'right' => {
-  const off = bubbleX(x) - x
-  return off > 6 ? 'right' : off < -6 ? 'left' : 'none'
-}
-
-/**
- * The tail, in a 32 × 10 box whose centre bottom is the speaker's head:
- * its root is 16 wide, under the body, and it curves down to a rounded
- * tip. `edge` is the two sides only — the top is inside the bubble.
- */
-const TAIL: Record<'left' | 'none' | 'right', { fill: string; edge: string }> = {
-  none: {
-    fill: 'M 8 0 Q 13 5 15 9.2 Q 16 10.4 17 9.2 Q 19 5 24 0 Z',
-    edge: 'M 8 0 Q 13 5 15 9.2 Q 16 10.4 17 9.2 Q 19 5 24 0',
-  },
-  right: {
-    fill: 'M 16 0 Q 17 5 15.4 9 Q 15.8 10.6 17.2 9.4 Q 25 5 32 0 Z',
-    edge: 'M 16 0 Q 17 5 15.4 9 Q 15.8 10.6 17.2 9.4 Q 25 5 32 0',
-  },
-  left: {
-    fill: 'M 0 0 Q 7 5 14.8 9.4 Q 16.2 10.6 16.6 9 Q 15 5 16 0 Z',
-    edge: 'M 0 0 Q 7 5 14.8 9.4 Q 16.2 10.6 16.6 9 Q 15 5 16 0',
-  },
-}
 
 /** A cloud puffs rather than slides: a small scale from its trail. */
 const THOUGHT_POP: Pop = {

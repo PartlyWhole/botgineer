@@ -54,10 +54,27 @@ sets, because those sets use `if` and nothing before taught it.
 npm run dev           # vite, base '/'
 npm run typecheck
 npm run test          # unit tests, and tests/semantics: the real engine in Node
-npm run test:browser  # playwright against the PRODUCTION build at /botgineer/ (WORKERS=n to parallelise)
+npm run test:browser  # the FULL journey suite (~14 min on an M1): leave it to Checks, don't run it per change
+npm run test:smoke    # ~35s: one journey per area, @smoke-tagged. The default browser check while developing
+npm run test:v2       # the v2 lessons' journeys (@v2)
+npm run test:stage    # bubbles, beats and pictures (beats + props specs, ~3 min)
+npm run test:lessons  # every lesson-<id> journey
+npm run test:reading | test:practice | test:workbench   # one area each
+npm run test:browser -- lesson-decide                    # or any one spec file
 npm run test:audit    # every collection item played in the page with the key's answers (slow, opt-in)
 npm run collection    # regenerate content/collection/generated/ from the markdown
 ```
+
+**Which tests to run while developing.** Unit tests (`npm run test`, ~13s)
+after every change. For the browser, run `test:smoke`, plus the one
+subset for the area touched (a lesson's own spec; `test:stage` for the
+bubbles, cloud, pictures or beats). Do not run the full journey suite per
+change: it is ~14 minutes because every journey boots its own CPython
+(~2s) and they run one at a time, and Checks runs it on every PR and push
+anyway. Parallel workers do not help on an 8 GB M1: 4 workers took
+9.7 min against 6.9 min serial for the same 105 journeys (measured). A
+new journey worth running on every change gets `{ tag: '@smoke' }`; keep
+that set to about one per area so it stays under a minute.
 
 ## Layout
 
@@ -243,7 +260,11 @@ npm run collection    # regenerate content/collection/generated/ from the markdo
    those same accepted lines beside their source, so a step can ask which
    line *made* the change (`everBy`). Memory alone cannot tell
    `ride = "van"` typed bare from the same line under an `if`, and Making
-   Choices is about the difference. All four only grow, so everything
+   Choices is about the difference. A multiple-choice step
+   (`LessonStep.choices`) is judged on `picks`, the options the player has
+   picked, oldest first: the player answering the crow, not instructing
+   the robot, so its options stand on the stage and the console stays
+   closed. All of these only grow, so everything
    derived from them stays monotonic, and the workbench builds them from
    the accepted history it already keeps.
 
@@ -268,7 +289,8 @@ npm run collection    # regenerate content/collection/generated/ from the markdo
 14. **`window.botgineer` is the test surface.** Browser tests drive
    `setProgram`/`getProgram`/`run`/`say`/`snapshot`/`state`/`exercise`;
    for beats, `beat()` (`{ at, of, text, asking, speaker, kind,
-   listening }`), `next()` (advances without waiting for the typing) and
+   listening, choices, tried }`), `choose(id)` (picks a multiple-choice
+   option), `next()` (advances without waiting for the typing) and
    `skip()` (straight to the ask, or a finished lesson's last line); and,
    for reading, `read.state`/`answer`/`commit`/`submit`/`mark`/`next`/
    `models`/`program` — rather than typing into a contenteditable.

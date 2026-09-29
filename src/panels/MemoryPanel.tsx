@@ -17,12 +17,17 @@
 import { useEffect, useState } from 'react'
 import type { MemorySnapshot, ObjectId } from '../memory/model'
 import { MemoryGraph, type GraphPick } from './MemoryGraph'
+import { CROW_NAME } from '../../content/cast'
+import { DemoTag } from '../ui/CrowTag'
 
 export function MemoryPanel({
   snapshot,
   handles,
   runKey = 'one',
   emptyText,
+  look = 'v1',
+  marked,
+  demo = false,
 }: {
   snapshot: MemorySnapshot
   /** Owned by the workbench, so every view that shows a handle shows the
@@ -31,6 +36,16 @@ export function MemoryPanel({
   runKey?: string
   /** What an empty memory says. Reading has its own reason to be empty. */
   emptyText?: string | undefined
+  /** `v2` shows an empty memory as an empty storage bank, waiting to be
+   *  filled, instead of a sentence (`robot-v2.css`). */
+  look?: 'v1' | 'v2' | undefined
+  /** Names whose pills, arrows and objects wear a glow ring: what a
+   *  beat is pointing at. Paint only (`MemoryGraph`). */
+  marked?: readonly string[] | undefined
+  /** The memory shown is the crow's demonstration, not the robot's own:
+   *  framed dashed and tagged with the crow's name, as the console
+   *  frames the crow's demonstration line. */
+  demo?: boolean | undefined
 }) {
   const [picked, setPicked] = useState<GraphPick>(null)
 
@@ -63,9 +78,10 @@ export function MemoryPanel({
   // line.
   return (
     <div
-      className={`memory ${empty ? 'empty' : ''}`}
+      className={`memory ${empty ? 'empty' : ''} ${demo ? 'demo' : ''}`}
       data-testid="memory"
       data-picked={picked ? 'yes' : 'no'}
+      data-demo={demo ? 'yes' : undefined}
     >
       <MemoryGraph
         snapshot={snapshot}
@@ -73,12 +89,43 @@ export function MemoryPanel({
         runKey={runKey}
         picked={picked}
         onPick={setPicked}
+        marked={marked}
       />
-      {empty && (
+      {demo && (
+        <div className="memory-demo-frame" data-testid="memory-demo">
+          <DemoTag />
+          <p className="sr-only">This is {CROW_NAME}'s example of a memory, not the robot's own.</p>
+        </div>
+      )}
+      {empty && look === 'v2' && <EmptyBank text={emptyText ?? 'Memory is empty.'} />}
+      {empty && look !== 'v2' && (
         <p className="memory-empty">
           {emptyText ?? 'Nothing kept yet. The robot lets each thought go, and what it keeps shows up here.'}
         </p>
       )}
+    </div>
+  )
+}
+
+/**
+ * An empty memory, drawn: rows of empty sockets, a name's socket wired to
+ * an object's, in the places the grid will put them (names in the first
+ * column, each name's object beside it). What memory will hold is shown
+ * by the shape of where it will go; the sentence is for a screen reader.
+ */
+function EmptyBank({ text }: { text: string }) {
+  return (
+    <div className="bank-empty" data-testid="memory-empty">
+      <p className="sr-only">{text}</p>
+      <div className="sockets" aria-hidden="true">
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="socket-row" style={{ ['--i' as string]: i }}>
+            <span className="socket name" />
+            <span className="wire" />
+            <span className="socket object" />
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

@@ -63,7 +63,7 @@ for (const unit of ['thinking', 'remembering']) {
   })
 }
 
-test('every question says who does the work, and praise waits for Next', async ({ page }) => {
+test('every question says who does the work, and praise waits for Next', { tag: '@smoke' }, async ({ page }) => {
   await open(page, 'practice-thinking')
   await idle(page)
   // The session opens on narration: the console is closed until the ask.

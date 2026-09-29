@@ -59,6 +59,14 @@ type Props = {
    * the pane alone, so nothing moves when a line adds something.
    */
   fit?: boolean
+  /**
+   * Names to mark: their pills, the arrows from them and the objects they
+   * point at wear a glow ring, the way a beat's `focus` pulses a pane.
+   * Paint only — a ring is a shadow outside the card, so nothing is
+   * measured differently, nothing moves and the camera stays (invariants
+   * 15–17). Every scope's binding of a marked name is marked.
+   */
+  marked?: readonly string[] | undefined
 }
 
 /** Screen pixels of memory off an edge before the pane says so: a card's
@@ -76,7 +84,7 @@ const reduced = () =>
 /** Where a node is drawn now, where it is going, and how big it is. */
 type Body = { x: number; y: number; tx: number; ty: number; w: number; h: number }
 
-export function MemoryGraph({ snapshot, handles, runKey, picked, onPick, fit = false }: Props) {
+export function MemoryGraph({ snapshot, handles, runKey, picked, onPick, fit = false, marked }: Props) {
   const hostRef = useRef<HTMLDivElement | null>(null)
   const worldRef = useRef<HTMLDivElement | null>(null)
   const edgeLayerRef = useRef<SVGGElement | null>(null)
@@ -149,6 +157,19 @@ export function MemoryGraph({ snapshot, handles, runKey, picked, onPick, fit = f
     }
     return ids
   }, [model.edges, pickedId])
+  /** The marked names' pills and the objects they point at. */
+  const markKey = (marked ?? []).join('\u0000')
+  const marks = useMemo(() => {
+    const want = new Set(markKey === '' ? [] : markKey.split('\u0000'))
+    const ids = new Set<string>()
+    for (const b of snapshot.bindings) {
+      if (!want.has(b.name)) continue
+      ids.add(nameId(b.scope, b.name))
+      ids.add(`o:${b.target}`)
+    }
+    return ids
+  }, [snapshot, markKey])
+
   const nearRef = useRef(near)
   nearRef.current = near
 
@@ -442,18 +463,24 @@ export function MemoryGraph({ snapshot, handles, runKey, picked, onPick, fit = f
           <marker id="tip" markerWidth="8" markerHeight="8" refX="6.5" refY="3" orient="auto">
             <path d="M0,0 L6,3 L0,6 z" />
           </marker>
+          {/* A marker's paint is its own, not its arrow's, so a marked
+              arrow needs a head of its own to wear the mark. */}
+          <marker id="tip-marked" className="tip-marked" markerWidth="8" markerHeight="8" refX="6.5" refY="3" orient="auto">
+            <path d="M0,0 L6,3 L0,6 z" />
+          </marker>
         </defs>
         <g ref={edgeLayerRef}>
           {model.edges.map((e) => {
             const lit = pickedId !== null && (e.from === pickedId || e.to === pickedId)
+            const mark = e.from.startsWith('n:') && marks.has(e.from)
             return (
-              <g key={e.key} className={`edge ${lit ? 'lit' : ''}`}>
+              <g key={e.key} className={`edge ${lit ? 'lit' : ''} ${mark ? 'marked' : ''}`} data-marked={mark ? 'yes' : undefined}>
                 <path
                   ref={(el) => {
                     if (el) edgeRefs.current.set(e.key, el)
                     else edgeRefs.current.delete(e.key)
                   }}
-                  markerEnd="url(#tip)"
+                  markerEnd={mark ? 'url(#tip-marked)' : 'url(#tip)'}
                 />
                 {/* Always drawn: an index or a key is what the slot
                     is, not a detail for when it is picked. Quiet until
@@ -506,6 +533,7 @@ export function MemoryGraph({ snapshot, handles, runKey, picked, onPick, fit = f
             handles={handles}
             picked={pickedId === spec.id}
             dimmed={near !== null && !near.has(spec.id)}
+            marked={marks.has(spec.id)}
             onPick={() => pick(spec.id)}
             register={(el) => {
               if (el) pillRefs.current.set(spec.id, el)
@@ -524,6 +552,7 @@ function Pill({
   handles,
   picked,
   dimmed,
+  marked,
   onPick,
   register,
 }: {
@@ -532,6 +561,7 @@ function Pill({
   handles: Map<ObjectId, string>
   picked: boolean
   dimmed: boolean
+  marked: boolean
   onPick: () => void
   register: (el: HTMLButtonElement | null) => void
 }) {
@@ -542,7 +572,9 @@ function Pill({
     // A button already answers Enter and Space with a click.
     onClick: onPick,
     'aria-pressed': picked,
+    'data-marked': marked ? 'yes' : undefined,
   }
+  const mark = marked ? 'marked' : ''
 
   if (spec.kind === 'name') {
     const rest = spec.id.slice(2)
@@ -552,7 +584,7 @@ function Pill({
     return (
       <button
         {...common}
-        className={`node name ${picked ? 'picked' : ''} ${dimmed ? 'dimmed' : ''}`}
+        className={`node name ${picked ? 'picked' : ''} ${dimmed ? 'dimmed' : ''} ${mark}`}
         data-testid={`node-${name}`}
       >
         {scope !== 'global' && <span className="scope">{scope}</span>}
@@ -568,7 +600,7 @@ function Pill({
   return (
     <button
       {...common}
-      className={`node object ${object.kind} ${picked ? 'picked' : ''} ${dimmed ? 'dimmed' : ''}`}
+      className={`node object ${object.kind} ${picked ? 'picked' : ''} ${dimmed ? 'dimmed' : ''} ${mark}`}
       data-testid={`node-${id}`}
       data-type={object.type}
       // The pill caps a long repr with an ellipsis, so the whole of it has

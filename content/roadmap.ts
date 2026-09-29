@@ -69,3 +69,29 @@ export const levelActivity = (id: string) => {
   if (!a) throw new Error(`roadmap names a level that does not exist: ${id}`)
   return a
 }
+
+/**
+ * Version 2 of the lessons, its own path (`#/v2`): the same shape as
+ * `ROADMAP`, with its own order and v2's own levels (`content/activities/v2`).
+ */
+export const ROADMAP_V2: Unit[] = [
+  {
+    id: 'v2-thinking',
+    title: 'Thinking',
+    blurb: 'Meet the robot, and the four kinds of thing it thinks of',
+    theme: 'sky',
+    levels: ['v2-meet', 'v2-types', 'v2-ops'],
+    mascot: 'crow',
+  },
+  {
+    id: 'v2-memory',
+    title: 'Memory',
+    blurb: 'Give the robot memories, and build any memory you are shown',
+    theme: 'grass',
+    levels: ['v2-bind', 'v2-lists'],
+    mascot: 'crow',
+  },
+]
+
+/** v2's levels in play order. */
+export const LEVEL_ORDER_V2: string[] = ROADMAP_V2.flatMap((u) => u.levels)

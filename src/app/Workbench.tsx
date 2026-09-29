@@ -24,7 +24,7 @@ import { session, useRuntime } from '../runtime/shared'
 import type { StepRecord, TerminalRecord } from '../runtime/types'
 import { extractMemory, runEvidence, thought, type RunEvidence } from '../memory/extract'
 import { useHandles } from '../memory/handles'
-import { EMPTY } from '../memory/model'
+import { EMPTY, type MemorySnapshot } from '../memory/model'
 import { buildProgram, isExpression, type Entry } from '../repl/program'
 import { events } from '../game/events'
 import { useCast } from '../game/director'
@@ -40,6 +40,7 @@ import {
   type Heard,
   type Line,
   type LineMemory,
+  type Pick,
   type ScriptItem,
   type Spoken,
 } from '../../content/lessons'
@@ -62,6 +63,7 @@ import { ScenePanel, type Telling } from '../panels/ScenePanel'
 import { hasExamples, noteAt, raisedNote, readTo, sectionsOf, type Reach } from '../collection/voice'
 import { MemoryPanel } from '../panels/MemoryPanel'
 import { RobotPanel, type Transcript } from '../panels/RobotPanel'
+import type { Demo } from '../ui/demo'
 import type { Exchange } from '../ui/RobotConsole'
 import type { EditorApi } from '../ui/CodeEditor'
 import { Gutter, STACKED, useRemembered, useStacked } from '../ui/Split'
@@ -121,6 +123,10 @@ export function Workbench({ activity }: { activity: Activity }) {
   /** The last line typed, worked or not. A lesson's reply to a miss reads
    *  it, and so does the picture on the stage; progress never does. */
   const [lastLine, setLastLine] = useState<Line | null>(null)
+  /** Multiple-choice answers picked, and the one just picked. Like
+   *  `thoughts`, only grown within a visit, and never stored. */
+  const [picks, setPicks] = useState<Pick[]>([])
+  const [lastPick, setLastPick] = useState<Pick | null>(null)
   const programRef = useRef(program)
   programRef.current = program
 
@@ -134,6 +140,8 @@ export function Workbench({ activity }: { activity: Activity }) {
     setLineMemory([])
     setThoughts([])
     setLastLine(null)
+    setPicks([])
+    setLastPick(null)
     spokenRef.current = ''
     setProgram(activity.starter)
     editorRef.current?.replace(activity.starter)
@@ -400,6 +408,9 @@ export function Workbench({ activity }: { activity: Activity }) {
   const say = useCallback(
     async (source: string) => {
       if (busy || boot.state !== 'ready') return
+      // A demonstration's quiet run may still be in flight: the engine
+      // takes one run at a time (invariant 5), so the line waits its turn.
+      await queue.current
       const entry: Entry = { source, echo: isExpression(source) }
       const built = buildProgram(historyRef.current, entry)
 
@@ -445,6 +456,7 @@ export function Workbench({ activity }: { activity: Activity }) {
       // lesson can take it back out and see whether the line moved it —
       // a binding does a step without thinking of anything.
       setLastLine({ source, ok: outcome.ok, error, thought: made ? said : null, memory: outcome.ok ? after : undefined })
+      setLastPick(null)
       if (outcome.ok) {
         spokenRef.current = outcome.output
         setHistory((h) => [...h, entry])
@@ -509,6 +521,28 @@ export function Workbench({ activity }: { activity: Activity }) {
     [startOver],
   )
 
+  /**
+   * Wipes the robot's memory, for a lesson that asks the player to build a
+   * memory and lets them start it again. The console starts over with
+   * nothing to replay, and memory shows empty — but the evidence is kept:
+   * the wipe is one more entry in it (an empty memory), so everything the
+   * lesson has seen stays seen, and its progress, derived from all of it,
+   * cannot go backwards (invariant 11).
+   */
+  const wipe = useCallback(() => {
+    if (busy) return
+    stepsRef.current = []
+    setIndex(0)
+    setLastLine(null)
+    setLastPick(null)
+    spokenRef.current = ''
+    historyRef.current = []
+    setHistory([])
+    setExchanges([])
+    setEpoch((n) => n + 1)
+    setLineMemory((m) => [...m, { source: '', memory: EMPTY }])
+  }, [busy])
+
   const pool = useMemo(
     () => (activity.practice ? skillsOfUnit(activity.practice.unit).map((s) => s.id) : null),
     [activity],
@@ -561,8 +595,10 @@ export function Workbench({ activity }: { activity: Activity }) {
       history: [...lineMemory.map((l) => l.memory), snapshot],
       lines: lineMemory,
       last: lastLine,
+      picks,
+      lastPick,
     }),
-    [snapshot, thoughts, lineMemory, lastLine],
+    [snapshot, thoughts, lineMemory, lastLine, picks, lastPick],
   )
   const ideas = read.level?.kind === 'ideas'
   // A lesson tells a script: beats, then its question (docs/PEDAGOGY.md
@@ -571,6 +607,57 @@ export function Workbench({ activity }: { activity: Activity }) {
   // (`{CONSOLE}`): on the right, or below on a stacked layout.
   const layout = useStacked() ? 'stacked' : 'side'
   const told = useMemo(() => (lesson && !reading ? script(lesson, evidence, layout) : null), [lesson, reading, evidence, layout])
+  /**
+   * Takes the last line back: the console starts over from every accepted
+   * line but that one, the way the next line would replay them (invariant
+   * 7), and memory shows what they leave. For the learner who appended the
+   * wrong item or made a name by a typo, and has not been taught how to
+   * remove one: without it the only way back was to wipe everything.
+   *
+   * Like a wipe, it adds to the evidence and takes nothing out of it: the
+   * memory before the line is one more entry, with no source, so nothing
+   * the lesson has seen is unseen, and its progress cannot go backwards.
+   */
+  const canUndo = history.length > 0 && !busy
+  const undo = useCallback(async () => {
+    if (busy || historyRef.current.length === 0) return
+    const entries = historyRef.current.slice(0, -1)
+    const taken = historyRef.current[historyRef.current.length - 1]!
+    historyRef.current = entries
+    setHistory(entries)
+    // Its exchange leaves the console with it, and any failed lines typed
+    // after it (they were never kept).
+    setExchanges((x) => {
+      const at = x.map((e) => e.source === taken.source && e.error === null && !e.given).lastIndexOf(true)
+      return at === -1 ? x : x.slice(0, at)
+    })
+    setLastLine(null)
+    setLastPick(null)
+    if (entries.length === 0) {
+      stepsRef.current = []
+      spokenRef.current = ''
+      setEpoch((n) => n + 1)
+      setLineMemory((m) => [...m, { source: '', memory: EMPTY }])
+      return
+    }
+    const outcome = await execute(buildProgram(entries, null).source)
+    spokenRef.current = outcome.output
+    setLineMemory((m) => [...m, { source: '', memory: extractMemory(stepsRef.current[stepsRef.current.length - 1]) }])
+  }, [busy, execute])
+
+  // A step that starts from a clean memory (`LessonStep.wipeFirst`) has it
+  // wiped for the player once, as the lesson reaches it. Once per visit to
+  // the step, and never while a line runs.
+  const wipedFor = useRef<string | null>(null)
+  const stepAt = told ? told.at : null
+  useEffect(() => {
+    if (stepAt === null || busy || boot.state !== 'ready') return
+    const key = `${activity.id}:${stepAt}`
+    if (!lesson?.steps[stepAt]?.wipeFirst || wipedFor.current === key) return
+    wipedFor.current = key
+    wipe()
+  }, [stepAt, busy, boot.state, activity.id, lesson, wipe])
+
   // Everyone else says one line at a time, and may hand over a script of
   // their own once they have beats to tell.
   //
@@ -634,6 +721,20 @@ export function Workbench({ activity }: { activity: Activity }) {
   // lesson comes to rest on its last line, where the console is open
   // again for anything the player likes.
   const listening = lines.length > 0 && beatAt < rest
+  // A multiple-choice question is answered on the stage, not to the robot:
+  // the console stays closed while it waits.
+  const choosing = !reading && current?.asking === true && current.choices !== undefined
+  const choose = useCallback(
+    (choice: string, item: ScriptItem | undefined = current) => {
+      const c = item?.asking ? item.choices : undefined
+      if (!c || !c.options.some((o) => o.id === choice)) return
+      const pick = { ask: c.id, choice }
+      setPicks((p) => [...p, pick])
+      setLastPick(pick)
+      setLastLine(null)
+    },
+    [current],
+  )
   const moveTo = useCallback((at: number) => setTelling({ key: tellKey, at }), [tellKey])
   // A practice session is paced by the line being told: its next exercise
   // starts (clean console, setup run) only once the praise for the last
@@ -647,7 +748,14 @@ export function Workbench({ activity }: { activity: Activity }) {
   // them rather than typing the same words again.
   const sayKey = ideas && !ideasSaid ? read.ideas.findIndex((b, i) => i <= beatAt && read.ideas.slice(i, beatAt + 1).every((x) => x.say === b.say)) : beatAt
   const guide = current
-    ? { text: current.text, speaker: current.speaker, kind: current.kind, tag: current.tag, key: `${tellKey}:${sayKey}` }
+    ? {
+        text: current.text,
+        speaker: current.speaker,
+        kind: current.kind,
+        tag: current.tag,
+        key: `${tellKey}:${sayKey}`,
+        choices: current.asking ? current.choices : undefined,
+      }
     : undefined
   // Tells the director someone spoke, so the cast turns to listen. Emitted
   // only: nothing reads it back to decide anything.
@@ -737,7 +845,17 @@ export function Workbench({ activity }: { activity: Activity }) {
         speaker: current?.speaker ?? 'crow',
         kind: current?.kind ?? null,
         listening,
+        /** A multiple-choice question's option ids, and those tried. */
+        choices: current?.asking && current.choices ? current.choices.options.map((o) => o.id) : null,
+        tried: current?.asking && current.choices ? current.choices.tried : [],
       }),
+      /** Pick an option of the multiple-choice question being asked. */
+      choose: (id: string) => {
+        // The question itself, not the line showing: a skip just made has
+        // not rendered yet, and the pick would be read against narration.
+        moveTo(rest)
+        choose(id, lines[rest])
+      },
       /** Next, without waiting for the line to finish typing. */
       next: () => moveTo(Math.min(beatAt + 1, rest)),
       /** Straight to the question (or a finished lesson's last line). */
@@ -797,7 +915,7 @@ export function Workbench({ activity }: { activity: Activity }) {
       }),
     }
     ;(window as unknown as { botgineer: typeof api }).botgineer = api
-  }, [activity.mode, boot.state, busy, run, say, snapshot, practice, read.session, complete, moveTo, rest, beatAt, lines, current, listening])
+  }, [activity.mode, boot.state, busy, run, say, snapshot, practice, read.session, complete, moveTo, rest, beatAt, lines, current, listening, choose])
 
   // The beat controls the scene draws. Only a lesson has them: practice
   // and reading say one line at a time until they hand over a script.
@@ -859,7 +977,69 @@ export function Workbench({ activity }: { activity: Activity }) {
     from = { stale: newest, answer: lastLine?.ok && lastLine.thought ? newest : undefined }
     setCloudFrom({ key: tellKey, ...from })
   }
-  const shownThought = cloud(current, newest, from, lastLine !== null && !lastLine.ok) || null
+  // A demonstration line (`Beat.types`): the crow types it into the
+  // console, and it stays there for the beats after it until the next
+  // one or the question. Narration, like a beat's thought — never run,
+  // never evidence (`src/ui/demo.ts`). The robot's answer reaches the
+  // cloud only once the line is in, which the console says when it is.
+  let demoAt = -1
+  for (let i = beatAt; i >= 0 && talking && !reading && lines[i]?.kind !== 'ask' && lines[i]?.kind !== 'reply'; i--) {
+    if (lines[i]?.types !== undefined) {
+      demoAt = i
+      break
+    }
+  }
+  const demoItem = demoAt >= 0 ? lines[demoAt] : undefined
+  const demo: Demo | null = demoItem
+    ? {
+        key: `${tellKey}:${demoAt}`,
+        source: demoItem.types!,
+        echo: demoItem.stops ? null : demoItem.thought || null,
+        error: demoItem.stops ?? null,
+      }
+    : null
+  const [typed, setTyped] = useState('')
+  const demoWaiting = demo !== null && typed !== demo.key
+  const onDemoTyped = useCallback(() => {
+    if (demo) setTyped(demo.key)
+  }, [demo?.key]) // eslint-disable-line react-hooks/exhaustive-deps
+  const shownThought = demoWaiting ? null : cloud(current, newest, from, lastLine !== null && !lastLine.ok) || null
+  const look = activity.version === 2 ? ('v2' as const) : ('v1' as const)
+
+  // The crow's demonstration memory (`Beat.memory`): the latest one set at
+  // or before this beat, within the step, until the question. Its lines
+  // are run quietly by real Python from an empty memory and drawn in the
+  // memory panel as the crow's; narration, never evidence. A line being
+  // typed in has its effect only once it is in.
+  let memoryAt = -1
+  for (let i = beatAt; i >= 0 && !reading && lines[i]?.kind !== 'ask' && lines[i]?.kind !== 'reply'; i--) {
+    if (lines[i]?.memory !== undefined) {
+      memoryAt = i
+      break
+    }
+  }
+  const demoLines = memoryAt >= 0 ? lines[memoryAt]!.memory! : null
+  const shownLines =
+    demoLines && demoWaiting && memoryAt === demoAt && demoLines[demoLines.length - 1] === demoItem?.types
+      ? demoLines.slice(0, -1)
+      : demoLines
+  const demoProgram = shownLines ? shownLines.join('\n') : null
+  const [demoMemory, setDemoMemory] = useState<{ program: string; snapshot: MemorySnapshot } | null>(null)
+  useEffect(() => {
+    if (demoProgram === null || boot.state !== 'ready') return
+    let live = true
+    void quiet(demoProgram).then((ev) => {
+      if (live) setDemoMemory({ program: demoProgram, snapshot: ev.final })
+    })
+    return () => {
+      live = false
+    }
+  }, [demoProgram, boot.state, quiet])
+  // Until the run is back, the last demonstration stays up, so memory does
+  // not flash empty between one beat and the next.
+  const demoSnapshot = demoProgram === null ? null : (demoMemory?.snapshot ?? EMPTY)
+  const marked = current?.mark
+  const demoHandles = useHandles(demoSnapshot ?? EMPTY, `${activity.id}:demo:${demoProgram === null ? '' : 'on'}`)
 
   return (
     <main className="workbench" style={{ ['--scene-w' as string]: `${sceneW}px` }}>
@@ -872,6 +1052,7 @@ export function Workbench({ activity }: { activity: Activity }) {
           snapshot={snapshot}
           moods={cast}
           guide={guide}
+          onChoose={choose}
           onAdvance={onAdvance}
           // The last thing the robot worked out. It lives nowhere else:
           // the value itself was collected when the line ended.
@@ -929,11 +1110,20 @@ export function Workbench({ activity }: { activity: Activity }) {
         </div>
         <RobotPanel
           mode={activity.mode}
+          look={look}
+          demo={demo}
+          onDemoTyped={onDemoTyped}
+          onReset={lesson?.wipe ? wipe : undefined}
+          onUndo={lesson?.wipe ? () => void undo() : undefined}
+          canUndo={canUndo}
           memory={
             <MemoryPanel
-              snapshot={snapshot}
-              handles={handles}
-              runKey={runKey}
+              look={look}
+              snapshot={demoSnapshot ?? snapshot}
+              handles={demoSnapshot ? demoHandles : handles}
+              runKey={demoSnapshot ? `${activity.id}:demo` : runKey}
+              demo={demoSnapshot !== null}
+              marked={marked}
               emptyText={
                 reading
                   ? ideas
@@ -969,8 +1159,8 @@ export function Workbench({ activity }: { activity: Activity }) {
           traceLine={traceLine}
           // The console is closed while someone on the stage is talking,
           // and glows when they hand over a question.
-          listening={talking && listening}
-          asked={talking && current?.asking === true && !reading}
+          listening={talking && (listening || choosing)}
+          asked={talking && current?.asking === true && !choosing && !reading}
           focus={current?.focus}
           instrument={
             reading ? (

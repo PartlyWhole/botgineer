@@ -301,7 +301,17 @@
 .prop .one-lamp .as-one,
 .prop .sum,
 .prop .code-tile,
-.prop .parcel {
+.prop .parcel,
+.prop .door-leaf,
+.prop .wheel,
+.prop .car-bob,
+.prop .robot-tag-pop,
+.prop .value-card,
+.prop .made,
+.prop .key-top,
+.prop .clash-tile,
+.prop .clash-stop,
+.prop .item {
   transform-box: fill-box;
 }
 
@@ -1193,7 +1203,7 @@
   fill: var(--k-int);
 }
 .phone .screen-call {
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 800;
   fill: #1c6e3d;
 }
@@ -1301,6 +1311,401 @@
 @keyframes click-shut {
   from {
     transform: translateY(-7px);
+  }
+}
+
+/* ------------------------------ doorway ------------------------------ */
+
+.doorway .floor {
+  stroke: #c4cbe0;
+  stroke-width: 2;
+}
+.doorway .frame {
+  fill: #8a6a45;
+}
+.doorway .sky {
+  fill: #cfe8ff;
+}
+.doorway .sun {
+  fill: #ffd84a;
+}
+.doorway .hill {
+  fill: #8fd18f;
+}
+.doorway .leaf-face {
+  fill: #c28f5c;
+  stroke: #9c6630;
+  stroke-width: 1.2;
+  transition: fill 500ms;
+}
+.doorway .leaf-inset {
+  fill: none;
+  stroke: #9c6630;
+  stroke-width: 1.4;
+}
+.doorway .knob {
+  fill: #ffd24d;
+  stroke: #9a5b00;
+  stroke-width: 0.8;
+}
+/* The leaf swings on its hinge, the frame's left edge: seen from the
+   front, an open door is its edge. It overshoots a little, as a door
+   does. */
+.doorway .door-leaf {
+  transform-origin: 0% 50%;
+  transition: scale 650ms cubic-bezier(0.35, 1.35, 0.5, 1);
+}
+.doorway.open .door-leaf {
+  scale: 0.16 1;
+}
+.doorway.open .leaf-face {
+  fill: #a8763f;
+}
+.doorway .door-q {
+  font-size: 10px;
+  font-weight: 800;
+  fill: var(--ink-soft);
+}
+.doorway .plate-switch {
+  fill: #fff;
+  stroke: #c4cbe0;
+  stroke-width: 1.5;
+}
+.doorway .pill-true,
+.doorway .pill-false {
+  fill: var(--k-bool-soft);
+  stroke: var(--k-bool);
+  opacity: 0;
+  transition: opacity 250ms;
+}
+.doorway.open .pill-true,
+.doorway:not(.open) .pill-false {
+  opacity: 1;
+}
+.doorway .switch-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 800;
+  fill: var(--k-bool);
+}
+.doorway .note rect,
+.car-prop .note rect {
+  fill: #fff6b8;
+  stroke: #e0cf6a;
+}
+.doorway .note text,
+.car-prop .note text {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 800;
+  fill: var(--k-str);
+}
+.doorway .note,
+.car-prop .note {
+  animation: note-stick 320ms cubic-bezier(0.2, 0.9, 0.3, 1.3) backwards;
+}
+/* Arriving with nothing forced, the door swings open and shut once:
+   both of its values, before the question. Not once a beat has told the
+   layer something (`data-told`), as with the lamp. */
+.prop-layer:not([data-told]) .doorway:not(.demo-open):not(.demo-closed) .door-leaf {
+  animation: door-swing 2s ease-in-out calc(var(--beat, 0s) + 0.5s) backwards;
+}
+.prop-layer:not([data-told]) .doorway:not(.demo-open):not(.demo-closed) .pill-true {
+  animation: door-pill-on 2s linear calc(var(--beat, 0s) + 0.5s) backwards;
+}
+.prop-layer:not([data-told]) .doorway:not(.demo-open):not(.demo-closed) .pill-false {
+  animation: door-pill-off 2s linear calc(var(--beat, 0s) + 0.5s) backwards;
+}
+/* The narration's swing: from the other side to the side the beat says.
+   Plays when the door arrives this way, and again when a beat changes it
+   in place, because a changed class is a changed animation. */
+.doorway.demo-open .door-leaf {
+  animation: door-from-shut 650ms cubic-bezier(0.35, 1.35, 0.5, 1) calc(var(--beat, 0s) + 0.45s) backwards;
+}
+.doorway.demo-closed .door-leaf {
+  animation: door-from-open 650ms cubic-bezier(0.35, 1.35, 0.5, 1) calc(var(--beat, 0s) + 0.45s) backwards;
+}
+.doorway.demo-open .pill-true,
+.doorway.demo-closed .pill-false {
+  animation: from-dark 250ms linear calc(var(--beat, 0s) + 0.5s) backwards;
+}
+.doorway.demo-open .pill-false,
+.doorway.demo-closed .pill-true {
+  animation: from-lit 250ms linear calc(var(--beat, 0s) + 0.5s) backwards;
+}
+@keyframes door-from-shut {
+  from {
+    scale: 1 1;
+  }
+}
+@keyframes door-from-open {
+  from {
+    scale: 0.16 1;
+  }
+}
+@keyframes door-swing {
+  0%,
+  10% {
+    scale: 1 1;
+  }
+  30%,
+  60% {
+    scale: 0.16 1;
+  }
+  80%,
+  100% {
+    scale: 1 1;
+  }
+}
+@keyframes door-pill-on {
+  0%,
+  20% {
+    opacity: 0;
+  }
+  24%,
+  66% {
+    opacity: 1;
+  }
+  70%,
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes door-pill-off {
+  0%,
+  20% {
+    opacity: 1;
+  }
+  24%,
+  66% {
+    opacity: 0;
+  }
+  70%,
+  100% {
+    opacity: 1;
+  }
+}
+
+/* ------------------------------ car ------------------------------ */
+
+.car-prop .road {
+  fill: #dfe3ee;
+}
+.car-prop .road-line {
+  stroke: #fff;
+  stroke-width: 2;
+}
+.car-prop .car-paint {
+  fill: #ff7a59;
+  stroke: #d65a3a;
+  stroke-width: 1.2;
+}
+.car-prop .car-glass {
+  fill: #e9f0ff;
+}
+.car-prop .car-light {
+  fill: #ffe066;
+}
+.car-prop .wheel circle {
+  fill: #2b3350;
+}
+.car-prop .wheel path {
+  stroke: #9aa4bf;
+  stroke-width: 1.6;
+}
+.car-prop .speed-lines path {
+  stroke: #9aa4bf;
+  stroke-width: 2;
+  stroke-linecap: round;
+  opacity: 0;
+  transition: opacity 300ms;
+}
+.car-prop.moving .speed-lines path {
+  opacity: 1;
+}
+/* Each wheel turns about its own centre: its box is its own fill
+   (`transform-box`, above), and the origin is the middle of it. SVG's
+   default origin, 0 0, is the box's corner, and the wheels orbited. */
+.car-prop .wheel {
+  transform-origin: 50% 50%;
+}
+.car-prop.moving .wheel {
+  animation: wheel-spin 0.5s linear 6;
+}
+.car-prop.moving .car-bob {
+  animation: car-bob 0.5s ease-in-out 6;
+}
+@keyframes wheel-spin {
+  to {
+    rotate: 360deg;
+  }
+}
+@keyframes car-bob {
+  50% {
+    translate: 0 -1px;
+  }
+}
+.car-prop .dial-face {
+  fill: #fff;
+  stroke: #c4cbe0;
+  stroke-width: 2.5;
+}
+.car-prop .dial-track,
+.car-prop .dial-reach {
+  fill: none;
+  stroke-width: 5;
+  stroke-linecap: round;
+}
+.car-prop .dial-track {
+  stroke: #eef1f8;
+}
+/* The stretch the needle has covered, in the float's colour: it grows
+   smoothly, with no steps on the way — a speed is measured. */
+.car-prop .dial-reach {
+  stroke: var(--k-float-soft);
+  stroke-dasharray: 100 100;
+  transition: stroke-dashoffset 1.2s cubic-bezier(0.45, 0, 0.2, 1);
+}
+.car-prop .dial-tick {
+  stroke: #9aa4bf;
+  stroke-width: 1;
+}
+.car-prop .dial-tick.major {
+  stroke: #5b6784;
+  stroke-width: 1.6;
+}
+.car-prop .dial-num {
+  font-size: 8.5px;
+  font-weight: 800;
+  fill: var(--ink-soft);
+}
+.car-prop .needle path {
+  fill: #e0452f;
+}
+.car-prop .needle {
+  transition: rotate 1.2s cubic-bezier(0.45, 0, 0.2, 1);
+}
+.car-prop .hub {
+  fill: #2b3350;
+}
+/* Arriving, the needle sweeps up from 0 to what it reads. */
+.car-prop .needle {
+  animation: needle-from-zero 1.4s cubic-bezier(0.45, 0, 0.2, 1) calc(var(--beat, 0s) + 0.35s) backwards;
+}
+.car-prop .dial-reach {
+  animation: reach-from-zero 1.4s cubic-bezier(0.45, 0, 0.2, 1) calc(var(--beat, 0s) + 0.35s) backwards;
+}
+@keyframes needle-from-zero {
+  from {
+    rotate: -120deg;
+  }
+}
+@keyframes reach-from-zero {
+  from {
+    stroke-dashoffset: 100;
+  }
+}
+.car-prop .readout rect {
+  fill: var(--kb, #f1f3f9);
+  stroke: var(--kc, #c4cbe0);
+  stroke-width: 1.4;
+}
+.car-prop .readout text {
+  font-family: var(--mono);
+  font-weight: 800;
+  fill: var(--kc, var(--ink-soft));
+}
+.car-prop .readout-value {
+  font-size: 14px;
+}
+.car-prop .readout-unit {
+  font-size: 8px;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+}
+
+/* ------------------------------ note ------------------------------ */
+
+.note-prop .sticky-paper {
+  fill: #fff6b8;
+  stroke: #e0cf6a;
+  stroke-width: 1.2;
+}
+.note-prop .sticky-tape {
+  fill: rgba(196, 203, 224, 0.55);
+}
+.note-prop .sticky-title {
+  font-size: 9.5px;
+  font-weight: 800;
+  fill: #8a7a2a;
+  text-anchor: start;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+/* A person's handwriting: not code, so no quotes and no kind colour. */
+.note-prop .sticky-hand {
+  font-family: 'Bradley Hand', 'Segoe Print', 'Comic Sans MS', 'Chalkboard SE', cursive;
+  font-weight: 700;
+  fill: #2b3350;
+}
+.note-prop .sticky {
+  animation: note-stick 420ms cubic-bezier(0.2, 0.9, 0.3, 1.3) calc(var(--beat, 0s) + 0.1s) backwards;
+}
+.note-prop .robot-tag rect {
+  fill: var(--kb, #fff);
+  stroke: var(--kc, #9aa4bf);
+  stroke-width: 1.8;
+}
+.note-prop .robot-tag.empty rect {
+  fill: #f5f7fc;
+  stroke: #b3bbd3;
+  stroke-dasharray: 4 3;
+}
+.note-prop .robot-tag-text {
+  font-family: var(--mono);
+  font-weight: 800;
+  fill: var(--kc, #9aa4bf);
+}
+.note-prop .robot-tag-pop {
+  transform-origin: 50% 50%;
+}
+.note-prop .robot-tag:not(.empty) .robot-tag-pop {
+  animation: tag-pop 300ms cubic-bezier(0.2, 0.9, 0.3, 1.3) backwards;
+}
+.note-prop.refused .robot-tag rect {
+  stroke: var(--unworked);
+  stroke-dasharray: 5 3;
+}
+.note-prop.refused .robot-tag-text {
+  fill: var(--unworked);
+}
+
+/* ------------------------------ value ------------------------------ */
+
+/* One literal, in plain ink: its kind's colour would answer the question
+   it is asking. */
+.value .value-shadow {
+  fill: #dde3f2;
+}
+.value .value-face {
+  fill: #fff;
+  stroke: #c4cbe0;
+  stroke-width: 1.6;
+}
+.value .value-text {
+  font-family: var(--mono);
+  font-weight: 800;
+  fill: var(--ink);
+  white-space: pre;
+}
+.value .value-card {
+  transform-origin: 50% 50%;
+  animation: value-in 420ms cubic-bezier(0.3, 1.3, 0.5, 1) calc(var(--beat, 0s) + 0.1s) backwards;
+}
+@keyframes value-in {
+  from {
+    opacity: 0;
+    translate: 0 -16px;
+    scale: 0.85;
   }
 }
 
@@ -1596,6 +2001,246 @@
   }
 }
 
+/* The working, played (`demo: 'work'`): about 0.6s a stage. The first
+   span lights, the next line arrives with its result where the lit span
+   collapsed to, that line's own next span lights, and so on to the
+   value. Every keyframe is a `from`, so the resting picture — and the
+   one reduced motion shows — is the finished working. */
+.expr.working .step {
+  opacity: 1;
+  animation: step-in 360ms ease-out calc(var(--beat, 0s) + 0.3s + var(--s) * 1.1s) backwards;
+}
+.expr.working .work {
+  fill: #fff3c4;
+  stroke: #e0b400;
+  stroke-width: 1.4;
+  animation: glow-in 360ms ease-out calc(var(--beat, 0s) + 0.3s + var(--s) * 1.1s + 0.5s) backwards;
+}
+.expr.working .made {
+  fill: #fff3c4;
+  transform-origin: 0 0;
+  animation: collapse 520ms cubic-bezier(0.45, 0, 0.2, 1) calc(var(--beat, 0s) + 0.3s + var(--s) * 1.1s) backwards;
+}
+.expr.working .expr-text.result {
+  fill: var(--kc, var(--k-int));
+}
+@keyframes collapse {
+  from {
+    translate: var(--dx, 0px) var(--dy, 0px);
+    scale: var(--sx, 1) 1;
+    stroke: #e0b400;
+  }
+}
+
+/* ------------------------------ ops ------------------------------ */
+
+.ops .key-base {
+  fill: #b7c0da;
+}
+.ops .key-face {
+  fill: #fff;
+  stroke: #c4cbe0;
+  stroke-width: 1.5;
+  transition:
+    fill 250ms,
+    stroke 250ms;
+}
+.ops .key-sym {
+  font-family: var(--mono);
+  font-size: 26px;
+  font-weight: 800;
+  fill: var(--ink);
+}
+.ops .key-word {
+  font-size: 9.5px;
+  font-weight: 800;
+  fill: var(--ink-soft);
+}
+/* Pressed: the key goes down onto its base and lights. Moving the mark
+   releases one key and presses the next, as transitions on the same
+   keys. */
+.ops .key-top {
+  transition: translate 220ms cubic-bezier(0.3, 1.4, 0.6, 1);
+}
+.ops .pressed .key-top {
+  translate: 0 5px;
+}
+.ops .pressed .key-face {
+  fill: #fff1c9;
+  stroke: #e0a526;
+  stroke-width: 2;
+}
+.ops .pressed .key-word {
+  fill: var(--ink);
+}
+.ops .op-key {
+  animation: pop-up 360ms cubic-bezier(0.3, 1.4, 0.6, 1) calc(var(--beat, 0s) + 0.1s + var(--i) * 0.1s) backwards;
+}
+.ops .pressed .key-top {
+  animation: key-from-up 260ms cubic-bezier(0.3, 1.4, 0.6, 1) calc(var(--beat, 0s) + 0.6s) backwards;
+}
+.prop-layer[data-told] .ops .pressed .key-top {
+  animation: none;
+}
+@keyframes key-from-up {
+  from {
+    translate: 0 0;
+  }
+}
+
+/* ------------------------------ clash ------------------------------ */
+
+.clash .clash-tile rect {
+  fill: var(--kb);
+  stroke: var(--kc);
+  stroke-width: 2;
+}
+.clash .clash-text {
+  font-family: var(--mono);
+  font-weight: 800;
+  fill: var(--kc);
+}
+.clash .clash-kind {
+  font-size: 9.5px;
+  font-weight: 800;
+  fill: var(--kc);
+}
+.clash .clash-op {
+  font-family: var(--mono);
+  font-size: 20px;
+  font-weight: 800;
+  fill: var(--ink-soft);
+}
+/* They slide towards each other, bump, and bounce back to where they
+   rest: apart. */
+.clash .clash-tile {
+  transform-origin: 50% 50%;
+}
+.clash .clash-tile.left {
+  animation: clash-left 1.1s cubic-bezier(0.4, 0, 0.3, 1) calc(var(--beat, 0s) + 0.4s) backwards;
+}
+.clash .clash-tile.right {
+  animation: clash-right 1.1s cubic-bezier(0.4, 0, 0.3, 1) calc(var(--beat, 0s) + 0.4s) backwards;
+}
+@keyframes clash-left {
+  0% {
+    translate: 0 0;
+  }
+  40% {
+    translate: 22px 0;
+    rotate: 0deg;
+  }
+  55% {
+    translate: 4px 0;
+    rotate: -8deg;
+  }
+  75% {
+    translate: -6px 0;
+    rotate: 2deg;
+  }
+}
+@keyframes clash-right {
+  0% {
+    translate: 0 0;
+  }
+  40% {
+    translate: -22px 0;
+    rotate: 0deg;
+  }
+  55% {
+    translate: -4px 0;
+    rotate: 8deg;
+  }
+  75% {
+    translate: 6px 0;
+    rotate: -2deg;
+  }
+}
+/* Stopped: coral, not a kind's colour and not the amber of a reply —
+   this is Python refusing, not the player missing. 4.9:1 on its tint. */
+.clash .clash-stop rect {
+  fill: #fff0eb;
+  stroke: #c44b28;
+  stroke-width: 1.8;
+}
+.clash .clash-x {
+  font-size: 14px;
+  font-weight: 900;
+  fill: #c44b28;
+}
+.clash .clash-error {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  font-weight: 800;
+  fill: #b03f1f;
+}
+.clash .clash-stop {
+  transform-origin: 50% 50%;
+  animation: stop-in 320ms cubic-bezier(0.2, 0.9, 0.3, 1.3) calc(var(--beat, 0s) + 1.05s) backwards;
+}
+@keyframes stop-in {
+  from {
+    opacity: 0;
+    scale: 0.6;
+  }
+}
+
+/* ------------------------------ packs ------------------------------ */
+
+.packs .floor {
+  stroke: #c4cbe0;
+  stroke-width: 2;
+}
+.packs .pack-box {
+  fill: #e8d5b5;
+  stroke: #b39469;
+  stroke-width: 1.5;
+}
+.packs .pack {
+  animation: pop-up 360ms cubic-bezier(0.3, 1.4, 0.6, 1) calc(var(--beat, 0s) + 0.2s + var(--i) * 0.12s) backwards;
+}
+.packs .loose {
+  animation: pop-up 360ms cubic-bezier(0.3, 1.4, 0.6, 1) calc(var(--beat, 0s) + 0.8s) backwards;
+}
+/* Two colours, so the two parts of a box's sum are seen apart; lit, each
+   deepens. Neither is a kind's colour: these are things, not values. */
+.packs .item.a {
+  fill: #f6c89a;
+  stroke: #d58a45;
+  stroke-width: 1;
+  transition: fill 200ms calc(var(--i) * 0.02s);
+}
+.packs .item.b {
+  fill: #b9dff0;
+  stroke: #4f9cc0;
+  stroke-width: 1;
+  transition: fill 200ms calc(var(--i) * 0.02s);
+}
+.packs .item.a.lit {
+  fill: #e0782a;
+}
+.packs .item.b.lit {
+  fill: #2f86b4;
+}
+.packs .packs-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 800;
+  fill: var(--ink-soft);
+}
+.packs.refused .item.lit {
+  fill: #e6a94a;
+  stroke: var(--unworked);
+  stroke-dasharray: 2 1.5;
+}
+.packs.refused .packs-label,
+.packs .unworked-q {
+  fill: var(--unworked);
+}
+.packs.unworked .packs-label {
+  fill: var(--unworked);
+}
+
 /* ------------------------- basket: counting ------------------------- */
 
 .basket .counter-face {
@@ -1675,6 +2320,47 @@
   75% {
     translate: 3px 0;
   }
+}
+
+/* ------------------------- basket: a tally ------------------------- */
+
+/* The tally's count is a registered integer, so it can only ever hold a
+   whole number: transitioned or animated, it steps through every whole
+   number on the way and none between, and the column of numbers it moves
+   rolls a whole row at a time. Without `@property` support the column
+   simply jumps to the new count. */
+@property --count {
+  syntax: '<integer>';
+  inherits: false;
+  initial-value: 0;
+}
+.basket .tally-roll {
+  translate: 0 calc(var(--count) * -22px);
+  transition: --count 0.9s linear 0.15s;
+}
+/* Arriving, it counts up from 0 as the apples drop in (0.32s apart). */
+.basket.demo-tally .tally-roll {
+  animation: tally-up calc(var(--n) * 0.32s + 0.01s) linear calc(var(--beat, 0s) + 0.62s) backwards;
+}
+@keyframes tally-up {
+  from {
+    --count: 0;
+  }
+}
+/* An apple past the count waits above the basket, gone. A count that
+   goes up drops the next ones in, lowest first; one that goes down lifts
+   the top ones out, top first. */
+.basket .apple-lift {
+  transition:
+    translate 480ms cubic-bezier(0.3, 1.4, 0.6, 1) calc(var(--i) * 0.14s),
+    opacity 200ms linear calc(var(--i) * 0.14s);
+}
+.basket .apple-lift.out {
+  opacity: 0;
+  translate: 0 -58px;
+  transition:
+    translate 420ms cubic-bezier(0.5, 0, 0.8, 0.4) calc((5 - var(--i)) * 0.14s),
+    opacity 240ms linear calc((5 - var(--i)) * 0.14s + 0.18s);
 }
 
 /* ------------------------- glass: filling ------------------------- */
@@ -2434,6 +3120,20 @@
   stroke-width: 2;
   stroke-dasharray: 4 3;
 }
+.doorway.refused .leaf-face {
+  stroke: var(--unworked);
+  stroke-width: 2;
+  stroke-dasharray: 5 3;
+}
+.doorway.refused .pill-true,
+.doorway.refused .pill-false {
+  fill: var(--unworked-bg);
+  stroke: var(--unworked);
+  stroke-dasharray: 3 2;
+}
+.doorway.refused .switch-label {
+  fill: var(--unworked);
+}
 .fishbowl.refused .same-sign {
   fill: var(--unworked);
 }
@@ -2616,6 +3316,397 @@
   from {
     opacity: 0;
     translate: -6px 0;
+  }
+}
+
+/* ------------------------------ goal ------------------------------ */
+
+/* A goal memory: the memory graph's own pieces — a name pill, an arrow,
+   an object card in its kind's colour — drawn as a blueprint. Dashed on a
+   faint gridded wash, so it never reads as the robot's memory, which is
+   solid and sits in the robot's panel. A row the robot's memory already
+   has fills in solid and is ticked; what is still owed stays dashed. */
+.goal .goal-wash {
+  fill: #eef4ff;
+}
+.goal .goal-grid line {
+  stroke: #d6e2fb;
+  stroke-width: 0.6;
+}
+.goal .goal-frame {
+  fill: none;
+  stroke: #7d9be3;
+  stroke-width: 1.3;
+  stroke-dasharray: 5 3.5;
+  transition: stroke 300ms ease;
+}
+.goal .goal-title {
+  font-family: 'Nunito', ui-rounded, system-ui, sans-serif;
+  font-size: 9.5px;
+  font-weight: 800;
+  font-variant-caps: all-small-caps;
+  letter-spacing: 0.1em;
+  fill: #3a57b8;
+  text-anchor: start;
+}
+.goal .goal-done {
+  font-family: 'Nunito', ui-rounded, system-ui, sans-serif;
+  font-size: 8.5px;
+  font-weight: 800;
+  fill: var(--good);
+  text-anchor: end;
+}
+.goal .goal-name {
+  fill: rgb(255 255 255 / 0.7);
+  stroke: #8fa3ea;
+  stroke-width: 1.1;
+  stroke-dasharray: 3 2.2;
+  transition: fill 260ms ease, stroke 260ms ease;
+}
+.goal .goal-name-text {
+  font-family: var(--mono);
+  font-weight: 700;
+  fill: #2b47b8;
+  text-anchor: middle;
+}
+.goal .goal-arrow {
+  stroke: #8fa0c8;
+  stroke-width: 1.3;
+  stroke-dasharray: 2.5 2;
+}
+.goal .goal-tip {
+  fill: #8fa0c8;
+}
+.goal .goal-card {
+  fill: rgb(255 255 255 / 0.7);
+  stroke-width: 1.2;
+  stroke-dasharray: 3.2 2.2;
+  transition: fill 260ms ease, stroke-dasharray 0s;
+}
+.goal .goal-value {
+  font-family: var(--mono);
+  font-weight: 800;
+  text-anchor: middle;
+  white-space: pre;
+}
+.goal .goal-card[data-kind='bool'] { stroke: var(--k-bool); }
+.goal .goal-card[data-kind='int'] { stroke: var(--k-int); }
+.goal .goal-card[data-kind='float'] { stroke: var(--k-float); }
+.goal .goal-card[data-kind='str'] { stroke: var(--k-str); }
+.goal .goal-value[data-kind='bool'] { fill: var(--k-bool); }
+.goal .goal-value[data-kind='int'] { fill: var(--k-int); }
+.goal .goal-value[data-kind='float'] { fill: var(--k-float); }
+.goal .goal-value[data-kind='str'] { fill: var(--k-str); }
+
+/* Made: the row is memory now, solid and filled in its kind's tint. */
+.goal .goal-row.ok .goal-name {
+  fill: var(--brand-soft);
+  stroke: var(--brand-line);
+  stroke-dasharray: none;
+}
+.goal .goal-row.ok .goal-arrow {
+  stroke: #7d8fbd;
+  stroke-dasharray: none;
+}
+.goal .goal-row.ok .goal-card {
+  stroke-dasharray: none;
+}
+.goal .goal-row.ok .goal-card[data-kind='bool'] { fill: var(--k-bool-bg); }
+.goal .goal-row.ok .goal-card[data-kind='int'] { fill: var(--k-int-bg); }
+.goal .goal-row.ok .goal-card[data-kind='float'] { fill: var(--k-float-bg); }
+.goal .goal-row.ok .goal-card[data-kind='str'] { fill: var(--k-str-bg); }
+
+/* The tick: an empty dashed ring while owed, a green disc once made. */
+.goal .goal-tick circle {
+  fill: none;
+  stroke: #a9b8de;
+  stroke-width: 1;
+  stroke-dasharray: 2 1.8;
+}
+.goal .goal-row.ok .goal-tick circle {
+  fill: var(--good);
+  stroke: var(--good);
+  stroke-dasharray: none;
+}
+.goal .goal-tick path {
+  fill: none;
+  stroke: #ffffff;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* What memory has instead, in amber: a reply, never red (PEDAGOGY §4). */
+.goal .goal-now,
+.goal .goal-extra {
+  font-family: var(--mono);
+  font-weight: 700;
+  fill: var(--unworked);
+  text-anchor: middle;
+}
+/* `now:` is sized in the drawing, to fit its row rather than be cut. */
+.goal .goal-extra {
+  font-size: 9px;
+}
+
+.goal.met .goal-frame {
+  stroke: var(--good);
+}
+
+/* Matching, but made the way the step refuses: amber, never the green of
+   a yes. */
+.goal.refused .goal-frame {
+  stroke: var(--unworked);
+}
+.goal .goal-not-so {
+  fill: var(--unworked);
+}
+.goal.refused .goal-row.ok .goal-tick circle {
+  fill: var(--unworked);
+  stroke: var(--unworked);
+}
+
+/* Arriving, the rows are drawn in top to bottom. A row made pops its
+   tick; a goal met settles once, a little large and back, as the frame
+   turns green. All `backwards`, so the resting picture is the plain style. */
+.goal .goal-row {
+  animation: goal-row-in 280ms ease-out calc(var(--beat, 0s) + 0.1s + var(--i, 0) * 0.1s) backwards;
+}
+.prop-layer[data-told] .goal .goal-row {
+  animation: none;
+}
+.goal .goal-row.ok .goal-tick {
+  scale: 1;
+  animation: goal-tick-in 320ms cubic-bezier(0.3, 1.5, 0.5, 1) backwards;
+}
+.goal .goal-row.ok .goal-tick path {
+  stroke-dasharray: 10;
+  animation: goal-check-in 260ms ease-out 120ms backwards;
+}
+.goal .goal-settle {
+  transform-box: view-box;
+  transform-origin: 100px 65px;
+}
+.goal.met .goal-settle {
+  animation: goal-settle 700ms cubic-bezier(0.3, 1.4, 0.5, 1) backwards;
+}
+.goal.met .goal-wash {
+  animation: goal-glow 900ms ease-out backwards;
+}
+@keyframes goal-row-in {
+  from {
+    opacity: 0;
+    translate: -6px 0;
+  }
+}
+@keyframes goal-tick-in {
+  from {
+    scale: 0.2;
+    opacity: 0;
+  }
+}
+@keyframes goal-check-in {
+  from {
+    stroke-dashoffset: 10;
+  }
+}
+@keyframes goal-settle {
+  from {
+    scale: 1.06;
+  }
+}
+@keyframes goal-glow {
+  from {
+    fill: #dcf5e6;
+  }
+}
+
+/* A list in a goal: a card of numbered slots in the reference colours
+   (a list is an object with an identity, as memory draws it), each slot
+   pointing down at its own chip. The slot style is shared with the
+   hotbar's numbers, so a slot number looks the same wherever it is. */
+.prop .slot-strip {
+  fill: rgb(255 255 255 / 0.75);
+  stroke: var(--ref);
+  stroke-width: 1.2;
+}
+.prop .slot-divider {
+  stroke: var(--ref-line);
+  stroke-width: 1;
+}
+.prop .slot-index {
+  font-family: var(--mono);
+  font-size: 7.5px;
+  font-weight: 800;
+  fill: var(--ref-deep);
+  text-anchor: middle;
+}
+.goal .goal-list-card {
+  stroke-dasharray: 3.2 2.2;
+}
+.goal .goal-row.ok .goal-list-card {
+  fill: var(--ref-bg);
+  stroke-dasharray: none;
+}
+.goal .goal-chip {
+  stroke-width: 1;
+}
+.goal .goal-slot-arrow {
+  stroke-width: 1;
+}
+.goal .goal-alias,
+.goal .goal-elbow {
+  fill: none;
+}
+.goal .goal-row.ok .goal-slot-arrow,
+.goal .goal-row.ok .goal-elbow,
+.goal .goal-row.ok .goal-alias {
+  stroke-dasharray: none;
+}
+
+/* ------------------------------ hotbar ------------------------------ */
+
+/* A game's hotbar in the app's own flat style: a dark rounded bar, square
+   cells with a soft bevel, and slot numbers under them in the list's slot
+   style. The selected slot lifts and a bright frame sits on it; the frame
+   slides to the next slot when `mark` moves. A cell the robot's str names
+   is lit in the str colour. The icons are plain flat shapes. */
+.hotbar .hotbar-frame {
+  fill: #27324d;
+  stroke: #16203a;
+  stroke-width: 1.2;
+}
+.hotbar .hotbar-cell {
+  fill: #3b4868;
+  stroke: #1b2440;
+  stroke-width: 1;
+  transition: fill 220ms ease, stroke 220ms ease;
+}
+.hotbar .hotbar-bevel {
+  fill: none;
+  stroke: rgb(255 255 255 / 0.18);
+  stroke-width: 1.2;
+  stroke-linecap: round;
+}
+.hotbar .hotbar-name {
+  font-family: 'Nunito', ui-rounded, system-ui, sans-serif;
+  font-weight: 800;
+  fill: #e3e9f7;
+  text-anchor: middle;
+}
+.hotbar .hotbar-tile {
+  fill: #f4f6fb;
+  stroke: #a9b4cf;
+  stroke-width: 0.8;
+}
+.hotbar .hotbar-word {
+  font-family: var(--mono);
+  font-weight: 800;
+  fill: var(--k-str);
+  text-anchor: middle;
+}
+.hotbar .hotbar-lift {
+  transition: translate 300ms cubic-bezier(0.3, 1.4, 0.5, 1);
+}
+.hotbar .hotbar-slot.marked .hotbar-lift {
+  translate: 0 -3px;
+}
+.hotbar .hotbar-slot.marked .hotbar-cell {
+  fill: #4a5a80;
+}
+.hotbar .hotbar-select {
+  fill: none;
+  stroke: #ffd166;
+  stroke-width: 2.4;
+  translate: 0 -3px;
+  filter: drop-shadow(0 0 3px rgb(255 209 102 / 0.7));
+  transition:
+    x 300ms cubic-bezier(0.3, 1.2, 0.5, 1),
+    width 300ms ease;
+  pointer-events: none;
+}
+.hotbar .hotbar-number .slot-strip {
+  transition: fill 220ms ease, stroke 220ms ease;
+}
+.hotbar .hotbar-slot.marked .hotbar-number .slot-strip {
+  fill: #fff1c9;
+  stroke: #e0a526;
+  stroke-width: 1.6;
+}
+.hotbar .hotbar-slot.lit .hotbar-cell {
+  fill: var(--k-str-bg);
+  stroke: var(--k-str);
+  stroke-width: 2;
+}
+.hotbar .hotbar-slot.lit .hotbar-name {
+  fill: var(--k-str);
+}
+.hotbar.refused .hotbar-slot.lit .hotbar-cell {
+  fill: var(--unworked-bg);
+  stroke: var(--unworked);
+  stroke-dasharray: 3 2;
+}
+.hotbar.refused .hotbar-slot.lit .hotbar-name {
+  fill: var(--unworked);
+}
+
+/* The icons: flat fills, a darker line where a shape needs one. */
+.hotbar .icon * {
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.hotbar .i-steel { fill: #cfd8e8; stroke: #7d8aa6; stroke-width: 0.8; }
+.hotbar .i-wood { fill: #b07a45; stroke: #6f4a26; stroke-width: 0.7; }
+.hotbar .i-grip { stroke: #6f4a26; stroke-width: 2.6; }
+.hotbar .i-gold { fill: #f5c542; stroke: #b3861b; stroke-width: 0.8; }
+.hotbar .i-blue { fill: #5b8def; stroke: #2f4fa8; stroke-width: 0.9; }
+.hotbar .i-blue-dark { fill: #3f6fd1; }
+.hotbar .i-mark { fill: none; stroke: #f5c542; stroke-width: 1.8; }
+.hotbar .i-glass { fill: #e8f1ff; stroke: #8fa3c9; stroke-width: 0.8; }
+.hotbar .i-red { fill: #e5484d; stroke: #a8262b; stroke-width: 0.7; }
+.hotbar .i-shine { fill: rgb(255 255 255 / 0.75); }
+.hotbar .i-bow { fill: none; stroke: #b07a45; stroke-width: 2.4; }
+.hotbar .i-string { fill: none; stroke: #e3e9f7; stroke-width: 0.7; }
+.hotbar .i-shaft { fill: none; stroke: #d9b88a; stroke-width: 1.3; }
+.hotbar .i-paper { fill: #f3e2b8; stroke: #a8874a; stroke-width: 0.8; }
+.hotbar .i-fold { fill: none; stroke: #c9ad74; stroke-width: 0.7; }
+.hotbar .i-route { fill: none; stroke: #8f4700; stroke-width: 1; stroke-dasharray: 1.6 1.4; }
+.hotbar .i-x { fill: none; stroke: #e5484d; stroke-width: 1.5; }
+.hotbar .i-gem { fill: #52d6e0; stroke: #1f8793; stroke-width: 0.8; }
+.hotbar .i-facet { fill: none; stroke: rgb(255 255 255 / 0.7); stroke-width: 0.6; }
+.hotbar .i-key { fill: #f5c542; stroke: #b3861b; stroke-width: 0.8; }
+.hotbar .i-hole { fill: #3b4868; }
+.hotbar .i-key-line { fill: none; stroke: #f5c542; stroke-width: 2.2; }
+.hotbar .i-stem { fill: none; stroke: #6f4a26; stroke-width: 1.3; }
+.hotbar .i-leaf { fill: #52b35f; stroke: #2e7a39; stroke-width: 0.6; }
+.hotbar .i-flame { fill: #ff9f40; stroke: #d9651a; stroke-width: 0.6; }
+.hotbar .i-flame-core { fill: #ffe27a; }
+.hotbar .i-visor { fill: #27324d; }
+.hotbar .i-ridge { fill: none; stroke: #7d8aa6; stroke-width: 1; }
+.hotbar .i-coin-rim { fill: none; stroke: #b3861b; stroke-width: 0.8; }
+.hotbar .i-coin-star { fill: #fff3c4; }
+.hotbar .i-handle { fill: none; stroke: #b07a45; stroke-width: 2.2; }
+
+/* Arriving, the items pop into their cells in turn; an item swapped into
+   a cell is a new one there, and pops in by itself. */
+.hotbar .hotbar-item {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: hotbar-pop 360ms cubic-bezier(0.3, 1.6, 0.5, 1) calc(var(--beat, 0s) + 0.15s + var(--i, 0) * 0.07s) backwards;
+}
+.prop-layer[data-told] .hotbar .hotbar-item {
+  animation-delay: 0s;
+}
+.hotbar .hotbar-number {
+  animation: from-dark 300ms ease-out calc(var(--beat, 0s) + 0.2s + var(--i, 0) * 0.07s) backwards;
+}
+.prop-layer[data-told] .hotbar .hotbar-number {
+  animation: none;
+}
+@keyframes hotbar-pop {
+  from {
+    opacity: 0;
+    scale: 0.3;
   }
 }
 

@@ -18,6 +18,9 @@ export type Beat = {
   speaker: string
   kind: 'praise' | 'beat' | 'ask' | 'reply' | 'outro' | null
   listening: boolean
+  /** A multiple-choice question's option ids, and the ones tried. */
+  choices: string[] | null
+  tried: string[]
 }
 
 declare global {
@@ -31,6 +34,8 @@ declare global {
       beat(): Beat
       next(): void
       skip(): void
+      /** Pick an option of the multiple-choice question being asked. */
+      choose(id: string): void
       snapshot(): {
         bindings: { name: string; scope: string; target: string }[]
         objects: Record<

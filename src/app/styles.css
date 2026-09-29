@@ -1045,6 +1045,158 @@ kbd {
   color: var(--warn);
 }
 
+/* ---- marks, the crow's example, the wipe ---- */
+
+/* A marked name (`MemoryGraph`, `marked`): its pill, its arrow and the
+   object it points at wear a ring, the way a beat's `focus` pulses a
+   pane. Paint only — a pseudo-element outside the card, never a border
+   or padding, so the grid measures the card as it always did and nothing
+   moves (invariants 15–17). */
+.node.marked::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow:
+    0 0 0 2.5px var(--mark, var(--brand)),
+    0 0 14px 3px var(--mark-glow, rgb(75 110 245 / 0.4));
+}
+
+.node.object.marked::after {
+  border-radius: 13px;
+}
+
+.edge.marked path {
+  stroke: var(--mark, var(--brand));
+  stroke-width: 2.4;
+}
+
+.edges .tip-marked path {
+  fill: var(--mark, var(--brand));
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .node.marked::after {
+    animation: mark-pulse 1.3s ease-in-out infinite;
+  }
+  @keyframes mark-pulse {
+    50% {
+      opacity: 0.45;
+    }
+  }
+}
+
+/* The crow's demonstration in memory: a dashed frame and the crow's tag,
+   laid over the graph and taking no presses. */
+.views .memory-view {
+  position: relative;
+}
+
+.memory-demo-frame {
+  position: absolute;
+  inset: 12px 8px 8px;
+  z-index: 4;
+  border: 1.5px dashed #9aa7c7;
+  border-radius: 10px;
+  pointer-events: none;
+}
+
+.memory-demo-frame .demo-tag {
+  position: absolute;
+  top: -10px;
+  right: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 7px 0 5px;
+  border-radius: 6px;
+  background: #e8eefc;
+  color: var(--ink);
+  font: 800 10.5px/18px 'Nunito', ui-rounded, system-ui, sans-serif;
+  letter-spacing: 0.02em;
+}
+
+.memory-demo-frame .demo-tag .mark {
+  width: 12px;
+  height: 12px;
+  margin: 0;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Wipe the robot's memory: a quiet round button in memory's corner, clear
+   on hover and focus. Over the graph's `more` strips. Hidden while the
+   crow's example is showing, where the frame's tag sits: there is no
+   robot's memory on screen to wipe. */
+.memory-tools {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  z-index: 5;
+  display: flex;
+  gap: 6px;
+}
+
+.memory-reset {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 10px 0 8px;
+  border-radius: 999px;
+  font: 700 12px/1 'Nunito', ui-rounded, system-ui, sans-serif;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink-soft);
+  opacity: 0.8;
+  cursor: pointer;
+  transition:
+    opacity 140ms ease,
+    color 140ms ease,
+    border-color 140ms ease;
+}
+
+.memory-reset svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.memory-reset:hover:not(:disabled),
+.memory-reset:focus-visible {
+  opacity: 1;
+  color: var(--brand-deep);
+  border-color: var(--brand-line);
+}
+
+.memory-reset:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+.memory-reset:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.memory-view:has(.memory.demo) .memory-tools {
+  display: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .memory-reset:hover:not(:disabled) svg {
+    rotate: -40deg;
+    transition: rotate 220ms ease;
+  }
+}
 
 /* ---------------- characters ---------------- */
 

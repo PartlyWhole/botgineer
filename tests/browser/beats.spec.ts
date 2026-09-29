@@ -25,7 +25,7 @@ async function next(page: Page) {
   throw new Error('Next did not move the line on')
 }
 
-test('narration closes the console, Next moves it on, and the question opens it', async ({ page }) => {
+test('narration closes the console, Next moves it on, and the question opens it', { tag: '@smoke' }, async ({ page }) => {
   await open(page, 'sandbox')
   const input = page.getByTestId('console-input')
 

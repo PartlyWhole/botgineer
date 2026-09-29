@@ -23,8 +23,12 @@ import { useLayoutEffect, useRef, type ReactNode } from 'react'
 import {
   CODE_BOX,
   CHIP_ROWS,
+  CUBBY_GAP,
   SLOTS,
+  SPEED_MAX,
   boolOf,
+  carReading,
+  chipChars,
   chipLines,
   chipText,
   clamp,
@@ -32,21 +36,37 @@ import {
   codeLines,
   codeSize,
   codeTokens,
+  cubbyWidth,
   indentOf,
   kindOf,
   numberOf,
+  needleAngle,
+  OPS,
+  OP_WORDS,
+  exprWorking,
+  goalShown,
+  hotbarLit,
+  HOTBAR_ICONS,
+  HOTBAR_MAX,
+  type GoalShownRow,
+  literalKind,
+  packsShape,
+  packsSum,
   refused as refusedOf,
   shelfRoom,
+  shelfSlots,
   shelved,
   slotOf,
   textOf,
   unworked,
   type ContrastSide,
+  type Op,
   type Prop,
   type PropView,
   type TypeSlot,
 } from '../scene/props'
 import type { Thought } from '../memory/extract'
+import { itemsOf, reprOf, typeOf } from '../memory/goal'
 
 /** How long a right answer's picture stays before the next one arrives.
  *  Kept in step with `--beat` in props.css. */
@@ -114,7 +134,7 @@ export function PropLayer({ view, role, beat }: { view: PropView; role: 'current
       <svg viewBox="0 0 200 130" className={`prop prop-${view.prop.kind}`} aria-hidden="true">
         {draw(view)}
       </svg>
-      {said && <AnswerTag key={`${said.type}:${said.repr}`} thought={said} right={view.verdict === 'right'} waiting={waiting} refused={refused} />}
+      {said && view.prop.kind !== 'goal' && <AnswerTag key={`${said.type}:${said.repr}`} thought={said} right={view.verdict === 'right'} waiting={waiting} refused={refused} />}
     </button>
   )
 }
@@ -201,11 +221,25 @@ function draw(view: PropView): ReactNode {
     case 'balance':
       return <Balance view={view} p={p} />
     case 'expr':
-      return <Expr view={view} text={p.text} first={p.first} then={p.then} />
+      return view.answer === null && p.demo === 'work' ? <Working text={p.text} first={p.first} then={p.then} /> : <Expr view={view} text={p.text} first={p.first} then={p.then} />
+    case 'ops':
+      return <Ops mark={p.mark} />
+    case 'clash':
+      return <Clash left={p.left} op={p.op} right={p.right} />
+    case 'packs':
+      return <Packs view={view} p={p} />
     case 'phone':
       return <Phone view={view} number={p.number} />
     case 'door':
       return <Door view={view} />
+    case 'doorway':
+      return <Doorway view={view} demo={p.demo} />
+    case 'car':
+      return <Car view={view} speed={p.speed} drive={p.demo === 'drive'} />
+    case 'note':
+      return <Note view={view} text={p.text} title={p.title} />
+    case 'value':
+      return <Value text={p.text} />
     case 'card':
       return <Card view={view} />
     case 'letter':
@@ -232,6 +266,10 @@ function draw(view: PropView): ReactNode {
       return <Scale view={view} parcels={p.parcels} each={p.each} />
     case 'code':
       return <Code text={p.text} mark={p.mark} />
+    case 'goal':
+      return <GoalMemory view={view} p={p} />
+    case 'hotbar':
+      return <Hotbar view={view} p={p} />
   }
 }
 
@@ -274,8 +312,14 @@ function drawnAs(view: PropView): string {
             ? 'A fish with wings drawn on: the robot said True.'
             : 'A fish, not a bird: the robot said False.'
     case 'basket':
-      return `A basket with ${p.apples} apples.${
-        p.demo === 'count' ? ` Counted in one at a time: ${p.apples}.` : p.demo === 'half' ? ` Half an apple bounces off; the count stays ${p.apples}.` : ''
+      return `A basket with ${p.demo === 'tally' ? tallied(p.apples) : p.apples} apples.${
+        p.demo === 'count'
+          ? ` Counted in one at a time: ${p.apples}.`
+          : p.demo === 'half'
+            ? ` Half an apple bounces off; the count stays ${p.apples}.`
+            : p.demo === 'tally'
+              ? ` The counter beside it says ${tallied(p.apples)}.`
+              : ''
       }${n !== null ? ` The robot counted ${a!.repr}.` : ''}`
     case 'lift':
       return n === null
@@ -316,9 +360,40 @@ function drawnAs(view: PropView): string {
         b !== null ? ` The robot says ${a!.repr}.` : ''
       }`
     case 'expr':
-      return view.verdict === 'right' ? `${p.text}: ${p.first} first, then ${p.then.join(', then ')}.` : `${p.text} = ?${waiting(view)}`
+      return view.verdict === 'right' || (a === null && p.demo === 'work')
+        ? `${p.text}: ${p.first} first, then ${p.then.join(', then ')}.`
+        : `${p.text} = ?${waiting(view)}`
+    case 'ops':
+      return `Four operator keys: ${OPS.map((o) => `${o} ${OP_WORDS[o]}`).join(', ')}.${p.mark ? ` The ${p.mark} key is pressed: ${OP_WORDS[p.mark]}.` : ''}`
+    case 'clash':
+      return `${p.left}, ${literalKind(p.left)}, ${p.op} ${p.right}, ${literalKind(p.right)}: they bump and bounce apart. The robot stops with a TypeError.`
+    case 'packs': {
+      const sh = packsShape(p)
+      const inBox = sh.b > 0 ? `${sh.a} of one colour and ${sh.b} of another` : `${sh.a}`
+      return `${sh.packs} box${sh.packs === 1 ? '' : 'es'} with ${inBox} in each${sh.loose ? `, and ${sh.loose} loose beside them` : ''}.${
+        n !== null ? ` ${a!.repr} of them lit.` : waiting(view)
+      }`
+    }
     case 'phone':
       return a ? `A phone showing ${textOf(a) ?? a.repr}.` : 'A phone, waiting for a number.'
+    case 'doorway': {
+      const open = doorOpen(view, p.demo)
+      const said = a === null ? (p.demo ? `: open is ${open ? 'True' : 'False'}` : '') : b !== null ? `: the robot said ${a.repr}` : ''
+      return `A door in its frame, ${open ? 'open' : 'shut'}${said}.${t !== null ? ` A note stuck on it says ${t}; the door does not move.` : ''}`
+    }
+    case 'car': {
+      const shown = carShows(view, p.speed, p.demo === 'drive')
+      return `A car and its speedometer, ${shown === null ? 'the needle at 0 and the readout saying ? km/h' : `reading ${shown.text} km/h`}.${
+        t !== null ? ` A note stuck on the car says ${t}; the needle does not move.` : ''
+      }`
+    }
+    case 'note': {
+      const heading = p.title ? `A note titled ${p.title}` : 'A note'
+      const robot = a === null ? '' : t !== null ? ` The robot has it as "${t}", a str.` : ` The robot has ${a.repr}, ${kindWordOf(a)}, not words.`
+      return `${heading} that says ${p.text}.${robot}`
+    }
+    case 'value':
+      return `A card with ${p.text} written on it.`
     case 'door':
       return `A locked door. The robot knows: True.${t !== null ? ` A note for Mira says: ${t}.` : ''}`
     case 'card':
@@ -332,11 +407,12 @@ function drawnAs(view: PropView): string {
     case 'shelf': {
       // The same room the drawing gives each slot, so the sentence lists
       // exactly the chips on the shelf.
-      const s = shelved(p.filled, view.heard, p.examples ?? {}, shelfRoom(p.filled, p.examples ?? {}))
-      const slots = SLOTS.map((k) =>
+      const shown = shelfSlots(p)
+      const s = shelved(p.filled, view.heard, p.examples ?? {}, shelfRoom(p.filled, p.examples ?? {}), shown)
+      const slots = shown.map((k) =>
         p.filled.includes(k) ? `${k}: ${[...s[k].examples.map((e) => e.text), ...s[k].heard].join(', ')}` : `a slot marked ?${s[k].heard.length ? ` holding ${s[k].heard.join(', ')}` : ''}`,
       )
-      return `A shelf of five slots${p.title ? ', labelled Data types' : ''}. ${slots.join('; ')}.${p.later ? ' Beside it, empty chips in square brackets, for later.' : ''}`
+      return `A shelf of ${COUNT_WORD[shown.length] ?? shown.length} slot${shown.length === 1 ? '' : 's'}${p.title ? ', labelled Data types' : ''}. ${slots.join('; ')}.${p.later ? ' Beside it, empty chips in square brackets, for later.' : ''}`
     }
     case 'numberline': {
       const at = n ?? p.mark
@@ -362,6 +438,10 @@ function drawnAs(view: PropView): string {
         .join(', ')}.`
     case 'scale':
       return `${p.parcels} parcels of ${p.each} kg and a scale.${n !== null ? ` On the scale, it reads ${a!.repr} kg.` : waiting(view)}`
+    case 'goal':
+      return goalSentence(view, p)
+    case 'hotbar':
+      return hotbarSentence(view, p)
     case 'code': {
       const lines = codeLines(p.text)
       const marked = p.mark !== undefined && lines[p.mark - 1] !== undefined ? ` Line ${p.mark} is highlighted: ${lines[p.mark - 1]!.trim()}.` : ''
@@ -383,6 +463,15 @@ const question = (p: Extract<Prop, { kind: 'balance' }>): string => `${p.leftLab
 
 /** Whether `left op right` holds: the balance's own truth. */
 const holds = (left: number, op: '>' | '<' | '==', right: number): boolean => (op === '==' ? left === right : op === '>' ? left > right : left < right)
+
+/** How many apples a tally draws: `APPLE_AT`'s places, at most. */
+const tallied = (apples: number): number => clamp(Math.floor(apples), 0, APPLE_AT.length)
+
+/** A small count in words, for a sentence. */
+const COUNT_WORD: Record<number, string> = { 1: 'one', 2: 'two', 3: 'three', 4: 'four', 5: 'five' }
+
+/** A kind in words, for a sentence: `an int`, `a bool`. */
+const kindWordOf = (t: Thought): string => `${/^[aeiou]/.test(t.type) ? 'an' : 'a'} ${t.type}`
 
 /* --- lamp: a switch is a bool --- */
 
@@ -489,7 +578,7 @@ const APPLE_AT: [number, number][] = [
   [100, 48],
 ]
 
-function Basket({ view, apples, demo }: { view: PropView; apples: number; demo: 'count' | 'half' | undefined }) {
+function Basket({ view, apples, demo }: { view: PropView; apples: number; demo: 'count' | 'half' | 'tally' | undefined }) {
   const n = numberOf(view.answer)
   const whole = n === null ? 0 : clamp(Math.floor(Math.max(n, 0)), 0, 10)
   const part = n !== null && n > 0 && !Number.isInteger(n) && whole < 10
@@ -499,9 +588,47 @@ function Basket({ view, apples, demo }: { view: PropView; apples: number; demo: 
   // Counted to the apples and still refused (`3.0`, or `2 + 1` where the
   // player was to count): the tokens stand, in amber, dashed.
   const no = refusedOf(view)
+  const tally = demo === 'tally'
+  const held = tallied(apples)
   return (
     <g className={`basket ${demo ? `demo-${demo}` : ''}`}>
-      {demo && (
+      {tally && (
+        // The tally's counter. The same column of whole numbers behind a
+        // window, but driven by `--count`, a registered *integer*: as the
+        // count changes the column rolls through every whole number on
+        // the way, and can stop on nothing else (props.css).
+        <g className="counter" transform="translate(170,98)">
+          <clipPath id="basket-tally">
+            <rect x="-12" y="-11" width="24" height="22" rx="6" />
+          </clipPath>
+          <rect x="-14" y="-13" width="28" height="26" rx="8" className="counter-face" />
+          <g clipPath="url(#basket-tally)">
+            <g className="counter-roll tally-roll" style={{ ['--count' as string]: held, ['--n' as string]: held }}>
+              {Array.from({ length: APPLE_AT.length + 1 }, (_, k) => (
+                <text key={k} y={5.5 + k * 22} className="counter-num">
+                  {k}
+                </text>
+              ))}
+            </g>
+          </g>
+        </g>
+      )}
+      {tally &&
+        // Every place is drawn, and the ones past the count wait above
+        // the basket, gone: a changed count lifts apples out or drops them
+        // in as a transition on the same elements.
+        APPLE_AT.map(([x, y], i) => (
+          <g key={i} className="apple" style={{ ['--i' as string]: i }} transform={`translate(${x},${y})`}>
+            <g className={`apple-lift ${i < held ? 'in' : 'out'}`}>
+              <g className="apple-drop">
+                <circle r="11" className="apple-skin" />
+                <path d="M 0 -10 q 2 -6 6 -7" className="stalk" />
+                <path d="M 1 -12 q 7 -6 11 -1 q -6 3 -11 1 z" className="leaf" />
+              </g>
+            </g>
+          </g>
+        ))}
+      {demo && !tally && (
         // The counter. Its digits are a column behind a window, rolled
         // one step as each apple lands (`steps()` in the CSS), so it can
         // only ever show a whole number: there is no frame at 2½. At rest
@@ -522,7 +649,7 @@ function Basket({ view, apples, demo }: { view: PropView; apples: number; demo: 
           </g>
         </g>
       )}
-      {APPLE_AT.slice(0, apples).map(([x, y], i) => (
+      {!tally && APPLE_AT.slice(0, apples).map(([x, y], i) => (
         <g key={i} className="apple" style={{ ['--i' as string]: i }} transform={`translate(${x},${y})`}>
           <g className="apple-drop">
             <circle r="11" className="apple-skin" />
@@ -1155,9 +1282,14 @@ function Share({ view, litres, robots }: { view: PropView; litres: number; robot
   const left = n === null ? litres : Math.max(0, litres - each * robots)
   const scale = 6
   const tankH = 72
-  // Three tanks sit closer than two, so the last stays on the stage.
-  const gap = robots > 2 ? 40 : 48
-  const tanks = Array.from({ length: robots }, (_, i) => 146 - ((robots - 1) * gap) / 2 + i * gap)
+  // One or two tanks stand where they always have. Three or four are
+  // narrower and share the room between the jug's handle (x 80) and the
+  // scale's numbers beside the last (x 176): at their old spacing the
+  // third and fourth ran off the picture's edge and back over the jug.
+  const tw = robots <= 2 ? 32 : robots === 3 ? 28 : 21
+  const room = 96
+  const step = robots <= 2 ? 48 : tw + (room - robots * tw) / Math.max(1, robots - 1)
+  const tanks = Array.from({ length: robots }, (_, i) => (robots <= 2 ? 146 - ((robots - 1) * step) / 2 + i * step : 80 + tw / 2 + i * step))
   // More each than the jug holds (`5` of 9 litres, twice): the jug
   // empties, but it does not say it shared out — it says in amber that it
   // only had so much, and the tanks' labels are amber too.
@@ -1179,14 +1311,14 @@ function Share({ view, litres, robots }: { view: PropView; litres: number; robot
       </g>
       {tanks.map((x, i) => (
         <g key={i} className="tank" transform={`translate(${x},0)`}>
-          <rect x="-16" y={120 - tankH} width="32" height={tankH} rx="4" className="tank-body" />
-          <rect x="-15" y={120 - tankH} width="30" height={tankH - 1} className="oil tank-oil" style={{ transform: `scaleY(${clamp(each / scale, 0, 1)})` }} />
+          <rect x={-tw / 2} y={120 - tankH} width={tw} height={tankH} rx="4" className="tank-body" />
+          <rect x={-tw / 2 + 1} y={120 - tankH} width={tw - 2} height={tankH - 1} className="oil tank-oil" style={{ transform: `scaleY(${clamp(each / scale, 0, 1)})` }} />
           {Array.from({ length: scale + 1 }, (_, k) => (
-            <line key={k} x1="10" x2="16" y1={120 - (k / scale) * tankH} y2={120 - (k / scale) * tankH} className="tick" />
+            <line key={k} x1={tw / 2 - 6} x2={tw / 2} y1={120 - (k / scale) * tankH} y2={120 - (k / scale) * tankH} className="tick" />
           ))}
           {i === robots - 1 &&
             [0, 2, 4, 6].map((k) => (
-              <text key={k} x="26" y={123 - (k / scale) * tankH} className="tick-label">
+              <text key={k} x={tw / 2 + 10} y={123 - (k / scale) * tankH} className="tick-label">
                 {k}
               </text>
             ))}
@@ -1356,6 +1488,187 @@ function Expr({ view, text, first, then }: { view: PropView; text: string; first
   )
 }
 
+/** The working, played for a beat (`demo: 'work'`): the expression with
+ *  its first step lit, then each line in turn, the lit span collapsing
+ *  from the line above into the result it made, and the last line in its
+ *  kind's colour. Every piece is where it rests; the playing is CSS
+ *  (`backwards`), so without motion this is the finished working. */
+function Working({ text, first, then }: { text: string; first: string; then: string[] }) {
+  const lines = exprWorking(text, first, then)
+  const cw = 9.6
+  // Evenly spaced, with room for an arrow between one line's lit span
+  // and the next's: as far apart as four lines allow, at most 36.
+  const pitch = Math.min(36, 100 / Math.max(1, lines.length - 1))
+  const y = (i: number) => 24 + i * pitch
+  const x0 = (t: string) => 100 - (t.length * cw) / 2
+  const box = (i: number, [a, b]: [number, number]) => ({ x: x0(lines[i]!.text) + a * cw - 2, y: y(i) - 16, w: (b - a) * cw + 4 })
+  const last = lines[lines.length - 1]!.text
+  return (
+    <g className="expr working">
+      {lines.map((l, i) => {
+        const made = l.made ? box(i, l.made) : null
+        const from = i > 0 && lines[i - 1]!.work ? box(i - 1, lines[i - 1]!.work!) : null
+        const work = l.work ? box(i, l.work) : null
+        return (
+          <g key={i} className={i > 0 ? 'step' : 'start'} style={{ ['--i' as string]: i - 1, ['--s' as string]: i }}>
+            {i > 0 && <path d={`M 100 ${y(i - 1) + 8} V ${y(i) - 18}`} className="step-arrow" />}
+            {made && (
+              <rect
+                x={+made.x.toFixed(2)}
+                y={made.y}
+                width={+made.w.toFixed(2)}
+                height="22"
+                rx="5"
+                className="made"
+                style={
+                  from
+                    ? { ['--dx' as string]: `${(from.x - made.x).toFixed(2)}px`, ['--dy' as string]: `${from.y - made.y}px`, ['--sx' as string]: (from.w / made.w).toFixed(3) }
+                    : undefined
+                }
+              />
+            )}
+            {work && i < lines.length - 1 && <rect x={+work.x.toFixed(2)} y={work.y} width={+work.w.toFixed(2)} height="22" rx="5" className="work" />}
+            <text x="100" y={y(i)} className={`expr-text ${i === lines.length - 1 && i > 0 ? 'result' : ''}`} data-kind={i === lines.length - 1 && i > 0 ? literalKind(last) : undefined}>
+              {l.text}
+            </text>
+          </g>
+        )
+      })}
+    </g>
+  )
+}
+
+/* --- ops: the four operators --- */
+
+function Ops({ mark }: { mark: Op | undefined }) {
+  return (
+    <g className={`ops ${mark ? 'marked' : ''}`}>
+      {OPS.map((o, i) => {
+        const x = 8 + i * 48
+        return (
+          <g key={o} className={`op-key ${mark === o ? 'pressed' : ''}`} transform={`translate(${x},26)`} style={{ ['--i' as string]: i }}>
+            <rect y="6" width="40" height="46" rx="8" className="key-base" />
+            <g className="key-top">
+              <rect width="40" height="46" rx="8" className="key-face" />
+              <text x="20" y="32" className="key-sym">
+                {o}
+              </text>
+            </g>
+            <text x="20" y="72" className="key-word">
+              {OP_WORDS[o]}
+            </text>
+          </g>
+        )
+      })}
+    </g>
+  )
+}
+
+/* --- clash: two things that do not go together --- */
+
+function Clash({ left, op, right }: { left: string; op: string; right: string }) {
+  const tile = (t: string) => {
+    const n = Math.max(1, [...t].length)
+    const size = Math.min(18, 58 / (n * 0.6))
+    return { size, w: Math.max(34, n * size * 0.6 + 14) }
+  }
+  const l = tile(left)
+  const r = tile(right)
+  return (
+    <g className="clash">
+      {[
+        { t: left, s: l, x: 52, side: 'left' },
+        { t: right, s: r, x: 148, side: 'right' },
+      ].map(({ t, s, x, side }) => (
+        <g key={side} transform={`translate(${x},46)`}>
+          <g className={`clash-tile ${side}`} data-kind={literalKind(t)}>
+            <rect x={-s.w / 2} y="-18" width={+s.w.toFixed(2)} height="36" rx="7" />
+            <text y={+(s.size * 0.36).toFixed(2)} className="clash-text" style={{ fontSize: `${s.size.toFixed(2)}px` }}>
+              {short(t, 12)}
+            </text>
+          </g>
+          <text y="32" className="clash-kind" data-kind={literalKind(t)}>
+            {literalKind(t)}
+          </text>
+        </g>
+      ))}
+      <text x="100" y="53" className="clash-op">
+        {short(op, 3)}
+      </text>
+      <g className="clash-stop" transform="translate(100,108)">
+        <rect x="-50" y="-12" width="100" height="24" rx="12" />
+        <text x="-36" y="5" className="clash-x">
+          ✕
+        </text>
+        <text x="8" y="4.5" className="clash-error">
+          TypeError
+        </text>
+      </g>
+    </g>
+  )
+}
+
+/* --- packs: a chained sum, in boxes --- */
+
+function Packs({ view, p }: { view: PropView; p: Extract<Prop, { kind: 'packs' }> }) {
+  // Typed by hand, the right number has counted nothing: nothing lit.
+  const waiting = unworked(view)
+  const n = waiting ? null : numberOf(view.answer)
+  const sh = packsShape(p)
+  const per = sh.a + sh.b
+  const total = sh.packs * per + sh.loose
+  const lit = n === null ? 0 : clamp(Math.floor(n), 0, total)
+  const no = refusedOf(view)
+  const cols = per > 6 ? 3 : 2
+  const rows = Math.max(1, Math.ceil(per / cols))
+  const looseW = sh.loose > 0 ? 30 : 0
+  const gap = 6
+  const boxW = Math.min(44, (192 - looseW - (sh.loose > 0 ? gap : 0) - (sh.packs - 1) * gap) / sh.packs)
+  const rowW = sh.packs * boxW + (sh.packs - 1) * gap + (sh.loose > 0 ? gap + looseW : 0)
+  const left = 100 - rowW / 2
+  // Each box as tall as its items, standing on the floor.
+  const floor = 120
+  const pitch = Math.min(12, (boxW - 6) / cols, 72 / rows)
+  const boxH = Math.max(34, rows * pitch + 12)
+  const top = floor - 2 - boxH
+  const r = pitch * 0.38
+  const item = (key: string, index: number, x: number, y: number, colour: 'a' | 'b') => (
+    <circle key={key} cx={+x.toFixed(2)} cy={+y.toFixed(2)} r={+r.toFixed(2)} className={`item ${colour} ${index < lit ? 'lit' : ''}`} style={{ ['--i' as string]: index }} />
+  )
+  // Items stand from the bottom of their box up, the first colour first.
+  const spot = (k: number, x0: number, c: number) => [x0 + (boxW - (c - 1) * pitch) / 2 + (k % c) * pitch, top + boxH - 7 - Math.floor(k / c) * pitch] as const
+  const looseX = left + sh.packs * (boxW + gap)
+  return (
+    <g className={`packs ${waiting ? 'unworked' : ''} ${no ? 'refused' : ''}`}>
+      <line x1="0" x2="200" y1={top + boxH + 2} y2={top + boxH + 2} className="floor" />
+      {Array.from({ length: sh.packs }, (_, bx) => {
+        const x0 = left + bx * (boxW + gap)
+        return (
+          <g key={bx} className="pack" style={{ ['--i' as string]: bx }}>
+            <rect x={+x0.toFixed(2)} y={top} width={+boxW.toFixed(2)} height={boxH} rx="4" className="pack-box" />
+            {Array.from({ length: per }, (_, k) => {
+              const [x, y] = spot(k, x0, cols)
+              return item(`${bx}:${k}`, bx * per + k, x, y, k < sh.a ? 'a' : 'b')
+            })}
+          </g>
+        )
+      })}
+      {sh.loose > 0 && (
+        <g className="loose">
+          {Array.from({ length: sh.loose }, (_, k) => {
+            const x = looseX + looseW / 2 + ((k % 2) - 0.5) * pitch
+            const y = top + boxH - 7 - Math.floor(k / 2) * pitch
+            return item(`l:${k}`, sh.packs * per + k, x, y, 'a')
+          })}
+        </g>
+      )}
+      <text x="100" y={Math.max(16, top - 10)} className="packs-label">
+        {n !== null ? `${view.answer!.repr} in all` : waiting ? `${packsSum(p)} = ?` : `${sh.packs} boxes of ${sh.b > 0 ? `${sh.a} + ${sh.b}` : sh.a}${sh.loose ? `, ${sh.loose} loose` : ''}`}
+      </text>
+    </g>
+  )
+}
+
 /* --- phone: a number that is really a name --- */
 
 function Phone({ view, number }: { view: PropView; number: string }) {
@@ -1387,7 +1700,15 @@ function Phone({ view, number }: { view: PropView; number: string }) {
                 </text>
               </g>
             )}
-            <text x={lostZero ? 106 : 100} y="47" className={`screen-text ${t !== null ? 'text' : 'num'}`}>
+            {/* As large as 9.5 units, and smaller only as far as the
+                number needs to sit inside the screen: `0412 555 019` ran
+                to its edges. A monospace character is 0.6 of its size. */}
+            <text
+              x={lostZero ? 106 : 100}
+              y="47"
+              className={`screen-text ${t !== null ? 'text' : 'num'}`}
+              style={{ fontSize: `${Math.min(9.5, (lostZero ? 50 : 60) / (Math.max(1, [...short(shown, 12)].length) * 0.6)).toFixed(2)}px` }}
+            >
               {short(shown, 12)}
             </text>
             {calling && (
@@ -1444,6 +1765,231 @@ function Door({ view }: { view: PropView }) {
             </text>
           ))
         )}
+      </g>
+    </g>
+  )
+}
+
+/* --- doorway: open or shut is a bool --- */
+
+/** Whether the doorway is drawn open: an answer is drawn as itself (a
+ *  word opens nothing), and the narration's swing only stands in while
+ *  nothing has been answered. */
+const doorOpen = (view: PropView, demo: 'open' | 'closed' | undefined): boolean =>
+  view.answer ? boolOf(view.answer) === true : demo === 'open'
+
+function Doorway({ view, demo }: { view: PropView; demo: 'open' | 'closed' | undefined }) {
+  const open = doorOpen(view, demo)
+  const note = textOf(view.answer)
+  // A refused bool still swings the door — it is what the robot thought
+  // — but the door is edged in amber, dashed, and so is its pill: moved,
+  // and not taken.
+  const no = refusedOf(view)
+  return (
+    <g className={`doorway ${open ? 'open' : ''} ${no ? 'refused' : ''} ${demo ? `demo-${demo}` : ''}`}>
+      <line x1="0" x2="200" y1="126" y2="126" className="floor" />
+      <rect x="58" y="8" width="84" height="118" rx="3" className="frame" />
+      {/* Outside, seen through the doorway once the door swings. */}
+      <g className="outside">
+        <rect x="65" y="15" width="70" height="111" className="sky" />
+        <circle cx="116" cy="36" r="8" className="sun" />
+        <path d="M 65 104 q 18 -10 35 -2 t 35 -4 v 28 h -70 z" className="hill" />
+      </g>
+      <g className="door-leaf">
+        <rect x="65" y="15" width="70" height="111" className="leaf-face" />
+        <rect x="73" y="24" width="54" height="38" rx="2" className="leaf-inset" />
+        <rect x="73" y="70" width="54" height="46" rx="2" className="leaf-inset" />
+        <circle cx="126" cy="68" r="3.4" className="knob" />
+      </g>
+      <g transform="translate(170,62)">
+        <text y="-32" className="door-q">
+          open?
+        </text>
+        <rect x="-20" y="-26" width="40" height="50" rx="5" className="plate-switch" />
+        <rect x="-17" y="-22" width="34" height="13" rx="6.5" className="pill-true" />
+        <text y="-12" className="switch-label">
+          True
+        </text>
+        <rect x="-17" y="9" width="34" height="13" rx="6.5" className="pill-false" />
+        <text y="19" className="switch-label">
+          False
+        </text>
+      </g>
+      {note !== null && (
+        <g className="note" transform="translate(4,62) rotate(-6)">
+          <rect x="0" y="0" width="52" height="30" rx="2" />
+          <text x="26" y="19">
+            {short(note, 9)}
+          </text>
+        </g>
+      )}
+    </g>
+  )
+}
+
+/* --- car: a speed is measured, with a float --- */
+
+const DIAL = { cx: 140, cy: 64, r: 46 } as const
+
+/** What the car's dial shows: the answer when there is a number, else
+ *  the drive's own speed, else nothing yet (the ask, waiting at 0). */
+function carShows(view: PropView, speed: number, drive: boolean): { at: number; text: string; kind: string } | null {
+  const n = numberOf(view.answer)
+  if (n !== null) return { at: n, text: view.answer!.repr, kind: view.answer!.type }
+  if (view.answer === null && drive) return { at: speed, text: carReading(speed), kind: 'float' }
+  return null
+}
+
+/** A point on the dial at a speed, `r` from its centre. */
+const onDial = (speed: number, r: number): [number, number] => {
+  const a = (needleAngle(speed) * Math.PI) / 180
+  return [+(DIAL.cx + r * Math.sin(a)).toFixed(2), +(DIAL.cy - r * Math.cos(a)).toFixed(2)]
+}
+
+function Car({ view, speed, drive }: { view: PropView; speed: number; drive: boolean }) {
+  const shown = carShows(view, speed, drive)
+  const at = shown?.at ?? 0
+  const note = textOf(view.answer)
+  const moving = at > 0
+  const [ax, ay] = onDial(0, DIAL.r - 7)
+  const [bx, by] = onDial(SPEED_MAX, DIAL.r - 7)
+  const ticks = Array.from({ length: SPEED_MAX / 10 + 1 }, (_, k) => k * 10)
+  return (
+    <g className={`car-prop ${moving ? 'moving' : ''} ${shown === null ? 'waiting' : ''}`}>
+      <rect x="0" y="118" width="200" height="12" className="road" />
+      <path d="M 4 124 h 14 M 30 124 h 14 M 56 124 h 14 M 82 124 h 14" className="road-line" />
+      <g className="speed-lines">
+        <path d="M 0 96 h 10 M 2 104 h 12 M 0 111 h 8" />
+      </g>
+      <g className="car-body" transform="translate(16,90)">
+        <g className="car-bob">
+          <path d="M 4 12 q 0 -6 6 -7 l 10 -2 l 9 -10 q 3 -3 8 -3 h 14 q 5 0 8 4 l 7 9 l 7 1 q 6 1 6 8 v 8 h -75 z" className="car-paint" />
+          <path d="M 31 -4 q 2 -3 6 -3 h 6 v 10 h -19 z M 47 -7 h 5 q 3 0 5 3 l 5 7 h -15 z" className="car-glass" />
+          <circle cx="70" cy="11" r="2.2" className="car-light" />
+        </g>
+        <g transform="translate(20,21)">
+          <g className="wheel">
+            <circle r="7" />
+            <path d="M -4 0 h 8 M 0 -4 v 8" />
+          </g>
+        </g>
+        <g transform="translate(58,21)">
+          <g className="wheel">
+            <circle r="7" />
+            <path d="M -4 0 h 8 M 0 -4 v 8" />
+          </g>
+        </g>
+      </g>
+      <g className="dial">
+        <circle cx={DIAL.cx} cy={DIAL.cy} r={DIAL.r} className="dial-face" />
+        <path d={`M ${ax} ${ay} A ${DIAL.r - 7} ${DIAL.r - 7} 0 1 1 ${bx} ${by}`} className="dial-track" />
+        <path
+          d={`M ${ax} ${ay} A ${DIAL.r - 7} ${DIAL.r - 7} 0 1 1 ${bx} ${by}`}
+          pathLength="100"
+          className="dial-reach"
+          style={{ strokeDashoffset: +(100 - (100 * clamp(at, 0, SPEED_MAX)) / SPEED_MAX).toFixed(2) }}
+        />
+        {ticks.map((k) => {
+          const major = k % 20 === 0
+          const [x1, y1] = onDial(k, DIAL.r - 2)
+          const [x2, y2] = onDial(k, DIAL.r - (major ? 9 : 6))
+          const [lx, ly] = onDial(k, DIAL.r - 17)
+          return (
+            <g key={k}>
+              <line x1={x1} y1={y1} x2={x2} y2={y2} className={`dial-tick ${major ? 'major' : ''}`} />
+              {major && (
+                <text x={lx} y={ly + 3} className="dial-num">
+                  {k}
+                </text>
+              )}
+            </g>
+          )
+        })}
+        <g transform={`translate(${DIAL.cx},${DIAL.cy})`}>
+          <g className="needle" style={{ rotate: `${needleAngle(at).toFixed(2)}deg` }}>
+            <path d="M -2.6 4 L 0 -36 L 2.6 4 z" />
+          </g>
+          <circle r="4.5" className="hub" />
+        </g>
+        <g className="readout" data-kind={shown?.kind ?? 'none'}>
+          <rect x={DIAL.cx - 30} y={DIAL.cy + 22} width="60" height="21" rx="5" />
+          <text x={DIAL.cx} y={DIAL.cy + 37.5}>
+            <tspan className="readout-value">{shown === null ? '?' : short(shown.text, 7)}</tspan>
+            <tspan className="readout-unit" dx="2.5">
+              km/h
+            </tspan>
+          </text>
+        </g>
+      </g>
+      {note !== null && (
+        <g className="note" transform="translate(6,52) rotate(-6)">
+          <rect x="0" y="0" width="52" height="30" rx="2" />
+          <text x="26" y="19">
+            {short(note, 9)}
+          </text>
+        </g>
+      )}
+    </g>
+  )
+}
+
+/* --- note: words, as a person writes them and as the robot has them --- */
+
+function Note({ view, text, title }: { view: PropView; text: string; title: string | undefined }) {
+  const a = view.answer
+  const lines = wrap(text, 14, 2)
+  const longest = Math.max(1, ...lines.map((l) => [...l].length))
+  // Handwriting, as large as the note allows: 22 units, smaller only as
+  // far as the longest line needs to fit across it.
+  const hand = Math.min(22, 124 / (longest * 0.56))
+  const robot = a === null ? null : chipText(a)
+  const kind = a === null ? 'none' : (kindOf(a) ?? 'other')
+  const size = robot === null ? 14 : Math.min(14, 150 / (Math.max(1, [...robot].length) * 0.6))
+  const no = refusedOf(view)
+  return (
+    <g className={`note-prop ${no ? 'refused' : ''}`}>
+      <g className="sticky" transform="translate(100,44) rotate(-2)">
+        <rect x="-72" y="-38" width="144" height="76" rx="3" className="sticky-paper" />
+        <rect x="-26" y="-43" width="52" height="11" rx="2" className="sticky-tape" />
+        {title && (
+          <text x="-62" y="-22" className="sticky-title">
+            {short(title, 16)}
+          </text>
+        )}
+        {lines.map((l, i) => (
+          <text key={i} y={(title ? 8 : 4) + (i - (lines.length - 1) / 2) * hand * 1.1 + hand * 0.34} className="sticky-hand" style={{ fontSize: `${hand.toFixed(2)}px` }}>
+            {l}
+          </text>
+        ))}
+      </g>
+      {/* The robot's copy: a tag under the note, dashed and empty until the
+          robot has something to put on it. */}
+      <g className={`robot-tag ${robot === null ? 'empty' : ''}`} data-kind={kind} transform="translate(100,106)">
+        <g className="robot-tag-pop">
+          <rect x="-80" y="-14" width="160" height="28" rx="14" />
+          <text y={robot === null ? 5 : size * 0.36} className="robot-tag-text" style={{ fontSize: `${(robot === null ? 14 : size).toFixed(2)}px` }}>
+            {robot === null ? '?' : short(robot, 22)}
+          </text>
+        </g>
+      </g>
+    </g>
+  )
+}
+
+/* --- value: one literal, and nothing to say which kind --- */
+
+function Value({ text }: { text: string }) {
+  const n = Math.max(1, [...text].length)
+  // As big as the card allows: a monospace character is 0.6 of its size.
+  const size = Math.min(46, 148 / (n * 0.6))
+  return (
+    <g className="value">
+      <g className="value-card">
+        <rect x="24" y="18" width="152" height="94" rx="12" className="value-shadow" />
+        <rect x="22" y="14" width="152" height="94" rx="12" className="value-face" />
+        <text x="98" y={61 + size * 0.36} className="value-text" style={{ fontSize: `${size.toFixed(2)}px` }}>
+          {short(text, 16)}
+        </text>
       </g>
     </g>
   )
@@ -1511,9 +2057,9 @@ function Letter({ view, char }: { view: PropView; char: string }) {
 /* --- shelf: five data types, each in its slot --- */
 
 /** Five slots across the whole picture, as wide as they can be: the
- *  width of a slot is what bounds the type on its chips. */
-const CUBBY_W = 38.5
-const CUBBY_PITCH = 40.375
+ *  width of a slot is what bounds the type on its chips. Fewer slots
+ *  (`slots`) share the same width (`cubbyWidth`). */
+const CUBBY_W = cubbyWidth(SLOTS.length)
 /** The first chip's top, inside its slot, and the distance between. */
 const CHIP_TOP = 19.5
 const CHIP_PITCH = 14
@@ -1565,7 +2111,7 @@ const emOf = (text: string): number =>
                           : 0.61),
     0,
   )
-const chipFont = (lines: string[]): number => Math.min(CHIP_FONT, ...lines.map((l) => CHIP_TEXT_W / Math.max(emOf(l), 0.01)))
+const chipFont = (lines: string[], width = CHIP_TEXT_W): number => Math.min(CHIP_FONT, ...lines.map((l) => width / Math.max(emOf(l), 0.01)))
 
 /** The char slot's tag: its size, and the width its longer line
  *  (`length 1`) may take across the slot. */
@@ -1683,16 +2229,22 @@ type ShelfRow = { key: string; text: string; cls: string; tag?: boolean }
 
 function Shelf({ view, p }: { view: PropView; p: Extract<Prop, { kind: 'shelf' }> }) {
   const examples = p.examples ?? {}
+  const slots = shelfSlots(p)
+  // Fewer slots are wider, and their chips hold more before an ellipsis.
+  const w = cubbyWidth(slots.length)
+  const pitch = w + CUBBY_GAP
+  const textW = CHIP_TEXT_W + (w - CUBBY_W)
+  const chars = chipChars(slots.length)
   const named = (k: TypeSlot) => p.filled.includes(k)
   // The char slot's tag (`str · length 1`) takes two rows of its own,
   // and a chip too long for one row takes two (`chipLines`); what is
   // left for heard values is `shelfRoom`'s, which the sentence uses too.
   const tagRows = (k: TypeSlot) => (k === 'char' && named(k) ? 2 : 0)
-  const s = shelved(p.filled, view.heard, examples, shelfRoom(p.filled, examples))
+  const s = shelved(p.filled, view.heard, examples, shelfRoom(p.filled, examples), slots)
   // Only the newcomer flies in. A shelf drawn again from nothing — a
   // new element, a remount — shows the others already standing.
   const newest = p.filled[p.filled.length - 1]
-  const latest = view.answer ? { slot: slotOf(view.answer), text: chipText(view.answer) } : null
+  const latest = view.answer ? { slot: slotOf(view.answer, slots), text: chipText(view.answer) } : null
   const isLatest = (slot: TypeSlot, text: string) => latest !== null && latest.slot === slot && latest.text === text
   const rows = (k: TypeSlot): ShelfRow[] => [
     ...s[k].examples.map((e) => ({ key: `x:${e.text}`, text: e.text, cls: `example ${e.said ? 'said' : ''}` })),
@@ -1723,7 +2275,7 @@ function Shelf({ view, p }: { view: PropView; p: Extract<Prop, { kind: 'shelf' }
         </g>
       )}
       <rect x="-2" y="104" width="204" height="5" rx="2" className="plank" />
-      {SLOTS.map((k, i) => {
+      {slots.map((k, i) => {
         const list = rows(k)
         const empty = !named(k) && list.length === 0
         let row = 0
@@ -1732,22 +2284,22 @@ function Shelf({ view, p }: { view: PropView; p: Extract<Prop, { kind: 'shelf' }
             key={k}
             className={`cubby ${named(k) ? 'named' : ''} ${k === newest ? 'fresh' : ''}`}
             data-kind={k}
-            transform={`translate(${i * CUBBY_PITCH},16)`}
+            transform={`translate(${+(i * pitch).toFixed(3)},16)`}
             style={{ ['--i' as string]: i }}
           >
-            <rect width={CUBBY_W} height="88" rx="4" className="cubby-box" />
+            <rect width={+w.toFixed(3)} height="88" rx="4" className="cubby-box" />
             {empty ? (
-              <text x={CUBBY_W / 2} y="54" className="q">
+              <text x={w / 2} y="54" className="q">
                 ?
               </text>
             ) : (
-              <text x={CUBBY_W / 2} y="13.5" className={named(k) ? 'slot-label' : 'q small'}>
+              <text x={w / 2} y="13.5" className={named(k) ? 'slot-label' : 'q small'}>
                 {named(k) ? k : '?'}
               </text>
             )}
             {list.map((r) => {
               const at = row
-              const lines = r.tag ? [] : chipLines(r.text)
+              const lines = r.tag ? [] : chipLines(r.text, chars)
               row += r.tag ? tagRows(k) : lines.length
               if (row > CHIP_ROWS) return null
               const y = CHIP_TOP + at * CHIP_PITCH
@@ -1755,7 +2307,7 @@ function Shelf({ view, p }: { view: PropView; p: Extract<Prop, { kind: 'shelf' }
                 <g
                   key={r.key}
                   className="char-tag"
-                  transform={`translate(${CUBBY_W / 2},${y})`}
+                  transform={`translate(${w / 2},${y})`}
                   style={{ ['--j' as string]: at }}
                   data-fit=""
                   data-max={TAG_FONT}
@@ -1779,9 +2331,9 @@ function Shelf({ view, p }: { view: PropView; p: Extract<Prop, { kind: 'shelf' }
                   data-fit=""
                   data-max={CHIP_FONT}
                   data-min={FIT_MIN}
-                  data-width={CHIP_TEXT_W}
+                  data-width={+textW.toFixed(3)}
                 >
-                  <rect width={CUBBY_W - 2 * CHIP_X} height={chipH(lines.length)} rx="6" />
+                  <rect width={+(w - 2 * CHIP_X).toFixed(3)} height={chipH(lines.length)} rx="6" />
                   {lines.map((l, j) => {
                     // The lines sit together in the middle of the chip, not
                     // a whole row apart, so the last is clear of its edge.
@@ -1789,10 +2341,10 @@ function Shelf({ view, p }: { view: PropView; p: Extract<Prop, { kind: 'shelf' }
                     return (
                       <text
                         key={j}
-                        x={CUBBY_W / 2 - CHIP_X}
-                        y={(mid + chipFont(lines) * 0.34).toFixed(2)}
+                        x={+(w / 2 - CHIP_X).toFixed(3)}
+                        y={(mid + chipFont(lines, textW) * 0.34).toFixed(2)}
                         data-mid={mid}
-                        style={{ fontSize: `${chipFont(lines).toFixed(2)}px` }}
+                        style={{ fontSize: `${chipFont(lines, textW).toFixed(2)}px` }}
                       >
                         {l}
                       </text>
@@ -2221,7 +2773,10 @@ function Scale({ view, parcels, each }: { view: PropView; parcels: number; each:
           <g key={`${on ? 'on' : 'wait'}:${i}`} transform={`translate(${px},${py})`}>
             <g className="parcel" style={{ ['--i' as string]: i }}>
               <rect width={PW} height={PH} rx="2" />
-              <text x={PW / 2} y={PH / 2 + 3}>
+              {/* As large as 10 units, and smaller only as far as the
+                  label needs to sit inside its parcel: `2.5 kg` ran over
+                  both edges. A monospace character is 0.6 of its size. */}
+              <text x={PW / 2} y={PH / 2 + 3} style={{ fontSize: `${Math.min(10, (PW - 4) / (`${each} kg`.length * 0.6)).toFixed(2)}px` }}>
                 {each} kg
               </text>
             </g>
@@ -2305,6 +2860,591 @@ function Code({ text, mark }: { text: string; mark: number | undefined }) {
           ))}
         </text>
       ))}
+    </g>
+  )
+}
+
+/* --- goal: a memory to make, drawn as a blueprint of one --- */
+
+/**
+ * The goal's pieces, in its own base units. The rows are laid out at
+ * these sizes and then scaled as one to fill the frame, so a goal of one
+ * or two rows reads large and a full one still fits: `most` caps the
+ * scale, which puts names at about 13 units, values at 14 and `now:` at
+ * 9 when there is room.
+ */
+const GOAL = {
+  /** The box the rows are scaled into, inside the frame: under the
+   *  title, over the line kept for extra names. */
+  box: { x: 8, y: 20, w: 184, h: 93 },
+  most: 1.33,
+  nameSize: 10,
+  valueSize: 10.5,
+  /** A list's slot strip, and the chips its slots point at. */
+  slotH: 13,
+  slotMin: 18,
+  chipSize: 9.5,
+  chipH: 13,
+  /** From a slot down to its chip; between two lines of a wrapped list. */
+  drop: 6,
+  line: 5,
+  /** Kept under every row for what memory has there instead. */
+  now: 9,
+  nowSize: 6.6,
+  /** A scalar row, an alias row. */
+  rowH: 27,
+  aliasH: 24,
+  cardH: 18,
+  pillH: 14,
+  /** A monospace character is 0.6 of its size across. */
+  char: 0.6,
+  arrow: 22,
+  gap: 4,
+  tick: 6,
+  /** Final chip type under which a list wraps onto a second line. */
+  readable: 8,
+} as const
+
+/** What a row's object is, in words: `3`, or `a list: slot 0 → 3, …`. */
+function goalObjectWords(r: GoalShownRow): string {
+  if (r.items === null) return reprOf(r.value)
+  if (r.items.length === 0) return 'an empty list'
+  return `a list: ${r.items.map((it, i) => `slot ${i} → ${reprOf(it)}`).join(', ')}`
+}
+
+/** What memory has for a row that is not met yet. A `same` row holding
+ *  an equal list is holding a copy, which is the thing to say. */
+function goalNow(r: GoalShownRow): string | null {
+  if (r.have === null) return null
+  return r.same !== undefined && r.sameNow === false ? 'a copy' : r.have
+}
+
+/** `now:` as the picture writes it: a list compactly, its items without
+ *  brackets or quotes (`sword, shield, potion`), since its chips already
+ *  show their kind; anything else as the console prints it. */
+export function goalNowText(r: GoalShownRow): string | null {
+  const now = goalNow(r)
+  if (now === null || r.haveType !== 'list' || now === 'a copy') return now
+  const items = itemsOf(now)
+  return items === null ? now : items.map((it) => it.replace(/^(['"])(.*)\1$/, '$2')).join(', ') || 'empty'
+}
+
+/** A goal row's sentence: `x points at 3`, and how memory stands. */
+function goalRowSentence(r: GoalShownRow, checked: boolean): string {
+  const says =
+    r.same !== undefined && (r.alias !== null || r.items === null)
+      ? `${r.name} points at the very same ${itemsOf(r.value) ? 'list' : 'object'} as ${r.same}`
+      : `${r.name} points at ${goalObjectWords(r)}`
+  if (!checked) return says
+  if (r.ok) return `${says}: done`
+  const now = goalNow(r)
+  return now === null ? `${says}: not yet` : `${says}: not yet, ${r.name} points at ${now} now`
+}
+
+function goalSentence(view: PropView, p: Extract<Prop, { kind: 'goal' }>): string {
+  const g = goalShown(p.goal, view.memory)
+  const title = p.title ?? 'Goal'
+  const rows = g.rows.map((r) => goalRowSentence(r, g.checked)).join('; ')
+  const more = p.goal.length > g.rows.length ? ` And ${p.goal.length - g.rows.length} more.` : ''
+  const extra = g.extra.length > 0 ? ` Not in the goal: ${g.extra.join(', ')}.` : ''
+  const met = g.met
+    ? view.verdict === 'miss'
+      ? " The robot's memory looks like it, but was not made the way asked."
+      : " The robot's memory matches it."
+    : ''
+  return `${title}, a memory to make: ${rows}.${more}${extra}${met}`
+}
+
+/** How a list row lays out, in base units: every chip under its own
+ *  slot, in slot order, on one line — or, as a last resort, when even
+ *  with its name above it that would scale the goal down past readable
+ *  chips, on two lines, the first half of the slots over the rest, so
+ *  the order still reads left to right, top to bottom. */
+function goalListShape(items: string[], lines: 1 | 2) {
+  const n = Math.max(1, items.length)
+  // Each slot as wide as its own item needs, as memory's cards are each
+  // as wide as their value: `'bow'` does not take the room of `'potion'`.
+  const sws = items.map((it) => Math.max(GOAL.slotMin, [...reprOf(it)].length * GOAL.chipSize * GOAL.char + 6.5))
+  const per = Math.ceil(n / lines)
+  const lineOf = (j: number) => Math.floor(j / per)
+  /** Where slot `j` starts along its line. */
+  const xs = sws.map((_, j) => sws.slice(lineOf(j) * per, j).reduce((a, w) => a + w, 0))
+  const widths = [...Array(lines).keys()].map((l) => sws.slice(l * per, (l + 1) * per).reduce((a, w) => a + w, 0))
+  const lineH = GOAL.slotH + GOAL.drop + GOAL.chipH
+  return { sws, xs, per, lines, widths, w: Math.max(0, ...widths), lineH, h: lines * lineH + (lines - 1) * GOAL.line + GOAL.now }
+}
+
+/**
+ * A goal memory, drawn the way the memory graph draws memory — each
+ * name a pill, an arrow, the object it points at a card with its value
+ * in its kind's colour — but as a blueprint: dashed, on a faint gridded
+ * wash, so it never reads as the robot's own memory. Each row the
+ * robot's memory already has fills in solid with a green tick; a name
+ * pointing at something else says, in amber under the card, what it
+ * points at now; names the goal does not list are an amber line at the
+ * foot. A goal met settles once (`.goal.met`, props.css).
+ *
+ * A list is a card of numbered slots, and each slot points down at a
+ * chip of its own (invariant 4: slots are pointers, so no value is
+ * written inside the list). A `same` row draws no object: its arrow
+ * converges on the list another row drew, as memory draws aliasing.
+ *
+ * The rows are spaced by what the goal holds, never by how memory
+ * stands, so nothing moves while the player works towards it: the
+ * line for extra names, and the room under each row for `now:`, are
+ * kept free whether or not there is anything to say.
+ */
+function GoalMemory({ view, p }: { view: PropView; p: Extract<Prop, { kind: 'goal' }> }) {
+  const g = goalShown(p.goal, view.memory)
+  const longest = (xs: string[]) => Math.max(1, ...xs.map((x) => [...x].length))
+  const fixed = GOAL.gap + GOAL.arrow + GOAL.gap + 5 + GOAL.tick * 2
+  const scalars = g.rows.filter((r) => r.items === null && r.alias === null)
+  const names = g.rows.map((r) => short(r.name, 12))
+  const pillW = Math.max(30, longest(names) * GOAL.nameSize * GOAL.char + 14)
+  const values = scalars.map((r) => short(reprOf(r.value), 16))
+  const cardW = scalars.length === 0 ? 0 : Math.max(30, longest(values) * GOAL.valueSize * GOAL.char + 14)
+
+  // Laid out in base units, then scaled as one into the frame's box. A
+  // list row either sits on the name's line, as the graph draws it, or —
+  // when that leaves the goal small — under its name, the arrow turning
+  // down into it, which gives the slots the whole width. Whichever
+  // scales the goal larger wins, and two lines only as a last resort.
+  const listX = pillW + GOAL.gap + GOAL.arrow + GOAL.gap
+  // How far a stacked list is set in under its name: room for its own
+  // arrow down the left, and for a `same` row's beside it.
+  const under = g.rows.some((r) => r.alias !== null) ? 15 : 8
+  const layout = (lines: 1 | 2, stacked: boolean) => {
+    const shapes = new Map(g.rows.filter((r) => r.items !== null).map((r) => [r.name, goalListShape(r.items!, lines)]))
+    const listW = Math.max(0, ...[...shapes.values()].map((s) => s.w))
+    const scalarW = scalars.length > 0 || g.rows.some((r) => r.alias !== null) ? pillW + fixed + Math.max(cardW, stacked ? 0 : listW) : 0
+    // Stacked, the list's tick goes up on its name's line, so the slots
+    // may run the whole width.
+    const listRowW = shapes.size === 0 ? 0 : stacked ? Math.max(under + listW + 2, pillW + 5 + GOAL.tick * 2) : listX + listW + 5 + GOAL.tick * 2
+    const heights = g.rows.map((r) => {
+      const s = shapes.get(r.name)
+      if (s) return s.h + (stacked ? GOAL.pillH + GOAL.drop : 0)
+      return r.alias !== null ? GOAL.aliasH : GOAL.rowH
+    })
+    const W = Math.max(scalarW, listRowW, pillW)
+    const H = heights.reduce((a, h) => a + h, 0)
+    const k = Math.min(GOAL.box.w / W, GOAL.box.h / H, GOAL.most)
+    return { shapes, listW, heights, W, H, k, stacked }
+  }
+  const hasList = g.rows.some((r) => r.items !== null)
+  const best = (ls: ReturnType<typeof layout>[]) => ls.reduce((a, b) => (b.k > a.k + 1e-6 ? b : a))
+  const oneLine = best(hasList ? [layout(1, false), layout(1, true)] : [layout(1, false)])
+  const long = [...oneLine.shapes.values()].some((s) => s.per >= 3)
+  // Two lines are a last resort: never for four short items or fewer,
+  // which read in order on one.
+  const five = g.rows.some((r) => (r.items?.length ?? 0) >= 5)
+  const L = hasList && long && (five || oneLine.k * GOAL.chipSize < 6.5) && oneLine.k * GOAL.chipSize < GOAL.readable
+    ? best([oneLine, layout(2, false), layout(2, true)])
+    : oneLine
+  const { shapes, listW, heights, W, H, k, stacked } = L
+  const ox = GOAL.box.x + (GOAL.box.w - k * W) / 2
+  const oy = GOAL.box.y + (GOAL.box.h - k * H) / 2
+  const x0 = 0
+  const ax = x0 + pillW + GOAL.gap
+  const cx = ax + GOAL.arrow + GOAL.gap
+  /** Where a list's slots start, and the ticks' column. */
+  const lx = stacked ? under : cx
+  const objW = Math.max(cardW, stacked ? 0 : listW)
+  const tx = stacked ? W - GOAL.tick - 1 : Math.max(cx + objW, shapes.size > 0 ? lx + listW : 0) + 5 + GOAL.tick
+  const tops = heights.map((_, i) => heights.slice(0, i).reduce((a, h) => a + h, 0))
+  /** Each row's name line, and for a list its slot strip. */
+  const anchor = g.rows.map((r, i) =>
+    shapes.has(r.name)
+      ? tops[i]! + (stacked ? GOAL.pillH / 2 : GOAL.slotH / 2)
+      : tops[i]! + (heights[i]! - (r.alias !== null ? 0 : GOAL.now)) / 2 + 1,
+  )
+  const strip = g.rows.map((r, i) => (shapes.has(r.name) && stacked ? anchor[i]! + GOAL.pillH / 2 + GOAL.drop + GOAL.slotH / 2 : anchor[i]!))
+  const cardH = GOAL.cardH
+  const pillH = GOAL.pillH
+  /** `now:` at its size, shrunk to fit `w` rather than cut. */
+  const nowSize = (text: string, w: number) => Math.min(GOAL.nowSize, w / (Math.max(1, [...text].length) * GOAL.char))
+
+  // A memory that matches, made the way the step refuses (a new list where
+  // one slot was to move): drawn refused, in amber, never as a yes
+  // (invariant 26) — what the picture says must agree with the crow.
+  const refused = g.met && view.verdict === 'miss'
+  const met = g.met && !refused
+  const grid = [...Array(15).keys()].map((i) => 14 * (i + 1))
+  return (
+    <g
+      className={['goal', g.checked && 'checked', met && 'met', refused && 'refused'].filter(Boolean).join(' ')}
+      data-testid="goal"
+      data-refused={refused ? 'yes' : 'no'}
+    >
+      <rect x="3" y="3" width="194" height="124" rx="10" className="goal-wash" />
+      <g className="goal-grid">
+        {grid
+          .filter((x) => x < 197)
+          .map((x) => (
+            <line key={`v${x}`} x1={x} x2={x} y1="4" y2="126" />
+          ))}
+        {grid
+          .filter((y) => y < 127)
+          .map((y) => (
+            <line key={`h${y}`} x1="4" x2="196" y1={y} y2={y} />
+          ))}
+      </g>
+      <rect x="3" y="3" width="194" height="124" rx="10" className="goal-frame" />
+      <text x="12" y="14" className="goal-title">
+        {short(p.title ?? 'Goal', 22)}
+      </text>
+      {met && (
+        <text x="188" y="14" className="goal-done">
+          ✓ matches
+        </text>
+      )}
+      {refused && (
+        <text x="188" y="14" className="goal-done goal-not-so">
+          ? not like that
+        </text>
+      )}
+      <g className="goal-settle">
+        <g transform={`translate(${ox.toFixed(2)},${oy.toFixed(2)}) scale(${k.toFixed(4)})`} data-scale={k.toFixed(3)}>
+          {g.rows.map((r, i) => {
+            const y = anchor[i]!
+            const shape = shapes.get(r.name)
+            const now = g.checked && !r.ok ? goalNowText(r) : null
+            const kind = typeOf(r.value)
+            const pill = (
+              <>
+                <rect x={x0} y={y - pillH / 2} width={pillW} height={pillH} rx={pillH / 2} className="goal-name" />
+                <text x={x0 + pillW / 2} y={y + GOAL.nameSize * 0.35} className="goal-name-text" style={{ fontSize: `${GOAL.nameSize}px` }}>
+                  {names[i]}
+                </text>
+              </>
+            )
+            const tick = g.checked && (
+              <g className="goal-tick" transform={`translate(${tx},${stacked ? y : strip[i]!})`}>
+                <circle r={GOAL.tick} />
+                {r.ok && <path d="M-2.8 0.2 l2 2.1 l3.7 -4.3" />}
+              </g>
+            )
+            const straight = (
+              <>
+                <line x1={ax} x2={ax + GOAL.arrow - 4} y1={y} y2={y} className="goal-arrow" />
+                <path d={`M${ax + GOAL.arrow} ${y} l-5 -3.2 v6.4 z`} className="goal-tip" />
+              </>
+            )
+            // A list under its name: the arrow leaves the pill's foot and
+            // turns right into the list's first slot.
+            const sy = strip[i]!
+            const elbow = (
+              <>
+                <path d={`M${lx - 5} ${y + GOAL.pillH / 2} V${sy} H${lx - 4}`} className="goal-arrow goal-elbow" />
+                <path d={`M${lx} ${sy} l-5 -3.2 v6.4 z`} className="goal-tip" />
+              </>
+            )
+            let object: ReactNode
+            // `now:` gets the width of the whole row, from the name to the
+            // tick, and shrinks to fit it rather than being cut.
+            let nowAt: { x: number; y: number }
+            const rowW = tx + GOAL.tick - x0
+            if (r.alias !== null) {
+              // Converging: the arrow bends to the object another row
+              // drew, landing just off that row's own arrowhead.
+              const ty = strip[r.alias]! + (r.alias < i ? 3.5 : -3.5)
+              const onList = shapes.has(g.rows[r.alias]!.name)
+              const ex = (onList ? lx : cx) - 1
+              const bx = ax + 2
+              // Under a stacked list the arrow runs up the left edge, beside
+              // the list's own, and both turn into its first slot.
+              const d =
+                onList && stacked
+                  ? `M${x0 + 3} ${y + (r.alias < i ? -GOAL.pillH / 2 : GOAL.pillH / 2)} V${ty} H${ex - 4}`
+                  : `M${bx} ${y} C${bx + GOAL.arrow} ${y} ${ex - GOAL.arrow} ${ty} ${ex - 4} ${ty}`
+              object = (
+                <>
+                  <path d={d} className="goal-arrow goal-alias" />
+                  <path d={`M${ex} ${ty} l-5 -3.2 v6.4 z`} className="goal-tip" />
+                </>
+              )
+              nowAt = { x: cx + objW / 2, y: y + 2.4 }
+            } else if (shape) {
+              const items = r.items!
+              const top = sy - GOAL.slotH / 2
+              const at = (j: number) => ({ line: Math.floor(j / shape.per), col: j % shape.per })
+              const lineTop = (line: number) => top + line * (shape.lineH + GOAL.line)
+              object = (
+                <>
+                  {stacked ? elbow : straight}
+                  <g className="goal-list">
+                    {shape.widths.map((w, line) =>
+                      w > 0 ? <rect key={line} x={lx} y={lineTop(line)} width={w} height={GOAL.slotH} rx="3.5" className="goal-list-card slot-strip" /> : null,
+                    )}
+                    {items.map((it, j) => {
+                      const { line, col } = at(j)
+                      const lt = lineTop(line)
+                      const sw = shape.sws[j]!
+                      const sx = lx + shape.xs[j]!
+                      const mid = sx + sw / 2
+                      const cw = sw - 4
+                      const font = Math.min(GOAL.chipSize, (cw - 3) / (Math.max(1, [...reprOf(it)].length) * GOAL.char))
+                      const ct = lt + GOAL.slotH + GOAL.drop
+                      const kk = typeOf(it)
+                      return (
+                        <g key={j} className="goal-slot" data-testid={`goal-slot-${r.name}-${j}`}>
+                          {col > 0 && <line x1={sx} x2={sx} y1={lt + 2} y2={lt + GOAL.slotH - 2} className="slot-divider" />}
+                          <text x={mid} y={lt + GOAL.slotH / 2 + 2.6} className="slot-index">
+                            {j}
+                          </text>
+                          <line x1={mid} x2={mid} y1={lt + GOAL.slotH} y2={ct - 3} className="goal-arrow goal-slot-arrow" />
+                          <path d={`M${mid} ${ct - 0.5} l-2.4 -3.4 h4.8 z`} className="goal-tip" />
+                          <rect x={mid - cw / 2} y={ct} width={cw} height={GOAL.chipH} rx="3" className="goal-card goal-chip" data-kind={kk} />
+                          <text x={mid} y={ct + GOAL.chipH / 2 + font * 0.35} className="goal-value" data-kind={kk} style={{ fontSize: `${font.toFixed(2)}px` }}>
+                            {reprOf(it)}
+                          </text>
+                        </g>
+                      )
+                    })}
+                  </g>
+                </>
+              )
+              nowAt = { x: x0 + rowW / 2, y: top + shape.h - 2.2 }
+            } else {
+              object = (
+                <>
+                  {straight}
+                  <rect x={cx} y={y - cardH / 2} width={cardW} height={cardH} rx="5" className="goal-card" data-kind={kind} />
+                  <text x={cx + cardW / 2} y={y + GOAL.valueSize * 0.36} className="goal-value" data-kind={kind} style={{ fontSize: `${GOAL.valueSize}px` }}>
+                    {values[scalars.indexOf(r)]}
+                  </text>
+                </>
+              )
+              nowAt = { x: cx + cardW / 2, y: y + cardH / 2 + 6.8 }
+            }
+            const nowText = now === null ? null : `now: ${now}`
+            const nowW = shape ? rowW : r.alias !== null ? tx - GOAL.tick - cx - 2 : Math.max(cardW + 2 * (cx - ax), cardW)
+            return (
+              <g
+                key={r.name}
+                className={['goal-row', r.ok ? 'ok' : 'owed', shape && 'list', r.alias !== null && 'alias'].filter(Boolean).join(' ')}
+                data-testid={`goal-row-${r.name}`}
+                data-ok={r.ok ? 'yes' : 'no'}
+                style={{ ['--i' as string]: i }}
+              >
+                {pill}
+                {object}
+                {tick}
+                {nowText !== null && (
+                  <text x={nowAt.x} y={nowAt.y} className="goal-now" style={{ fontSize: `${nowSize(nowText, nowW).toFixed(2)}px` }}>
+                    {nowText}
+                  </text>
+                )}
+              </g>
+            )
+          })}
+        </g>
+      </g>
+      {g.extra.length > 0 && (
+        <text x="100" y="124" className="goal-extra" data-testid="goal-extra">
+          not in the goal: {short(g.extra.join(', '), 30)}
+        </text>
+      )}
+    </g>
+  )
+}
+
+/* --- hotbar: a list of strs, seen, as a game keeps them --- */
+
+/** The hotbar's frame and cells, in the picture's units. Everything sits
+ *  above y = 116, clear of the answer tag over the picture's foot. */
+// `most` lets a short bar use the picture's width: three items at 34 units
+// a cell read as a thumbnail on the stage.
+const HOTBAR = { foot: 116, number: 13, width: 190, pad: 5, gap: 4, most: 58 } as const
+
+/** Each item's icon, drawn in a 20 × 20 box centred on 0, 0: flat shapes
+ *  in friendly colours, nobody's game art. */
+const ICONS: Record<(typeof HOTBAR_ICONS)[number], ReactNode> = {
+  sword: (
+    <>
+      <path d="M6.5 -8.5 L8.5 -8.5 L8.5 -6.5 L-2 4 L-4 2 Z" className="i-steel" />
+      <path d="M-6 0 L0 6 L-1.4 7.4 L-7.4 1.4 Z" className="i-wood" />
+      <path d="M-4.2 4.2 L-7.6 7.6" className="i-grip" />
+      <circle cx="-8" cy="8" r="1.5" className="i-gold" />
+    </>
+  ),
+  shield: (
+    <>
+      <path d="M0 -8.5 L7.5 -5.5 C7.5 2 4.5 6.5 0 9 C-4.5 6.5 -7.5 2 -7.5 -5.5 Z" className="i-blue" />
+      <path d="M0 -8.5 L0 9 C-4.5 6.5 -7.5 2 -7.5 -5.5 Z" className="i-blue-dark" />
+      <path d="M-3 -1 L3 -1 M0 -4 L0 3" className="i-mark" />
+    </>
+  ),
+  potion: (
+    <>
+      <rect x="-2.2" y="-9" width="4.4" height="3" rx="1" className="i-wood" />
+      <path d="M-2 -6 L2 -6 L2 -2.5 C5.5 -1 7 1.5 7 3.8 C7 7.2 4 9 0 9 C-4 9 -7 7.2 -7 3.8 C-7 1.5 -5.5 -1 -2 -2.5 Z" className="i-glass" />
+      <path d="M-6.4 3 C-3 1.8 3 4.4 6.4 3 C6.8 6.5 4 8.2 0 8.2 C-4 8.2 -6.8 6.5 -6.4 3 Z" className="i-red" />
+      <circle cx="-2.6" cy="1.2" r="1" className="i-shine" />
+    </>
+  ),
+  bow: (
+    <>
+      <path d="M-4 -9 C5 -6 5 6 -4 9" className="i-bow" />
+      <path d="M-4 -9 L-4 9" className="i-string" />
+      <path d="M-8 0 L6 0" className="i-shaft" />
+      <path d="M8.5 0 L5.5 -2 L5.5 2 Z" className="i-steel" />
+    </>
+  ),
+  map: (
+    <>
+      <path d="M-8.5 -6 L-3 -8 L3 -6 L8.5 -8 L8.5 6 L3 8 L-3 6 L-8.5 8 Z" className="i-paper" />
+      <path d="M-3 -8 L-3 6 M3 -6 L3 8" className="i-fold" />
+      <path d="M-6 4 C-3 1 0 3 2 -1" className="i-route" />
+      <path d="M3.5 -3.5 L6.5 -0.5 M6.5 -3.5 L3.5 -0.5" className="i-x" />
+    </>
+  ),
+  gem: (
+    <>
+      <path d="M-5 -6.5 L5 -6.5 L8.5 -2 L0 8.5 L-8.5 -2 Z" className="i-gem" />
+      <path d="M-8.5 -2 L8.5 -2 M-2.5 -6.5 L-3.5 -2 L0 8.5 L3.5 -2 L2.5 -6.5" className="i-facet" />
+    </>
+  ),
+  key: (
+    <>
+      <circle cx="-4.5" cy="-4.5" r="3.8" className="i-key" />
+      <circle cx="-4.5" cy="-4.5" r="1.4" className="i-hole" />
+      <path d="M-1.8 -1.8 L7 7 M4 4 L6.2 1.8 M6 6 L8.2 3.8" className="i-key-line" />
+    </>
+  ),
+  apple: (
+    <>
+      <path d="M0 -3.5 C3 -6 8 -5 8 0.5 C8 5.5 4.5 9 2.2 8.6 C1 8.4 -1 8.4 -2.2 8.6 C-4.5 9 -8 5.5 -8 0.5 C-8 -5 -3 -6 0 -3.5 Z" className="i-red" />
+      <path d="M0 -3.5 L1 -8" className="i-stem" />
+      <path d="M1.2 -6.5 C3 -9 6 -8.5 6.5 -7.5 C5 -5.5 2.5 -5.5 1.2 -6.5 Z" className="i-leaf" />
+      <circle cx="-4" cy="-0.5" r="1.2" className="i-shine" />
+    </>
+  ),
+  torch: (
+    <>
+      <path d="M-1.6 -1 L1.6 -1 L1 9 L-1 9 Z" className="i-wood" />
+      <rect x="-2.6" y="-2.5" width="5.2" height="2.2" rx="0.8" className="i-steel" />
+      <path d="M0 -9.5 C3.5 -6 4 -4.5 2.8 -3 L-2.8 -3 C-4 -4.5 -3 -6.5 0 -9.5 Z" className="i-flame" />
+      <path d="M0 -7 C1.6 -5.4 1.8 -4.4 1.2 -3.4 L-1.2 -3.4 C-1.6 -4.4 -1 -5.6 0 -7 Z" className="i-flame-core" />
+    </>
+  ),
+  helmet: (
+    <>
+      <path d="M-8 3 C-8 -4 -4.5 -8 0 -8 C4.5 -8 8 -4 8 3 L8 6 L-8 6 Z" className="i-steel" />
+      <rect x="-6" y="-1" width="12" height="2.6" rx="1.2" className="i-visor" />
+      <path d="M0 -8 L0 -3" className="i-ridge" />
+      <rect x="-9" y="5" width="18" height="2.8" rx="1.2" className="i-gold" />
+    </>
+  ),
+  coin: (
+    <>
+      <circle r="8" className="i-gold" />
+      <circle r="5.4" className="i-coin-rim" />
+      <path d="M0 -3.2 L0.9 -1 L3.2 -1 L1.4 0.5 L2 2.8 L0 1.5 L-2 2.8 L-1.4 0.5 L-3.2 -1 L-0.9 -1 Z" className="i-coin-star" />
+    </>
+  ),
+  pickaxe: (
+    <>
+      <path d="M-5.5 7.5 L4 -2" className="i-handle" />
+      <path d="M-4 -6.5 C0 -9.5 6 -7.5 8.5 -3 C6 -4.5 3.5 -5 1.5 -4.5 L-0.5 -2.5 L-2.5 -4.5 C-2.5 -5.2 -3.2 -6 -4 -6.5 Z" className="i-steel" />
+    </>
+  ),
+}
+
+const hasIcon = (item: string): item is (typeof HOTBAR_ICONS)[number] => (HOTBAR_ICONS as readonly string[]).includes(item)
+
+/** `a sword`, `an apple`. */
+const anItem = (item: string) => `${/^[aeiou]/i.test(item) ? 'an' : 'a'} ${item}`
+
+const SLOT_WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six']
+
+function hotbarSentence(view: PropView, p: Extract<Prop, { kind: 'hotbar' }>): string {
+  const items = p.items.slice(0, HOTBAR_MAX)
+  const count = SLOT_WORDS[items.length] ?? String(items.length)
+  const held = items.map((it, i) => (i === 0 ? `slot 0 holds ${anItem(it)}` : `slot ${i} ${anItem(it)}`)).join(', ')
+  const picked = p.mark !== undefined && items[p.mark] !== undefined ? ` Slot ${p.mark} is selected.` : ''
+  const a = view.answer
+  const lit = hotbarLit(p, a)
+  const said =
+    a === null || textOf(a) === null ? '' : lit !== null ? ` The robot's ${a.repr} lights slot ${lit}.` : ` No slot holds ${a.repr}.`
+  return `A hotbar of ${count} slot${items.length === 1 ? '' : 's'}${items.length > 0 ? `: ${held}` : ''}.${picked}${said}`
+}
+
+/**
+ * A game's hotbar: a dark rounded bar of square cells with a soft bevel,
+ * an item in each, and each slot's number under its cell in a list's
+ * slot style. The selected slot (`mark`) lifts and wears a bright frame;
+ * the frame is one element that slides to the next slot when `mark`
+ * moves. An item is keyed by its slot and its name, so a beat that swaps
+ * one mounts a new item in that cell and it pops in, while the rest stay.
+ * A str the robot thinks of that one cell holds lights that cell.
+ */
+function Hotbar({ view, p }: { view: PropView; p: Extract<Prop, { kind: 'hotbar' }> }) {
+  const items = p.items.slice(0, HOTBAR_MAX)
+  const n = Math.max(1, items.length)
+  const c = Math.min(HOTBAR.most, (HOTBAR.width - 2 * HOTBAR.pad - (n - 1) * HOTBAR.gap) / n)
+  const barW = n * c + (n - 1) * HOTBAR.gap + 2 * HOTBAR.pad
+  const barH = c + 2 * HOTBAR.pad
+  const bx = (200 - barW) / 2
+  const by = HOTBAR.foot - HOTBAR.number - 3 - barH
+  const cellX = (i: number) => bx + HOTBAR.pad + i * (c + HOTBAR.gap)
+  const cy = by + HOTBAR.pad
+  const lit = hotbarLit(p, view.answer)
+  const no = refusedOf(view)
+  const picked = p.mark !== undefined && p.mark >= 0 && p.mark < items.length ? p.mark : null
+  const icon = c * 0.58
+  // The name grows with its cell, as far as it fits across it.
+  const name = (it: string) => Math.min(c * 0.2, (c - 4) / (Math.max(1, [...it].length) * 0.6))
+  return (
+    <g className={no ? 'hotbar refused' : 'hotbar'}>
+      <rect x={bx} y={by} width={barW} height={barH} rx="7" className="hotbar-frame" />
+      {items.map((it, i) => {
+        const x = cellX(i)
+        const known = hasIcon(it)
+        const word = short(it, Math.max(3, Math.floor((c - 5) / (Math.max(6, c * 0.16) * 0.6))))
+        return (
+          <g
+            key={i}
+            className={['hotbar-slot', picked === i && 'marked', lit === i && 'lit'].filter(Boolean).join(' ')}
+            data-testid={`hotbar-${i}`}
+            data-marked={picked === i ? 'yes' : undefined}
+            data-lit={lit === i ? 'yes' : undefined}
+            style={{ ['--i' as string]: i }}
+          >
+            <g className="hotbar-lift">
+              <rect x={x} y={cy} width={c} height={c} rx="4" className="hotbar-cell" />
+              <path d={`M${x + 1.5} ${cy + c - 2} L${x + 1.5} ${cy + 3} Q${x + 1.5} ${cy + 1.5} ${x + 3} ${cy + 1.5} L${x + c - 2} ${cy + 1.5}`} className="hotbar-bevel" />
+              <g key={`${i}:${it}`} className="hotbar-item" data-item={it}>
+                {known ? (
+                  <>
+                    <g transform={`translate(${x + c / 2},${cy + c * 0.4}) scale(${icon / 20})`} className="icon">
+                      {ICONS[it]}
+                    </g>
+                    <text x={x + c / 2} y={cy + c - 2.6} className="hotbar-name" style={{ fontSize: `${name(it).toFixed(2)}px` }}>
+                      {it}
+                    </text>
+                  </>
+                ) : (
+                  <>
+                    <rect x={x + 3} y={cy + c / 2 - c * 0.18} width={c - 6} height={c * 0.36} rx="2.5" className="hotbar-tile" />
+                    <text x={x + c / 2} y={cy + c / 2 + c * 0.07} className="hotbar-word" style={{ fontSize: `${Math.min(c * 0.2, (c - 8) / (Math.max(1, [...word].length) * 0.6)).toFixed(2)}px` }}>
+                      {word}
+                    </text>
+                  </>
+                )}
+              </g>
+            </g>
+            <g className="hotbar-number">
+              <rect x={x + c / 2 - 8} y={HOTBAR.foot - HOTBAR.number} width="16" height={HOTBAR.number} rx="3" className="slot-strip" />
+              <text x={x + c / 2} y={HOTBAR.foot - 3.6} className="slot-index" style={{ fontSize: '9px' }}>
+                {i}
+              </text>
+            </g>
+          </g>
+        )
+      })}
+      {picked !== null && (
+        <rect x={cellX(picked) - 2} y={cy - 2} width={c + 4} height={c + 4} rx="5.5" className="hotbar-select" data-testid="hotbar-select" />
+      )}
     </g>
   )
 }

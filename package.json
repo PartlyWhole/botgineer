@@ -11,6 +11,13 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:browser": "playwright test",
+    "test:smoke": "playwright test --grep @smoke",
+    "test:v2": "playwright test --grep @v2",
+    "test:stage": "playwright test beats props",
+    "test:lessons": "playwright test lesson-",
+    "test:reading": "playwright test reading",
+    "test:practice": "playwright test practice",
+    "test:workbench": "playwright test workbench",
     "test:audit": "AUDIT=1 playwright test tests/browser/collection-audit.spec.ts",
     "serve:subpath": "node scripts/serve-subpath.mjs",
     "collection": "node scripts/collection.mjs"

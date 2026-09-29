@@ -30,7 +30,7 @@
  */
 import { bareWord, commaDecimal, stopped, type Heard, type Lesson, type Line } from './core'
 
-const isNumber = (t: Heard) => t.type === 'int' || t.type === 'float'
+export const isNumber = (t: Heard) => t.type === 'int' || t.type === 'float'
 
 /** `1,5` for one and a half. Read from the source as well as the thought:
  *  the console describes a line by passing it to a helper, and `1,5`
@@ -38,14 +38,14 @@ const isNumber = (t: Heard) => t.type === 'int' || t.type === 'float'
  *  making the pair Python would, until `src/repl/program` wraps it. */
 const commaTyped = (l: Line) => commaDecimal(l) || /^\s*-?\d+\s*,\s*\d+\s*$/.test(l.source)
 
-function praise(a: Heard | null): string {
+export function praise(a: Heard | null): string {
   if (!a) return 'It\'s thinking of your number!'
   // Worked out, not copied: `3 + 4` is thought of as `7`.
   if (a.source !== undefined && a.source.trim() !== a.repr) return `It's thinking of \`${a.repr}\`: it worked that out from what you wrote.`
   return `It's thinking of \`${a.repr}\`, because that's what you wrote.`
 }
 
-function nudge(l: Line): string | undefined {
+export function nudge(l: Line): string | undefined {
   const word = bareWord(l)
   if (word) return `The robot doesn't know the word \`${word}\`. Try digits: \`7\`.`
   if (commaTyped(l)) return 'Python writes a decimal point as a dot, not a comma: `1.5`.'

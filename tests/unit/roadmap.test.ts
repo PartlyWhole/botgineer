@@ -4,14 +4,29 @@
  */
 import { describe, expect, it } from 'vitest'
 import { ACTIVITIES } from '../../content/activities'
-import { LEVEL_ORDER, ROADMAP, levelActivity } from '../../content/roadmap'
+import { LEVEL_ORDER, LEVEL_ORDER_V2, ROADMAP, levelActivity } from '../../content/roadmap'
 import { UNLOCK_ALL, levelStates, unitDone } from '../../src/progress/progress'
 import { MASCOT_X, PITCH, SWING, mascotAt, stops, stretchHeight, swingOf, trail } from '../../src/roadmap/layout'
 
 describe('the roadmap content', () => {
-  it('puts every activity on the path exactly once', () => {
-    expect([...LEVEL_ORDER].sort()).toEqual(ACTIVITIES.map((a) => a.id).sort())
-    expect(new Set(LEVEL_ORDER).size).toBe(LEVEL_ORDER.length)
+  it('puts every activity on a path exactly once', () => {
+    const both = [...LEVEL_ORDER, ...LEVEL_ORDER_V2]
+    expect([...both].sort()).toEqual(ACTIVITIES.map((a) => a.id).sort())
+    expect(new Set(both).size).toBe(both.length)
+  })
+
+  it('keeps v1 and v2 apart: v2 levels are v2-prefixed and marked version 2', () => {
+    for (const id of LEVEL_ORDER_V2) {
+      expect(id.startsWith('v2-')).toBe(true)
+      expect(levelActivity(id).version).toBe(2)
+    }
+    for (const id of LEVEL_ORDER) expect(levelActivity(id).version ?? 1).toBe(1)
+  })
+
+  it('plays v2 in the order its levels hand over to each other', () => {
+    for (let i = 0; i < LEVEL_ORDER_V2.length - 1; i++) {
+      expect(levelActivity(LEVEL_ORDER_V2[i]!).next).toBe(LEVEL_ORDER_V2[i + 1])
+    }
   })
 
   it('names only levels that exist', () => {

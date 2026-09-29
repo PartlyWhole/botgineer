@@ -59,6 +59,7 @@ import type { Thought } from '../../src/memory/extract'
 import { EMPTY, type MemorySnapshot } from '../../src/memory/model'
 import { NO_STAGING, numberOf, sameProp, textOf, type Prop, type PropView, type Staging } from '../../src/scene/props'
 import { CROW_NAME } from '../cast'
+import { compare, type Goal } from '../../src/memory/goal'
 
 /** A thought, and the line that produced it — so a step can ask the
  *  robot to work something out rather than accept the player's own sum. */
@@ -133,7 +134,43 @@ export type Evidence = {
   lines?: LineMemory[] | undefined
   /** The line just typed. Only a reply reads it; progress never does. */
   last?: Line | null | undefined
+  /**
+   * Every multiple-choice answer the player has picked, oldest first. Not
+   * the robot's: a choice is the player answering the crow, so it never
+   * reaches the console or memory. Only grows, like `thoughts`, so a
+   * choice step is still derived and still monotonic.
+   */
+  picks?: Pick[] | undefined
+  /** The pick just made, when the last thing the player did was pick
+   *  rather than type. Only a reply reads it. */
+  lastPick?: Pick | null | undefined
 }
+
+/** One multiple-choice answer: which question (`Choices.id`) and which option. */
+export type Pick = { ask: string; choice: string }
+
+/** An option on a multiple-choice question. */
+export type Choice = { id: string; label: string }
+
+/**
+ * A multiple-choice question, answered by picking rather than by typing
+ * to the robot: the console stays closed and the options stand on the
+ * stage. `id` names the question in `picks`, so it must be unique in its
+ * lesson. `nudge` says why a wrong option is wrong.
+ */
+export type Choices = {
+  id: string
+  options: Choice[]
+  answer: string
+  nudge?: (choice: string) => string | undefined
+}
+
+/** Memory held exactly this goal after some accepted line. */
+export const reached = (e: Evidence, goal: Goal): boolean => ever(e, (s) => compare(goal, s).met)
+
+/** The player picked this question's answer. */
+export const chose = (e: Evidence, c: Choices): boolean =>
+  (e.picks ?? []).some((p) => p.ask === c.id && p.choice === c.answer)
 
 /** An accepted line and memory as it left it. */
 export type LineMemory = { source: string; memory: MemorySnapshot }
@@ -191,6 +228,27 @@ export type Beat = {
   /** A demonstration thought in the robot's cloud, for this beat only.
    *  Never evidence: only what the robot really thought is. */
   thought?: string
+  /**
+   * A line typed into the console for the player while this beat shows,
+   * as a demonstration: it types itself out, and the robot answers with
+   * `thought`, which reaches the cloud only once the line is in. Never
+   * run and never evidence, like `thought`; gone when the beat moves on
+   * (`src/ui/demo.ts`).
+   */
+  types?: string
+  /** The demonstration line stops the robot instead of answering, and the
+   *  console says so: `'TypeError'`. With `types` only. */
+  stops?: string
+  /**
+   * The crow's demonstration memory from this beat on (until another beat
+   * sets one, or the question): these lines, run quietly from an empty
+   * memory by real Python, and drawn in the memory panel framed as the
+   * crow's. Narration, never evidence. When the beat also `types` the last
+   * of them, that line's effect appears once it has been typed in.
+   */
+  memory?: string[]
+  /** Names to light up in the memory panel while this beat shows. */
+  mark?: string[]
   /** What the cast does while this beat shows. */
   act?: CastAction[]
   /** Pulse that part of the screen. */
@@ -226,6 +284,18 @@ export type LessonStep = {
   /** Who does the work (R4): the player answers, or the robot works it
    *  out. Shown on the ask. */
   tag?: 'you' | 'robot'
+  /** A multiple-choice question: the player picks, the console stays
+   *  closed. Its `done` is normally `(e) => chose(e, choices)`. */
+  choices?: Choices
+  /** A line that answers a typed step, as the key: what the tests type
+   *  to play it against real Python. Never shown. */
+  model?: string
+  /**
+   * The robot's memory is wiped for the player as this step begins, so a
+   * goal memory starts from nothing rather than from the lesson's leftovers
+   * (`Workbench.wipe`, needing `Lesson.wipe`). A beat should say so.
+   */
+  wipeFirst?: boolean
 }
 
 export type Lesson = {
@@ -246,6 +316,18 @@ export type Lesson = {
   /** The bar shown when the lesson is finished (R11): one or two whole
    *  sentences. */
   takeaway?: string
+  /** The player may wipe the robot's memory and start again: for a lesson
+   *  about building a memory (`Workbench.wipe`). Progress is kept. */
+  wipe?: boolean
+  /**
+   * A question's picture stands only once the question is asked; before
+   * that — the praise of the step before, and this step's beats — the
+   * stage shows only what a beat shows. Without it, a step's picture
+   * stands from the praise on, which put the next question's card on the
+   * stage while the crow was still praising the last answer and showing
+   * something else.
+   */
+  pictureAtAsk?: boolean
 }
 
 /* ----------------------------- predicates ----------------------------- */
@@ -356,7 +438,8 @@ function walk(lesson: Lesson, evidence: Evidence): { at: number; ends: number[] 
   let from = 0
   for (let i = 0; i < lesson.steps.length; i++) {
     const step = lesson.steps[i]!
-    let end = from + 1
+    // A choice is not a thought, so a choice step may be done on none.
+    let end = step.choices ? from : from + 1
     while (end <= all.length && !step.done({ ...evidence, thoughts: all.slice(from, end) })) end++
     if (end > all.length) return { at: i, ends }
     ends.push(end)
@@ -394,6 +477,11 @@ export function progress(lesson: Lesson, evidence: Evidence): number {
  * thought alone, which is all it could have changed.
  */
 export function beforeLast(evidence: Evidence): Evidence {
+  // The last thing done was a pick: take it back out, and nothing else.
+  if (evidence.lastPick) {
+    const picks = evidence.picks ?? []
+    return { ...evidence, picks: picks.slice(0, Math.max(0, picks.length - 1)), lastPick: null, last: null }
+  }
   const last = evidence.last
   if (!last?.ok) return evidence
   const thought = last.thought !== null && evidence.thoughts.length > 0
@@ -405,7 +493,9 @@ export function beforeLast(evidence: Evidence): Evidence {
   const kept = evidence.history.slice(0, entry)
   const then = kept[kept.length - 1] ?? EMPTY
   const lines = evidence.lines?.filter((l) => kept.includes(l.memory))
-  return { snapshot: then, thoughts, history: [...kept, then], lines, last: null }
+  // Everything else the evidence holds (the picks) is kept as it was: only
+  // the line is taken back out.
+  return { ...evidence, snapshot: then, thoughts, history: [...kept, then], lines, last: null, lastPick: null }
 }
 
 /**
@@ -427,6 +517,7 @@ function moved(lesson: Lesson, evidence: Evidence): { before: number; at: number
  *  the newest thought otherwise (an unordered step may finish on memory,
  *  with no thought at all). */
 function answerTo(lesson: Lesson, evidence: Evidence, i: number): Heard | null {
+  if (lesson.steps[i]?.choices) return null
   const { ends } = walk(lesson, evidence)
   const end = lesson.ordered ? ends[i] : evidence.thoughts.length
   return end !== undefined && end > 0 ? (evidence.thoughts[end - 1] ?? null) : null
@@ -446,7 +537,13 @@ function rightAnswers(lesson: Lesson, evidence: Evidence): Thought[] {
   const all = evidence.thoughts
   let did: Heard[]
   if (lesson.ordered) {
-    did = walk(lesson, evidence).ends.map((end) => all[end - 1]!)
+    // A choice step consumed no thought: it has no answer to shelve.
+    let from = 0
+    did = []
+    walk(lesson, evidence).ends.forEach((end) => {
+      if (end > from) did.push(all[end - 1]!)
+      from = end
+    })
   } else {
     did = []
     let at = progress(lesson, { ...evidence, thoughts: [] })
@@ -480,10 +577,17 @@ export type ScriptItem = {
   speaker?: string | undefined
   show?: Prop | undefined
   thought?: string | undefined
+  types?: string | undefined
+  stops?: string | undefined
+  memory?: string[] | undefined
+  mark?: string[] | undefined
   act?: CastAction[] | undefined
   focus?: Focus | undefined
   /** On the ask and a reply: who does the work. */
   tag?: 'you' | 'robot' | undefined
+  /** On a multiple-choice ask or reply: the options, and the ones already
+   *  picked wrongly, which stay marked so the player tries another. */
+  choices?: { id: string; options: Choice[]; tried: string[] } | undefined
   /** A beat's (or outro beat's) index in its own list, which keys its
    *  picture. */
   beat?: number | undefined
@@ -528,6 +632,10 @@ const beatItem = (kind: 'beat' | 'outro', b: Beat, i: number, speaker: string | 
   speaker: b.speaker ?? speaker,
   show: b.show,
   thought: b.thought,
+  types: b.types,
+  stops: b.stops,
+  memory: b.memory,
+  mark: b.mark,
   act: b.act,
   focus: b.focus,
   beat: i,
@@ -565,7 +673,15 @@ export function script(lesson: Lesson, evidence: Evidence, layout: Layout = 'sid
   // A miss gets an answer rather than the question again. Only a line that
   // did not move the lesson is a miss, so a right answer is never
   // mistaken for a wrong one to the question after it.
-  const reply = evidence.last && before === at && step.nudge ? step.nudge(evidence.last) : undefined
+  const c = step.choices
+  const picked = c && evidence.lastPick?.ask === c.id && before === at ? evidence.lastPick.choice : undefined
+  const reply = c
+    ? picked !== undefined
+      ? (c.nudge?.(picked) ?? 'Not that one. Try another.')
+      : undefined
+    : evidence.last && !evidence.lastPick && before === at && step.nudge
+      ? step.nudge(evidence.last)
+      : undefined
   items.push({
     kind: reply ? 'reply' : 'ask',
     asking: true,
@@ -573,6 +689,13 @@ export function script(lesson: Lesson, evidence: Evidence, layout: Layout = 'sid
     speaker: step.speaker,
     show: step.show,
     tag: step.tag,
+    choices: c
+      ? {
+          id: c.id,
+          options: c.options,
+          tried: [...new Set((evidence.picks ?? []).filter((p) => p.ask === c.id && p.choice !== c.answer).map((p) => p.choice))],
+        }
+      : undefined,
   })
   return { at, before, finished: false, items, rest: items.length - 1 }
 }
@@ -673,6 +796,7 @@ export function staging(lesson: Lesson, evidence: Evidence, beat?: number): Stag
     answer: null,
     verdict: null,
     heard: heardSoFar,
+    memory: evidence.snapshot,
     ...extra,
   })
 
@@ -695,7 +819,11 @@ export function staging(lesson: Lesson, evidence: Evidence, beat?: number): Stag
   // The picture at this item: the step's (or the finale), unless a beat at
   // or before it has set another.
   const step = lesson.steps[at]
-  const base = at < n ? step?.show : lesson.finale
+  const asking = i === s.rest && at < n
+  // The step's own picture, for keys: a beat that shows it is the same
+  // element as the ask that asks about it, whether or not it stands yet.
+  const own = at < n ? step?.show : lesson.finale
+  const base = lesson.pictureAtAsk && !asking && at < n ? undefined : own
   const baseKey = `${lesson.id}:${at}`
   let prop = base
   let key = baseKey
@@ -711,7 +839,7 @@ export function staging(lesson: Lesson, evidence: Evidence, beat?: number): Stag
       continue
     }
     prop = show
-    key = base && sameProp(show, base) ? baseKey : `${lesson.id}:${at}:b${s.items[j]!.beat ?? j}`
+    key = own && sameProp(show, own) ? baseKey : `${lesson.id}:${at}:b${s.items[j]!.beat ?? j}`
   }
 
   const resting = i === s.rest
@@ -727,7 +855,7 @@ export function staging(lesson: Lesson, evidence: Evidence, beat?: number): Stag
       // Same picture: it stays, and shows the answer that moved it on.
       current = { ...current, answer, verdict: 'right' }
     } else if (done.show) {
-      leaving = { key: `${lesson.id}:${before}`, prop: done.show, ask: done.ask, answer, verdict: 'right', heard: heardSoFar }
+      leaving = { key: `${lesson.id}:${before}`, prop: done.show, ask: done.ask, answer, verdict: 'right', heard: heardSoFar, memory: evidence.snapshot }
     }
   } else if (before === at && current && at < n && last && resting && key === baseKey) {
     current = { ...current, answer, verdict: 'miss' }

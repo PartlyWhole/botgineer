@@ -13,11 +13,11 @@ import { allUnlocked, resetProgress, setUnlockAll, useProgress } from '../progre
 import { resetMastery } from '../mastery/mastery'
 import { LEVEL_ORDER } from '../../content/roadmap'
 
-export function ProgressControls({ compact = false }: { compact?: boolean }) {
+export function ProgressControls({ compact = false, order = LEVEL_ORDER }: { compact?: boolean; order?: string[] }) {
   const done = useProgress()
   const unlocked = allUnlocked(done)
   // With every level finished there is nothing left to unlock.
-  const allDone = LEVEL_ORDER.every((id) => done.has(id))
+  const allDone = order.every((id) => done.has(id))
   const [confirming, setConfirming] = useState(false)
 
   return (

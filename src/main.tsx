@@ -9,6 +9,7 @@ import './app/console.css'
 import './app/props.css'
 import './app/roadmap.css'
 import './app/read.css'
+import './app/robot-v2.css'
 
 const host = document.getElementById('root')
 if (!host) throw new Error('#root is missing')

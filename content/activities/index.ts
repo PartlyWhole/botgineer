@@ -10,9 +10,13 @@ import type { SceneSpec } from '../../src/scene/spec'
 import type { RobotMode } from '../../src/panels/RobotPanel'
 import { BAY } from '../lessons/wake'
 import { readingActivities, reviewActivity, singleActivity, type ReadLevel } from './reading'
+import { V2_ACTIVITIES } from './v2'
 
 export type Activity = {
   id: string
+  /** Which version of the lessons this level belongs to: 1 when omitted.
+   *  Version 2 (`content/activities/v2.ts`) has its own map and look. */
+  version?: 1 | 2
   title: string
   /** What the player is being asked to do, in one or two sentences. */
   brief: string
@@ -423,6 +427,7 @@ export const ACTIVITIES: Activity[] = [
   makingChoices,
   wakeTheRobot,
   ...readingActivities(),
+  ...V2_ACTIVITIES,
 ]
 
 /** A level by id: one on the path, or one made on demand — a stage's

@@ -409,7 +409,7 @@ test('the starting activity is a console, not an editor', async ({ page }) => {
   expect(await page.evaluate(() => window.botgineer.state().mode)).toBe('console')
 })
 
-test('a bare literal is thought of and let go, never stored', async ({ page }) => {
+test('a bare literal is thought of and let go, never stored', { tag: '@smoke' }, async ({ page }) => {
   await open(page, 'sandbox')
   await say(page, '10')
 
@@ -1007,8 +1007,16 @@ test('revealing a handle does not resize the card, or the field would shift', as
 
 /* ------------------------------ getting around ----------------------------- */
 
-test('the game opens on the map, inviting you to the first level', async ({ page }) => {
+test('home is the v2 map, with v1 hidden and still at its own address', { tag: '@smoke' }, async ({ page }) => {
   await page.goto('./')
+  await expect(page.locator('.app')).toHaveAttribute('data-route', 'map2')
+  await expect(page.getByTestId('level-v2-meet')).toBeVisible()
+  await expect(page.getByTestId('version-v1')).toHaveCount(0)
+  await expect(page.getByTestId('nav-skills')).toHaveCount(0)
+})
+
+test('the v1 map opens inviting you to its first level', { tag: '@smoke' }, async ({ page }) => {
+  await page.goto('./#/map')
   await page.evaluate(() => localStorage.clear())
   await page.reload()
   await expect(page.getByTestId('map')).toBeVisible()
@@ -1148,7 +1156,7 @@ test('an object card keeps its three tiers legible', async ({ page }) => {
   }
 })
 
-test("the robot's thought is visible on the stage, not just in the DOM", async ({ page }) => {
+test("the robot's thought is visible on the stage, not just in the DOM", { tag: '@smoke' }, async ({ page }) => {
   await open(page, 'operations')
   await say(page, '7 * 6')
 

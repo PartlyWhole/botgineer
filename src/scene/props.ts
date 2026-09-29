@@ -27,7 +27,9 @@
  * This module is the pure half: the types and the reading of an answer.
  * `ui/Props.tsx` draws them.
  */
+import type { MemorySnapshot } from '../memory/model'
 import type { Thought } from '../memory/extract'
+import { compare, itemsOf, type Goal, type GoalRow } from '../memory/goal'
 
 export type Prop =
   /** A lamp on a switch. A bool drives it; a word is stuck on it as a note
@@ -44,8 +46,15 @@ export type Prop =
    *  `demo: 'count'` drops the apples in one at a time with a counter
    *  ticking 1, 2, 3 under the basket; `'half'` has half an apple try to
    *  join and bounce off the rim, the counter staying where it was —
-   *  counting goes in whole steps. */
-  | { kind: 'basket'; apples: number; demo?: 'count' | 'half' }
+   *  counting goes in whole steps.
+   *
+   *  `'tally'` makes `apples` narration too: beats that change it keep
+   *  the basket on stage, and the change plays on it — apples drop in or
+   *  are lifted out, and a counter beside the basket rolls to the new
+   *  count in whole steps. At most `APPLE_AT`'s six apples are drawn. A
+   *  tally is a different picture from a basket without one (`sameProp`),
+   *  so an ask that keeps the basket on stage keeps `demo: 'tally'`. */
+  | { kind: 'basket'; apples: number; demo?: 'count' | 'half' | 'tally' }
   /** A building in section, floors `lowest..highest`, 0 the ground. The
    *  answer is where the lift goes; a float stops it between floors.
    *  `demo` sends it to that floor for a narration beat, before anyone
@@ -104,12 +113,57 @@ export type Prop =
       rightLabel?: string
     }
   /** An expression worked one operation at a time: `first` is done
-   *  first, then each of `then`. The working shows once answered. */
-  | { kind: 'expr'; text: string; first: string; then: string[] }
+   *  first, then each of `then`. The working shows once answered.
+   *  `demo: 'work'` (narration) plays the working for a beat while
+   *  nothing is answered: `first` lights up in the expression, then each
+   *  line of `then` arrives in turn, the lit span collapsing into the
+   *  result it made (`exprWorking`), and it rests on the final value. */
+  | { kind: 'expr'; text: string; first: string; then: string[]; demo?: 'work' }
+  /** The four operator keys, `+ - * /`, as big keys in a row, each with a
+   *  word under it (`OP_WORDS`). `mark` (narration) presses and lights
+   *  one, so beats that move it press the next key in place. Draws no
+   *  answer. */
+  | { kind: 'ops'; mark?: Op }
+  /** Two literals that do not go together, as tiles in their kinds'
+   *  colours (`literalKind`) either side of `op`: they slide together,
+   *  bump, bounce apart, and a ✕ `TypeError` appears under them — the
+   *  robot stops. Draws no answer. */
+  | { kind: 'clash'; left: string; op: string; right: string }
+  /** `packs` boxes in a row, each holding `each[0]` items of one colour
+   *  and `each[1]` of a second when given, with `loose` more beside the
+   *  boxes: a chained sum, `3 * 4 + 2` or `2 * (3 + 4)`. At most 5 boxes,
+   *  6 of each colour a box, 6 loose. A number the robot thinks of lights
+   *  that many items, box by box, then the loose ones. */
+  | { kind: 'packs'; packs: number; each: number[]; loose?: number }
   /** A phone whose screen shows the number exactly as the robot has it. */
   | { kind: 'phone'; number: string }
   /** A locked door, and a note to the person on the other side. */
   | { kind: 'door' }
+  /** A door in its frame, seen from the front: open or shut is a bool.
+   *  `True` swings it open, `False` shuts it; a word (`"open"`) is stuck
+   *  on as a note and moves nothing, as on the lamp. `demo` (narration)
+   *  swings it open or shut for a beat while nothing has been answered;
+   *  an answer always wins over it. */
+  | { kind: 'doorway'; demo?: 'open' | 'closed' }
+  /** A small car and its speedometer (km/h, 0–120) with a digital
+   *  readout. `demo: 'drive'` shows `speed`; both are narration, so
+   *  beats that change it keep the car on stage (the ask too), and the
+   *  needle sweeps smoothly to the new
+   *  speed while the readout shows it as a float, always with a decimal
+   *  point (`48.5`, `50.0`). Without `demo` (the ask) the needle waits at
+   *  0 and the readout says `? km/h`; a number the robot thinks of moves
+   *  the needle and the readout to it, in its own kind's colour, and a
+   *  word is stuck on as a note. */
+  | { kind: 'car'; speed: number; demo?: 'drive' }
+  /** A sticky note with `text` handwritten on it, and a small `title`
+   *  above (`name`). The robot's answer is written on a tag beside it as
+   *  the robot has it: a str in quotes, in the str colour; anything else
+   *  as itself, in its own kind's colour. */
+  | { kind: 'note'; text: string; title?: string }
+  /** One Python literal on a plain card (`3`, `3.0`, `True`, `"True"`),
+   *  big, in monospace and in neutral ink — never its kind's colour,
+   *  because the question is which kind it is. Draws no answer. */
+  | { kind: 'value'; text: string }
   /** A card handed to a person, showing whatever text is on it. */
   | { kind: 'card' }
   /** A letter tile with its number on the back. */
@@ -135,10 +189,16 @@ export type Prop =
    * or not the answer was right, so a miss sorted there is honest; a
    * staging that wants only right answers passes only those, as practice
    * does with `kinds`.
+   *
+   * `slots` is which slots to draw, left to right: all five when omitted.
+   * Fewer slots share the whole width. Without a char slot a
+   * one-character str is filed under str, where Python keeps it. A
+   * different set of slots is a different picture (not narration).
    */
   | {
       kind: 'shelf'
       filled: TypeSlot[]
+      slots?: TypeSlot[]
       title?: boolean
       pulse?: boolean
       later?: boolean
@@ -193,6 +253,109 @@ export type Prop =
    *  move the highlight without the card arriving again. Draws no answer:
    *  it is the code, not what the code did — memory shows that. */
   | { kind: 'code'; text: string; mark?: number }
+  /** A goal memory: what the robot's memory should hold, drawn the way
+   *  the memory graph draws memory — a name, an arrow, an object card
+   *  with the value in its kind's colour — but as a blueprint, dashed on
+   *  a faint wash, headed by `title` ("Goal" when omitted). At most
+   *  `GOAL_ROWS` rows are drawn. With `view.memory`, each row the robot's
+   *  memory already has (`memory/goal`'s `compare`) is ticked and filled
+   *  in; a name pointing at something else says what it points at now;
+   *  names memory has that the goal does not are listed under the rows;
+   *  and a goal met settles once. Draws no answer: memory is the answer. */
+  | { kind: 'goal'; goal: Goal; title?: string }
+  /** A game's inventory hotbar: a row of square slots, each holding an
+   *  item drawn as an icon (`HOTBAR_ICONS`; any other name is a plain tile
+   *  with the word on it) with its name in small type under it, and each
+   *  slot's number (0, 1, 2 …) under the cell in a list's slot style: a
+   *  list of strs, seen. At most `HOTBAR_MAX` slots are drawn. `mark`
+   *  (narration) selects one slot, as a game's selected slot is framed and
+   *  lifted, so beats that move it keep the hotbar on stage and the
+   *  selection moves along. The items are narration too while their count
+   *  stays the same: a beat that swaps one (`hotbar[1] = "bow"`) keeps the
+   *  hotbar, and the new item pops into its cell. A different count is a
+   *  different picture. A str the robot thinks of lights the cell holding
+   *  that item (the selected one first); a str no cell holds lights
+   *  nothing, and anything else is only its tag. */
+  | { kind: 'hotbar'; items: string[]; mark?: number }
+
+/** How many slots the hotbar draws. */
+export const HOTBAR_MAX = 6
+
+/** The items the hotbar has an icon for. Anything else is a plain tile
+ *  with its name written on it. */
+export const HOTBAR_ICONS = ['sword', 'shield', 'potion', 'bow', 'map', 'gem', 'key', 'apple', 'torch', 'helmet', 'coin', 'pickaxe'] as const
+
+/** Which hotbar cell a thought lights: a str equal to an item, the
+ *  selected cell if it holds it, else the first that does, else none. */
+export function hotbarLit(p: { items: readonly string[]; mark?: number }, t: Thought | null): number | null {
+  const text = textOf(t)
+  if (text === null) return null
+  const items = p.items.slice(0, HOTBAR_MAX)
+  if (p.mark !== undefined && items[p.mark] === text) return p.mark
+  const at = items.indexOf(text)
+  return at < 0 ? null : at
+}
+
+/** How many rows of a goal memory the picture draws: four, or three when
+ *  one of them draws a list, which takes the room of two. */
+export const GOAL_ROWS = 4
+export const GOAL_ROWS_WITH_LIST = 3
+/** How many of a list's slots the picture draws. */
+export const GOAL_ITEMS = 5
+
+/** A goal row as its picture draws it. `items` are a list's slots, as
+ *  literals, when the row draws a list of its own; `alias` is the index,
+ *  among the rows drawn, of the row whose object a `same` row's arrow
+ *  converges on, and such a row draws no object of its own. */
+export type GoalShownRow = GoalRow & {
+  items: string[] | null
+  alias: number | null
+  /** A `same` row, against memory: whether its name and the one it names
+   *  point at one object now (null without memory, or when either name is
+   *  missing). An equal copy is `false`. */
+  sameNow: boolean | null
+}
+
+/**
+ * A goal memory as its picture draws it: the rows it has room for, each
+ * against the robot's memory when there is one (`checked`), and the
+ * names memory has that the goal does not. `met` is of the whole goal,
+ * never only of the rows drawn, so the picture and the lesson agree.
+ * Without memory nothing is ticked and nothing is extra: a blueprint.
+ *
+ * A list is drawn once. A row that must be the `same` object as another
+ * row draws its arrow to that row's object, as memory draws aliasing;
+ * only when that row is not drawn does it draw the value itself.
+ */
+export function goalShown(
+  goal: Goal,
+  memory: MemorySnapshot | undefined,
+): { rows: GoalShownRow[]; extra: string[]; met: boolean; checked: boolean } {
+  const c = memory
+    ? compare(goal, memory)
+    : { rows: goal.map((g) => ({ ...g, have: null, haveType: null, ok: false })), extra: [], met: false }
+  const aliasOf = (r: GoalRow, drawn: GoalRow[]) => {
+    if (r.same === undefined) return null
+    const at = drawn.findIndex((d) => d.name === r.same && d.same === undefined)
+    return at < 0 ? null : at
+  }
+  const listy = (r: GoalRow, drawn: GoalRow[]) => aliasOf(r, drawn) === null && itemsOf(r.value) !== null
+  let drawn = c.rows.slice(0, GOAL_ROWS)
+  if (drawn.some((r) => listy(r, drawn))) drawn = c.rows.slice(0, GOAL_ROWS_WITH_LIST)
+  const target = (name: string) => memory?.bindings.find((b) => b.name === name)?.target
+  const rows = drawn.map((r) => {
+    const alias = aliasOf(r, drawn)
+    const mine = target(r.name)
+    const theirs = r.same === undefined ? undefined : target(r.same)
+    return {
+      ...r,
+      alias,
+      items: alias === null ? (itemsOf(r.value)?.slice(0, GOAL_ITEMS) ?? null) : null,
+      sameNow: mine === undefined || theirs === undefined ? null : mine === theirs,
+    }
+  })
+  return { rows, extra: c.extra, met: c.met, checked: memory !== undefined }
+}
 
 /** One side of a `contrast`. `text` is the value as Python writes it —
  *  or, with `result`, the expression that makes it. `label` is a word for
@@ -221,6 +384,9 @@ export type PropView = {
   /** Everything thought of so far, oldest first. The kinds diagram and
    *  the shelf sort them into place; nothing else reads it. */
   heard: Thought[]
+  /** The robot's memory now, for a picture of a goal memory that ticks
+   *  the rows already met (`memory/goal`). */
+  memory?: MemorySnapshot | undefined
 }
 
 /**
@@ -252,18 +418,34 @@ const NARRATION: Partial<Record<Prop['kind'], string[]>> = {
   lamp: ['demo'],
   basket: ['demo'],
   lift: ['demo'],
+  doorway: ['demo'],
+  expr: ['demo'],
+  ops: ['mark'],
+  // Every car is one picture: the ask draws no speed of its own (the
+  // needle waits at 0), so a drive's beats and the ask after them keep
+  // the car on stage, and the needle sweeps back to wait.
+  car: ['demo', 'speed'],
   balance: ['lamp'],
   shelf: ['filled', 'title', 'pulse', 'later', 'cheer', 'examples'],
   numberline: ['mark', 'unnamed'],
   char: ['clasps'],
   beads: ['glow'],
   code: ['mark'],
+  hotbar: ['mark'],
 }
 
-/** A prop without its narration: what identifies the picture. */
+/** A prop without its narration: what identifies the picture. A tally
+ *  (`basket`, `demo: 'tally'`) is a picture of its own whose count is
+ *  narration, so it keeps its mode and drops the number. */
 function picture(p: Prop): Record<string, unknown> {
   const out: Record<string, unknown> = { ...p }
   for (const k of NARRATION[p.kind] ?? []) delete out[k]
+  if (p.kind === 'basket' && p.demo === 'tally') {
+    delete out['apples']
+    out['tally'] = true
+  }
+  // A hotbar: the items are narration, their count is the picture.
+  if (p.kind === 'hotbar') out['items'] = p.items.length
   return out
 }
 
@@ -365,6 +547,8 @@ export function rightNumber(p: Prop): number | null {
     }
     case 'letter':
       return p.char.codePointAt(0) ?? null
+    case 'packs':
+      return packsTotal(p)
     case 'numberline':
       return p.want ?? null
     case 'tiles': {
@@ -424,7 +608,7 @@ export const HEIGHT_RANGE = [0.5, 2.5] as const
  * apples whether they were `3`, `3.0` or `2 + 1`. So this is the half a
  * picture can know, and `refused` sets it beside the step's verdict.
  *
- * Per picture: the lamp lit; the fish not a bird; the basket counted to
+ * Per picture: the lamp lit (the doorway swung, either way); the fish not a bird; the basket counted to
  * its apples; the lift parked on a floor it has; the second glass filled
  * like the first; a person on the height chart; the egg box full; the
  * plate uncovered; the bar reaching the final whistle; words on the card
@@ -432,7 +616,8 @@ export const HEIGHT_RANGE = [0.5, 2.5] as const
  * (or, under a lone word, one letter tile); every crate's bolts lit; the
  * jug emptied into the tanks; the bolts left ringed; the letter turned;
  * the scale reading what the parcels weigh; the marker where the ask
- * wants it. The balance and the working are drawn only once the step is
+ * wants it; the selected hotbar slot's item; the note's tag saying the note's words; every item in the
+ * packs lit. The balance and the working are drawn only once the step is
  * right, the shelf and the kinds sort by type (Python's truth either
  * way), and the rest draw no answer: none of those can look right on a
  * miss.
@@ -446,8 +631,10 @@ export function looksRight(view: PropView): boolean {
   const t = textOf(a)
   switch (p.kind) {
     case 'lamp':
-      // Either answer lights or darkens the switch the way the right one
-      // would, so a refused `False` is as misleading as a refused `True`.
+    case 'doorway':
+      // Either answer lights or darkens the switch (swings the door open
+      // or shut) the way the right one would, so a refused `False` is as
+      // misleading as a refused `True`.
       return b !== null
     case 'fish':
       return b === false
@@ -470,6 +657,8 @@ export function looksRight(view: PropView): boolean {
       return t !== null && t.trim() !== ''
     case 'phone':
       return t !== null && t.replace(/\D/g, '') === p.number
+    case 'note':
+      return t !== null && t === p.text
     case 'tiles': {
       const made = tilesMake(p.parts ?? [])
       if (made === null) return (p.parts ?? []).length === 1 && t !== null && [...t].length === 1
@@ -485,8 +674,12 @@ export function looksRight(view: PropView): boolean {
       return a.type === 'int'
     case 'scale':
       return n !== null && Math.abs(n - p.parcels * p.each) < 1e-9
+    case 'packs':
+      return n !== null && Math.abs(n - packsTotal(p)) < 1e-9
     case 'numberline':
       return n !== null && p.want !== undefined && Math.abs(n - p.want) < 1e-9
+    case 'hotbar':
+      return t !== null && p.mark !== undefined && p.items[p.mark] === t
     default:
       return false
   }
@@ -527,6 +720,13 @@ export type TypeSlot = 'bool' | 'int' | 'float' | 'char' | 'str'
 
 export const SLOTS: TypeSlot[] = ['bool', 'int', 'float', 'char', 'str']
 
+/** The slots a shelf draws, left to right: its own `slots`, each once,
+ *  or all five. */
+export const shelfSlots = (p: { slots?: readonly TypeSlot[] }): TypeSlot[] => {
+  const own = (p.slots ?? []).filter((k, i, all) => SLOTS.includes(k) && all.indexOf(k) === i)
+  return own.length > 0 ? own : [...SLOTS]
+}
+
 /** What each slot shows once it is named, as Python writes them — a str
  *  in the double quotes the lessons use. */
 export const SLOT_EXAMPLES: Record<TypeSlot, string[]> = {
@@ -540,15 +740,27 @@ export const SLOT_EXAMPLES: Record<TypeSlot, string[]> = {
 /** Which slot a thought belongs in: its own type, except that a str of
  *  exactly one character is a char. Counted in code points, so `"é"` is
  *  one character the way Python's `len` says. The empty string is a str
- *  of no characters, not a char. */
-export function slotOf(t: Thought | null): TypeSlot | null {
+ *  of no characters, not a char. A shelf without a char slot (`slots`)
+ *  files every str under str, which is where Python keeps it. */
+export function slotOf(t: Thought | null, slots: readonly TypeSlot[] = SLOTS): TypeSlot | null {
   if (!t) return null
   if (t.type === 'bool' || t.type === 'int' || t.type === 'float') return t.type
   if (t.type !== 'str') return null
   const text = textOf(t)
   if (text === null) return null
-  return [...text].length === 1 ? 'char' : 'str'
+  return [...text].length === 1 && slots.includes('char') ? 'char' : 'str'
 }
+
+/** The gap between two slots, in the picture's units. */
+export const CUBBY_GAP = 1.875
+
+/** How wide each of `count` slots is when they share the picture's 200
+ *  units: 38.5 for five, 48.6 for four. */
+export const cubbyWidth = (count: number): number => (200 - (Math.max(1, count) - 1) * CUBBY_GAP) / Math.max(1, count)
+
+/** How many characters a chip's row holds on a shelf of `count` slots:
+ *  `CHIP_CHARS` for five, more as the slots widen. */
+export const chipChars = (count: number): number => Math.max(CHIP_CHARS, Math.floor((CHIP_CHARS * cubbyWidth(count)) / cubbyWidth(SLOTS.length)))
 
 /** A thought as the shelf writes it: a str in double quotes, the way the
  *  lessons write one, everything else as Python's repr. */
@@ -605,21 +817,23 @@ export function shelfRoom(filled: readonly TypeSlot[], examples: Partial<Record<
  * in `room` rows (2 unless said; a chip that wraps takes two, `chipRows`).
  * An example the player has said is `said`.
  * Heard values go in whether or not their slot is named yet: a value has
- * its type before anyone has told the player the word. Pure, so the
- * sorting is tested without drawing it.
+ * its type before anyone has told the player the word. `slots` is the
+ * shelf's own (`slotOf`). Pure, so the sorting is tested without drawing
+ * it.
  */
 export function shelved(
   filled: readonly TypeSlot[],
   heard: readonly Thought[],
   examples: Partial<Record<TypeSlot, string[]>> = {},
   room: Partial<Record<TypeSlot, number>> = {},
+  slots: readonly TypeSlot[] = SLOTS,
 ): Record<TypeSlot, ShelfSlot> {
   const out = {} as Record<TypeSlot, ShelfSlot>
   for (const slot of SLOTS) {
     const shown = filled.includes(slot) ? (examples[slot] ?? SLOT_EXAMPLES[slot]) : []
     const said: string[] = []
     for (const t of heard) {
-      if (slotOf(t) !== slot) continue
+      if (slotOf(t, slots) !== slot) continue
       const text = chipText(t)
       // Newest last: a value said again moves to the end.
       const was = said.indexOf(text)
@@ -738,4 +952,117 @@ export function codeSize(lines: readonly string[]): number {
   const across = (CODE_BOX.width - 2 * CODE_BOX.pad) / (longest * CODE_BOX.charWidth)
   const down = (CODE_BOX.height - 2 * CODE_BOX.pad) / (Math.max(1, lines.length) * CODE_BOX.lineHeight)
   return Math.min(CODE_BOX.maxSize, across, down)
+}
+
+/* ------------------------------ the car ------------------------------ */
+
+/** The speedometer's range, in km/h, and the angle its needle sweeps
+ *  either side of straight up. */
+export const SPEED_MAX = 120
+export const DIAL_SWEEP = 120
+
+/** A speed as the car's readout writes a measurement: always with a
+ *  decimal point, as Python writes a float (`50` → `50.0`). */
+export const carReading = (speed: number): string => (Number.isInteger(speed) ? speed.toFixed(1) : String(speed))
+
+/** Where the needle points for a speed, in degrees from straight up:
+ *  `-DIAL_SWEEP` at 0, `+DIAL_SWEEP` at `SPEED_MAX`, pinned at either end
+ *  (and a little past the top, for a speed off the dial). */
+export const needleAngle = (speed: number): number =>
+  -DIAL_SWEEP + (2 * DIAL_SWEEP * clamp(speed, 0, SPEED_MAX * 1.04)) / SPEED_MAX
+
+/* ------------------------------ operations ------------------------------ */
+
+export type Op = '+' | '-' | '*' | '/'
+
+export const OPS: Op[] = ['+', '-', '*', '/']
+
+/** The word under each operator key. */
+export const OP_WORDS: Record<Op, string> = { '+': 'add', '-': 'take away', '*': 'times', '/': 'divide' }
+
+/**
+ * A literal's kind, from how it is written: quotes make a str, `True` and
+ * `False` a bool, a point a float, anything else an int. Enough for the
+ * literals a picture is given, not a parser.
+ */
+export function literalKind(text: string): Kind {
+  const t = text.trim()
+  if (/^(['"]).*\1$/s.test(t)) return 'str'
+  if (t === 'True' || t === 'False') return 'bool'
+  if (t.includes('.') || /e/i.test(t.replace(/^-/, ''))) return 'float'
+  return 'int'
+}
+
+/** One line of a worked expression: its text, the span about to be
+ *  worked (`work`), and the span the last step's result landed in
+ *  (`made`), each as `[start, end)` in characters. */
+export type WorkedLine = { text: string; work?: [number, number]; made?: [number, number] }
+
+/** The whitespace-separated pieces of a line, with where each starts. */
+const pieces = (line: string): { at: number; end: number }[] => [...line.matchAll(/\S+/g)].map((m) => ({ at: m.index!, end: m.index! + m[0].length }))
+
+/** What changed between two lines of working, piece by piece: the span of
+ *  `a` that was worked and the span of `b` it became, or null when the
+ *  lines share everything. */
+function changed(a: string, b: string): { work: [number, number]; made: [number, number] } | null {
+  const pa = pieces(a)
+  const pb = pieces(b)
+  const same = (i: number, j: number) => a.slice(pa[i]!.at, pa[i]!.end) === b.slice(pb[j]!.at, pb[j]!.end)
+  let p = 0
+  while (p < pa.length && p < pb.length && same(p, p)) p++
+  let q = 0
+  while (q < pa.length - p && q < pb.length - p && same(pa.length - 1 - q, pb.length - 1 - q)) q++
+  if (p > pa.length - q - 1 || p > pb.length - q - 1) return null
+  return { work: [pa[p]!.at, pa[pa.length - q - 1]!.end], made: [pb[p]!.at, pb[pb.length - q - 1]!.end] }
+}
+
+/**
+ * The working as the expression card draws it: the expression, then each
+ * line of `then`. The first step's span is `first` itself, found in the
+ * expression, and what it became is the rest of the next line once the
+ * text either side of it is taken off (`(2 + 3) * 4` → `5 * 4`: `5`).
+ * Each later step is found by what changed between two lines, piece by
+ * piece (`2 + 12` → `14`: all of it). Pure, so a bracket, a left-to-right
+ * chain and a float are tested without drawing them.
+ */
+export function exprWorking(text: string, first: string, then: readonly string[]): WorkedLine[] {
+  const lines: WorkedLine[] = [text, ...then].map((t) => ({ text: t }))
+  for (let k = 0; k + 1 < lines.length; k++) {
+    const a = lines[k]!.text
+    const b = lines[k + 1]!.text
+    const at = k === 0 && first !== '' ? a.indexOf(first) : -1
+    if (at >= 0) {
+      const before = a.slice(0, at)
+      const after = a.slice(at + first.length)
+      lines[k]!.work = [at, at + first.length]
+      if (b.startsWith(before) && b.endsWith(after) && b.length > before.length + after.length) lines[k + 1]!.made = [before.length, b.length - after.length]
+      continue
+    }
+    const c = changed(a, b)
+    if (c) {
+      lines[k]!.work = c.work
+      lines[k + 1]!.made = c.made
+    }
+  }
+  return lines
+}
+
+/* ------------------------------ the packs ------------------------------ */
+
+/** The packs as drawn: at most 5 boxes, 6 of each colour a box, 6 loose. */
+export function packsShape(p: { packs: number; each: readonly number[]; loose?: number }): { packs: number; a: number; b: number; loose: number } {
+  const whole = (n: number | undefined, hi: number) => clamp(Math.floor(n ?? 0), 0, hi)
+  return { packs: clamp(Math.floor(p.packs), 1, 5), a: whole(p.each[0], 6), b: whole(p.each[1], 6), loose: whole(p.loose, 6) }
+}
+
+/** What the sum makes: `packs * sum(each) + loose`, from the prop's own
+ *  numbers, not the drawing's caps. */
+export function packsTotal(p: { packs: number; each: readonly number[]; loose?: number }): number {
+  return p.packs * p.each.reduce((a, v) => a + v, 0) + (p.loose ?? 0)
+}
+
+/** The packs as the sum they are: `3 * 4 + 2`, `2 * (3 + 4)`. */
+export function packsSum(p: { packs: number; each: readonly number[]; loose?: number }): string {
+  const inner = p.each.length > 1 ? `(${p.each.join(' + ')})` : `${p.each[0] ?? 0}`
+  return `${p.packs} * ${inner}${p.loose ? ` + ${p.loose}` : ''}`
 }

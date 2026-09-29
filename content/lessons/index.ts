@@ -27,9 +27,14 @@ import { s6Ideas } from './s6ideas'
 import { s7Ideas } from './s7ideas'
 import { s8Ideas } from './s8ideas'
 import { decide } from './decide'
+import { v2meet } from './v2/meet'
+import { v2types } from './v2/types'
+import { v2ops } from './v2/ops'
+import { v2bind } from './v2/bind'
+import { v2lists } from './v2/lists'
 
 export * from './core'
-export { meet, types, choose, operations, namesPoint, takeAnOrder, wake, s1Ideas, s2Ideas, s3Ideas, s4Ideas, s5Ideas, s6Ideas, s7Ideas, s8Ideas, decide }
+export { meet, types, choose, operations, namesPoint, takeAnOrder, wake, s1Ideas, s2Ideas, s3Ideas, s4Ideas, s5Ideas, s6Ideas, s7Ideas, s8Ideas, decide, v2meet, v2types, v2ops, v2bind, v2lists }
 
 export const LESSONS: Record<string, Lesson> = {
   [meet.id]: meet,
@@ -48,4 +53,10 @@ export const LESSONS: Record<string, Lesson> = {
   [s7Ideas.id]: s7Ideas,
   [s8Ideas.id]: s8Ideas,
   [decide.id]: decide,
+  // Version 2 (`#/v2`).
+  [v2meet.id]: v2meet,
+  [v2types.id]: v2types,
+  [v2ops.id]: v2ops,
+  [v2bind.id]: v2bind,
+  [v2lists.id]: v2lists,
 }

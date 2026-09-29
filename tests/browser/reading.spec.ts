@@ -92,7 +92,7 @@ async function play(page: Page, opts: { wrong?: boolean; next?: boolean } = {}) 
 
 /* ------------------------------------------------------------------------- */
 
-test('nothing runs until the prediction is committed', async ({ page }) => {
+test('nothing runs until the prediction is committed', { tag: '@smoke' }, async ({ page }) => {
   await open(page, 'x-1.2')
   await prepared(page)
   // Memory is empty, there is nothing to scrub, and nothing has printed —

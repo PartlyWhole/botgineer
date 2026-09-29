@@ -17,6 +17,7 @@
  */
 import { useEffect, useRef, type ReactNode } from 'react'
 import { CodeEditor, type EditorApi } from '../ui/CodeEditor'
+import type { Demo } from '../ui/demo'
 import { RobotConsole, type Exchange } from '../ui/RobotConsole'
 import { Gutter, STACKED, useRemembered } from '../ui/Split'
 
@@ -59,6 +60,19 @@ type Props = {
   asked?: boolean | undefined
   /** A beat points at part of this panel, which pulses while it shows. */
   focus?: 'console' | 'memory' | 'run' | undefined
+  /** Which design the panel wears: `v2` is the robot's terminal and
+   *  storage bank (`robot-v2.css`), scoped under `data-look`. */
+  look?: 'v1' | 'v2' | undefined
+  /** A line the crow types into the console, never run (`ui/demo`). */
+  demo?: Demo | null | undefined
+  onDemoTyped?: (() => void) | undefined
+  /** Console: wipe the robot's memory and start again. Given, a small
+   *  control sits in memory's corner; no confirm, since retyping the
+   *  lines undoes it. */
+  onReset?: (() => void) | undefined
+  /** Take the last line back (`Workbench.undo`), and whether there is one. */
+  onUndo?: (() => void) | undefined
+  canUndo?: boolean | undefined
 }
 
 export function RobotPanel({
@@ -83,6 +97,12 @@ export function RobotPanel({
   listening = false,
   asked = false,
   focus,
+  look = 'v1',
+  demo = null,
+  onDemoTyped,
+  onReset,
+  onUndo,
+  canUndo = false,
 }: Props) {
   const talking = mode === 'console'
   const reading = mode === 'read'
@@ -109,6 +129,7 @@ export function RobotPanel({
       data-testid="robot-panel"
       data-mode={mode}
       data-busy={busy ? 'yes' : 'no'}
+      data-look={look}
     >
       {/* Both at once, not one or the other.
       
@@ -138,6 +159,9 @@ export function RobotPanel({
               greeting={greeting}
               listening={listening}
               asked={asked}
+              look={look}
+              demo={demo}
+              onDemoTyped={onDemoTyped}
             />
           ) : (
             <CodeEditor
@@ -167,6 +191,9 @@ export function RobotPanel({
           data-testid="memory-view"
           data-focus={focus === 'memory' ? 'yes' : 'no'}>
           {memory}
+          {talking && onReset && (
+            <MemoryTools onReset={onReset} onUndo={onUndo} canUndo={canUndo} disabled={busy || listening} />
+          )}
         </div>
       </div>
 
@@ -252,6 +279,64 @@ export function RobotPanel({
           ))}
         </div>
       )}
+    </div>
+  )
+}
+
+/**
+ * Undo and Wipe, in memory's corner: take the last line back, or start
+ * the memory over. Words beside the icons, because a learner stuck on a
+ * wrong append has to find the way back without being told. One press, no
+ * confirm — the lines are the player's to type again. Closed while a line
+ * runs or someone is talking, like the console itself.
+ */
+function MemoryTools({
+  onReset,
+  onUndo,
+  canUndo,
+  disabled,
+}: {
+  onReset: () => void
+  onUndo?: (() => void) | undefined
+  canUndo: boolean
+  disabled: boolean
+}) {
+  const wipe = "Wipe the robot's memory"
+  const back = 'Undo the last line'
+  return (
+    <div className="memory-tools" role="group" aria-label="Memory">
+      {onUndo && (
+        <button
+          type="button"
+          className="memory-reset memory-undo"
+          onClick={onUndo}
+          disabled={disabled || !canUndo}
+          aria-label={back}
+          title={back}
+          data-testid="memory-undo"
+        >
+          <svg viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M6 3.5 2.5 7 6 10.5" />
+            <path d="M3 7h6.5a4 4 0 0 1 0 8H7" />
+          </svg>
+          <span>Undo</span>
+        </button>
+      )}
+      <button
+        type="button"
+        className="memory-reset"
+        onClick={onReset}
+        disabled={disabled}
+        aria-label={wipe}
+        title={wipe}
+        data-testid="memory-reset"
+      >
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M13 8a5 5 0 1 1-1.6-3.7" />
+          <path d="M11.9 1.6v3.1H8.8" />
+        </svg>
+        <span>Wipe</span>
+      </button>
     </div>
   )
 }

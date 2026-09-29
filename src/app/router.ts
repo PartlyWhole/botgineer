@@ -5,33 +5,44 @@
  * refresh. A hash route always requests the existing index.html, which
  * makes deep links and reloads work with no server configuration.
  *
- *   `#/` or `#/map`   the roadmap — where the game starts, like a home
+ *   `#/`              home: the v2 map while v1 is hidden (`versions.ts`),
+ *                     else v1's
+ *   `#/map`           v1's roadmap
+ *   `#/v2`            v2's map
  *   `#/skills`        how well each concept is known, and which mistakes
  *   `#/glossary`      plain phrase to formal term; `#/glossary/<term>`
  *                     opens at one entry
  *   `#/<level id>`    that level's workbench
  *
  * Anything unrecognised is the map, which is always somewhere sensible to
- * land. A level's own hash still works whether or not the map shows it as
+ * land (the v2 map, for an unknown `v2-` id). A level's own hash still works whether or not the map shows it as
  * unlocked: locks are an invitation to play in order, not a wall, and
  * every test and every shared link depends on deep links going straight
  * in.
  */
 import { useEffect, useState } from 'react'
 import { activityById, type Activity } from '../../content/activities'
+import { SHOW_V1 } from './versions'
 
 export type Route =
   | { kind: 'map' }
+  | { kind: 'map2' }
   | { kind: 'skills' }
   | { kind: 'glossary'; term: string | null }
   | { kind: 'level'; activity: Activity }
 
 function read(): Route {
   const id = window.location.hash.replace(/^#\/?/, '')
+  if (id === 'v2') return { kind: 'map2' }
   if (id === 'skills') return { kind: 'skills' }
   if (id === 'glossary' || id.startsWith('glossary/')) return { kind: 'glossary', term: id.slice('glossary/'.length) || null }
+  // Home is the map of the version on offer: v2's, while v1 is hidden.
+  if (id === '' && !SHOW_V1) return { kind: 'map2' }
   const activity = id === '' || id === 'map' ? null : activityById(id)
-  return activity ? { kind: 'level', activity } : { kind: 'map' }
+  if (activity) return { kind: 'level', activity }
+  // A v2 level this page does not know (a stale page, or a level renamed)
+  // lands on the v2 map rather than v1's.
+  return id.startsWith('v2-') ? { kind: 'map2' } : { kind: 'map' }
 }
 
 /**
@@ -56,10 +67,13 @@ export function goTo(id: string): void {
   window.location.hash = `#/${id}`
 }
 
-/** Back to the map — having just finished `finished`, if given. */
-export function goToMap(finished?: string): void {
+/** Back to the map — having just finished `finished`, if given. A v2
+ *  level goes back to the v2 map; `version` says which when nothing was
+ *  finished. */
+export function goToMap(finished?: string, version?: 1 | 2): void {
   arrival = finished ?? null
-  window.location.hash = '#/map'
+  const v = version ?? (finished ? (activityById(finished)?.version ?? 1) : 1)
+  window.location.hash = v === 2 ? '#/v2' : '#/map'
 }
 
 export function useRoute(): Route {
