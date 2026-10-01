@@ -114,7 +114,13 @@ async function shootStep(step: number) {
       index.push(`- (same screen as \`${last}\`) — **${b.speaker}** (${b.kind}): ${b.text}`)
     }
     if (b.asking || b.at >= b.of - 1) return b
-    await page.evaluate(() => (window as any).botgineer.next())
+    // Next, until the line has really moved on: the first press after an
+    // answer can land on the test surface of the render before, and be
+    // lost (it then shot one beat twice).
+    for (let tries = 0; tries < 10 && (await beat()).at === b.at; tries++) {
+      await page.evaluate(() => (window as any).botgineer.next())
+      await page.waitForTimeout(150)
+    }
   }
   return beat()
 }

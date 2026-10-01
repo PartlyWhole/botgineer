@@ -84,7 +84,7 @@ Inputs, measured on `v2-ops` (a long lesson: 14 steps):
 |---|---|---|
 | Script, three seeds | 10,606 words | 6,755 words (seeds 2 and 3 only where they differ) |
 | Storyboard | 76 whole-screen shots, ≈104k image tokens | 52 files (12 stage-only), ≈61k image tokens |
-| Storyboard time | — | 139 s |
+| Storyboard time | — | 111 s |
 
 Projected for a unit of three long lessons (e.g. Lessons 6–8): 2 text
 reviewers at ≈100–130k (the floor plus ~20k words of scripts), 3 picture
