@@ -81,6 +81,9 @@ export type Line = {
    * to the step after it).
    */
   memory?: MemorySnapshot | undefined
+  /** In an editor lesson, the run this line is: what it reached, and how
+   *  each of the step's cases came out, so a reply can say which failed. */
+  run?: Run | undefined
 }
 
 /**
@@ -576,9 +579,13 @@ export function beforeLast(evidence: Evidence): Evidence {
   const kept = evidence.history.slice(0, entry)
   const then = kept[kept.length - 1] ?? EMPTY
   const lines = evidence.lines?.filter((l) => kept.includes(l.memory))
+  // An editor lesson's line is a run: it goes too, or a step judged on
+  // runs would still be done without it, and the run that did it be
+  // answered as a miss to the step after.
+  const runs = last.run && evidence.runs ? evidence.runs.filter((r) => r !== last.run) : evidence.runs
   // Everything else the evidence holds (the picks) is kept as it was: only
   // the line is taken back out.
-  return { ...evidence, snapshot: then, thoughts, history: [...kept, then], lines, last: null, lastPick: null }
+  return { ...evidence, snapshot: then, thoughts, history: [...kept, then], lines, runs, last: null, lastPick: null }
 }
 
 /**

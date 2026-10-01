@@ -609,3 +609,650 @@
   top: 0.32em;
   margin: 0;
 }
+
+/* ------------------------------ editor ------------------------------ */
+
+/* The console's screen, grown into a program. The same ground, the same
+   lamp in the corner, the same padlock while someone talks, and the
+   crow's dashed frame and name tag while the crow's program shows.
+
+   The run is drawn on the lines (`CodeEditor`, `editorLines`):
+   - reached: a lit dot in the run gutter (a number for a loop's line);
+   - running now: a cyan bar glowing from the left edge, ▶ in the gutter
+     — cyan is the console's "working" colour;
+   - never reached by a finished run: faded, so the branch not taken
+     visibly drops back;
+   - stopped here: a coral wavy underline and the error's name in a chip. */
+
+.editor.v2 {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  color: var(--t-ink);
+  background:
+    repeating-linear-gradient(0deg, rgb(255 255 255 / 0.018) 0 1px, transparent 1px 3px),
+    radial-gradient(130% 70% at 50% 0%, rgb(93 255 168 / 0.05), transparent 70%),
+    linear-gradient(var(--t-bg-2), var(--t-bg));
+}
+
+.editor.v2 .cm-host {
+  flex: 1;
+  min-height: 0;
+}
+
+.editor.v2 .cm-editor {
+  height: 100%;
+  font-size: 14.5px;
+}
+
+@media (max-width: 480px) {
+  .editor.v2 .cm-editor {
+    font-size: 13.5px;
+  }
+}
+
+.editor.v2 .cm-gutters {
+  padding-left: 4px;
+  /* The gutter is the device's bezel: a hairline seam, not a box. */
+  box-shadow: inset -1px 0 0 rgb(42 58 85 / 0.6);
+}
+
+.editor.v2 .cm-line {
+  position: relative;
+}
+
+/* Indent guides: one hairline per four columns of indentation, drawn
+   under the text so a block's lines visibly hang from their header. */
+.editor.v2 .cm-guided::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 10px;
+  width: calc(var(--guides) * 4ch);
+  background: repeating-linear-gradient(
+    to right,
+    rgb(124 144 168 / 0.32) 0 1px,
+    transparent 1px 4ch
+  );
+  pointer-events: none;
+}
+
+/* ---- the run's gutter ---- */
+
+.editor.v2 .cm-run-gutter .cm-gutterElement {
+  min-width: 18px;
+  padding: 0 1px;
+}
+
+.editor.v2 .run-mark-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 1.65em;
+}
+
+.editor.v2 .run-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font: 800 10px/1 var(--mono);
+}
+
+.editor.v2 .run-mark.ran {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--t-phos);
+  box-shadow: 0 0 6px rgb(93 255 168 / 0.7);
+}
+
+.editor.v2 .run-mark.ran.count {
+  width: auto;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 3px;
+  border-radius: 8px;
+  background: rgb(93 255 168 / 0.16);
+  box-shadow: inset 0 0 0 1px rgb(93 255 168 / 0.55);
+  color: var(--t-phos);
+}
+
+.editor.v2 .run-mark.now {
+  color: var(--t-cyan);
+  font-size: 11px;
+  text-shadow: 0 0 8px var(--t-cyan);
+}
+
+.editor.v2 .run-mark.error {
+  color: var(--t-err);
+  font-size: 11px;
+  text-shadow: 0 0 6px rgb(255 157 142 / 0.6);
+}
+
+/* ---- the lines ---- */
+
+.editor.v2 .cm-line.cm-now {
+  background: linear-gradient(90deg, rgb(90 216 255 / 0.2), rgb(90 216 255 / 0.07) 60%, rgb(90 216 255 / 0.03));
+  box-shadow:
+    inset 3px 0 0 var(--t-cyan),
+    inset 0 1px 0 rgb(90 216 255 / 0.18),
+    inset 0 -1px 0 rgb(90 216 255 / 0.18);
+}
+
+.editor.v2 .cm-line.cm-ran {
+  box-shadow: inset 2px 0 0 rgb(93 255 168 / 0.35);
+}
+
+.editor.v2 .cm-line.cm-skipped {
+  opacity: 0.38;
+  filter: grayscale(0.85);
+}
+
+.editor.v2 .cm-line.cm-errline {
+  background: rgb(255 157 142 / 0.08);
+  box-shadow: inset 3px 0 0 var(--t-err);
+}
+
+.editor.v2 .cm-err-text {
+  text-decoration: underline wavy var(--t-err);
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 4px;
+  text-decoration-skip-ink: none;
+}
+
+.editor.v2 .cm-err-chip {
+  display: inline-block;
+  margin-left: 12px;
+  padding: 0 8px;
+  border-radius: 5px;
+  background: #3a1016;
+  box-shadow: inset 0 0 0 1px rgb(255 122 107 / 0.7);
+  color: #ffd9d3;
+  font: 700 11.5px/1.6 var(--mono);
+  vertical-align: 1px;
+  white-space: nowrap;
+}
+
+.editor.v2 .cm-err-chip::before {
+  content: '✕ ';
+  color: var(--t-err);
+}
+
+/* ---- states ---- */
+
+.editor.v2 .lamp {
+  position: absolute;
+  top: 10px;
+  right: 11px;
+  z-index: 2;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--t-phos);
+  box-shadow: 0 0 8px var(--t-phos);
+  pointer-events: none;
+}
+
+.editor.v2[data-state='locked'] .lamp,
+.editor.v2[data-state='demo'] .lamp {
+  background: var(--t-amber);
+  box-shadow: 0 0 7px rgb(255 200 97 / 0.7);
+}
+
+.editor.v2[data-state='busy'] .lamp {
+  background: var(--t-cyan);
+  box-shadow: 0 0 9px var(--t-cyan);
+}
+
+.editor.v2 > .lock-mark {
+  position: absolute;
+  top: 7px;
+  right: 26px;
+  z-index: 2;
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: var(--t-amber);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+/* Closed while someone talks: readable, calm, a touch further away. The
+   caret and the active line go, which is most of what says "type here". */
+.editor.v2[data-state='locked'] .cm-content {
+  opacity: 0.86;
+}
+
+.editor.v2[data-state='locked'] .cm-activeLine,
+.editor.v2[data-state='busy'] .cm-activeLine {
+  background: transparent;
+}
+
+/* The crow's program: the console demonstration's ghosted dashed frame
+   and name tag, so it never reads as the player's own code. */
+.editor.v2[data-state='demo']::after {
+  content: '';
+  position: absolute;
+  inset: 6px;
+  border: 1.5px dashed rgb(201 214 234 / 0.45);
+  border-radius: 10px;
+  background: rgb(201 214 234 / 0.03);
+  pointer-events: none;
+}
+
+.editor.v2 > .demo-tag {
+  position: absolute;
+  top: -3px;
+  right: 40px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 7px 0 5px;
+  border-radius: 6px;
+  background: #e8eefc;
+  color: var(--ink);
+  font: 800 10.5px/18px 'Nunito', ui-rounded, system-ui, sans-serif;
+  letter-spacing: 0.02em;
+}
+
+.editor.v2 > .demo-tag .mark {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.editor.v2[data-state='demo'] .cm-scroller {
+  padding-top: 8px;
+}
+
+.editor.v2 .cm-crow-cursor {
+  display: inline-block;
+  width: 0.6em;
+  height: 1.15em;
+  margin-left: 1px;
+  vertical-align: -0.2em;
+  border-radius: 1px;
+  background: var(--t-ghost);
+  box-shadow: 0 0 6px rgb(201 214 234 / 0.5);
+}
+
+/* ------------------------------ editor transport ------------------------------ */
+
+.robot-panel[data-look='v2'] .editor-transport {
+  gap: 10px;
+  padding: 8px 10px;
+}
+
+.robot-panel[data-look='v2'] .editor-transport button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: 800 14px/1 'Nunito', ui-rounded, system-ui, sans-serif;
+}
+
+.robot-panel[data-look='v2'] .editor-transport svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+
+/* Run: the one lit key on the panel. */
+.robot-panel[data-look='v2'] .editor-transport .run-key {
+  padding: 8px 12px 8px 12px;
+  border: 1px solid var(--t-phos);
+  border-radius: 9px;
+  background: linear-gradient(#1c5a3c, #12402b);
+  color: #eafff3;
+  box-shadow:
+    0 0 14px rgb(93 255 168 / 0.25),
+    inset 0 1px 0 rgb(255 255 255 / 0.12);
+}
+
+.robot-panel[data-look='v2'] .editor-transport .run-key .run-icon {
+  fill: var(--t-phos);
+  filter: drop-shadow(0 0 3px rgb(93 255 168 / 0.8));
+}
+
+.robot-panel[data-look='v2'] .editor-transport .run-key:hover:not(:disabled) {
+  background: linear-gradient(#216b47, #164d33);
+  box-shadow:
+    0 0 18px rgb(93 255 168 / 0.4),
+    inset 0 1px 0 rgb(255 255 255 / 0.14);
+}
+
+.robot-panel[data-look='v2'] .editor-transport .run-key:active:not(:disabled) {
+  translate: 0 1px;
+}
+
+.robot-panel[data-look='v2'] .editor-transport .run-key:focus-visible {
+  outline: 2px solid var(--t-phos);
+  outline-offset: 2px;
+}
+
+.robot-panel[data-look='v2'] .editor-transport .run-key:disabled {
+  opacity: 1;
+  border-color: #2a3a55;
+  background: #0f1d33;
+  color: #7c90a8;
+  box-shadow: none;
+  cursor: default;
+}
+
+.robot-panel[data-look='v2'] .editor-transport .run-key:disabled .run-icon {
+  fill: #7c90a8;
+  filter: none;
+}
+
+.robot-panel[data-look='v2'] .editor-transport .key-hint {
+  margin-left: 2px;
+  padding: 1px 5px;
+  border: 1px solid rgb(234 255 243 / 0.28);
+  border-bottom-width: 1px;
+  border-radius: 4px;
+  background: rgb(0 0 0 / 0.18);
+  color: rgb(234 255 243 / 0.72);
+  font: 600 11px/1.3 var(--mono);
+}
+
+.robot-panel[data-look='v2'] .editor-transport .run-key:disabled .key-hint {
+  border-color: #2a3a55;
+  color: #5f7491;
+}
+
+/* Running: the console's three cells, where the triangle was. */
+.robot-panel[data-look='v2'] .editor-transport .working {
+  display: inline-flex;
+  gap: 2px;
+  height: 12px;
+}
+
+.robot-panel[data-look='v2'] .editor-transport .working .cell {
+  width: 4px;
+  height: 100%;
+  border-radius: 1px;
+  background: var(--t-cyan);
+  box-shadow: 0 0 5px rgb(90 216 255 / 0.6);
+}
+
+.robot-panel[data-look='v2'] .editor-transport .stop-key {
+  padding: 8px 11px;
+  border: 1px solid #ff7a6b;
+  border-radius: 9px;
+  background: #3a1016;
+  color: #ffd9d3;
+}
+
+.robot-panel[data-look='v2'] .editor-transport .stop-key svg {
+  fill: #ff7a6b;
+}
+
+/* The step-through: a media player's four keys around the track. */
+.robot-panel[data-look='v2'] .stepper {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.robot-panel[data-look='v2'] .editor-transport .step-key {
+  flex: none;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--t-soft);
+}
+
+.robot-panel[data-look='v2'] .editor-transport .step-key svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.robot-panel[data-look='v2'] .editor-transport .step-key svg .fill {
+  fill: currentColor;
+  stroke-width: 1;
+}
+
+.robot-panel[data-look='v2'] .editor-transport .step-key:hover:not(:disabled) {
+  border-color: rgb(90 216 255 / 0.45);
+  background: rgb(90 216 255 / 0.08);
+  color: var(--t-cyan);
+}
+
+.robot-panel[data-look='v2'] .editor-transport .step-key:focus-visible {
+  outline: 2px solid var(--t-cyan);
+  outline-offset: 0;
+}
+
+.robot-panel[data-look='v2'] .editor-transport .step-key:disabled {
+  color: #34465f;
+  cursor: default;
+}
+
+.robot-panel[data-look='v2'] .editor-transport .scrub {
+  flex: 1;
+  min-width: 48px;
+  margin: 0 4px;
+}
+
+/* The track fills cyan up to the step shown: how far through the run. */
+.robot-panel[data-look='v2'] .scrub input[type='range'] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  height: 22px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.robot-panel[data-look='v2'] .scrub input[type='range']:disabled {
+  cursor: default;
+}
+
+.robot-panel[data-look='v2'] .scrub input[type='range']::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--t-cyan) var(--pct), #22334d var(--pct));
+}
+
+.robot-panel[data-look='v2'] .scrub input[type='range']::-moz-range-track {
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--t-cyan) var(--pct), #22334d var(--pct));
+}
+
+.robot-panel[data-look='v2'] .scrub input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  margin-top: -5px;
+  border-radius: 50%;
+  background: #dff7ff;
+  box-shadow:
+    0 0 0 3px rgb(90 216 255 / 0.35),
+    0 0 10px rgb(90 216 255 / 0.6);
+}
+
+.robot-panel[data-look='v2'] .scrub input[type='range']::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: 0;
+  border-radius: 50%;
+  background: #dff7ff;
+  box-shadow:
+    0 0 0 3px rgb(90 216 255 / 0.35),
+    0 0 10px rgb(90 216 255 / 0.6);
+}
+
+.robot-panel[data-look='v2'] .scrub input[type='range']:disabled::-webkit-slider-runnable-track {
+  background: #1a2940;
+}
+
+.robot-panel[data-look='v2'] .scrub input[type='range']:disabled::-webkit-slider-thumb {
+  background: #34465f;
+  box-shadow: none;
+}
+
+.robot-panel[data-look='v2'] .scrub input[type='range']:disabled::-moz-range-thumb {
+  background: #34465f;
+  box-shadow: none;
+}
+
+.robot-panel[data-look='v2'] .scrub input[type='range']:focus-visible {
+  outline: 2px solid var(--t-cyan);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.robot-panel[data-look='v2'] .editor-transport .step-label {
+  min-width: 6ch;
+  margin-left: 6px;
+  color: var(--t-soft);
+  font: 600 12.5px/1 var(--mono);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.robot-panel[data-look='v2'] .editor-transport[data-has-run='no'] .step-label {
+  color: #34465f;
+}
+
+/* A phone: the first and last keys go; the slider and Home/End do it. */
+@media (max-width: 480px) {
+  .robot-panel[data-look='v2'] .editor-transport .key-hint,
+  .robot-panel[data-look='v2'] .editor-transport .step-key[data-testid='step-first'],
+  .robot-panel[data-look='v2'] .editor-transport .step-key[data-testid='step-last'] {
+    display: none;
+  }
+  .robot-panel[data-look='v2'] .editor-transport {
+    gap: 6px;
+  }
+}
+
+/* ------------------------------ output log ------------------------------ */
+
+.robot-panel[data-look='v2'] .output-log {
+  height: 84px;
+  padding: 7px 12px 8px 14px;
+  border-top: 1px solid var(--t-edge);
+  background:
+    repeating-linear-gradient(0deg, rgb(255 255 255 / 0.018) 0 1px, transparent 1px 3px),
+    #050b15;
+  color: var(--t-soft);
+  font: 13px/1.5 var(--mono);
+  scrollbar-color: #2a3a55 transparent;
+}
+
+.robot-panel[data-look='v2'] .output-log .t-line.out {
+  color: var(--t-ink);
+}
+
+.robot-panel[data-look='v2'] .output-log .t-line.err {
+  color: var(--t-err);
+}
+
+/* The run's end line: a quiet stamp, not more output. */
+.robot-panel[data-look='v2'] .output-log .t-line.note {
+  width: fit-content;
+  margin-top: 3px;
+  padding: 0 7px;
+  border-radius: 4px;
+  background: rgb(124 144 168 / 0.12);
+  color: var(--t-dim);
+  font-size: 11.5px;
+}
+
+.robot-panel[data-look='v2'] .output-log .t-line.err:last-child {
+  width: fit-content;
+  margin-top: 3px;
+  padding: 0 7px;
+  border-radius: 4px;
+  background: rgb(255 157 142 / 0.1);
+}
+
+.robot-panel[data-look='v2'] .output-log .log-idle {
+  color: #34465f;
+  font-weight: 700;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .editor.v2[data-state='busy'] .lamp {
+    animation: v2-blink 0.5s steps(1, end) infinite;
+  }
+  .editor.v2 .cm-crow-cursor {
+    animation: v2-blink 0.9s steps(1, end) infinite;
+  }
+  .robot-panel[data-look='v2'] .editor-transport .working .cell {
+    animation: v2-cell 0.9s ease-in-out infinite;
+  }
+  .robot-panel[data-look='v2'] .editor-transport .working .cell:nth-child(2) {
+    animation-delay: 0.15s;
+  }
+  .robot-panel[data-look='v2'] .editor-transport .working .cell:nth-child(3) {
+    animation-delay: 0.3s;
+  }
+  /* The line now running arrives with a sweep of light from the left. */
+  .editor.v2 .cm-line.cm-now::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, rgb(90 216 255 / 0.28), transparent) no-repeat;
+    background-size: 35% 100%;
+    background-position: -60% 0;
+    opacity: 0;
+    animation: v2-now 480ms ease-out;
+    pointer-events: none;
+  }
+  .editor.v2 .cm-line.cm-skipped {
+    transition: opacity 400ms ease;
+  }
+  @keyframes v2-now {
+    from {
+      opacity: 1;
+      background-position: -60% 0;
+    }
+    to {
+      opacity: 0;
+      background-position: 160% 0;
+    }
+  }
+}
+
+/* A beat pointing at Run: the key breathes in its own phosphor — even
+   while the narration keeps it shut, since the beat is showing where it is. */
+@media (prefers-reduced-motion: no-preference) {
+  .robot-panel[data-look='v2'] .editor-transport .run-key.pulse {
+    animation: v2-run-pulse 1.3s ease-in-out infinite;
+  }
+  @keyframes v2-run-pulse {
+    50% {
+      box-shadow:
+        0 0 0 4px rgb(93 255 168 / 0.35),
+        0 0 22px rgb(93 255 168 / 0.55);
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .robot-panel[data-look='v2'] .editor-transport .run-key.pulse {
+    box-shadow: 0 0 0 3px rgb(93 255 168 / 0.5);
+  }
+}

@@ -363,3 +363,62 @@ function verdictOf(step: StepRecord): unknown {
   }
   return null
 }
+
+/* ------------------------------ editor runs ------------------------------ */
+
+/**
+ * What an editor lesson keeps of one run (`Run` in content/lessons/core):
+ * how it ended, the line it stopped on, every line it reached, and the
+ * memory it left. Read from the records here, like everything else
+ * (invariant 3).
+ */
+export type RunSummaryOf = {
+  ok: boolean
+  raised: string | null
+  line: number | null
+  ran: number[]
+  final: MemorySnapshot
+}
+
+export function runOf(steps: readonly StepRecord[], terminal: TerminalRecord | null): RunSummaryOf {
+  const visits = lineVisits(steps)
+  const last = steps[steps.length - 1]
+  const reason = terminal?.reason ?? 'engine_error'
+  const raised =
+    reason === 'completed'
+      ? null
+      : reason === 'uncaught_exception'
+        ? (terminal?.exception?.type_name ?? 'Exception')
+        : reason === 'step_limit' || reason === 'trace_limit'
+          ? 'steps'
+          : reason
+  const where = terminal?.exception?.location
+  const line =
+    raised === null
+      ? null
+      : where && where.module === '__main__'
+        ? where.line
+        : (visits[visits.length - 1]?.line ?? null)
+  return {
+    ok: reason === 'completed',
+    raised,
+    line,
+    ran: [...new Set(visits.map((v) => v.line))].sort((a, b) => a - b),
+    final: last ? extractMemory(last) : { bindings: [], objects: {}, line: null },
+  }
+}
+
+/** Every line a run had reached by step `at`, once per visit, and the
+ *  one it was on. For walking a run: the editor ticks what has run, counts
+ *  a loop's passes, and lights what runs now. */
+export function reachedBy(steps: readonly StepRecord[], at: number): { ran: number[]; current: number | null } {
+  const ran: number[] = []
+  let current: number | null = null
+  for (let i = 0; i <= at && i < steps.length; i++) {
+    const s = steps[i]!
+    if (s.event !== 'line' || s.location.module !== '__main__') continue
+    ran.push(s.location.line)
+    current = s.location.line
+  }
+  return { ran, current }
+}

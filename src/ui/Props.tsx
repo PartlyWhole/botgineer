@@ -19,7 +19,7 @@
  * value is also named in words on its tag, so colour is never the only
  * thing carrying it.
  */
-import { useLayoutEffect, useRef, type ReactNode } from 'react'
+import { useId, useLayoutEffect, useRef, type ReactNode } from 'react'
 import {
   CODE_BOX,
   CHIP_ROWS,
@@ -51,6 +51,20 @@ import {
   BACKPACK_MAX,
   HOTBAR_ICONS,
   HOTBAR_MAX,
+  CASES_MAX,
+  GATE_LOCKS,
+  HUD_ROWS,
+  PATHS_MAX,
+  TALLY_MAX,
+  caseResult,
+  gateCurrent,
+  gateShows,
+  hudBar,
+  hudIcon,
+  literalBool,
+  pathIcon,
+  pathMarks,
+  tallyShows,
   type GoalShownRow,
   literalKind,
   packsShape,
@@ -137,10 +151,15 @@ export function PropLayer({ view, role, beat }: { view: PropView; role: 'current
       <svg viewBox="0 0 200 130" className={`prop prop-${view.prop.kind}`} aria-hidden="true">
         {draw(view)}
       </svg>
-      {said && view.prop.kind !== 'goal' && <AnswerTag key={`${said.type}:${said.repr}`} thought={said} right={view.verdict === 'right'} waiting={waiting} refused={refused} />}
+      {said && !OWN_ANSWER.has(view.prop.kind) && <AnswerTag key={`${said.type}:${said.repr}`} thought={said} right={view.verdict === 'right'} waiting={waiting} refused={refused} />}
     </button>
   )
 }
+
+/** Pictures that draw the robot's answer in themselves — a goal's ticks,
+ *  the panel's badge, the gate opening, the tally's counter — and so need
+ *  no tag under them saying it again. */
+const OWN_ANSWER = new Set(['goal', 'hud', 'gate', 'tally', 'cases', 'paths'])
 
 /** The value, and its kind in words. Coloured by kind, the way every
  *  picture in these lessons colours it, but never only by colour. A
@@ -275,6 +294,16 @@ function draw(view: PropView): ReactNode {
       return <Hotbar view={view} p={p} />
     case 'backpack':
       return <Backpack view={view} p={p} />
+    case 'hud':
+      return <Hud view={view} p={p} />
+    case 'gate':
+      return <Gate view={view} p={p} />
+    case 'paths':
+      return <Paths p={p} />
+    case 'tally':
+      return <Tally view={view} p={p} />
+    case 'cases':
+      return <Cases view={view} p={p} />
   }
 }
 
@@ -449,6 +478,16 @@ function drawnAs(view: PropView): string {
       return hotbarSentence(view, p)
     case 'backpack':
       return backpackSentence(view, p)
+    case 'hud':
+      return hudSentence(view, p)
+    case 'gate':
+      return gateSentence(view, p)
+    case 'paths':
+      return pathsSentence(p)
+    case 'tally':
+      return tallySentence(view, p)
+    case 'cases':
+      return casesSentence(view, p)
     case 'code': {
       const lines = codeLines(p.text)
       const marked = p.mark !== undefined && lines[p.mark - 1] !== undefined ? ` Line ${p.mark} is highlighted: ${lines[p.mark - 1]!.trim()}.` : ''
@@ -3588,6 +3627,769 @@ function Backpack({ view, p }: { view: PropView; p: Extract<Prop, { kind: 'backp
                 {i}
               </text>
             </g>
+          </g>
+        )
+      })}
+    </g>
+  )
+}
+
+/* --- more icons: the status panel's, the fork's ends --- */
+
+/** Icons the hotbar has no item for, drawn in the same 20 × 20 box centred
+ *  on 0, 0 and the same flat colours. */
+const MORE_ICONS = {
+  heart: <path d="M0 8.5 C-5 4.6 -9 1.6 -9 -3 C-9 -6.4 -6.4 -8.6 -3.6 -8.6 C-1.8 -8.6 -0.6 -7.6 0 -6.2 C0.6 -7.6 1.8 -8.6 3.6 -8.6 C6.4 -8.6 9 -6.4 9 -3 C9 1.6 5 4.6 0 8.5 Z" className="i-red" />,
+  star: <path d="M0 -9 L2.6 -3.2 L8.8 -2.6 L4.1 1.5 L5.5 7.8 L0 4.5 L-5.5 7.8 L-4.1 1.5 L-8.8 -2.6 L-2.6 -3.2 Z" className="i-gold" />,
+  tag: (
+    <>
+      <path d="M-9 -5 L5 -5 L9.5 0 L5 5 L-9 5 Z" className="i-paper" />
+      <circle cx="5" cy="0" r="1.4" className="i-hole" />
+      <path d="M-6.5 -1.4 H1.5 M-6.5 1.6 H-1" className="i-fold" />
+    </>
+  ),
+  tile: (
+    <>
+      <rect x="-8" y="-8" width="16" height="16" rx="3.5" className="i-tile" />
+      <circle r="2.4" className="i-tile-dot" />
+    </>
+  ),
+  torchOff: (
+    <>
+      <path d="M-1.6 -1 L1.6 -1 L1 9 L-1 9 Z" className="i-wood" />
+      <rect x="-2.6" y="-2.5" width="5.2" height="2.2" rx="0.8" className="i-steel" />
+      <path d="M0 -4 C-1.5 -5.5 1.5 -6.5 0 -8.5" className="i-smoke" />
+    </>
+  ),
+  boots: (
+    <>
+      <path d="M-7 -8 L-1 -8 L-1 2 L6 3.5 C8 4 8.6 5.4 8.6 7 L8.6 8.5 L-7 8.5 Z" className="i-wood" />
+      <path d="M-7 5.6 H8.6" className="i-grip" />
+      <path d="M-9 -2 H-5 M-10 1 H-5.5" className="i-speed" />
+    </>
+  ),
+  sneak: (
+    <>
+      <ellipse cx="-4" cy="3.5" rx="2.6" ry="4" className="i-print" />
+      <ellipse cx="4" cy="-3.5" rx="2.6" ry="4" className="i-print" />
+      <circle cx="-4" cy="-2.2" r="1.1" className="i-print" />
+      <circle cx="4" cy="-9" r="1.1" className="i-print" />
+    </>
+  ),
+  campfire: (
+    <>
+      <path d="M-8 7 L8 3 M-8 3 L8 7" className="i-logs" />
+      <path d="M0 -9 C4.5 -4.5 5.5 -1 4 2.5 L-4 2.5 C-5.5 -1 -4 -5 0 -9 Z" className="i-flame" />
+      <path d="M0 -4.5 C2 -2.5 2.4 -0.8 1.6 1.8 L-1.6 1.8 C-2.4 -0.8 -1.6 -2.6 0 -4.5 Z" className="i-flame-core" />
+    </>
+  ),
+  door: (
+    <>
+      <path d="M-6.5 9 V-4 C-6.5 -7.5 -3.5 -9.5 0 -9.5 C3.5 -9.5 6.5 -7.5 6.5 -4 V9 Z" className="i-wood" />
+      <path d="M-2 -8.8 V9 M2 -8.8 V9" className="i-fold" />
+      <circle cx="3.6" cy="1.5" r="1.1" className="i-gold" />
+    </>
+  ),
+  sign: (
+    <>
+      <path d="M-1 -2 V9" className="i-grip" />
+      <rect x="-8.5" y="-8.5" width="17" height="8" rx="1.6" className="i-wood" />
+      <path d="M-5.5 -4.5 H5.5" className="i-fold" />
+    </>
+  ),
+} as const
+
+/** An icon by name, the hotbar's or one of these. */
+function Icon({ name }: { name: string }) {
+  if (hasIcon(name)) return <>{ICONS[name]}</>
+  return <>{MORE_ICONS[name as keyof typeof MORE_ICONS] ?? MORE_ICONS.tile}</>
+}
+
+/** A literal's kind, for its colour: `literalKind`, or none for anything
+ *  that is not a literal it knows (a name, a list). */
+const kindOfLiteral = (text: string): string => (/^\[.*\]$/s.test(text.trim()) ? 'other' : literalKind(text))
+
+/** How wide a run of monospace text is, at a size. */
+const monoW = (text: string, size: number) => [...text].length * size * 0.6
+
+/* --- hud: a game's status panel, the names a condition reads --- */
+
+const HUD = { w: 146, top: 2, bottom: 115, pad: 5, badgeX: 151, badgeW: 47 } as const
+
+function hudValueWords(name: string, value: string): string {
+  const items = itemsOf(value)
+  if (items !== null) return `${name} holds ${items.length === 0 ? 'nothing' : items.map((i) => i.replace(/^(['"])(.*)\1$/, '$2')).join(' and ')}`
+  return `${name} is ${value}`
+}
+
+function hudSentence(view: PropView, p: Extract<Prop, { kind: 'hud' }>): string {
+  const stats = p.stats.slice(0, HUD_ROWS)
+  const marked = stats.filter((s) => p.mark?.includes(s.name)).map((s) => s.name)
+  const b = boolOf(view.answer)
+  const said = b === null ? '' : view.verdict === 'miss' ? ` The robot says ${view.answer!.repr}, not taken.` : ` The robot says ${view.answer!.repr}.`
+  return `A status panel${p.title ? `, ${p.title}` : ''}: ${stats.map((s) => hudValueWords(s.name, s.value)).join(', ')}.${
+    marked.length ? ` The question reads ${marked.join(' and ')}.` : ''
+  }${said}`
+}
+
+/**
+ * A game's status panel: a dark rounded panel, one row per stat, each a
+ * big icon (`hudIcon`), the name in code font, and the value on a chip in
+ * its kind's colour; a list's items as their own icons. `mark` frames the
+ * rows a condition reads. The right of the picture is kept for the
+ * robot's verdict: a big `True` or `False` badge, or `?` while asked.
+ * Without either, the panel stands in the middle, and slides aside when
+ * a badge needs the room.
+ */
+function Hud({ view, p }: { view: PropView; p: Extract<Prop, { kind: 'hud' }> }) {
+  const stats = p.stats.slice(0, HUD_ROWS)
+  const n = Math.max(1, stats.length)
+  const b = boolOf(view.answer)
+  const asked = view.ask !== undefined && view.answer === null
+  const room = b !== null || asked
+  const x0 = room ? 2 : (200 - HUD.w) / 2
+  const th = p.title ? 15 : 0
+  const areaTop = HUD.top + HUD.pad + th
+  const area = HUD.bottom - HUD.pad - areaTop
+  const rowH = Math.min(34, area / n)
+  const rowsTop = areaTop + (area - rowH * n) / 2
+  const icon = Math.min(rowH * 0.8, 27)
+  const nameX = 6 + icon + 5
+  const valueRight = HUD.w - 6
+  // One size for every value and every name, so the rows read as a table.
+  const listy = (v: string) => itemsOf(v)
+  const valueSize0 = Math.min(rowH * 0.5, 14)
+  const valueW = (v: string, size: number) => {
+    const items = listy(v)
+    return items !== null ? Math.max(1, items.length) * (Math.min(rowH * 0.66, 17) + 2) : monoW(v, size) + 8
+  }
+  const longestName = Math.max(1, ...stats.map((s) => [...s.name].length))
+  const widest = Math.max(0, ...stats.map((s) => valueW(s.value, valueSize0)))
+  const nameSize = Math.min(rowH * 0.46, 13, (valueRight - widest - 6 - nameX) / (longestName * 0.6))
+  const marked = new Set(p.mark ?? [])
+  const no = b !== null && refusedOf(view)
+  return (
+    <g className={['hud', no && 'refused'].filter(Boolean).join(' ')}>
+      <g className="hud-panel" style={{ translate: `${x0}px 0px` }}>
+        <rect x="0" y={HUD.top} width={HUD.w} height={HUD.bottom - HUD.top} rx="9" className="hud-frame" />
+        {p.title && (
+          <text x={HUD.w / 2} y={HUD.top + 13} className="hud-title">
+            {short(p.title, 22)}
+          </text>
+        )}
+        {stats.map((s, i) => {
+          const y = rowsTop + i * rowH
+          const cy = y + rowH / 2
+          const kind = hudIcon(s.name, s.value)
+          const truth = literalBool(s.value)
+          const items = listy(s.value)
+          const bar = kind === 'heart' ? hudBar(s.value) : null
+          const nameEnd = nameX + monoW(s.name, nameSize)
+          // A value too long for its room is cut, as the hotbar cuts a word.
+          const room = valueRight - nameEnd - 8
+          const vSize = Math.min(valueSize0, Math.max(7.5, (room - 8) / (Math.max(1, [...s.value].length) * 0.6)))
+          const shown = short(s.value, Math.max(3, Math.floor((room - 8) / (vSize * 0.6) + 0.01)))
+          const vw = items !== null ? 0 : monoW(shown, vSize) + 8
+          const barX = nameEnd + 5
+          const barW = valueRight - vw - 5 - barX
+          const iconName = kind === 'torch' ? (truth === true ? 'torch' : 'torchOff') : kind === 'items' ? 'tile' : kind
+          return (
+            <g
+              key={s.name}
+              className={['hud-row', marked.has(s.name) && 'marked', truth === false && 'off'].filter(Boolean).join(' ')}
+              data-testid={`hud-${s.name}`}
+              data-marked={marked.has(s.name) ? 'yes' : undefined}
+              style={{ ['--i' as string]: i }}
+            >
+              <rect x="4" y={y + 1.5} width={HUD.w - 8} height={rowH - 3} rx="5" className="hud-cell" />
+              {kind !== 'items' && (
+                <g transform={`translate(${6 + icon / 2},${cy}) scale(${icon / 20})`} className={`icon hud-icon ${kind === 'key' && truth === false ? 'ghost' : ''}`} data-icon={kind}>
+                  <Icon name={iconName} />
+                </g>
+              )}
+              {kind === 'items' && (
+                <g transform={`translate(${6 + icon / 2},${cy}) scale(${icon / 20})`} className="icon hud-icon" data-icon="items">
+                  <Icon name="tile" />
+                </g>
+              )}
+              <text x={nameX} y={cy + nameSize * 0.35} className="hud-name" style={{ fontSize: `${nameSize.toFixed(2)}px` }}>
+                {s.name}
+              </text>
+              {bar !== null && barW >= 16 && (
+                <g className="hud-bar">
+                  <rect x={barX} y={cy - 3} width={barW} height="6" rx="3" className="hud-bar-track" />
+                  <rect x={barX} y={cy - 3} width={(barW * bar).toFixed(2)} height="6" rx="3" className="hud-bar-fill" />
+                </g>
+              )}
+              {items !== null ? (
+                <g className="hud-items" key={s.value}>
+                  {items.map((it, k) => {
+                    const size = Math.min(rowH * 0.66, 17)
+                    const word = it.replace(/^(['"])(.*)\1$/, '$2')
+                    const x = valueRight - (items.length - k - 0.5) * (size + 2)
+                    return (
+                      <g key={k} transform={`translate(${x.toFixed(2)},${cy}) scale(${(size / 20).toFixed(3)})`} className="icon">
+                        {hasIcon(word) ? (
+                          ICONS[word]
+                        ) : (
+                          <>
+                            <rect x="-9" y="-9" width="18" height="18" rx="3" className="i-tile" />
+                            <text y="4" className="hud-item-word">
+                              {[...word].slice(0, 2).join('')}
+                            </text>
+                          </>
+                        )}
+                      </g>
+                    )
+                  })}
+                </g>
+              ) : (
+                <g className="hud-value" data-kind={kindOfLiteral(s.value)} key={s.value}>
+                  <rect x={valueRight - vw} y={cy - vSize * 0.72} width={vw} height={vSize * 1.44} rx={vSize * 0.4} />
+                  <text x={valueRight - vw / 2} y={cy + vSize * 0.36} style={{ fontSize: `${vSize.toFixed(2)}px` }}>
+                    {shown}
+                  </text>
+                </g>
+              )}
+            </g>
+          )
+        })}
+      </g>
+      {b !== null ? (
+        <g className={`hud-badge ${no ? 'refused' : ''}`} data-testid="hud-badge" key={view.answer!.repr}>
+          <rect x={HUD.badgeX} y="34" width={HUD.badgeW} height="48" rx="11" />
+          <text x={HUD.badgeX + HUD.badgeW / 2} y="62.5">
+            {b ? 'True' : 'False'}
+          </text>
+        </g>
+      ) : (
+        asked && (
+          <g className="hud-badge waiting" data-testid="hud-badge">
+            <rect x={HUD.badgeX} y="34" width={HUD.badgeW} height="48" rx="11" />
+            <text x={HUD.badgeX + HUD.badgeW / 2} y="66">
+              ?
+            </text>
+          </g>
+        )
+      )}
+    </g>
+  )
+}
+
+/* --- gate: and is a series circuit, or a parallel one --- */
+
+/** The gate's pieces, in the picture's units: the lamps' column, the two
+ *  rails a parallel circuit has, the arch and its opening. */
+const GATE = { lamp: 106, r: 9, left: 91, right: 122, labelEnd: 84, archX: 132, archW: 64, top: 12, foot: 126, source: 9, socketY: 102 } as const
+
+function gateLampYs(n: number): number[] {
+  if (n <= 1) return [60]
+  const span = n === 2 ? 50 : 68
+  return Array.from({ length: n }, (_, i) => 60 - span / 2 + (i * span) / (n - 1))
+}
+
+function gateSentence(view: PropView, p: Extract<Prop, { kind: 'gate' }>): string {
+  const locks = p.locks.slice(0, GATE_LOCKS)
+  const wired = locks.length < 2 ? 'one lamp' : p.op === 'and' ? 'lamps in a row on one wire (and: every one must be lit)' : 'lamps side by side (or: any one lit will do)'
+  const lamps = locks.map((l) => `${l.label} is ${l.on ? 'lit, True' : 'dark, False'}`).join('; ')
+  const shows = gateShows(view)
+  const end =
+    shows === 'open'
+      ? ' The current gets through and the gate opens.'
+      : shows === 'shut'
+        ? view.answer === null
+          ? ' The current does not get through, and the gate stays shut.'
+          : ' The robot says False: the current does not get through, and the gate stays shut.'
+        : shows === 'refused'
+          ? ` The robot says ${view.answer!.repr}, but the gate does not move.`
+          : ' The gate is shut: will it open?'
+  return `A cave gate worked by ${wired}: ${lamps}.${end}`
+}
+
+/**
+ * A stone arch with an iron portcullis, worked by a little circuit. A
+ * power crystal feeds the lamps, one per lock, each labelled with its
+ * condition in code font and its truth under it; `and` threads them down
+ * one wire, `or` puts each on a rung of a ladder. Current is drawn only
+ * once there is something to show it for (a right answer, or the `try`
+ * demonstration), wire by wire in the order it would arrive, so the
+ * picture does not answer its own question.
+ */
+function Gate({ view, p }: { view: PropView; p: Extract<Prop, { kind: 'gate' }> }) {
+  const clip = useId().replace(/:/g, '')
+  const locks = p.locks.slice(0, GATE_LOCKS)
+  const n = locks.length
+  const ys = gateLampYs(n)
+  const shows = gateShows(view)
+  const current = gateCurrent(p)
+  const flowing = shows === 'open' || shows === 'shut'
+  const series = p.op === 'and'
+  const last = ys[n - 1] ?? 66
+  const X = GATE.lamp
+  const r = GATE.r
+  const sock = { x: GATE.archX + 6, y: GATE.socketY }
+  // The wires, each with when the current reaches it (in steps of the
+  // demonstration), so it lights in the order it would arrive.
+  type Wire = { d: string; live: boolean; at: number }
+  const wires: Wire[] = []
+  if (series) {
+    wires.push({ d: `M${X} ${GATE.source + 7} V${(ys[0] ?? 66) - r}`, live: true, at: 0 })
+    ys.forEach((y, i) => {
+      const next = i + 1 < n ? `V${ys[i + 1]! - r}` : `V${sock.y} H${sock.x - 5}`
+      wires.push({ d: `M${X} ${y + r} ${next}`, live: current.outOf[i]!, at: i + 1 })
+    })
+  } else {
+    wires.push({ d: `M${X} ${GATE.source + 7} V${GATE.source + 12} H${GATE.left} V${last}`, live: true, at: 0 })
+    ys.forEach((y, i) => {
+      wires.push({ d: `M${GATE.left} ${y} H${X - r}`, live: true, at: 0 })
+      wires.push({ d: `M${X + r} ${y} H${GATE.right}`, live: current.outOf[i]!, at: 1 })
+    })
+    wires.push({ d: `M${GATE.right} ${ys[0] ?? 66} V${sock.y} H${sock.x - 5}`, live: current.gate, at: 2 })
+  }
+  const steps = series ? n + 1 : 3
+  const step = 0.45
+  const opensAt = steps * step + 0.15
+  const archR = GATE.archW / 2 - 8
+  const ox = GATE.archX + 8
+  const ow = GATE.archW - 16
+  const oTop = GATE.top + 22
+  const opening = `M${ox} ${GATE.foot} V${oTop + archR} A${archR} ${archR} 0 0 1 ${ox + ow} ${oTop + archR} V${GATE.foot} Z`
+  const plaque = shows === 'refused' ? `${view.answer!.repr}?` : shows === 'open' ? 'True' : shows === 'shut' ? 'False' : '?'
+  return (
+    <g
+      className={['gate-prop', shows, p.demo === 'try' && view.answer === null && 'demo-try'].filter(Boolean).join(' ')}
+      data-shows={shows}
+      style={{ ['--opens-at' as string]: `${opensAt}s` }}
+    >
+      <line x1="0" x2="200" y1={GATE.foot} y2={GATE.foot} className="floor" />
+      {/* The power: a crystal that is always lit. */}
+      <g transform={`translate(${X},${GATE.source})`} className="gate-source">
+        <path d="M0 -8 L5 -2 L0 7 L-5 -2 Z" />
+      </g>
+      {wires.map((w, i) => (
+        <path key={`b${i}`} d={w.d} className="gate-wire" />
+      ))}
+      {flowing &&
+        wires
+          .filter((w) => w.live)
+          .map((w, i) => <path key={`l${i}:${w.d}`} d={w.d} className="gate-wire live" style={{ ['--at' as string]: `${(w.at * step).toFixed(2)}s` }} />)}
+      {locks.map((l, i) => {
+        const y = ys[i]!
+        const size = Math.min(11.5, (GATE.labelEnd - 4) / Math.max(1, monoW(l.label, 1)))
+        return (
+          <g key={i} className={['gate-lock', l.on && 'on'].filter(Boolean).join(' ')} data-testid={`lock-${i}`} data-on={l.on ? 'yes' : 'no'} style={{ ['--i' as string]: i }}>
+            <text x={GATE.labelEnd} y={y - 1} className="gate-label" style={{ fontSize: `${size.toFixed(2)}px` }}>
+              {l.label}
+            </text>
+            <text x={GATE.labelEnd} y={y + 9.5} className="gate-truth">
+              {l.on ? 'True' : 'False'}
+            </text>
+            <circle cx={X} cy={y} r={r + 4} className="gate-halo" />
+            <circle cx={X} cy={y} r={r} className="gate-lamp" />
+            <path d={`M${X - 3} ${y + 2} q 1.5 -4 3 0 q 1.5 4 3 0`} className="gate-filament" />
+          </g>
+        )
+      })}
+      {n > 1 &&
+        ys.slice(0, -1).map((y, i) => {
+          const mid = (y + ys[i + 1]!) / 2
+          const cx = series ? X : GATE.right
+          return (
+            <g key={`op${i}`} className="gate-op">
+              <rect x={cx - 11} y={mid - 6} width="22" height="12" rx="6" />
+              <text x={cx} y={mid + 3.2}>
+                {p.op}
+              </text>
+            </g>
+          )
+        })}
+      {/* The gate: an arch of stone, the dark beyond, and the portcullis. */}
+      <g className="gate-arch">
+        <path
+          d={`M${GATE.archX} ${GATE.foot} V${oTop + archR} A${archR + 8} ${archR + 8} 0 0 1 ${GATE.archX + GATE.archW} ${oTop + archR} V${GATE.foot} Z`}
+          className="gate-stone"
+        />
+        <path d={`M${GATE.archX + 3} ${GATE.foot - 30} h8 M${GATE.archX + GATE.archW - 11} ${GATE.foot - 54} h8 M${GATE.archX + 3} ${GATE.foot - 74} h8 M${GATE.archX + GATE.archW - 11} ${GATE.foot - 16} h8`} className="gate-joints" />
+        <path d={opening} className="gate-beyond" />
+        <g className="gate-treasure">
+          <ellipse cx={ox + ow / 2} cy={GATE.foot - 6} rx={ow / 2 - 4} ry="7" />
+          <path d={`M${ox + ow / 2 - 7} ${GATE.foot - 8} l7 -10 l7 10 z`} className="gate-gem" />
+        </g>
+        <clipPath id={`gate-${clip}`}>
+          <path d={opening} />
+        </clipPath>
+        <g clipPath={`url(#gate-${clip})`}>
+          <g className="portcullis">
+            {Array.from({ length: 5 }, (_, k) => (
+              <rect key={k} x={ox + 3 + (k * (ow - 9)) / 4} y={oTop - 4} width="3.2" height={GATE.foot - oTop + 4} rx="1.2" className="gate-bar" />
+            ))}
+            {[oTop + 22, oTop + 48, oTop + 74].map((y) => (
+              <rect key={y} x={ox} y={y} width={ow} height="3.2" rx="1.2" className="gate-bar" />
+            ))}
+            <g className="gate-padlock" transform={`translate(${ox + ow / 2},${GATE.foot - 30})`}>
+              <path d="M-4.5 -3 V-6 a4.5 4.5 0 0 1 9 0 V-3" />
+              <rect x="-7" y="-3" width="14" height="11" rx="2" />
+            </g>
+          </g>
+        </g>
+        <circle cx={sock.x} cy={sock.y} r="5" className="gate-socket" />
+        <g className="gate-plaque" data-testid="gate-plaque">
+          <rect x={GATE.archX + GATE.archW / 2 - 24} y="2" width="48" height="18" rx="5" />
+          {/* Decided, the `?` gives way to the answer once the current has
+              had its say, so a demonstration does not answer itself first. */}
+          {flowing && (
+            <text x={GATE.archX + GATE.archW / 2} y="15.2" className="gate-plaque-was">
+              ?
+            </text>
+          )}
+          <text x={GATE.archX + GATE.archW / 2} y="15.2" className={flowing ? 'gate-plaque-now' : undefined}>
+            {plaque}
+          </text>
+        </g>
+      </g>
+    </g>
+  )
+}
+
+/* --- paths: if, elif, else — the first yes wins --- */
+
+const PATHS = { lane: 13, board: 26, boardW: 76, mark: 109, robot: 127, icon: 146, label: 158, top: 6, bottom: 114 } as const
+
+function pathRows(n: number): { y: number; h: number }[] {
+  const h = Math.min(30, (PATHS.bottom - PATHS.top) / Math.max(1, n))
+  const top = PATHS.top + 8 + (PATHS.bottom - PATHS.top - 8 - h * n) / 2
+  return Array.from({ length: n }, (_, i) => ({ y: top + h * (i + 0.5), h }))
+}
+
+const branchWords = (b: { test: string; result: string }) => (b.test.trim() === 'else' ? `else, ${b.result}` : `if ${b.test}, ${b.result}`)
+
+function pathsSentence(p: Extract<Prop, { kind: 'paths' }>): string {
+  const branches = p.branches.slice(0, PATHS_MAX)
+  const marks = pathMarks(p)
+  const signs = branches.map(branchWords).join('; ')
+  let end = ''
+  if (p.taken === null) end = ' Every sign said no, and the robot walks straight on.'
+  else if (p.taken !== undefined && marks[p.taken] === 'yes') {
+    const before = marks.filter((m) => m === 'no').length
+    const after = marks.filter((m) => m === 'skipped').length
+    end = `${before ? ` ${before === 1 ? 'The first sign said' : `The first ${before} signs said`} no.` : ''} ${branches[p.taken]!.test.trim() === 'else' ? 'So the robot takes else' : `${branches[p.taken]!.test} says yes`}: it goes to ${branches[p.taken]!.result}.${
+      after ? ` The ${after === 1 ? 'sign after it is' : `${after} signs after it are`} never checked.` : ''
+    }`
+  }
+  return `A fork in a cave tunnel, its signs checked from the top: ${signs}.${end}`
+}
+
+/**
+ * A cave corridor down the left, a side tunnel off it per branch, each
+ * with a signpost bearing its test and, at the far end, where it leads.
+ * The marks say what the robot found: a tick on the branch it took, a
+ * cross on each it checked before (no), and the ones after greyed out,
+ * never checked. The robot stands at the top until something is decided,
+ * then in the tunnel it took, or at the corridor's foot if none.
+ *
+ * `walk` walks it there: down the corridor, pausing at each sign as its
+ * mark lands, then into its tunnel. The walk is a keyframe made for these
+ * rows (`paths-walk-…`), written as where it has been, so its resting
+ * place is the plain style and reduced motion shows only that.
+ */
+function Paths({ p }: { p: Extract<Prop, { kind: 'paths' }> }) {
+  const branches = p.branches.slice(0, PATHS_MAX)
+  const n = branches.length
+  const rows = pathRows(n)
+  const marks = pathMarks(p)
+  const t = p.taken
+  const taken = t !== undefined && t !== null && marks[t] === 'yes' ? t : null
+  const none = t === null
+  const start = { x: PATHS.lane, y: 11 }
+  const end = taken !== null ? { x: PATHS.robot, y: rows[taken]!.y } : none ? { x: PATHS.lane, y: 116 } : start
+  // When the walk reaches each sign, and the keyframes that walk it.
+  const move = 0.45
+  const pause = 0.35
+  const visits = taken !== null ? taken + 1 : none ? n : 0
+  const arrive = (i: number) => (i + 1) * move + i * pause
+  const total = arrive(Math.max(0, visits - 1)) + pause + move
+  const walking = p.demo === 'walk' && (taken !== null || none)
+  const name = `paths-walk-${n}-${taken ?? (none ? 'none' : 'x')}`
+  const pct = (s: number) => `${((100 * s) / total).toFixed(2)}%`
+  const frames = [`0% { translate: ${start.x}px ${start.y}px; }`]
+  for (let i = 0; i < visits; i++) {
+    frames.push(`${pct(arrive(i))} { translate: ${PATHS.lane}px ${rows[i]!.y}px; }`)
+    frames.push(`${pct(arrive(i) + pause)} { translate: ${PATHS.lane}px ${rows[i]!.y}px; }`)
+  }
+  const rowSize = rows[0]?.h ?? 30
+  const robotK = Math.min(1.3, rowSize / 20)
+  return (
+    <g className={['paths', walking && 'walking', taken !== null && 'decided', none && 'none'].filter(Boolean).join(' ')} style={{ ['--walk' as string]: `${total.toFixed(2)}s` }}>
+      {walking && <style>{`@keyframes ${name} { ${frames.join(' ')} }`}</style>}
+      {/* The corridor, and straight on past the last sign. */}
+      <rect x={PATHS.lane - 11} y="0" width="22" height="128" rx="6" className="paths-lane" />
+      <path d={`M${PATHS.lane} 112 V126 M${PATHS.lane - 4} 121 L${PATHS.lane} 126 L${PATHS.lane + 4} 121`} className={`paths-on ${none ? 'lit' : ''}`} />
+      {branches.map((b, i) => {
+        const { y, h } = rows[i]!
+        const mark = marks[i]!
+        const isElse = b.test.trim() === 'else'
+        const bh = Math.min(20, h - 6)
+        const testText = isElse ? 'else' : b.test
+        const size = Math.min(11, (PATHS.boardW - 8) / Math.max(1, monoW(testText, 1)))
+        const icon = Math.min(h * 0.72, 20)
+        const label = short(b.result, 10)
+        const lsize = Math.min(9.5, (200 - PATHS.label - 2) / Math.max(1, monoW(label, 1)))
+        const when = walking ? arrive(i) : 0.15 + i * 0.12
+        return (
+          <g
+            key={i}
+            className={`paths-branch ${mark}`}
+            data-testid={`branch-${i}`}
+            data-mark={mark}
+            style={{ ['--when' as string]: `${when.toFixed(2)}s` }}
+          >
+            <rect x={PATHS.lane + 6} y={y - h * 0.32} width={200 - PATHS.lane - 8} height={h * 0.64} rx={h * 0.32} className="paths-tunnel" />
+            <path d={`M${PATHS.board + PATHS.boardW + 13} ${y} H${PATHS.icon - icon / 2 - 3}`} className="paths-arrow" />
+            {mark === 'yes' && <rect x={PATHS.lane + 6} y={y - h * 0.32} width={200 - PATHS.lane - 8} height={h * 0.64} rx={h * 0.32} className="paths-tunnel-lit" />}
+            <rect x={PATHS.board} y={y - bh / 2} width={PATHS.boardW} height={bh} rx="4" className="paths-board" />
+            {mark === 'yes' && <rect x={PATHS.board} y={y - bh / 2} width={PATHS.boardW} height={bh} rx="4" className="paths-board-lit" />}
+            <text x={PATHS.board + PATHS.boardW / 2} y={y + size * 0.36} className={`paths-test ${isElse ? 'else' : ''}`} style={{ fontSize: `${size.toFixed(2)}px` }}>
+              {testText}
+            </text>
+            <g transform={`translate(${PATHS.mark},${y})`}>
+              <g className="paths-mark">
+                <circle r="6.5" />
+                {mark === 'yes' && <path d="M-3 0.2 l2 2.2 l4 -4.6" />}
+                {mark === 'no' && <path d="M-2.6 -2.6 l5.2 5.2 M2.6 -2.6 l-5.2 5.2" />}
+                {mark === 'skipped' && <path d="M-2.8 0 h5.6" />}
+              </g>
+            </g>
+            <g transform={`translate(${PATHS.icon},${y}) scale(${(icon / 20).toFixed(3)})`} className="icon paths-icon" data-icon={pathIcon(b.result)}>
+              <Icon name={pathIcon(b.result)} />
+            </g>
+            <text x={PATHS.label} y={y + lsize * 0.36} className="paths-result" data-kind={kindOfLiteral(b.result)} style={{ fontSize: `${lsize.toFixed(2)}px` }}>
+              {label}
+            </text>
+          </g>
+        )
+      })}
+      <g
+        className="paths-robot"
+        data-testid="paths-robot"
+        style={{ translate: `${end.x}px ${end.y}px`, ...(walking ? { animationName: name } : {}) }}
+      >
+        <g transform={`scale(${robotK.toFixed(3)})`}>
+          <path d="M0 -10 V-7" className="pr-antenna" />
+          <circle cx="0" cy="-11" r="1.8" className="pr-bulb" />
+          <rect x="-8" y="-7" width="16" height="13" rx="4" className="pr-head" />
+          <rect x="-5.5" y="-4.5" width="11" height="7.5" rx="2.5" className="pr-screen" />
+          <circle cx="-2.4" cy="-1" r="1.3" className="pr-eye" />
+          <circle cx="2.4" cy="-1" r="1.3" className="pr-eye" />
+        </g>
+      </g>
+    </g>
+  )
+}
+
+/* --- tally: a loop adding up, one coin a pass --- */
+
+function tallySentence(view: PropView, p: Extract<Prop, { kind: 'tally' }>): string {
+  const values = p.values.slice(0, TALLY_MAX)
+  const things = p.item === 'gem' ? 'gems' : 'coins'
+  const label = p.label ?? 'total'
+  const at = p.mark
+  const pass =
+    at === undefined
+      ? ''
+      : at >= values.length
+        ? ` Every one is counted.`
+        : ` The loop is at the ${values[at]}${at > 0 ? `; ${values.slice(0, at).join(', ')} already counted` : ''}.`
+  const shown = tallyShows(view)
+  const holds = shown === null ? `${label} is empty` : `${label} holds ${shown.text}${shown.refused ? ', not taken' : ''}`
+  return `A row of ${values.length} ${things}: ${values.join(', ')}.${pass} ${holds}.`
+}
+
+/**
+ * A row of coins (or gems), each with its value on its face, and the
+ * counter the loop adds them into, drawn as memory draws a name: `total`
+ * on a pill, an arrow, and the value on a card. The loop's pass (`mark`)
+ * has a pointer over its coin, which glows, with a dashed arrow down into
+ * the counter; the coins before it are dimmed and ticked, counted. A
+ * number the robot thinks of is written on the card.
+ */
+function Tally({ view, p }: { view: PropView; p: Extract<Prop, { kind: 'tally' }> }) {
+  const values = p.values.slice(0, TALLY_MAX)
+  const n = Math.max(1, values.length)
+  const gap = 5
+  const r = Math.min(17, (194 - (n - 1) * gap) / (2 * n))
+  const cx = (i: number) => 100 - ((n - 1) * (2 * r + gap)) / 2 + i * (2 * r + gap)
+  const cy = 26 + r
+  const mark = p.mark
+  const at = mark !== undefined && mark >= 0 && mark < values.length ? mark : null
+  const counted = (i: number) => mark !== undefined && i < mark
+  const shown = tallyShows(view)
+  const label = p.label ?? 'total'
+  const gem = p.item === 'gem'
+  const ls = Math.min(12, 54 / Math.max(1, monoW(label, 1)))
+  const pillW = monoW(label, ls) + 14
+  const cardW = 58
+  const rowW = pillW + 22 + cardW
+  const px = 100 - rowW / 2
+  const card = { x: px + pillW + 22, y: 88, h: 30 }
+  const vsize = shown ? Math.min(16, (cardW - 8) / Math.max(1, monoW(shown.text, 1))) : 16
+  return (
+    <g className={['coin-tally', gem && 'gems'].filter(Boolean).join(' ')}>
+      {values.map((v, i) => {
+        const text = String(v)
+        const fs = Math.min(r * 0.95, (r * 1.5) / Math.max(1, monoW(text, 1)))
+        return (
+          <g
+            key={i}
+            className={['tally-coin', at === i && 'marked', counted(i) && 'counted'].filter(Boolean).join(' ')}
+            data-testid={`coin-${i}`}
+            data-marked={at === i ? 'yes' : undefined}
+            data-counted={counted(i) ? 'yes' : undefined}
+            style={{ ['--i' as string]: i }}
+          >
+            <g className="coin-face">
+              {gem ? (
+                <path d={`M${cx(i) - r * 0.62} ${cy - r * 0.8} H${cx(i) + r * 0.62} L${cx(i) + r} ${cy - r * 0.2} L${cx(i)} ${cy + r} L${cx(i) - r} ${cy - r * 0.2} Z`} className="tally-gem" />
+              ) : (
+                <>
+                  <circle cx={cx(i)} cy={cy} r={r} className="tally-rim" />
+                  <circle cx={cx(i)} cy={cy} r={r * 0.78} className="tally-inner" />
+                </>
+              )}
+              <text x={cx(i)} y={cy + fs * 0.36 - (gem ? r * 0.15 : 0)} className="tally-value" style={{ fontSize: `${fs.toFixed(2)}px` }}>
+                {text}
+              </text>
+            </g>
+            {counted(i) && (
+              <g transform={`translate(${cx(i) + r * 0.72},${cy - r * 0.72})`}>
+                <g className="tally-tick">
+                  <circle r="4.6" />
+                  <path d="M-2.2 0.1 l1.5 1.7 l3 -3.4" />
+                </g>
+              </g>
+            )}
+          </g>
+        )
+      })}
+      {at !== null && (
+        <g className="tally-pointer" style={{ translate: `${cx(at).toFixed(2)}px 0px` }} data-testid="tally-pointer">
+          <path d="M-7 4 H7 L0 13 Z" />
+          <path d={`M0 ${cy + r + 3} C0 ${cy + r + 16} ${card.x + cardW / 2 - cx(at)} ${card.y - 18} ${card.x + cardW / 2 - cx(at)} ${card.y - 3}`} className="tally-into" />
+        </g>
+      )}
+      <g className="tally-counter">
+        <rect x={px} y={card.y + card.h / 2 - 10} width={pillW} height="20" rx="10" className="tally-name" />
+        <text x={px + pillW / 2} y={card.y + card.h / 2 + ls * 0.36} className="tally-name-text" style={{ fontSize: `${ls.toFixed(2)}px` }}>
+          {label}
+        </text>
+        <path d={`M${px + pillW + 3} ${card.y + card.h / 2} H${card.x - 4} M${card.x - 8} ${card.y + card.h / 2 - 3.5} L${card.x - 3} ${card.y + card.h / 2} L${card.x - 8} ${card.y + card.h / 2 + 3.5}`} className="tally-arrow" />
+        <g className={['tally-card', shown === null && 'empty', shown?.refused && 'refused'].filter(Boolean).join(' ')} data-kind={shown?.kind ?? 'none'} data-testid="tally-card">
+          <rect x={card.x} y={card.y} width={cardW} height={card.h} rx="7" />
+          {shown && (
+            <text key={shown.text} x={card.x + cardW / 2} y={card.y + card.h / 2 + vsize * 0.36} style={{ fontSize: `${vsize.toFixed(2)}px` }}>
+              {shown.text}
+            </text>
+          )}
+        </g>
+      </g>
+    </g>
+  )
+}
+
+/* --- cases: the program, tried on several encounters --- */
+
+function casesSentence(view: PropView, p: Extract<Prop, { kind: 'cases' }>): string {
+  const rows = p.rows.slice(0, CASES_MAX)
+  const each = rows
+    .map((r, i) => {
+      const got = caseResult(view, i)
+      const tried = got === null ? '' : got.how === 'error' ? `; the program stopped with ${got.got}` : got.ok ? `; it got ${got.got}, right` : `; it got ${got.got}, not right`
+      return `with ${r.given}, ${p.name} should be ${r.want}${tried}`
+    })
+    .join('. ')
+  const ran = rows.some((_, i) => caseResult(view, i) !== null)
+  return `The robot tries the program on ${rows.length} case${rows.length === 1 ? '' : 's'}${ran ? '' : ', not run yet'}. ${each.charAt(0).toUpperCase()}${each.slice(1)}.`
+}
+
+/** A case's given values, one per line when there are several. */
+const givenLines = (given: string): string[] => given.split(/\s*[,;\n]\s*/).filter((g) => g.trim() !== '').slice(0, 2)
+
+/**
+ * A scoreboard of encounter cards: per case, a slime, the given values in
+ * code font, the value `name` should end up holding, what the program made
+ * of it (`caseResult`), and a ✓ or an amber ✗. A column header names the
+ * name, so "want" and "got" say of what.
+ */
+function Cases({ view, p }: { view: PropView; p: Extract<Prop, { kind: 'cases' }> }) {
+  const rows = p.rows.slice(0, CASES_MAX)
+  const n = Math.max(1, rows.length)
+  const col = { given: 24, want: 110, got: 155, mark: 189 } as const
+  const head = 22
+  const rowH = Math.min(30, (124 - head) / n)
+  const top = head + 2
+  const nameSize = Math.min(10, 70 / Math.max(1, monoW(p.name, 1)))
+  return (
+    <g className="cases">
+      <text x={(col.given + 36).toFixed(1)} y="17" className="cases-head">
+        given
+      </text>
+      <text x={(col.want + col.got) / 2} y="9.5" className="cases-name" style={{ fontSize: `${nameSize.toFixed(2)}px` }}>
+        {p.name}
+      </text>
+      <text x={col.want} y="19.5" className="cases-head">
+        want
+      </text>
+      <text x={col.got} y="19.5" className="cases-head">
+        got
+      </text>
+      {rows.map((r, i) => {
+        const y = top + i * rowH
+        const cy = y + rowH / 2
+        const res = caseResult(view, i)
+        const lines = givenLines(r.given)
+        const gsize = Math.min(11, rowH * (lines.length > 1 ? 0.34 : 0.42), 58 / Math.max(1, ...lines.map((l) => monoW(l, 1))))
+        const want = short(r.want, 9)
+        const wsize = Math.min(11.5, rowH * 0.42, 38 / Math.max(1, monoW(want, 1)))
+        const got = res === null ? '—' : short(res.got, 11)
+        const gotSize = Math.min(11.5, rowH * 0.42, 44 / Math.max(1, monoW(got, 1)))
+        const state = res === null ? 'untried' : res.ok ? 'ok' : 'wrong'
+        const k = Math.min(1, rowH / 24)
+        return (
+          <g key={i} className={`cases-row ${state}`} data-testid={`case-${i}`} data-state={state} style={{ ['--i' as string]: i }}>
+            <rect x="2" y={y + 1.2} width="196" height={rowH - 2.4} rx="6" className="cases-card" />
+            <g transform={`translate(13,${cy + 1}) scale(${k.toFixed(3)})`} className="cases-slime">
+              <path d="M-8 6 C-9 -1 -5 -7 0 -7 C5 -7 9 -1 8 6 Z" />
+              <circle cx="-2.8" cy="-1" r="1.4" className="eye" />
+              <circle cx="2.8" cy="-1" r="1.4" className="eye" />
+            </g>
+            <text x={col.given} y={cy + (lines.length > 1 ? -gsize * 0.2 : gsize * 0.36)} className="cases-given" style={{ fontSize: `${gsize.toFixed(2)}px` }}>
+              {lines.map((l, k2) => (
+                <tspan key={k2} x={col.given} dy={k2 === 0 ? 0 : gsize * 1.15}>
+                  {l}
+                </tspan>
+              ))}
+            </text>
+            <path d={`M${(col.want + col.got) / 2} ${y + 6} V${y + rowH - 6}`} className="cases-split" />
+            <text x={col.want} y={cy + wsize * 0.36} className="cases-want" data-kind={kindOfLiteral(r.want)} style={{ fontSize: `${wsize.toFixed(2)}px` }}>
+              {want}
+            </text>
+            <text
+              key={got}
+              x={col.got}
+              y={cy + gotSize * 0.36}
+              className={`cases-got ${res?.how ?? 'none'}`}
+              data-kind={res?.how === 'value' ? kindOfLiteral(res.got) : 'none'}
+              style={{ fontSize: `${gotSize.toFixed(2)}px` }}
+            >
+              {got}
+            </text>
+            {res !== null && (
+              <g transform={`translate(${col.mark},${cy})`} key={`${state}:${got}`}>
+                <g className="cases-mark">
+                  <circle r="7" />
+                  {res.ok ? <path d="M-3.2 0.2 l2.2 2.4 l4.2 -4.8" /> : <path d="M-2.8 -2.8 l5.6 5.6 M2.8 -2.8 l-5.6 5.6" />}
+                </g>
+              </g>
+            )}
           </g>
         )
       })}

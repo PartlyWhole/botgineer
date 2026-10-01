@@ -29,6 +29,8 @@ declare global {
       setProgram(text: string): void
       getProgram(): string
       run(): Promise<void>
+      /** An editor lesson: past the narration, the program in, and Run. */
+      send(program: string): Promise<void>
       /** Skips any narration first, then types the line. */
       say(line: string): Promise<void>
       beat(): Beat

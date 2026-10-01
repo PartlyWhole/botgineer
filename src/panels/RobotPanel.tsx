@@ -15,8 +15,9 @@
  * The transport and the transcript stay put across both views, so a run
  * can be started and scrubbed while looking at either.
  */
-import { useEffect, useRef, type ReactNode } from 'react'
-import { CodeEditor, type EditorApi } from '../ui/CodeEditor'
+import { useEffect, useMemo, useRef, type ReactNode } from 'react'
+import { CodeEditor, type CodeDemo, type EditorApi, type LineMarks } from '../ui/CodeEditor'
+import { runKeyHint } from '../ui/editorLines'
 import type { Demo } from '../ui/demo'
 import { RobotConsole, type Exchange } from '../ui/RobotConsole'
 import { Gutter, STACKED, useRemembered } from '../ui/Split'
@@ -54,7 +55,8 @@ type Props = {
   /** Read mode: the reading instrument, in place of the console or editor. */
   instrument?: ReactNode
   /** A lesson's narration is showing: the console is closed until the
-   *  question. The editor stays open — a program is written at leisure. */
+   *  question. The v1 editor stays open; the v2 editor closes like the
+   *  console (read only, Run off), so a beat is heard before it is acted on. */
   listening?: boolean | undefined
   /** A question is waiting for a typed answer: the instrument glows. */
   asked?: boolean | undefined
@@ -73,6 +75,11 @@ type Props = {
   /** Take the last line back (`Workbench.undo`), and whether there is one. */
   onUndo?: (() => void) | undefined
   canUndo?: boolean | undefined
+  /** v2 editor: the crow's program, shown in place of the player's. */
+  codeDemo?: CodeDemo | null | undefined
+  onCodeDemoTyped?: (() => void) | undefined
+  /** v2 editor: the run drawn onto the code's lines. */
+  lineMarks?: LineMarks | null | undefined
 }
 
 export function RobotPanel({
@@ -103,6 +110,9 @@ export function RobotPanel({
   onReset,
   onUndo,
   canUndo = false,
+  codeDemo = null,
+  onCodeDemoTyped,
+  lineMarks = null,
 }: Props) {
   const talking = mode === 'console'
   const reading = mode === 'read'
@@ -170,6 +180,15 @@ export function RobotPanel({
               onReady={onReady}
               traceLine={traceLine}
               disabled={busy}
+              look={look}
+              {...(look === 'v2' && {
+                marks: lineMarks,
+                demo: codeDemo,
+                onDemoTyped: onCodeDemoTyped,
+                // While someone talks the editor is closed, like the console.
+                readOnly: listening,
+                onRun: busy || disabled || listening || codeDemo !== null ? undefined : onRun,
+              })}
             />
           )}
         </div>
@@ -236,6 +255,17 @@ export function RobotPanel({
             </button>
           </div>
         )
+      ) : look === 'v2' ? (
+        <EditorTransport
+          onRun={onRun}
+          onStop={onStop}
+          busy={busy}
+          canRun={!busy && !disabled && !listening && codeDemo === null}
+          index={index}
+          total={total}
+          onIndex={onIndex}
+          pulse={focus === 'run'}
+        />
       ) : (
       <div className="transport">
         <button
@@ -270,7 +300,9 @@ export function RobotPanel({
       </div>
       )}
 
-      {!talking && (!reading || total > 0) && (
+      {!talking && !reading && look === 'v2' ? (
+        <OutputLog transcript={transcript} />
+      ) : !talking && (!reading || total > 0) && (
         <div className="transcript" data-testid="transcript" aria-live="polite">
           {transcript.map((t, i) => (
             <p key={i} className={`t-line ${t.kind}`}>
@@ -278,6 +310,179 @@ export function RobotPanel({
             </p>
           ))}
         </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * The v2 editor's transport: Run, Stop while there is something to stop,
+ * and a step-through for walking a finished run a line at a time.
+ *
+ * Run is the one loud control, and wears its key (⌘↵ or Ctrl↵) quietly
+ * beside its word for whoever already reaches for keys. The step buttons
+ * are the four a media player has, so nobody is told what they do; they
+ * sit dark until there is a run to walk. The slider is the same native
+ * range as ever, so its arrow keys, Home and End work for free.
+ */
+function EditorTransport({
+  onRun,
+  onStop,
+  busy,
+  canRun,
+  index,
+  total,
+  onIndex,
+  pulse,
+}: {
+  onRun: () => void
+  onStop: () => void
+  busy: boolean
+  canRun: boolean
+  index: number
+  total: number
+  onIndex: (i: number) => void
+  pulse: boolean
+}) {
+  const hint = useMemo(() => runKeyHint(platformName()), [])
+  const last = Math.max(0, total - 1)
+  const at = Math.min(index, last)
+  const none = total === 0 || busy
+  const go = (i: number) => onIndex(Math.max(0, Math.min(last, i)))
+  const pct = total > 1 ? (at / last) * 100 : total === 1 ? 100 : 0
+  return (
+    <div className="transport editor-transport" data-has-run={total > 0 ? 'yes' : 'no'}>
+      <button
+        type="button"
+        className={`run-key ${pulse ? 'pulse' : ''}`}
+        onClick={onRun}
+        disabled={!canRun}
+        data-testid="run"
+        aria-keyshortcuts="Control+Enter Meta+Enter Shift+Enter"
+        title={`Run (${hint})`}
+      >
+        {busy ? (
+          <span className="working" aria-hidden="true">
+            <span className="cell" />
+            <span className="cell" />
+            <span className="cell" />
+          </span>
+        ) : (
+          <svg className="run-icon" viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M4.5 2.8v10.4L13 8z" />
+          </svg>
+        )}
+        <span className="run-word">Run</span>
+        <kbd className="key-hint" aria-hidden="true">
+          {hint}
+        </kbd>
+      </button>
+      {busy && (
+        <button type="button" className="stop-key" onClick={onStop} data-testid="stop">
+          <svg viewBox="0 0 16 16" aria-hidden="true">
+            <rect x="3.5" y="3.5" width="9" height="9" rx="1.5" />
+          </svg>
+          <span>Stop</span>
+        </button>
+      )}
+
+      <div className="stepper" role="group" aria-label="Step through the run">
+        <StepButton label="First step" disabled={none || at === 0} onClick={() => go(0)} testid="step-first">
+          <path d="M4 3v10" />
+          <path d="M12.5 3.5 6.5 8l6 4.5z" className="fill" />
+        </StepButton>
+        <StepButton label="Step back" disabled={none || at === 0} onClick={() => go(at - 1)} testid="step-back">
+          <path d="M11 3.5 5 8l6 4.5z" className="fill" />
+        </StepButton>
+        <label className="scrub" style={{ ['--pct' as string]: `${pct}%` }}>
+          <span className="sr-only">Step through the run</span>
+          <input
+            type="range"
+            min={0}
+            max={last}
+            value={at}
+            disabled={total === 0}
+            onChange={(e) => onIndex(Number(e.target.value))}
+            data-testid="scrubber"
+            aria-label="Step through the run"
+            aria-valuetext={total === 0 ? 'No run yet' : `Step ${at + 1} of ${total}`}
+          />
+        </label>
+        <StepButton label="Step forward" disabled={none || at >= last} onClick={() => go(at + 1)} testid="step-forward">
+          <path d="M5 3.5 11 8l-6 4.5z" className="fill" />
+        </StepButton>
+        <StepButton label="Last step" disabled={none || at >= last} onClick={() => go(last)} testid="step-last">
+          <path d="M12 3v10" />
+          <path d="M3.5 3.5 9.5 8l-6 4.5z" className="fill" />
+        </StepButton>
+        <span className="step-label" data-testid="step-label">
+          {total === 0 ? '—' : `${at + 1} / ${total}`}
+        </span>
+      </div>
+    </div>
+  )
+}
+
+function StepButton({
+  label,
+  disabled,
+  onClick,
+  testid,
+  children,
+}: {
+  label: string
+  disabled: boolean
+  onClick: () => void
+  testid: string
+  children: ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      className="step-key"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={label}
+      title={label}
+      data-testid={testid}
+    >
+      <svg viewBox="0 0 16 16" aria-hidden="true">
+        {children}
+      </svg>
+    </button>
+  )
+}
+
+function platformName(): string {
+  if (typeof navigator === 'undefined') return ''
+  const data = (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData
+  return data?.platform || navigator.platform || navigator.userAgent
+}
+
+/**
+ * The robot's output log, under the editor: what the program printed, in
+ * the screen's grey, errors in its coral, and the run's end line as a
+ * quiet stamp. Before any run it is an empty strip with a dim prompt
+ * mark: the place output will land, shown rather than labelled.
+ */
+function OutputLog({ transcript }: { transcript: Transcript[] }) {
+  const ref = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    const el = ref.current
+    if (el) el.scrollTop = el.scrollHeight
+  }, [transcript])
+  return (
+    <div className="transcript output-log" data-testid="transcript" aria-live="polite" ref={ref}>
+      {transcript.length === 0 ? (
+        <span className="log-idle" aria-hidden="true">
+          ›
+        </span>
+      ) : (
+        transcript.map((t, i) => (
+          <p key={i} className={`t-line ${t.kind}`}>
+            {t.text}
+          </p>
+        ))
       )}
     </div>
   )

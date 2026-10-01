@@ -105,7 +105,9 @@ that set to about one per area so it stays under a minute.
 | `src/memory/handles.ts` | `obj1`, `obj2`, … Owned by the workbench, so every view that shows a handle shows the same one |
 | `src/panels/MemoryGraph.tsx` | the memory grid. SVG arrows + DOM cards sharing one camera; tweens positions by writing transforms straight to the elements, never through React |
 | `src/panels/graphLayout.ts` | the grid placement, the arrows, the tween and the camera. Pure and unit-tested. Read its header before changing it: a force layout lived here first, and why it was retired is measured, not remembered |
-| `src/ui/CodeEditor.tsx` | CodeMirror; `head`/`tail` optionally lock regions (unused by the workbench) |
+| `src/ui/CodeEditor.tsx` | CodeMirror; `head`/`tail` optionally lock regions (unused by the workbench). v2: the dark editor, the crow's program typed in (`demo`), and a run drawn line by line (`marks`) |
+| `src/ui/editorLines.ts` | what each line of a run is drawn as: ran (and how often), running now, skipped, stopped. Pure and unit-tested |
+| `content/lessons/v2/code.ts` | what the v2 editor lessons share: a program judged on the cases the robot tries it on, and the replies to a program that stopped the robot |
 | `src/ui/Split.tsx` | draggable, keyboard-operable gutters; sizes remembered in localStorage |
 | `src/app/Workbench.tsx` | the wiring: owns the run, the steps, the index, the snapshot |
 | `content/roadmap.ts` | the levels, grouped into units, in play order. The only place the order lives |
@@ -267,6 +269,11 @@ that set to about one per area so it stays under a minute.
    closed. All of these only grow, so everything
    derived from them stays monotonic, and the workbench builds them from
    the accepted history it already keeps.
+   A v2 editor lesson's evidence is its **runs** (`runs`): each program
+   sent, how it ended, the lines it reached, the memory it left, and how
+   it came out on each of the step's `cases` — the same program run again
+   quietly with other values, so a step knows the program decides rather
+   than the player.
 
    **Beats are narration, and which one shows is view state.** `script()`
    lays out what is said at a step — `[praise of the step before] + its
@@ -287,7 +294,7 @@ that set to about one per area so it stays under a minute.
    budget-elided values are marked `partial` and said so, never shown as
    complete.
 14. **`window.botgineer` is the test surface.** Browser tests drive
-   `setProgram`/`getProgram`/`run`/`say`/`snapshot`/`state`/`exercise`;
+   `setProgram`/`getProgram`/`run`/`send` (an editor lesson's `say`)/`say`/`snapshot`/`state`/`exercise`;
    for beats, `beat()` (`{ at, of, text, asking, speaker, kind,
    listening, choices, tried }`), `choose(id)` (picks a multiple-choice
    option), `next()` (advances without waiting for the typing) and

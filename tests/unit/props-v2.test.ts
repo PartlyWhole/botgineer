@@ -37,9 +37,22 @@ import {
   shelfSlots,
   shelved,
   slotOf,
+  asWritten,
+  caseResult,
+  gateCurrent,
+  gateOpens,
+  gateShows,
+  hudBar,
+  hudIcon,
+  literalBool,
+  pathIcon,
+  pathMarks,
+  sameLiteral,
+  tallyShows,
   type Prop,
   type PropView,
 } from '../../src/scene/props'
+import type { Run } from '../../content/lessons/core'
 import { PropLayer, describe as sentence } from '../../src/ui/Props'
 import type { MemorySnapshot } from '../../src/memory/model'
 
@@ -541,7 +554,7 @@ describe('a goal memory with a list', () => {
     expect(drawn({ ...view(alias), memory: same })).toMatch(/class="goal checked met"/)
   })
 
-  it('draws at most three rows with a list, five slots, and keeps a long list inside the frame', () => {
+  it('draws at most four rows with a list, five slots, and keeps a long list inside the frame', () => {
     const mixed = [
       { name: 'crew', value: '["Mira", "Bolt", "Sprocket", "Ada", "Zed", "Kit"]' },
       { name: 'total', value: '19' },
@@ -758,5 +771,260 @@ describe('a backpack', () => {
     expect(Math.min(...boxes.map((b) => b[0]!))).toBeGreaterThanOrEqual(4)
     expect(Math.max(...boxes.map((b) => b[0]! + b[2]!))).toBeLessThanOrEqual(196)
     expect(Math.max(...boxes.map((b) => b[1]! + b[3]!))).toBeLessThanOrEqual(117)
+  })
+})
+
+/* ------------------------- lessons 6 to 8: the cave ------------------------- */
+
+const snap = (bindings: [string, string, string][]): MemorySnapshot => {
+  const objects: MemorySnapshot['objects'] = {}
+  const out = bindings.map(([name, type, repr]) => {
+    const id = `v:${type}:${repr}`
+    objects[id] = { id, type, kind: 'value', repr, elements: null, partial: false }
+    return { name, scope: 'global', target: id }
+  })
+  return { bindings: out, objects, line: null }
+}
+
+describe('a status panel', () => {
+  const p = (mark?: string[]): Prop => ({
+    kind: 'hud',
+    stats: [
+      { name: 'hp', value: '80' },
+      { name: 'has_key', value: 'False' },
+      { name: 'bag', value: '["map", "torch"]' },
+    ],
+    ...(mark ? { mark } : {}),
+  })
+
+  it('picks each icon from the name, and a list draws its items', () => {
+    expect(hudIcon('hp', '80')).toBe('heart')
+    expect(hudIcon('health', '5')).toBe('heart')
+    expect(hudIcon('gold', '3')).toBe('coin')
+    expect(hudIcon('level', '6')).toBe('star')
+    expect(hudIcon('has_key', 'True')).toBe('key')
+    expect(hudIcon('torch_lit', 'False')).toBe('torch')
+    expect(hudIcon('potions', '2')).toBe('potion')
+    expect(hudIcon('gems', '2')).toBe('gem')
+    expect(hudIcon('name', '"Mira"')).toBe('tag')
+    expect(hudIcon('bag', '["map", "torch"]')).toBe('items')
+    expect(hudIcon('speed', '3')).toBe('tile')
+    expect(hudBar('80')).toBeCloseTo(0.8)
+    expect(hudBar('250')).toBe(1)
+    expect(hudBar('"x"')).toBeNull()
+    expect(literalBool('True')).toBe(true)
+    expect(literalBool('"True"')).toBeNull()
+  })
+
+  it('draws a row per stat, the marked ones framed, the False key ghosted', () => {
+    const html = drawn(view(p(['has_key'])))
+    expect(html).toMatch(/data-testid="hud-hp"/)
+    expect(html).toMatch(/data-testid="hud-has_key" data-marked="yes"/)
+    expect(html).toMatch(/hud-icon ghost/)
+    expect(html).toMatch(/data-kind="int"[^>]*>[\s\S]*?>80</)
+    expect(html).not.toContain('hud-badge')
+    expect(sentence(view(p(['has_key'])))).toBe('A status panel: hp is 80, has_key is False, bag holds map and torch. The question reads has_key.')
+  })
+
+  it('waits with a ? badge on the ask, and a bool is a verdict badge; amber when refused', () => {
+    expect(drawn({ ...view(p()), ask: 'Can we go in?' })).toMatch(/hud-badge waiting/)
+    const yes = view(p(), th('bool', 'True'), 'right')
+    expect(drawn(yes)).toMatch(/class="hud-badge "[\s\S]*>True</)
+    expect(refused(yes)).toBe(false)
+    const no = view(p(), th('bool', 'False'), 'miss')
+    expect(refused(no)).toBe(true)
+    expect(drawn(no)).toMatch(/hud-badge refused/)
+    expect(drawn(view(p(), th('int', '3'), 'miss'))).not.toContain('hud-badge')
+  })
+
+  it('keeps the panel on stage while values change, but not names', () => {
+    expect(sameProp(p(), { ...p(['hp']), stats: [{ name: 'hp', value: '20' }, { name: 'has_key', value: 'True' }, { name: 'bag', value: '[]' }] } as Prop)).toBe(true)
+    expect(sameProp(p(), { kind: 'hud', stats: [{ name: 'hp', value: '80' }] })).toBe(false)
+  })
+
+  it('keeps five rows inside the picture and clear of the answer tag', () => {
+    const five: Prop = { kind: 'hud', title: 'Mira', stats: ['hp', 'coins', 'level', 'potions', 'gems'].map((name) => ({ name, value: '12' })) }
+    const html = drawn(view(five, th('bool', 'True'), 'right'))
+    const rects = [...html.matchAll(/<rect x="([-\d.]+)" y="([-\d.]+)" width="([\d.]+)" height="([\d.]+)"/g)].map((m) => m.slice(1, 5).map(Number))
+    expect(Math.max(...rects.map((b) => b[1]! + b[3]!))).toBeLessThanOrEqual(116)
+    expect(html.match(/class="hud-row/g)).toHaveLength(5)
+  })
+})
+
+describe('a gate worked by and or or', () => {
+  const and = (a: boolean, b: boolean, demo?: 'try'): Prop => ({ kind: 'gate', op: 'and', locks: [{ label: 'has_key', on: a }, { label: 'level >= 5', on: b }], ...(demo ? { demo } : {}) })
+  const or = (a: boolean, b: boolean): Prop => ({ kind: 'gate', op: 'or', locks: [{ label: 'has_key', on: a }, { label: 'level >= 5', on: b }] })
+
+  it('opens for and only when every lamp is lit, for or when any is', () => {
+    expect(gateOpens({ op: 'and', locks: [{ on: true }, { on: true }] })).toBe(true)
+    expect(gateOpens({ op: 'and', locks: [{ on: true }, { on: false }] })).toBe(false)
+    expect(gateOpens({ op: 'or', locks: [{ on: false }, { on: true }] })).toBe(true)
+    expect(gateOpens({ op: 'or', locks: [{ on: false }, { on: false }] })).toBe(false)
+  })
+
+  it('carries the current through a series circuit only as far as the lamps are lit', () => {
+    expect(gateCurrent({ op: 'and', locks: [{ on: false }, { on: true }] })).toEqual({ into: [true, false], outOf: [false, false], gate: false })
+    expect(gateCurrent({ op: 'and', locks: [{ on: true }, { on: false }] })).toEqual({ into: [true, true], outOf: [true, false], gate: false })
+    expect(gateCurrent({ op: 'or', locks: [{ on: false }, { on: true }] })).toEqual({ into: [true, true], outOf: [false, true], gate: true })
+  })
+
+  it('waits shut with no current until answered; an agreeing bool opens or shuts it', () => {
+    expect(gateShows(view(and(true, true)))).toBe('waiting')
+    expect(drawn(view(and(true, true)))).not.toContain('gate-wire live')
+    expect(drawn(view(and(true, true)))).toMatch(/data-testid="gate-plaque"[\s\S]*?>\?</)
+    const open = view(or(false, true), th('bool', 'True'), 'right')
+    expect(gateShows(open)).toBe('open')
+    expect(drawn(open)).toMatch(/class="gate-prop open"/)
+    expect(drawn(open)).toContain('gate-wire live')
+    expect(sentence(open)).toMatch(/gate opens\.$/)
+    const shut = view(and(true, false), th('bool', 'False'), 'right')
+    expect(gateShows(shut)).toBe('shut')
+    expect(sentence(shut)).toMatch(/stays shut\.$/)
+  })
+
+  it('moves nothing for a bool that disagrees, or one refused, and says so in amber', () => {
+    expect(gateShows(view(and(true, false), th('bool', 'True'), null))).toBe('refused')
+    const no = view(and(true, true), th('bool', 'True'), 'miss')
+    expect(gateShows(no)).toBe('refused')
+    expect(refused(no)).toBe(true)
+    expect(drawn(no)).toMatch(/class="gate-prop refused"/)
+    expect(drawn(no)).toContain('>True?<')
+    expect(drawn(no)).not.toContain('gate-wire live')
+    expect(gateShows(view(and(true, true), th('str', "'yes'"), 'miss'))).toBe('waiting')
+  })
+
+  it('lets the try demonstration decide, and keeps the gate while lamps change', () => {
+    expect(gateShows(view(and(true, true, 'try')))).toBe('open')
+    expect(gateShows(view(and(true, false, 'try')))).toBe('shut')
+    expect(sameProp(and(true, false), and(true, true, 'try'))).toBe(true)
+    expect(sameProp(and(true, false), or(true, false))).toBe(false)
+    expect(drawn(view(or(true, false))).match(/class="gate-op"/g)).toHaveLength(1)
+    expect(sentence(view(and(true, false)))).toMatch(/^A cave gate worked by lamps in a row on one wire \(and/)
+  })
+})
+
+describe('a fork of if, elif and else', () => {
+  const branches = [
+    { test: 'hp > 50', result: '"fight"' },
+    { test: 'potions > 0', result: '"drink"' },
+    { test: 'else', result: '"run"' },
+  ]
+  const p = (taken?: number | null, demo?: 'walk'): Prop => ({ kind: 'paths', branches, ...(taken !== undefined ? { taken } : {}), ...(demo ? { demo } : {}) })
+
+  it('ticks the branch taken, crosses those before it and skips those after', () => {
+    expect(pathMarks({ branches })).toEqual(['none', 'none', 'none'])
+    expect(pathMarks({ branches, taken: 1 })).toEqual(['no', 'yes', 'skipped'])
+    expect(pathMarks({ branches, taken: 0 })).toEqual(['yes', 'skipped', 'skipped'])
+    expect(pathMarks({ branches, taken: null })).toEqual(['no', 'no', 'no'])
+    expect(drawn(view(p(1)))).toMatch(/data-testid="branch-2" data-mark="skipped"/)
+  })
+
+  it('names an icon for where a branch leads', () => {
+    expect(pathIcon('"fight"')).toBe('sword')
+    expect(pathIcon("'drink'")).toBe('potion')
+    expect(pathIcon('run')).toBe('boots')
+    expect(pathIcon('"sneak"')).toBe('sneak')
+    expect(pathIcon('"rest"')).toBe('campfire')
+    expect(pathIcon('"open"')).toBe('door')
+    expect(pathIcon('"dance"')).toBe('sign')
+  })
+
+  it('says the first yes wins and the rest are never checked', () => {
+    expect(sentence(view(p(1)))).toBe(
+      'A fork in a cave tunnel, its signs checked from the top: if hp > 50, "fight"; if potions > 0, "drink"; else, "run". The first sign said no. potions > 0 says yes: it goes to "drink". The sign after it is never checked.',
+    )
+    expect(sentence(view(p(null)))).toMatch(/Every sign said no, and the robot walks straight on\.$/)
+  })
+
+  it('walks with keyframes made for its rows, and keeps the fork while it decides', () => {
+    const html = drawn(view(p(2, 'walk')))
+    expect(html).toContain('@keyframes paths-walk-3-2')
+    expect(html).toContain('animation-name:paths-walk-3-2')
+    expect(drawn(view(p(2)))).not.toContain('@keyframes')
+    expect(sameProp(p(), p(1, 'walk'))).toBe(true)
+  })
+})
+
+describe('a tally of coins', () => {
+  const p = (mark?: number, total?: number | null): Prop => ({ kind: 'tally', values: [3, 5, 2], ...(mark !== undefined ? { mark } : {}), ...(total !== undefined ? { total } : {}) })
+
+  it('points at the pass, ticks what is counted, and shows the total', () => {
+    const html = drawn(view(p(1, 3)))
+    expect(html).toMatch(/data-testid="coin-0" data-counted="yes"/)
+    expect(html).toMatch(/data-testid="coin-1" data-marked="yes"/)
+    expect(html).toContain('data-testid="tally-pointer"')
+    expect(html).toMatch(/data-kind="int" data-testid="tally-card"[\s\S]*?>3</)
+    expect(sentence(view(p(1, 3)))).toBe('A row of 3 coins: 3, 5, 2. The loop is at the 5; 3 already counted. total holds 3.')
+    expect(drawn(view(p()))).toMatch(/tally-card empty/)
+    expect(sentence(view(p(3, 10)))).toMatch(/Every one is counted\. total holds 10\.$/)
+  })
+
+  it('writes a number the robot thinks of in the counter, amber when refused', () => {
+    expect(tallyShows(view(p(3, null), th('int', '10'), 'right'))).toEqual({ text: '10', kind: 'int', refused: false })
+    const no = view(p(3), th('float', '10.0'), 'miss')
+    expect(tallyShows(no)!.refused).toBe(true)
+    expect(refused(no)).toBe(true)
+    expect(drawn(no)).toMatch(/tally-card refused/)
+    expect(tallyShows(view(p(), th('str', "'10'"), 'miss'))).toBeNull()
+    expect(sameProp(p(0, 0), p(2, 8))).toBe(true)
+  })
+})
+
+describe('a scoreboard of cases', () => {
+  const p: Prop = { kind: 'cases', name: 'action', rows: [{ given: 'hp = 20', want: '"run"' }, { given: 'hp = 80', want: '"fight"' }, { given: 'hp = 0', want: '"rest"' }] }
+  const run = (cases: { raised?: string; mem: [string, string, string][] }[]): Run => ({
+    source: '',
+    ok: true,
+    raised: null,
+    line: null,
+    ran: [],
+    final: snap([]),
+    cases: cases.map((c, i) => ({ given: { hp: ['20', '80', '0'][i]! }, ok: !c.raised, raised: c.raised ?? null, final: snap(c.mem) })),
+  })
+
+  it('reads each case from the run: the value, nothing, or the error', () => {
+    const v: PropView = { ...view(p), run: run([{ mem: [['action', 'str', "'run'"]] }, { mem: [['action', 'str', "'run'"]] }, { raised: 'NameError', mem: [] }]) }
+    expect(caseResult(v, 0)).toEqual({ got: '"run"', ok: true, how: 'value' })
+    expect(caseResult(v, 1)).toEqual({ got: '"run"', ok: false, how: 'value' })
+    expect(caseResult(v, 2)).toEqual({ got: 'NameError', ok: false, how: 'error' })
+    expect(caseResult({ ...view(p), run: run([{ mem: [['hp', 'int', '20']] }]) }, 0)).toEqual({ got: 'nothing', ok: false, how: 'nothing' })
+    expect(caseResult({ ...view(p), run: run([{ raised: 'steps', mem: [] }]) }, 0)!.got).toBe('never ends')
+    expect(caseResult(view(p), 0)).toBeNull()
+    expect(caseResult(v, 5)).toBeNull()
+    // A run tried on another step's cases is not this scoreboard's.
+    const other: PropView = { ...v, run: { ...v.run!, cases: v.run!.cases!.map((c) => ({ ...c, given: { cave: '[]' } })) } }
+    expect(caseResult(other, 0)).toBeNull()
+    const html = drawn(v)
+    expect(html).toMatch(/data-testid="case-0" data-state="ok"/)
+    expect(html).toMatch(/data-testid="case-1" data-state="wrong"/)
+    expect(sentence(v)).toMatch(/with hp = 80, action should be "fight"; it got "run", not right/)
+  })
+
+  it('reads a list by its items, as Python writes them', () => {
+    const bag: Prop = { kind: 'cases', name: 'bag', rows: [{ given: 'cave = ["gem"]', want: "['gem']" }] }
+    const final: MemorySnapshot = {
+      bindings: [{ name: 'bag', scope: 'global', target: 'L' }],
+      objects: {
+        L: { id: 'L', type: 'list', kind: 'reference', repr: '1 item', elements: [{ label: '0', target: 'g' }], partial: false },
+        g: { id: 'g', type: 'str', kind: 'value', repr: "'gem'", elements: null, partial: false },
+      },
+      line: null,
+    }
+    const r: Run = { source: '', ok: true, raised: null, line: null, ran: [], final, cases: [{ given: { cave: '["gem"]' }, ok: true, raised: null, final }] }
+    expect(caseResult({ ...view(bag), run: r }, 0)).toEqual({ got: "['gem']", ok: true, how: 'value' })
+  })
+
+  it('shows a dash and no marks before a run', () => {
+    const html = drawn(view(p))
+    expect(html).not.toContain('cases-mark')
+    expect(html.match(/>—</g)).toHaveLength(3)
+    expect(sentence(view(p))).toMatch(/^The robot tries the program on 3 cases, not run yet\./)
+  })
+
+  it('compares literals by value, whichever quotes', () => {
+    expect(asWritten("'run'")).toBe('"run"')
+    expect(asWritten('42')).toBe('42')
+    expect(sameLiteral("'it\\'s'", '"it\'s"')).toBe(true)
+    expect(sameLiteral('"run"', '"Run"')).toBe(false)
   })
 })

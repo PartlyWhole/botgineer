@@ -2129,6 +2129,170 @@ button.tidy:hover {
   vector-effect: non-scaling-stroke;
 }
 
+/* ---- the cave (`Cave`, ScenePanel) ----
+   Lantern-warm and pale where the speech and the pictures stand; the
+   rock is a soft grey-lavender, cool enough that Mira's orange, the
+   robot's blue and the crow's navy all stand out from it, and only the
+   tunnel at the back is dark. */
+.backdrop[data-backdrop='cave'] {
+  background:
+    radial-gradient(70% 55% at 50% 30%, #fffaf1 0%, rgb(255 250 241 / 0) 100%),
+    linear-gradient(#f6efe6 0%, #f1e8dc calc(var(--floor-at, 76%) * 0.6), #e6dacb var(--floor-at, 76%));
+}
+.backdrop .bd-lantern-glow {
+  position: absolute;
+  top: calc(var(--floor-at, 76%) * 0.42);
+  width: 34cqw;
+  height: 34cqw;
+  translate: -50% -50%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgb(255 200 110 / 0.55), rgb(255 200 110 / 0));
+}
+.backdrop .bd-lantern-glow[style*='right'] {
+  translate: 50% -50%;
+}
+.backdrop .bd-cave-back,
+.backdrop .bd-tunnel,
+.backdrop .bd-crystals {
+  bottom: calc(100% - var(--floor-at, 76%));
+}
+.backdrop .bd-cave-back {
+  left: 0;
+  width: 100%;
+  height: min(16cqw, calc(var(--floor-at, 76%) * 0.3));
+}
+.backdrop .bd-back-rock {
+  fill: #e3d8cd;
+}
+.backdrop .bd-back-rock-near {
+  fill: #d8ccc1;
+}
+.backdrop .bd-tunnel {
+  width: 11cqw;
+  height: calc(11cqw * 1.2);
+  translate: -50% 0;
+}
+.backdrop .bd-tunnel-rim {
+  fill: #b9adb0;
+}
+.backdrop .bd-tunnel-dark {
+  fill: #5e5260;
+}
+.backdrop .bd-tunnel-deep {
+  fill: #3f3646;
+}
+.backdrop .bd-ceiling {
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 11cqw;
+}
+.backdrop .bd-ceiling-rock {
+  fill: #d6ccc9;
+}
+.backdrop .bd-wall-crack {
+  fill: none;
+  stroke: #ada2a9;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+.backdrop .bd-wall {
+  top: 0;
+  height: var(--floor-at, 76%);
+  width: 15cqw;
+}
+.backdrop .bd-wall.left {
+  left: 0;
+}
+.backdrop .bd-wall.right {
+  right: 0;
+}
+.backdrop .bd-wall-rock {
+  fill: #cdc3c6;
+}
+.backdrop .bd-wall-shade {
+  fill: #bdb2b8;
+}
+.backdrop .bd-crystals {
+  width: 9cqw;
+  height: 9cqw;
+}
+.backdrop .bd-crystals.left {
+  left: 0.5cqw;
+}
+.backdrop .bd-crystals.right {
+  right: 0.5cqw;
+}
+/* A cluster high in the right wall, under the ceiling's edge. */
+.backdrop .bd-crystals.high {
+  bottom: auto;
+  top: calc(var(--floor-at, 76%) * 0.2);
+  right: 1.5cqw;
+  width: 7cqw;
+  height: 7cqw;
+  rotate: -18deg;
+}
+.backdrop .bd-crystal path {
+  fill: #8fdbe6;
+  stroke: #4aa9b8;
+  stroke-width: 1;
+  stroke-linejoin: round;
+}
+.backdrop .bd-crystal.b path {
+  fill: #c9b6f2;
+  stroke: #8c72cf;
+}
+.backdrop .bd-crystal .bd-crystal-face {
+  fill: rgb(255 255 255 / 0.4);
+  stroke: none;
+}
+.backdrop .bd-crystals {
+  filter: drop-shadow(0 0 0.8cqw rgb(143 219 230 / 0.6));
+}
+.backdrop .bd-lantern {
+  top: calc(var(--floor-at, 76%) * 0.42 - 5.5cqw);
+  width: 7.5cqw;
+  height: 11.25cqw;
+}
+.backdrop .bd-lantern.left {
+  left: 3cqw;
+}
+.backdrop .bd-lantern.right {
+  right: 3cqw;
+}
+.backdrop .bd-bracket {
+  fill: none;
+  stroke: #6f5f58;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
+.backdrop .bd-lantern-top,
+.backdrop .bd-lantern-base {
+  fill: #6f5f58;
+}
+.backdrop .bd-lantern-glass {
+  fill: #ffe6a8;
+  stroke: #6f5f58;
+  stroke-width: 2;
+}
+.backdrop .bd-lantern-flame {
+  fill: #ff9f40;
+}
+.backdrop[data-backdrop='cave'] .bd-ground-fill {
+  fill: #d9cdbd;
+}
+.backdrop[data-backdrop='cave'] .bd-trail {
+  fill: #e8dece;
+}
+.backdrop .bd-pebbles {
+  stroke: #bfb09d;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
 /* On a backdrop the floor is the ground it draws: only the contact line
    and the cast's shadows stay. */
 .stage[data-backdrop] .floor {

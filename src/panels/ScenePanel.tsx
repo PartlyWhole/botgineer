@@ -279,9 +279,11 @@ export function ScenePanel({
   useFootRoom(panelRef, view.waitingFor.length)
   const stageRef = useRef<HTMLDivElement | null>(null)
   usePropsTop(stageRef, [spec, meter !== undefined, telling !== undefined && telling.steps > 0])
-  // A goal memory is read row by row, so it stands up top, where it can be
-  // large, rather than on the floor between the cast (`useRaised`).
-  const raise = staging?.current?.prop.kind === 'goal'
+  // A picture read row by row or line by line — a goal memory, a game
+  // panel, a gate's lamps, a fork's signs, a tally, a scoreboard, code —
+  // stands up top, where it can be large, rather than on the floor
+  // between the cast (`useRaised`).
+  const raise = RAISED.has(staging?.current?.prop.kind ?? '')
   useRaised(stageRef, raise, spec.props?.w ?? 0, [guide?.text, thought])
 
   return (
@@ -1135,6 +1137,9 @@ function usePropsTop(ref: { current: HTMLDivElement | null }, deps: unknown[]) {
  * stage as `--raised-w` and `data-raised`: drawing, never state. Too little
  * room to be much larger, and it stays on the floor.
  */
+/** The pictures that stand up top when there is room (`useRaised`). */
+const RAISED = new Set(['goal', 'hud', 'gate', 'paths', 'tally', 'cases', 'code'])
+
 function useRaised(ref: { current: HTMLDivElement | null }, raise: boolean, slotPct: number, deps: unknown[]) {
   useLayoutEffect(() => {
     const stage = ref.current
@@ -1605,6 +1610,7 @@ const ROCK_W = 26
 const MOUTH = 0.12
 
 export function Backdrop({ kind }: { kind: 'trailhead' | 'cave' }) {
+  if (kind === 'cave') return <Cave />
   const meet = 100 - ROCK_W * (1 - MOUTH)
   return (
     <div className="backdrop" data-backdrop={kind} data-testid="backdrop" aria-hidden="true">
@@ -1656,6 +1662,110 @@ export function Backdrop({ kind }: { kind: 'trailhead' | 'cave' }) {
         <path className="bd-grass" d="M4 34 h7 M14 60 h9 M70 52 h8 M82 80 h10 M60 22 h6" />
       </svg>
     </div>
+  )
+}
+
+/**
+ * Inside the cave: rock walls arching in at either side, stalactites
+ * along the ceiling, crystals glowing in the walls, a lantern on each
+ * wall with its warm pool of light, and a tunnel at the back running
+ * deeper in, at `TUNNEL` across (the gap between the robot and a third
+ * character, where the trailhead had its mouth).
+ *
+ * The middle and the top are a pale, lantern-warm wash, not dark rock:
+ * the speech, the robot's cloud and the pictures stand there, and read as
+ * they do on the plain stage. Everything dark is small, low and at the
+ * edges. Each layer is sized by the stage's width and stands on the floor
+ * line, like the trailhead's; the walls alone run from the top of the
+ * stage to the floor, whatever its height.
+ */
+const TUNNEL = 76
+
+function Cave() {
+  return (
+    <div className="backdrop" data-backdrop="cave" data-testid="backdrop" aria-hidden="true">
+      {/* The lanterns' light, warm pools on the walls (behind the rock's
+          shapes, so it reads as light on them). */}
+      <div className="bd-lantern-glow" style={{ left: '7cqw' }} />
+      <div className="bd-lantern-glow" style={{ right: '7cqw' }} />
+      {/* The back of the cave: a low line of boulders and the tunnel. */}
+      <svg className="bd-cave-back" viewBox="0 0 1000 200" preserveAspectRatio="none">
+        <path className="bd-back-rock" d="M0 200 L0 120 C60 96 120 110 180 92 C250 70 320 104 400 96 C470 88 540 60 620 78 C700 96 780 70 860 84 C920 94 960 80 1000 90 L1000 200 Z" />
+        <path className="bd-back-rock-near" d="M0 200 L0 160 C80 146 160 158 250 150 C330 142 420 160 520 152 C620 144 700 156 800 150 C880 145 950 156 1000 150 L1000 200 Z" />
+      </svg>
+      <svg className="bd-tunnel" viewBox="0 0 100 120" preserveAspectRatio="xMidYMax meet" style={{ left: `${TUNNEL}%` }}>
+        <path className="bd-tunnel-rim" d="M2 120 L2 58 C2 22 26 2 50 2 C74 2 98 22 98 58 L98 120 Z" />
+        <path className="bd-tunnel-dark" d="M12 120 L12 62 C12 32 30 14 50 14 C70 14 88 32 88 62 L88 120 Z" />
+        <path className="bd-tunnel-deep" d="M30 120 L30 76 C30 56 40 44 50 44 C60 44 70 56 70 76 L70 120 Z" />
+      </svg>
+      {/* The ceiling: a band of rock along the top, its stalactites long at
+          the sides and short over the middle, where the speech goes. */}
+      <svg className="bd-ceiling" viewBox="0 0 1000 90" preserveAspectRatio="none">
+        <path
+          className="bd-ceiling-rock"
+          d="M0 0 H1000 V22 L985 70 L968 26 L948 52 L930 24 L905 84 L884 22 L860 40 L840 20 L815 30 L790 18 L760 26 L730 16 L690 22 L650 14 L600 20 L560 13 L520 19 L480 13 L440 20 L400 14 L360 22 L320 16 L280 24 L250 18 L215 30 L190 20 L165 42 L140 22 L118 82 L96 24 L76 50 L58 24 L36 66 L18 24 L0 30 Z"
+        />
+      </svg>
+      {/* The walls, arching in at either side from the ceiling to the floor. */}
+      <svg className="bd-wall left" viewBox="0 0 100 400" preserveAspectRatio="none">
+        <path className="bd-wall-rock" d="M0 0 H100 L86 14 L74 20 L66 44 L56 58 L52 92 L44 112 L46 150 L38 178 L42 216 L48 246 L45 284 L55 314 L60 352 L72 400 H0 Z" />
+        <path className="bd-wall-shade" d="M0 0 H50 L40 40 L30 70 L28 120 L22 160 L26 210 L24 260 L30 310 L34 360 L40 400 H0 Z" />
+        <path className="bd-wall-crack" d="M50 96 L40 104 M44 220 L34 232 L36 244 M52 318 L42 326" />
+      </svg>
+      <svg className="bd-wall right" viewBox="0 0 100 400" preserveAspectRatio="none">
+        <path className="bd-wall-rock" d="M100 0 H0 L14 14 L26 20 L34 44 L44 58 L48 92 L56 112 L54 150 L62 178 L58 216 L52 246 L55 284 L45 314 L40 352 L28 400 H100 Z" />
+        <path className="bd-wall-shade" d="M100 0 H50 L60 40 L70 70 L72 120 L78 160 L74 210 L76 260 L70 310 L66 360 L60 400 H100 Z" />
+        <path className="bd-wall-crack" d="M50 96 L60 104 M56 220 L66 232 L64 244 M48 318 L58 326" />
+      </svg>
+      {/* Crystals in the walls, and a lantern on a bracket on each. */}
+      <svg className="bd-crystals left" viewBox="0 0 60 60">
+        <Crystal x={18} y={48} h={34} tint="a" />
+        <Crystal x={34} y={52} h={22} tint="b" />
+        <Crystal x={8} y={54} h={16} tint="b" />
+      </svg>
+      <svg className="bd-crystals high" viewBox="0 0 60 60">
+        <Crystal x={22} y={50} h={26} tint="a" />
+        <Crystal x={34} y={52} h={16} tint="b" />
+      </svg>
+      <svg className="bd-crystals right" viewBox="0 0 60 60">
+        <Crystal x={40} y={50} h={30} tint="b" />
+        <Crystal x={26} y={54} h={18} tint="a" />
+      </svg>
+      <svg className="bd-lantern left" viewBox="0 0 40 60">
+        <Lantern />
+      </svg>
+      <svg className="bd-lantern right" viewBox="0 0 40 60">
+        <Lantern flip />
+      </svg>
+      {/* Below the line: the cave floor, and a worn path to the tunnel. */}
+      <svg className="bd-ground" viewBox="0 0 100 100" preserveAspectRatio="none">
+        <rect x="0" y="0" width="100" height="100" className="bd-ground-fill" />
+        <path className="bd-trail" d={`M30 100 C40 64 ${TUNNEL - 14} 26 ${TUNNEL - 3} 0 L${TUNNEL + 3} 0 C${TUNNEL - 6} 30 56 66 54 100 Z`} />
+        <path className="bd-pebbles" d="M8 30 h4 M18 62 h5 M84 44 h5 M90 76 h6 M66 18 h3 M4 86 h5" />
+      </svg>
+    </div>
+  )
+}
+
+function Crystal({ x, y, h, tint }: { x: number; y: number; h: number; tint: 'a' | 'b' }) {
+  const w = h * 0.36
+  return (
+    <g className={`bd-crystal ${tint}`}>
+      <path d={`M${x} ${y - h} L${x + w} ${y - h * 0.62} L${x + w * 0.8} ${y} L${x - w * 0.8} ${y} L${x - w} ${y - h * 0.62} Z`} />
+      <path className="bd-crystal-face" d={`M${x} ${y - h} L${x + w} ${y - h * 0.62} L${x + w * 0.8} ${y} L${x} ${y} Z`} />
+    </g>
+  )
+}
+
+function Lantern({ flip = false }: { flip?: boolean }) {
+  return (
+    <g className="bd-lantern-body" transform={flip ? 'translate(40,0) scale(-1,1)' : undefined}>
+      <path className="bd-bracket" d="M0 10 H22 V16" />
+      <path className="bd-lantern-top" d="M14 16 H30 L27 22 H17 Z" />
+      <rect className="bd-lantern-glass" x="15" y="22" width="14" height="20" rx="3" />
+      <path className="bd-lantern-flame" d="M22 26 C25 30 25.5 33 24 36 H20 C18.5 33 19 30 22 26 Z" />
+      <rect className="bd-lantern-base" x="14" y="42" width="16" height="4" rx="1.5" />
+    </g>
   )
 }
 

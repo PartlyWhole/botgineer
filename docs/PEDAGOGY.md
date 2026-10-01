@@ -45,6 +45,17 @@ Two rules for the whole progression:
 - **Vocabulary is earned.** A term appears on screen as a label the moment
   it is named and stays for the rest of the lesson. No term is used before
   its label exists.
+- **An editor program is judged on what it does, on more than one case.**
+  A program that sets the answer by hand is right for the value on screen
+  and wrong for the next, so from `else` on the robot tries the program on
+  each of the step's cases and draws them as a scoreboard (`cases`); the
+  reply names the case that came out wrong. The first `if` is still
+  judged on one run, then the same program run again with the value
+  changed, so the learner *sees* the program decide.
+- **The crow's runs are real runs, shown a moment at a time.** A loop is
+  walked pass by pass (`Beat.run`), the line running lit and each line's
+  visits counted, and an `if`'s skipped block is dimmed at the end of the
+  run: never a drawing of what Python does, always Python doing it.
 - **A position in a list is an *index*, never a "number".** "Slot" is the
   place; its index is what goes in the square brackets: "the slot at index
   `2`", "what index will it land at?", "indexes count from `0`". Never

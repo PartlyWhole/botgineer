@@ -22,7 +22,7 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { session, useRuntime } from '../runtime/shared'
 import type { StepRecord, TerminalRecord } from '../runtime/types'
-import { extractMemory, runEvidence, thought, type RunEvidence } from '../memory/extract'
+import { extractMemory, reachedBy, runEvidence, runOf, thought, type RunEvidence } from '../memory/extract'
 import { useHandles } from '../memory/handles'
 import { EMPTY, type MemorySnapshot } from '../memory/model'
 import { buildProgram, isExpression, type Entry } from '../repl/program'
@@ -41,8 +41,10 @@ import {
   type Line,
   type LineMemory,
   type Pick,
+  type Run,
   type ScriptItem,
   type Spoken,
+  withCase,
 } from '../../content/lessons'
 import { NO_STAGING } from '../scene/props'
 import { goToMap } from './router'
@@ -66,11 +68,15 @@ import { RobotPanel, type Transcript } from '../panels/RobotPanel'
 import type { Demo } from '../ui/demo'
 import type { Exchange } from '../ui/RobotConsole'
 import type { EditorApi } from '../ui/CodeEditor'
+import type { LineMarks } from '../ui/editorLines'
 import { Gutter, STACKED, useRemembered, useStacked } from '../ui/Split'
 
 /** What one call to the engine came back with. `output` is everything the
  *  whole program printed — replay included. Separating out the part the
  *  new line is responsible for is the console's job, not the engine's. */
+/** What the editor shows of a run, line by line (`ui/editorLines`). */
+type Marks = LineMarks
+
 type Outcome = {
   terminal: TerminalRecord | null
   threw: string | null
@@ -127,6 +133,8 @@ export function Workbench({ activity }: { activity: Activity }) {
    *  `thoughts`, only grown within a visit, and never stored. */
   const [picks, setPicks] = useState<Pick[]>([])
   const [lastPick, setLastPick] = useState<Pick | null>(null)
+  /** An editor lesson's runs of the player's program (`Evidence.runs`). */
+  const [runs, setRuns] = useState<Run[]>([])
   const programRef = useRef(program)
   programRef.current = program
 
@@ -142,6 +150,7 @@ export function Workbench({ activity }: { activity: Activity }) {
     setLastLine(null)
     setPicks([])
     setLastPick(null)
+    setRuns([])
     spokenRef.current = ''
     setProgram(activity.starter)
     editorRef.current?.replace(activity.starter)
@@ -170,6 +179,9 @@ export function Workbench({ activity }: { activity: Activity }) {
   // "Memory is empty" about a robot that still had everything. The console
   // has no scrubber, so the last accepted memory is simply what it shows.
   const snapshot = talking ? (lineMemory[lineMemory.length - 1]?.memory ?? EMPTY) : live
+  /** A v2 editor lesson is judged on its runs, as a console lesson is on
+   *  its lines: what memory a run *left*, not where the scrubber is. */
+  const judgedOnRuns = activity.mode === 'editor' && activity.version === 2 && activity.lesson !== undefined
 
   /**
    * Runs one program to completion.
@@ -396,7 +408,33 @@ export function Workbench({ activity }: { activity: Activity }) {
       ...t,
       { kind: outcome.ok ? 'note' : 'err', text: outcomeLine(outcome.threw, outcome.terminal) },
     ])
-  }, [boot.state, busy, execute])
+    if (!judgedOnRuns) return
+    // An editor lesson keeps the run as evidence: the program, how it
+    // ended, the lines it reached, the memory it left. And, when the step
+    // asks, the same program tried quietly on each of its cases.
+    const summary = runOf(stepsRef.current, outcome.terminal)
+    const asked = stepCasesRef.current
+    const cases = asked
+      ? await Promise.all(
+          asked.map(async (given) => {
+            const ev = await quiet(withCase(source, given))
+            return { given, ok: ev.raised === null && ev.reason === 'completed', raised: ev.raised ?? (ev.reason === 'completed' ? null : 'steps'), final: ev.final }
+          }),
+        )
+      : undefined
+    const record: Run = { source, ...summary, cases }
+    setRuns((r) => [...r, record])
+    setLineMemory((m) => [...m, { source, memory: summary.final }])
+    setLastLine({
+      source,
+      ok: summary.ok,
+      error: summary.raised === null ? null : outcomeLine(outcome.threw, outcome.terminal),
+      thought: null,
+      memory: summary.final,
+      run: record,
+    })
+    setLastPick(null)
+  }, [boot.state, busy, execute, judgedOnRuns, quiet])
 
   /**
    * The console's instrument: say one thing.
@@ -588,18 +626,19 @@ export function Workbench({ activity }: { activity: Activity }) {
   // A step may ask the player to *retrieve* something, which leaves no
   // trace in memory — so the evidence includes everything the robot has
   // said back. Both halves only ever grow.
-  const evidence = useMemo(
-    () => ({
-      snapshot,
+  const evidence = useMemo(() => {
+    const now = judgedOnRuns ? (lineMemory[lineMemory.length - 1]?.memory ?? EMPTY) : snapshot
+    return {
+      snapshot: now,
       thoughts,
-      history: [...lineMemory.map((l) => l.memory), snapshot],
+      history: [...lineMemory.map((l) => l.memory), now],
       lines: lineMemory,
       last: lastLine,
       picks,
       lastPick,
-    }),
-    [snapshot, thoughts, lineMemory, lastLine, picks, lastPick],
-  )
+      runs,
+    }
+  }, [snapshot, thoughts, lineMemory, lastLine, picks, lastPick, runs, judgedOnRuns])
   const ideas = read.level?.kind === 'ideas'
   // A lesson tells a script: beats, then its question (docs/PEDAGOGY.md
   // §4). Derived, like the step it is for.
@@ -657,6 +696,10 @@ export function Workbench({ activity }: { activity: Activity }) {
     wipedFor.current = key
     wipe()
   }, [stepAt, busy, boot.state, activity.id, lesson, wipe])
+
+  // The cases the step being asked tries a program on, read by `run`.
+  const stepCasesRef = useRef<Record<string, string>[] | undefined>(undefined)
+  stepCasesRef.current = stepAt !== null ? lesson?.steps[stepAt]?.cases : undefined
 
   // Everyone else says one line at a time, and may hand over a script of
   // their own once they have beats to tell.
@@ -806,8 +849,8 @@ export function Workbench({ activity }: { activity: Activity }) {
   // The latest of each, for the test surface's `say`, which waits across
   // renders and must act on the one it wakes up in, not the one it was
   // called from.
-  const latest = useRef({ say, busy })
-  latest.current = { say, busy }
+  const latest = useRef({ say, busy, run })
+  latest.current = { say, busy, run }
 
   // A small, stable surface the browser tests drive.
   useEffect(() => {
@@ -815,6 +858,16 @@ export function Workbench({ activity }: { activity: Activity }) {
       setProgram: (text: string) => editorRef.current?.replace(text),
       getProgram: () => editorRef.current?.read() ?? programRef.current,
       run: () => run(),
+      /** An editor lesson's equivalent of `say`: past any narration, the
+       *  program in the editor, and Run — resolving once the run (and any
+       *  cases) are in. */
+      send: async (program: string) => {
+        moveTo(rest)
+        await new Promise((r) => setTimeout(r, 60))
+        await until(() => !latest.current.busy)
+        editorRef.current?.replace(program)
+        return latest.current.run()
+      },
       /** The console's equivalent of typing a line and pressing Enter.
        *  Skips any narration first, as a player pressing Next through it
        *  would, so a journey can still answer a lesson by typing.
@@ -1041,6 +1094,118 @@ export function Workbench({ activity }: { activity: Activity }) {
   const marked = current?.mark
   const demoHandles = useHandles(demoSnapshot ?? EMPTY, `${activity.id}:demo:${demoProgram === null ? '' : 'on'}`)
 
+  // The crow's program in the editor (`Beat.code`): the latest set at or
+  // before this beat, within the step, until the question — or through a
+  // multiple-choice question, which is about the code on show. What it
+  // adds to the code before it types itself in.
+  const editing = activity.mode === 'editor' && !reading
+  let codeAt = -1
+  for (let i = beatAt; i >= 0 && editing; i--) {
+    const l = lines[i]
+    if ((l?.kind === 'ask' || l?.kind === 'reply') && (i !== beatAt || !l.choices)) break
+    if (l?.code !== undefined) {
+      codeAt = i
+      break
+    }
+  }
+  let before = ''
+  for (let i = codeAt - 1; i >= 0; i--) {
+    const l = lines[i]
+    if (l?.kind === 'ask' || l?.kind === 'reply') break
+    if (l?.code !== undefined) {
+      before = l.code
+      break
+    }
+  }
+  const codeText = codeAt >= 0 ? lines[codeAt]!.code! : null
+  let common = 0
+  while (codeText !== null && common < before.length && common < codeText.length && before[common] === codeText[common]) common++
+  const codeDemo = codeText !== null ? { key: `${tellKey}:${codeAt}`, text: codeText, typeFrom: common } : null
+  const [codeTyped, setCodeTyped] = useState('')
+  const codeWaiting = codeDemo !== null && codeTyped !== codeDemo.key
+  const onCodeDemoTyped = useCallback(() => {
+    if (codeDemo) setCodeTyped(codeDemo.key)
+  }, [codeDemo?.key]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // The crow running its program (`Beat.run`): one moment of a real run,
+  // quietly — memory just after a line ran, that line lit, what had run
+  // ticked; or the whole run, with what it skipped dimmed.
+  const runItem = codeAt >= 0 && beatAt >= codeAt ? lines.slice(codeAt, beatAt + 1).reverse().find((l) => l.run !== undefined) : undefined
+  const moment = runItem?.run
+  const [demoRun, setDemoRun] = useState<{ program: string; ev: RunEvidence } | null>(null)
+  useEffect(() => {
+    if (codeText === null || moment === undefined || boot.state !== 'ready') return
+    if (demoRun?.program === codeText) return
+    let live = true
+    void quiet(codeText).then((ev) => {
+      if (live) setDemoRun({ program: codeText, ev })
+    })
+    return () => {
+      live = false
+    }
+  }, [codeText, moment, boot.state, quiet]) // eslint-disable-line react-hooks/exhaustive-deps
+  const runShown = moment !== undefined && !codeWaiting && demoRun?.program === codeText ? demoRun.ev : null
+  let runMarks: Marks | null = null
+  let runMemory: MemorySnapshot | null = null
+  if (runShown && moment !== undefined) {
+    const v = runShown.visits
+    if (moment === 'end') {
+      runMarks = {
+        ran: v.map((x) => x.line),
+        current: null,
+        finished: true,
+        error:
+          runShown.raised || runShown.reason === 'step_limit'
+            ? { line: v[v.length - 1]?.line ?? 1, text: runShown.raised ?? 'never finished' }
+            : null,
+      }
+      runMemory = runShown.final
+    } else {
+      let seen = 0
+      const i = v.findIndex((x) => x.line === moment.line && ++seen === (moment.pass ?? 1))
+      if (i >= 0) {
+        runMarks = { ran: v.slice(0, i + 1).map((x) => x.line), current: moment.line, finished: false, error: null }
+        runMemory = runShown.afterVisit(i)
+      }
+    }
+  }
+  // The player's own run, walked with the scrubber: what had run by the
+  // step shown, the line it was on, and once at the end, what it skipped.
+  const lastRun = judgedOnRuns ? runs[runs.length - 1] : undefined
+  const playerMarks: Marks | null =
+    editing && !busy && look === 'v2' && steps.length === 0 && lastRun && !lastRun.ok && lastRun.raised && lastRun.line !== null
+      ? // A program that never started (a `SyntaxError`) still has its line.
+        { ran: [], current: null, finished: true, error: { line: lastRun.line, text: lastRun.raised } }
+      : editing && !busy && steps.length > 0 && look === 'v2'
+      ? (() => {
+          const { ran, current } = reachedBy(steps, shown)
+          const end = shown >= steps.length - 1
+          const r = judgedOnRuns ? runs[runs.length - 1] : undefined
+          return {
+            ran,
+            current: end ? null : current,
+            finished: end,
+            error: end && r && !r.ok && r.raised && r.line !== null ? { line: r.line, text: r.raised === 'steps' ? 'never finished' : r.raised } : null,
+          }
+        })()
+      : null
+  const lineMarks = codeDemo ? runMarks : playerMarks
+  const shownMemory = runMemory ?? demoSnapshot
+  const runHandles = useHandles(runMemory ?? EMPTY, `${activity.id}:run:${codeText ?? ''}`)
+
+  // A step that hands the player a program (`LessonStep.code`) puts it in
+  // the editor once, when the question is reached.
+  const codedFor = useRef<string | null>(null)
+  const atAsk = told !== null && beatAt === rest && !told.finished && !codeDemo
+  useEffect(() => {
+    if (!atAsk || stepAt === null) return
+    const key = `${activity.id}:${stepAt}`
+    const given = lesson?.steps[stepAt]?.code
+    if (given === undefined || codedFor.current === key) return
+    codedFor.current = key
+    editorRef.current?.replace(given)
+  }, [atAsk, stepAt, activity.id, lesson])
+
   return (
     <main className="workbench" style={{ ['--scene-w' as string]: `${sceneW}px` }}>
       <section className="pane scene-pane">
@@ -1116,13 +1281,16 @@ export function Workbench({ activity }: { activity: Activity }) {
           onReset={lesson?.wipe ? wipe : undefined}
           onUndo={lesson?.wipe ? () => void undo() : undefined}
           canUndo={canUndo}
+          codeDemo={codeDemo}
+          onCodeDemoTyped={onCodeDemoTyped}
+          lineMarks={lineMarks}
           memory={
             <MemoryPanel
               look={look}
-              snapshot={demoSnapshot ?? snapshot}
-              handles={demoSnapshot ? demoHandles : handles}
-              runKey={demoSnapshot ? `${activity.id}:demo` : runKey}
-              demo={demoSnapshot !== null}
+              snapshot={shownMemory ?? snapshot}
+              handles={runMemory ? runHandles : demoSnapshot ? demoHandles : handles}
+              runKey={runMemory ? `${activity.id}:run` : demoSnapshot ? `${activity.id}:demo` : runKey}
+              demo={shownMemory !== null}
               marked={marked}
               emptyText={
                 reading
@@ -1149,17 +1317,19 @@ export function Workbench({ activity }: { activity: Activity }) {
           greeting={activity.greeting}
           busy={busy}
           disabled={boot.state !== 'ready'}
-          transcript={transcript}
-          index={shown}
-          total={steps.length}
+          // The crow's program has no run of the player's to walk or report.
+          transcript={codeDemo ? [] : transcript}
+          index={codeDemo ? 0 : shown}
+          total={codeDemo ? 0 : steps.length}
           onIndex={(i) => {
             followingRef.current = false
             setIndex(i)
           }}
-          traceLine={traceLine}
+          // The crow's program is not the run the scrubber walks.
+          traceLine={codeDemo ? null : traceLine}
           // The console is closed while someone on the stage is talking,
           // and glows when they hand over a question.
-          listening={talking && (listening || choosing)}
+          listening={(talking || (editing && look === 'v2')) && (listening || choosing)}
           asked={talking && current?.asking === true && !choosing && !reading}
           focus={current?.focus}
           instrument={

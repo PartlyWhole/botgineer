@@ -3655,37 +3655,37 @@
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-:is(.hotbar, .backpack) .i-steel { fill: #cfd8e8; stroke: #7d8aa6; stroke-width: 0.8; }
-:is(.hotbar, .backpack) .i-wood { fill: #b07a45; stroke: #6f4a26; stroke-width: 0.7; }
-:is(.hotbar, .backpack) .i-grip { stroke: #6f4a26; stroke-width: 2.6; }
-:is(.hotbar, .backpack) .i-gold { fill: #f5c542; stroke: #b3861b; stroke-width: 0.8; }
-:is(.hotbar, .backpack) .i-blue { fill: #5b8def; stroke: #2f4fa8; stroke-width: 0.9; }
-:is(.hotbar, .backpack) .i-blue-dark { fill: #3f6fd1; }
-:is(.hotbar, .backpack) .i-mark { fill: none; stroke: #f5c542; stroke-width: 1.8; }
-:is(.hotbar, .backpack) .i-glass { fill: #e8f1ff; stroke: #8fa3c9; stroke-width: 0.8; }
-:is(.hotbar, .backpack) .i-red { fill: #e5484d; stroke: #a8262b; stroke-width: 0.7; }
-:is(.hotbar, .backpack) .i-shine { fill: rgb(255 255 255 / 0.75); }
-:is(.hotbar, .backpack) .i-bow { fill: none; stroke: #b07a45; stroke-width: 2.4; }
-:is(.hotbar, .backpack) .i-string { fill: none; stroke: #e3e9f7; stroke-width: 0.7; }
-:is(.hotbar, .backpack) .i-shaft { fill: none; stroke: #d9b88a; stroke-width: 1.3; }
-:is(.hotbar, .backpack) .i-paper { fill: #f3e2b8; stroke: #a8874a; stroke-width: 0.8; }
-:is(.hotbar, .backpack) .i-fold { fill: none; stroke: #c9ad74; stroke-width: 0.7; }
-:is(.hotbar, .backpack) .i-route { fill: none; stroke: #8f4700; stroke-width: 1; stroke-dasharray: 1.6 1.4; }
-:is(.hotbar, .backpack) .i-x { fill: none; stroke: #e5484d; stroke-width: 1.5; }
-:is(.hotbar, .backpack) .i-gem { fill: #52d6e0; stroke: #1f8793; stroke-width: 0.8; }
-:is(.hotbar, .backpack) .i-facet { fill: none; stroke: rgb(255 255 255 / 0.7); stroke-width: 0.6; }
-:is(.hotbar, .backpack) .i-key { fill: #f5c542; stroke: #b3861b; stroke-width: 0.8; }
-:is(.hotbar, .backpack) .i-hole { fill: #3b4868; }
-:is(.hotbar, .backpack) .i-key-line { fill: none; stroke: #f5c542; stroke-width: 2.2; }
-:is(.hotbar, .backpack) .i-stem { fill: none; stroke: #6f4a26; stroke-width: 1.3; }
-:is(.hotbar, .backpack) .i-leaf { fill: #52b35f; stroke: #2e7a39; stroke-width: 0.6; }
-:is(.hotbar, .backpack) .i-flame { fill: #ff9f40; stroke: #d9651a; stroke-width: 0.6; }
-:is(.hotbar, .backpack) .i-flame-core { fill: #ffe27a; }
-:is(.hotbar, .backpack) .i-visor { fill: #27324d; }
-:is(.hotbar, .backpack) .i-ridge { fill: none; stroke: #7d8aa6; stroke-width: 1; }
-:is(.hotbar, .backpack) .i-coin-rim { fill: none; stroke: #b3861b; stroke-width: 0.8; }
-:is(.hotbar, .backpack) .i-coin-star { fill: #fff3c4; }
-:is(.hotbar, .backpack) .i-handle { fill: none; stroke: #b07a45; stroke-width: 2.2; }
+:is(.hotbar, .backpack, .hud, .paths, .coin-tally) .i-steel { fill: #cfd8e8; stroke: #7d8aa6; stroke-width: 0.8; }
+:is(.hotbar, .backpack, .hud, .paths, .coin-tally) .i-wood { fill: #b07a45; stroke: #6f4a26; stroke-width: 0.7; }
+:is(.hotbar, .backpack, .hud, .paths, .coin-tally) .i-grip { stroke: #6f4a26; stroke-width: 2.6; }
+:is(.hotbar, .backpack, .hud, .paths, .coin-tally) .i-gold { fill: #f5c542; stroke: #b3861b; stroke-width: 0.8; }
+:is(.hotbar, .backpack, .hud, .paths, .coin-tally) .i-blue { fill: #5b8def; stroke: #2f4fa8; stroke-width: 0.9; }
+:is(.hotbar, .backpack, .hud, .paths, .coin-tally) .i-blue-dark { fill: #3f6fd1; }
+:is(.hotbar, .backpack, .hud, .paths, .coin-tally) .i-mark { fill: none; stroke: #f5c542; stroke-width: 1.8; }
+:is(.hotbar, .backpack, .hud, .paths, .coin-tally) .i-glass { fill: #e8f1ff; stroke: #8fa3c9; stroke-width: 0.8; }
+:is(.hotbar, .backpack, .hud, .paths, .coin-tally) .i-red { fill: #e5484d; stroke: #a8262b; stroke-width: 0.7; }
+:is(.hotbar, .backpack, .hud, .paths, .coin-tally) .i-shine { fill: rgb(255 255 255 / 0.75); }
+:is(.hotbar, .backpack, .hud, .paths, .coin-tally) .i-bow { fill: none; stroke: #b07a45; stroke-width: 2.4; }
+:is(.hotbar, .backpack, .hud, .paths, .coin-tally) .i-string { fill: none; stroke: #e3e9f7; stroke-width: 0.7; }
+:is(.hotbar, .backpack, .hud, .paths, .coin-tally) .i-shaft { fill: none; stroke: #d9b88a; stroke-width: 1.3; }
+:is(.hotbar, .backpack, .hud, .paths, .coin-tally) .i-paper { fill: #f3e2b8; stroke: #a8874a; stroke-width: 0.8; }
+:is(.hotbar, .backpack, .hud, .paths, .coin-tally) .i-fold { fill: none; stroke: #c9ad74; stroke-width: 0.7; }
+:is(.hotbar, .backpack, .hud, .paths, .coin-tally) .i-route { fill: none; stroke: #8f4700; stroke-width: 1; stroke-dasharray: 1.6 1.4; }
+:is(.hotbar, .backpack, .hud, .paths, .coin-tally) .i-x { fill: none; stroke: #e5484d; stroke-width: 1.5; }
+:is(.hotbar, .backpack, .hud, .paths, .coin-tally) .i-gem { fill: #52d6e0; stroke: #1f8793; stroke-width: 0.8; }
+:is(.hotbar, .backpack, .hud, .paths, .coin-tally) .i-facet { fill: none; stroke: rgb(255 255 255 / 0.7); stroke-width: 0.6; }
+:is(.hotbar, .backpack, .hud, .paths, .coin-tally) .i-key { fill: #f5c542; stroke: #b3861b; stroke-width: 0.8; }
+:is(.hotbar, .backpack, .hud, .paths, .coin-tally) .i-hole { fill: #3b4868; }
+:is(.hotbar, .backpack, .hud, .paths, .coin-tally) .i-key-line { fill: none; stroke: #f5c542; stroke-width: 2.2; }
+:is(.hotbar, .backpack, .hud, .paths, .coin-tally) .i-stem { fill: none; stroke: #6f4a26; stroke-width: 1.3; }
+:is(.hotbar, .backpack, .hud, .paths, .coin-tally) .i-leaf { fill: #52b35f; stroke: #2e7a39; stroke-width: 0.6; }
+:is(.hotbar, .backpack, .hud, .paths, .coin-tally) .i-flame { fill: #ff9f40; stroke: #d9651a; stroke-width: 0.6; }
+:is(.hotbar, .backpack, .hud, .paths, .coin-tally) .i-flame-core { fill: #ffe27a; }
+:is(.hotbar, .backpack, .hud, .paths, .coin-tally) .i-visor { fill: #27324d; }
+:is(.hotbar, .backpack, .hud, .paths, .coin-tally) .i-ridge { fill: none; stroke: #7d8aa6; stroke-width: 1; }
+:is(.hotbar, .backpack, .hud, .paths, .coin-tally) .i-coin-rim { fill: none; stroke: #b3861b; stroke-width: 0.8; }
+:is(.hotbar, .backpack, .hud, .paths, .coin-tally) .i-coin-star { fill: #fff3c4; }
+:is(.hotbar, .backpack, .hud, .paths, .coin-tally) .i-handle { fill: none; stroke: #b07a45; stroke-width: 2.2; }
 
 /* Arriving, the items pop into their cells in turn; an item swapped into
    a cell is a new one there, and pops in by itself. */
@@ -3866,6 +3866,749 @@
 }
 .prop-layer[data-told] .backpack .pocket-number {
   animation: none;
+}
+
+/* ------------------------------ more icons ------------------------------ */
+
+/* The icons the hotbar has no item for, in the same flat colours. */
+:is(.hotbar, .backpack, .hud, .paths, .coin-tally) .i-tile { fill: #e9edf6; stroke: #9aa4bf; stroke-width: 0.9; stroke-dasharray: 2.2 1.6; }
+:is(.hotbar, .backpack, .hud, .paths, .coin-tally) .i-tile-dot { fill: #9aa4bf; }
+:is(.hotbar, .backpack, .hud, .paths, .coin-tally) .i-smoke { fill: none; stroke: #9aa4bf; stroke-width: 1; stroke-dasharray: 1.4 1.2; }
+:is(.hotbar, .backpack, .hud, .paths, .coin-tally) .i-speed { fill: none; stroke: #9aa4bf; stroke-width: 1.2; }
+:is(.hotbar, .backpack, .hud, .paths, .coin-tally) .i-print { fill: #7d6a8f; }
+:is(.hotbar, .backpack, .hud, .paths, .coin-tally) .i-logs { fill: none; stroke: #8a5d2c; stroke-width: 2.6; }
+:is(.hud, .paths, .coin-tally) .icon * {
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ------------------------------ hud ------------------------------ */
+
+/* A game's status panel in the hotbar's colours: a dark rounded panel,
+   a row per stat, the value on a chip in its kind's colour. A marked row
+   (what a condition reads) wears the hotbar's gold frame. The verdict
+   badge beside it is the robot's bool, in the bool colour; amber when
+   refused. */
+.hud .hud-panel {
+  transition: translate 360ms cubic-bezier(0.3, 1.2, 0.5, 1);
+}
+.hud .hud-frame {
+  fill: #27324d;
+  stroke: #16203a;
+  stroke-width: 1.2;
+}
+.hud .hud-title {
+  font-family: 'Nunito', ui-rounded, system-ui, sans-serif;
+  font-size: 9.5px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  fill: #ffd166;
+}
+.hud .hud-cell {
+  fill: #34405f;
+  stroke: none;
+  transition: fill 220ms ease, stroke 220ms ease;
+}
+.hud .hud-row.marked .hud-cell {
+  fill: #4a5a80;
+  stroke: #ffd166;
+  stroke-width: 2;
+  filter: drop-shadow(0 0 2.5px rgb(255 209 102 / 0.65));
+}
+.hud .hud-name {
+  font-family: var(--mono);
+  font-weight: 700;
+  fill: #e3e9f7;
+  text-anchor: start;
+}
+.hud .hud-row.marked .hud-name {
+  fill: #ffe7a8;
+}
+.hud .hud-icon.ghost {
+  opacity: 0.35;
+}
+.hud .hud-bar-track {
+  fill: #1b2440;
+}
+.hud .hud-bar-fill {
+  fill: #e5484d;
+  transition: width 400ms ease;
+}
+.hud .hud-value rect {
+  fill: #ffffff;
+  stroke: #9aa4bf;
+  stroke-width: 1;
+}
+.hud .hud-value text {
+  font-family: var(--mono);
+  font-weight: 800;
+  fill: var(--ink);
+  text-anchor: middle;
+}
+.hud .hud-value[data-kind='bool'] rect { fill: var(--k-bool-bg); stroke: var(--k-bool); }
+.hud .hud-value[data-kind='bool'] text { fill: var(--k-bool); }
+.hud .hud-value[data-kind='int'] rect { fill: var(--k-int-bg); stroke: var(--k-int); }
+.hud .hud-value[data-kind='int'] text { fill: var(--k-int); }
+.hud .hud-value[data-kind='float'] rect { fill: var(--k-float-bg); stroke: var(--k-float); }
+.hud .hud-value[data-kind='float'] text { fill: var(--k-float); }
+.hud .hud-value[data-kind='str'] rect { fill: var(--k-str-bg); stroke: var(--k-str); }
+.hud .hud-value[data-kind='str'] text { fill: var(--k-str); }
+.hud .hud-item-word {
+  font-family: var(--mono);
+  font-size: 8px;
+  font-weight: 800;
+  fill: var(--k-str);
+  text-anchor: middle;
+}
+/* A value changed by a beat pops into its chip. */
+.hud .hud-value,
+.hud .hud-items {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: hotbar-pop 340ms cubic-bezier(0.3, 1.6, 0.5, 1) calc(var(--beat, 0s) + 0.1s + var(--i, 0) * 0.07s) backwards;
+}
+.prop-layer[data-told] .hud .hud-value,
+.prop-layer[data-told] .hud .hud-items {
+  animation-delay: 0s;
+}
+.hud .hud-badge rect {
+  fill: var(--k-bool-bg);
+  stroke: var(--k-bool);
+  stroke-width: 2.4;
+}
+.hud .hud-badge text {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  font-weight: 900;
+  fill: var(--k-bool);
+  text-anchor: middle;
+}
+.hud .hud-badge {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: hotbar-pop 380ms cubic-bezier(0.3, 1.6, 0.5, 1) backwards;
+}
+.hud .hud-badge.refused rect {
+  fill: var(--unworked-bg);
+  stroke: var(--unworked);
+  stroke-dasharray: 4 3;
+}
+.hud .hud-badge.refused text {
+  fill: var(--unworked);
+}
+.hud .hud-badge.waiting rect {
+  fill: rgb(255 255 255 / 0.8);
+  stroke: #9aa4bf;
+  stroke-width: 1.6;
+  stroke-dasharray: 4 3;
+}
+.hud .hud-badge.waiting text {
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 22px;
+  fill: var(--ink-soft);
+}
+
+/* ------------------------------ gate ------------------------------ */
+
+/* A stone arch and an iron portcullis, worked by a little circuit. A lit
+   lamp glows in the bool colour; a wire carrying current is gold, and its
+   dashes run while motion is welcome. Current lights wire by wire
+   (`--at`), then the portcullis lifts or rattles (`--opens-at`). */
+.gate-prop .gate-source path {
+  fill: #b99cf5;
+  stroke: var(--k-bool);
+  stroke-width: 1.2;
+  filter: drop-shadow(0 0 3px rgb(106 63 201 / 0.55));
+}
+.gate-prop .gate-wire {
+  fill: none;
+  stroke: #9aa4bf;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.gate-prop .gate-wire.live {
+  stroke: #f5b81f;
+  stroke-width: 3;
+  stroke-dasharray: 5 3;
+  filter: drop-shadow(0 0 2px rgb(245 184 31 / 0.8));
+  animation: gate-current 300ms ease-out calc(var(--beat, 0s) + var(--at, 0s)) backwards;
+}
+@keyframes gate-current {
+  from {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .gate-prop .gate-wire.live {
+    animation:
+      gate-current 300ms ease-out calc(var(--beat, 0s) + var(--at, 0s)) backwards,
+      gate-flow 600ms linear infinite;
+  }
+  @keyframes gate-flow {
+    to {
+      stroke-dashoffset: -8;
+    }
+  }
+}
+.gate-prop .gate-label {
+  font-family: var(--mono);
+  font-weight: 800;
+  fill: var(--ink);
+  text-anchor: end;
+}
+.gate-prop .gate-truth {
+  font-family: var(--mono);
+  font-size: 8px;
+  font-weight: 800;
+  fill: var(--ink-soft);
+  text-anchor: end;
+}
+.gate-prop .gate-lock.on .gate-truth {
+  fill: var(--k-bool);
+}
+.gate-prop .gate-lamp {
+  fill: #e4e8f2;
+  stroke: #7d8aa6;
+  stroke-width: 1.6;
+}
+.gate-prop .gate-halo {
+  fill: none;
+}
+.gate-prop .gate-filament {
+  fill: none;
+  stroke: #9aa4bf;
+  stroke-width: 1.1;
+}
+.gate-prop .gate-lock.on .gate-lamp {
+  fill: #c9b2fa;
+  stroke: var(--k-bool);
+  stroke-width: 2;
+}
+.gate-prop .gate-lock.on .gate-halo {
+  fill: rgb(106 63 201 / 0.16);
+}
+.gate-prop .gate-lock.on .gate-filament {
+  stroke: #ffffff;
+}
+.gate-prop .gate-op rect {
+  fill: #ffffff;
+  stroke: var(--k-bool);
+  stroke-width: 1.2;
+}
+.gate-prop .gate-op text {
+  font-family: var(--mono);
+  font-size: 8.5px;
+  font-weight: 900;
+  fill: var(--k-bool);
+  text-anchor: middle;
+}
+.gate-prop .gate-stone {
+  fill: #b7aea6;
+  stroke: #8c837b;
+  stroke-width: 1.4;
+}
+.gate-prop .gate-joints {
+  stroke: #9a9189;
+  stroke-width: 1.2;
+  stroke-linecap: round;
+}
+.gate-prop .gate-beyond {
+  fill: #4b4252;
+}
+.gate-prop .gate-treasure ellipse {
+  fill: #f5c542;
+  opacity: 0.7;
+}
+.gate-prop .gate-treasure .gate-gem {
+  fill: #52d6e0;
+  stroke: #1f8793;
+  stroke-width: 0.8;
+}
+.gate-prop .gate-bar {
+  fill: #5b6784;
+  stroke: #3b4868;
+  stroke-width: 0.6;
+}
+.gate-prop .portcullis {
+  transition: translate 700ms cubic-bezier(0.4, 0, 0.3, 1);
+}
+.gate-prop .gate-padlock {
+  display: none;
+}
+.gate-prop .gate-padlock path {
+  fill: none;
+  stroke: #7d8aa6;
+  stroke-width: 2;
+}
+.gate-prop .gate-padlock rect {
+  fill: #f5c542;
+  stroke: #b3861b;
+  stroke-width: 1;
+}
+.gate-prop.shut .gate-padlock {
+  display: inline;
+}
+.gate-prop .gate-socket {
+  fill: #e4e8f2;
+  stroke: #7d8aa6;
+  stroke-width: 1.4;
+}
+.gate-prop .gate-plaque rect {
+  fill: #fbf6ec;
+  stroke: #8c837b;
+  stroke-width: 1.2;
+}
+.gate-prop .gate-plaque text {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 900;
+  fill: var(--ink-soft);
+  text-anchor: middle;
+}
+/* Open: the current reached the gate, the socket glows and the
+   portcullis lifts into the arch, showing the treasure beyond. */
+.gate-prop.open .gate-socket {
+  fill: #ffe27a;
+  stroke: #d99a00;
+  filter: drop-shadow(0 0 3px rgb(245 184 31 / 0.9));
+}
+.gate-prop.open .portcullis {
+  translate: 0 -84px;
+  animation: gate-lift 800ms cubic-bezier(0.4, 0, 0.3, 1) calc(var(--beat, 0s) + var(--opens-at, 0s)) backwards;
+}
+@keyframes gate-lift {
+  from {
+    translate: 0 0;
+  }
+}
+.gate-prop:is(.open, .shut) .gate-plaque rect {
+  fill: var(--k-bool-bg);
+  stroke: var(--k-bool);
+  stroke-width: 1.6;
+}
+.gate-prop:is(.open, .shut) .gate-plaque text {
+  fill: var(--k-bool);
+}
+.gate-prop .gate-plaque .gate-plaque-was {
+  opacity: 0;
+  fill: var(--ink-soft);
+  animation: from-bright 200ms linear calc(var(--beat, 0s) + var(--opens-at, 0s)) backwards;
+}
+.gate-prop .gate-plaque .gate-plaque-now {
+  animation: gate-current 250ms ease-out calc(var(--beat, 0s) + var(--opens-at, 0s)) backwards;
+}
+/* Shut: padlocked, and it rattles once when the current fails. */
+.gate-prop.shut .portcullis {
+  animation: gate-rattle 420ms ease-in-out calc(var(--beat, 0s) + var(--opens-at, 0s)) backwards;
+}
+@keyframes gate-rattle {
+  0% {
+    translate: 0 0;
+  }
+  25% {
+    translate: 0 -5px;
+  }
+  50% {
+    translate: 0 0;
+  }
+  75% {
+    translate: 0 -3px;
+  }
+}
+/* Refused: nothing moves, and the plaque asks in amber. */
+.gate-prop.refused .gate-plaque rect {
+  fill: var(--unworked-bg);
+  stroke: var(--unworked);
+  stroke-width: 1.6;
+  stroke-dasharray: 3 2;
+}
+.gate-prop.refused .gate-plaque text {
+  fill: var(--unworked);
+}
+.gate-prop.refused .gate-stone {
+  stroke: var(--unworked);
+  stroke-dasharray: 4 3;
+}
+
+/* ------------------------------ paths ------------------------------ */
+
+/* A cave corridor and its side tunnels in pale stone; the signs are
+   wood, the tests in code font. A tick is green, a cross slate (checked,
+   said no: an honest no, not a mistake), and a branch never checked is
+   faded with a dash. The tunnel taken is lit warm. */
+.paths .paths-lane {
+  fill: #e6dccd;
+  stroke: #c9b9a3;
+  stroke-width: 1;
+}
+.paths .paths-on {
+  fill: none;
+  stroke: #b8a78f;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.paths .paths-on.lit {
+  stroke: #d99a00;
+  stroke-width: 2.2;
+}
+.paths .paths-tunnel {
+  fill: #efe7da;
+  stroke: #d4c5b0;
+  stroke-width: 1;
+  transition: fill 300ms ease, stroke 300ms ease;
+}
+.paths .paths-arrow {
+  fill: none;
+  stroke: #c9b9a3;
+  stroke-width: 1.4;
+  stroke-dasharray: 2.5 2.5;
+}
+.paths .paths-board {
+  fill: #fff7e6;
+  stroke: #a8733b;
+  stroke-width: 1.6;
+}
+.paths .paths-test {
+  font-family: var(--mono);
+  font-weight: 800;
+  fill: var(--ink);
+  text-anchor: middle;
+}
+.paths .paths-test.else {
+  fill: var(--k-bool);
+}
+.paths .paths-result {
+  font-family: var(--mono);
+  font-weight: 800;
+  fill: var(--ink);
+  text-anchor: start;
+}
+.paths .paths-result[data-kind='str'] {
+  fill: var(--k-str);
+}
+.paths .paths-mark circle {
+  fill: rgb(255 255 255 / 0.85);
+  stroke: #c9b9a3;
+  stroke-width: 1.2;
+  stroke-dasharray: 2 1.6;
+}
+.paths .paths-mark path {
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.paths .paths-branch.yes .paths-mark circle {
+  fill: var(--good);
+  stroke: var(--good);
+  stroke-dasharray: none;
+}
+.paths .paths-branch.yes .paths-mark path {
+  stroke: #ffffff;
+}
+.paths .paths-branch.no .paths-mark circle {
+  fill: #5b6784;
+  stroke: #5b6784;
+  stroke-dasharray: none;
+}
+.paths .paths-branch.no .paths-mark path {
+  stroke: #ffffff;
+}
+.paths .paths-branch.skipped .paths-mark path {
+  stroke: #9aa4bf;
+}
+/* The taken tunnel's light and its sign's green edge are drawn over the
+   plain ones, and arrive when the robot reaches the sign (`--when`). */
+.paths .paths-tunnel-lit {
+  fill: #ffe7a8;
+  stroke: #e0a526;
+  stroke-width: 1.6;
+}
+.paths .paths-board-lit {
+  fill: none;
+  stroke: var(--good);
+  stroke-width: 2.2;
+}
+.paths :is(.paths-tunnel-lit, .paths-board-lit) {
+  animation: gate-current 300ms ease-out calc(var(--beat, 0s) + var(--when, 0s)) backwards;
+}
+.paths .paths-branch.no :is(.paths-icon, .paths-result) {
+  animation: from-bright 300ms ease calc(var(--beat, 0s) + var(--when, 0s)) backwards;
+}
+.paths .paths-branch.yes .paths-arrow {
+  stroke: #d99a00;
+  stroke-dasharray: none;
+}
+.paths .paths-branch.no .paths-icon,
+.paths .paths-branch.no .paths-result {
+  opacity: 0.55;
+}
+.paths .paths-branch.skipped {
+  opacity: 0.4;
+}
+.paths .paths-branch.skipped .paths-board {
+  stroke-dasharray: 3 2.5;
+}
+/* The marks land in turn; on a walk, as the robot reaches each sign. */
+.paths .paths-mark {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: goal-tick-in 280ms cubic-bezier(0.3, 1.5, 0.5, 1) calc(var(--beat, 0s) + var(--when, 0s)) backwards;
+}
+.paths .paths-branch.skipped {
+  animation: from-bright 400ms ease calc(var(--beat, 0s) + var(--walk, 0s) * 0.92) backwards;
+}
+.paths:not(.walking) .paths-branch.skipped {
+  animation-delay: calc(var(--beat, 0s) + 0.3s);
+}
+@keyframes from-bright {
+  from {
+    opacity: 1;
+  }
+}
+.paths .paths-robot {
+  transition: translate 500ms cubic-bezier(0.4, 0, 0.3, 1);
+}
+.paths.walking .paths-robot {
+  animation-duration: var(--walk, 2s);
+  animation-timing-function: ease-in-out;
+  animation-fill-mode: backwards;
+  animation-delay: var(--beat, 0s);
+}
+.paths .pr-head {
+  fill: #4f7cf7;
+  stroke: #2f4fa8;
+  stroke-width: 1;
+}
+.paths .pr-screen {
+  fill: #16203a;
+}
+.paths .pr-eye {
+  fill: #ffffff;
+}
+.paths .pr-antenna {
+  stroke: #2f4fa8;
+  stroke-width: 1.2;
+}
+.paths .pr-bulb {
+  fill: #ffd166;
+}
+
+/* ------------------------------ tally ------------------------------ */
+
+/* Coins with their values on a pale face, in the int colour; the loop's
+   pass glows under a gold pointer, the coins before it are counted
+   (dimmed, ticked green). The counter is drawn as memory draws a name:
+   a pill, an arrow, a card holding the value in its kind's colour. */
+.coin-tally .tally-rim {
+  fill: #f5c542;
+  stroke: #b3861b;
+  stroke-width: 1.4;
+}
+.coin-tally .tally-inner {
+  fill: #fff3c4;
+  stroke: #e0b43a;
+  stroke-width: 0.9;
+}
+.coin-tally .tally-gem {
+  fill: #9fe8ee;
+  stroke: #1f8793;
+  stroke-width: 1.4;
+  stroke-linejoin: round;
+}
+.coin-tally .tally-value {
+  font-family: var(--mono);
+  font-weight: 900;
+  fill: var(--k-int);
+  text-anchor: middle;
+}
+.coin-tally .coin-face {
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: opacity 260ms ease, scale 260ms cubic-bezier(0.3, 1.4, 0.5, 1);
+  animation: hotbar-pop 340ms cubic-bezier(0.3, 1.6, 0.5, 1) calc(var(--beat, 0s) + 0.1s + var(--i, 0) * 0.07s) backwards;
+}
+.prop-layer[data-told] .coin-tally .coin-face {
+  animation: none;
+}
+.coin-tally .tally-coin.marked .coin-face {
+  scale: 1.1;
+  filter: drop-shadow(0 0 4px rgb(255 190 40 / 0.9));
+}
+.coin-tally .tally-coin.counted .coin-face {
+  opacity: 0.45;
+}
+.coin-tally .tally-tick circle {
+  fill: var(--good);
+}
+.coin-tally .tally-tick path {
+  fill: none;
+  stroke: #ffffff;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.coin-tally .tally-tick {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: goal-tick-in 280ms cubic-bezier(0.3, 1.5, 0.5, 1) backwards;
+}
+.coin-tally .tally-pointer {
+  transition: translate 340ms cubic-bezier(0.3, 1.2, 0.5, 1);
+}
+.coin-tally .tally-pointer > path:first-child {
+  fill: #ffd166;
+  stroke: #d99a00;
+  stroke-width: 1.2;
+  stroke-linejoin: round;
+}
+.coin-tally .tally-into {
+  fill: none;
+  stroke: #d99a00;
+  stroke-width: 1.4;
+  stroke-dasharray: 3 2.5;
+}
+.coin-tally .tally-name {
+  fill: rgb(255 255 255 / 0.9);
+  stroke: #8fa3ea;
+  stroke-width: 1.3;
+}
+.coin-tally .tally-name-text {
+  font-family: var(--mono);
+  font-weight: 800;
+  fill: #2b47b8;
+  text-anchor: middle;
+}
+.coin-tally .tally-arrow {
+  fill: none;
+  stroke: #8fa0c8;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.coin-tally .tally-card rect {
+  fill: #ffffff;
+  stroke: #9aa4bf;
+  stroke-width: 1.6;
+}
+.coin-tally .tally-card.empty rect {
+  fill: rgb(255 255 255 / 0.7);
+  stroke-dasharray: 4 3;
+}
+.coin-tally .tally-card text {
+  font-family: var(--mono);
+  font-weight: 900;
+  fill: var(--ink);
+  text-anchor: middle;
+  animation: hotbar-pop 300ms cubic-bezier(0.3, 1.6, 0.5, 1) backwards;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.coin-tally .tally-card[data-kind='int'] rect { fill: var(--k-int-bg); stroke: var(--k-int); }
+.coin-tally .tally-card[data-kind='int'] text { fill: var(--k-int); }
+.coin-tally .tally-card[data-kind='float'] rect { fill: var(--k-float-bg); stroke: var(--k-float); }
+.coin-tally .tally-card[data-kind='float'] text { fill: var(--k-float); }
+.coin-tally .tally-card.refused rect {
+  fill: var(--unworked-bg);
+  stroke: var(--unworked);
+  stroke-dasharray: 4 3;
+}
+.coin-tally .tally-card.refused text {
+  fill: var(--unworked);
+}
+
+/* ------------------------------ cases ------------------------------ */
+
+/* A scoreboard of encounter cards on parchment: the given values in
+   code font, what was wanted and what the program made, a green tick or
+   an amber cross. A case not run yet says `—` and has no mark. */
+.cases .cases-head {
+  font-family: 'Nunito', ui-rounded, system-ui, sans-serif;
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  fill: var(--ink-soft);
+}
+.cases .cases-name {
+  font-family: var(--mono);
+  font-weight: 800;
+  fill: #2b47b8;
+  text-anchor: middle;
+}
+.cases .cases-card {
+  fill: #fbf6ec;
+  stroke: #d9c7a6;
+  stroke-width: 1.2;
+  transition: fill 220ms ease, stroke 220ms ease;
+}
+.cases .cases-row.ok .cases-card {
+  fill: #e9f7ee;
+  stroke: var(--good);
+}
+.cases .cases-row.wrong .cases-card {
+  fill: var(--unworked-bg);
+  stroke: var(--unworked);
+  stroke-dasharray: 4 3;
+}
+.cases .cases-split {
+  stroke: #d9c7a6;
+  stroke-width: 1;
+}
+.cases .cases-slime path {
+  fill: #7ccf8a;
+  stroke: #3f8f4d;
+  stroke-width: 1;
+}
+.cases .cases-slime .eye {
+  fill: #16203a;
+}
+.cases .cases-given {
+  font-family: var(--mono);
+  font-weight: 700;
+  fill: var(--ink);
+  text-anchor: start;
+}
+.cases :is(.cases-want, .cases-got) {
+  font-family: var(--mono);
+  font-weight: 800;
+  fill: var(--ink);
+  text-anchor: middle;
+}
+.cases :is(.cases-want, .cases-got)[data-kind='str'] { fill: var(--k-str); }
+.cases :is(.cases-want, .cases-got)[data-kind='int'] { fill: var(--k-int); }
+.cases :is(.cases-want, .cases-got)[data-kind='float'] { fill: var(--k-float); }
+.cases :is(.cases-want, .cases-got)[data-kind='bool'] { fill: var(--k-bool); }
+.cases .cases-got.none,
+.cases .cases-got.nothing {
+  fill: var(--ink-soft);
+  font-style: italic;
+}
+/* Python stopping is coral, as on the clash. */
+.cases .cases-got.error {
+  fill: #c2412d;
+}
+.cases .cases-mark circle {
+  fill: var(--good);
+}
+.cases .cases-row.wrong .cases-mark circle {
+  fill: var(--unworked);
+}
+.cases .cases-mark path {
+  fill: none;
+  stroke: #ffffff;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.cases .cases-mark,
+.cases .cases-got {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: goal-tick-in 280ms cubic-bezier(0.3, 1.5, 0.5, 1) calc(var(--i, 0) * 0.12s) backwards;
 }
 
 /* ------------------------------ calm ------------------------------ */

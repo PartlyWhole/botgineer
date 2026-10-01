@@ -291,6 +291,65 @@ export type Prop =
    *  The count is a number to work out (`len`), so the right count typed
    *  by hand is drawn unworked (`rightNumber`). */
   | { kind: 'backpack'; items: string[]; mark?: number }
+  /** A game's status panel, a character sheet: one row per stat, each a
+   *  big icon chosen from its name (`hudIcon`: a heart and a bar for
+   *  `hp`, a coin for `coins`, a key bright for `True` and ghosted for
+   *  `False`, a torch lit only when `True` …), the name in code font and
+   *  the value as a Python literal in its kind's colour; a list value is
+   *  drawn as its items' icons. At most `HUD_ROWS` rows. `title` heads
+   *  the panel. `mark` (narration) frames the rows a condition reads.
+   *  The values are narration too while the names stay the same, so a
+   *  beat that changes `hp` keeps the panel and the new value pops in.
+   *  A bool the robot thinks of is a verdict badge beside the panel,
+   *  `True` or `False` in the bool colour, amber when refused; on the
+   *  ask (`view.ask`) an empty `?` badge waits there. Anything else is
+   *  only its tag. */
+  | { kind: 'hud'; stats: { name: string; value: string }[]; mark?: string[]; title?: string }
+  /** A cave gate worked by a little circuit: one lamp per lock, each
+   *  labelled with its condition in code font, lit when it is `True`.
+   *  `and` wires the lamps in series down one wire, so current reaches
+   *  the gate only through every lamp; `or` wires them in parallel, rungs
+   *  of a ladder, so any lit lamp lets it through (`gateCurrent`). The
+   *  word `and` or `or` sits on the wiring. Unanswered, the gate is shut
+   *  under a `?` plaque: will it open? A bool the robot thinks of that
+   *  agrees with the lamps (`gateOpens`) slides the portcullis up, or
+   *  leaves it shut and padlocked; one that disagrees, or a refused one,
+   *  moves nothing and the plaque turns amber (`gateShows`). `demo:
+   *  'try'` (narration) runs the current lamp by lamp and then opens the
+   *  gate or rattles it shut. The lamps' `on` is narration too: a beat
+   *  that lights one keeps the gate on stage. 1 to `GATE_LOCKS` locks. */
+  | { kind: 'gate'; op: 'and' | 'or'; locks: { label: string; on: boolean }[]; demo?: 'try' }
+  /** A fork in a cave tunnel, for `if`/`elif`/`else`: a corridor down the
+   *  left, and off it one side tunnel per branch, checked top to bottom.
+   *  Each has a signpost with its test in code font (`hp > 50`, or
+   *  `else`) and where it leads at its far end (`result`, with an icon
+   *  when it names one: `pathIcon`). `taken` (narration) is the branch
+   *  that ran: its sign ticks and its tunnel lights; the signs before it
+   *  are crossed (checked, and said no); the signs after it are greyed
+   *  and never checked (`pathMarks`) — the first yes wins. `null` is no
+   *  branch at all (an `if` whose test said no): every sign crossed, and
+   *  the robot walks straight on. Undefined is nothing decided yet. `demo:
+   *  'walk'` (narration) walks the robot down the signs, checking each in
+   *  turn, and into the tunnel it takes. At most `PATHS_MAX` branches. */
+  | { kind: 'paths'; branches: { test: string; result: string }[]; taken?: number | null; demo?: 'walk' }
+  /** A loop adding up: a row of coins (or gems) each with its value on
+   *  it, and a counter, `label` (`total` when omitted) pointing at its
+   *  value as memory draws a name. `mark` (narration) is the loop's pass:
+   *  a pointer over that coin, which glows, and the coins before it
+   *  counted (dimmed, ticked); `mark` past the last coin is the loop
+   *  done. `total` (narration) is what the counter holds; null or left
+   *  out, the counter is empty. A number the robot thinks of is written
+   *  in the counter instead, in its kind's colour, amber when refused. At
+   *  most `TALLY_MAX` coins. */
+  | { kind: 'tally'; values: number[]; mark?: number; total?: number | null; label?: string; item?: 'coin' | 'gem' }
+  /** The robot trying the player's program on several cases, as a
+   *  scoreboard of encounter cards: each row's given values in code font
+   *  (`hp = 20`), the value `name` should end up holding (`want`), and
+   *  what the program made of it on the last run (`caseResult`, from
+   *  `view.run`): ✓ when they agree, an amber ✗ when not. Before any run
+   *  the got column says `—` and nothing is marked. At most `CASES_MAX`
+   *  rows. Draws no answer. */
+  | { kind: 'cases'; name: string; rows: { given: string; want: string }[] }
 
 /** How many slots the hotbar draws. */
 export const HOTBAR_MAX = 6
@@ -326,10 +385,12 @@ export function backpackTicks(view: PropView): number | null {
   return Number.isInteger(n) ? clamp(n, 0, Math.min(BACKPACK_MAX, view.prop.items.length)) : null
 }
 
-/** How many rows of a goal memory the picture draws: four, or three when
- *  one of them draws a list, which takes the room of two. */
+/** How many rows of a goal memory the picture draws: four, a list among
+ *  them included — the rows are scaled into the frame, and a raised goal
+ *  (the top of a wide stage) has the room. Mira's explorer card is three
+ *  names and a backpack. */
 export const GOAL_ROWS = 4
-export const GOAL_ROWS_WITH_LIST = 3
+export const GOAL_ROWS_WITH_LIST = 4
 /** How many of a list's slots the picture draws. */
 export const GOAL_ITEMS = 5
 
@@ -466,6 +527,10 @@ const NARRATION: Partial<Record<Prop['kind'], string[]>> = {
   code: ['mark'],
   hotbar: ['mark'],
   backpack: ['mark'],
+  hud: ['mark'],
+  gate: ['demo'],
+  paths: ['taken', 'demo'],
+  tally: ['mark', 'total'],
 }
 
 /** A prop without its narration: what identifies the picture. A tally
@@ -480,6 +545,10 @@ function picture(p: Prop): Record<string, unknown> {
   }
   // A hotbar: the items are narration, their count is the picture.
   if (p.kind === 'hotbar' || p.kind === 'backpack') out['items'] = p.items.length
+  // A status panel: the stats' names are the picture, their values narrate.
+  if (p.kind === 'hud') out['stats'] = p.stats.map((s) => s.name)
+  // A gate: its conditions are the picture, whether each is lit narrates.
+  if (p.kind === 'gate') out['locks'] = p.locks.map((l) => l.label)
   return out
 }
 
@@ -654,7 +723,8 @@ export const HEIGHT_RANGE = [0.5, 2.5] as const
  * the scale reading what the parcels weigh; the marker where the ask
  * wants it; the selected hotbar slot's item; the backpack's marked item, or
  * its count; the note's tag saying the note's words; every item in the
- * packs lit. The balance and the working are drawn only once the step is
+ * packs lit; any bool on the status panel's badge or at the gate; any
+ * number in the tally's counter. The balance and the working are drawn only once the step is
  * right, the shelf and the kinds sort by type (Python's truth either
  * way), and the rest draw no answer: none of those can look right on a
  * miss.
@@ -719,6 +789,13 @@ export function looksRight(view: PropView): boolean {
       return t !== null && p.mark !== undefined && p.items[p.mark] === t
     case 'backpack':
       return (t !== null && p.mark !== undefined && p.items[p.mark] === t) || (a.type === 'int' && n === p.items.length)
+    // A bool is a verdict either way (the badge, the gate moving), and a
+    // number fills the counter as the right total would.
+    case 'hud':
+    case 'gate':
+      return b !== null
+    case 'tally':
+      return n !== null
     default:
       return false
   }
@@ -1104,4 +1181,194 @@ export function packsTotal(p: { packs: number; each: readonly number[]; loose?: 
 export function packsSum(p: { packs: number; each: readonly number[]; loose?: number }): string {
   const inner = p.each.length > 1 ? `(${p.each.join(' + ')})` : `${p.each[0] ?? 0}`
   return `${p.packs} * ${inner}${p.loose ? ` + ${p.loose}` : ''}`
+}
+
+/* ------------------------------ the status panel ------------------------------ */
+
+/** How many rows the status panel draws. */
+export const HUD_ROWS = 5
+
+/** The icons a status row can wear. */
+export type HudIcon = 'heart' | 'coin' | 'star' | 'key' | 'torch' | 'potion' | 'gem' | 'tag' | 'items' | 'tile'
+
+/** A stat's icon, from its name (and, for a list, its value): what a game
+ *  would draw beside it. Anything unnamed is a plain tile. */
+export function hudIcon(name: string, value: string): HudIcon {
+  const n = name.toLowerCase()
+  if (itemsOf(value) !== null) return 'items'
+  if (n === 'hp' || n === 'health') return 'heart'
+  if (n === 'coins' || n === 'gold') return 'coin'
+  if (n === 'level') return 'star'
+  if (n === 'has_key' || n === 'key') return 'key'
+  if (n === 'torch' || n === 'torch_lit') return 'torch'
+  if (n === 'potions') return 'potion'
+  if (n === 'gems') return 'gem'
+  if (n === 'name') return 'tag'
+  return 'tile'
+}
+
+/** How full a health bar is drawn, 0..1, from a whole-number value out of
+ *  100; null for a value that is not a number. */
+export function hudBar(value: string): number | null {
+  const v = Number(value.trim())
+  return value.trim() !== '' && Number.isFinite(v) ? clamp(v / 100, 0, 1) : null
+}
+
+/** A literal's truth, when it is written `True` or `False`. */
+export const literalBool = (text: string): boolean | null => (text.trim() === 'True' ? true : text.trim() === 'False' ? false : null)
+
+/* ------------------------------ the gate ------------------------------ */
+
+/** How many locks the gate draws. */
+export const GATE_LOCKS = 3
+
+/** Whether the gate's lamps let the current through: all of them lit for
+ *  `and`, any for `or`. */
+export function gateOpens(p: { op: 'and' | 'or'; locks: readonly { on: boolean }[] }): boolean {
+  const locks = p.locks.slice(0, GATE_LOCKS)
+  return p.op === 'and' ? locks.length > 0 && locks.every((l) => l.on) : locks.some((l) => l.on)
+}
+
+/**
+ * Where the current reaches, wire by wire. `into[i]` is the wire into
+ * lamp `i`, `outOf[i]` the wire out of it, and `gate` the wire into the
+ * gate. In series (`and`) the current reaches a lamp only through every
+ * lamp before it; in parallel (`or`) every lamp has the current at its
+ * near side, and passes it on only when lit.
+ */
+export function gateCurrent(p: { op: 'and' | 'or'; locks: readonly { on: boolean }[] }): { into: boolean[]; outOf: boolean[]; gate: boolean } {
+  const locks = p.locks.slice(0, GATE_LOCKS)
+  const into: boolean[] = []
+  const outOf: boolean[] = []
+  let live = true
+  for (const l of locks) {
+    into.push(p.op === 'and' ? live : true)
+    const out: boolean = (p.op === 'and' ? live : true) && l.on
+    outOf.push(out)
+    if (p.op === 'and') live = out
+  }
+  return { into, outOf, gate: gateOpens(p) }
+}
+
+/**
+ * What the gate shows. Unanswered, it waits shut (`waiting`), unless a
+ * `try` demonstration has the lamps decide (`open` or `shut`). A bool the
+ * robot thinks of that agrees with the lamps opens it or keeps it shut;
+ * one that disagrees, or a refused one, moves nothing and is drawn
+ * `refused`. Anything else leaves it waiting.
+ */
+export function gateShows(view: PropView): 'waiting' | 'open' | 'shut' | 'refused' {
+  if (view.prop.kind !== 'gate') return 'waiting'
+  const opens = gateOpens(view.prop)
+  const b = boolOf(view.answer)
+  if (view.answer !== null) {
+    if (b === null) return 'waiting'
+    return view.verdict === 'miss' || b !== opens ? 'refused' : b ? 'open' : 'shut'
+  }
+  if (view.prop.demo === 'try') return opens ? 'open' : 'shut'
+  return 'waiting'
+}
+
+/* ------------------------------ the fork ------------------------------ */
+
+/** How many branches the fork draws. */
+export const PATHS_MAX = 4
+
+/** The icons a branch's far end can show. */
+export type PathIcon = 'sword' | 'potion' | 'boots' | 'sneak' | 'campfire' | 'door' | 'sign'
+
+/** A branch's icon, from where it leads (quotes ignored): fight or sword,
+ *  drink or potion, run or boots, sneak, rest or campfire, open or door;
+ *  anything else a plain sign. */
+export function pathIcon(result: string): PathIcon {
+  const r = result.trim().replace(/^(['"])(.*)\1$/, '$2').toLowerCase()
+  if (r === 'fight' || r === 'sword') return 'sword'
+  if (r === 'drink' || r === 'potion') return 'potion'
+  if (r === 'run' || r === 'boots') return 'boots'
+  if (r === 'sneak') return 'sneak'
+  if (r === 'rest' || r === 'campfire') return 'campfire'
+  if (r === 'open' || r === 'door') return 'door'
+  return 'sign'
+}
+
+/**
+ * Each sign's mark: `yes` for the branch taken, `no` for each checked
+ * before it (its test said no), `skipped` for each after it — never
+ * checked, because the first yes wins. With no branch taken (`null`)
+ * every sign said no; with nothing decided yet (undefined) none is
+ * marked.
+ */
+export function pathMarks(p: { branches: readonly unknown[]; taken?: number | null }): ('yes' | 'no' | 'skipped' | 'none')[] {
+  const n = Math.min(PATHS_MAX, p.branches.length)
+  const t = p.taken
+  return Array.from({ length: n }, (_, i) => {
+    if (t === undefined) return 'none'
+    if (t === null) return 'no'
+    if (t < 0 || t >= n) return 'none'
+    return i < t ? 'no' : i === t ? 'yes' : 'skipped'
+  })
+}
+
+/* ------------------------------ the tally ------------------------------ */
+
+/** How many coins the tally draws. */
+export const TALLY_MAX = 6
+
+/** What the tally's counter holds: the robot's number when it has
+ *  thought of one (`refused` on a miss), else the prop's own `total`,
+ *  else nothing (an empty counter). */
+export function tallyShows(view: PropView): { text: string; kind: string; refused: boolean } | null {
+  if (view.prop.kind !== 'tally') return null
+  if (numberOf(view.answer) !== null) return { text: view.answer!.repr, kind: view.answer!.type, refused: view.verdict === 'miss' }
+  const t = view.prop.total
+  if (t === null || t === undefined || !Number.isFinite(t)) return null
+  return { text: String(t), kind: Number.isInteger(t) ? 'int' : 'float', refused: false }
+}
+
+/* ------------------------------ the cases ------------------------------ */
+
+/** How many cases the scoreboard draws. */
+export const CASES_MAX = 4
+
+/** A Python literal as the pictures write it: a str in the double quotes
+ *  the lessons use (`'run'` → `"run"`), anything else as it stands. */
+export function asWritten(literal: string): string {
+  const t = literal.trim()
+  const m = /^(['"])(.*)\1$/s.exec(t)
+  if (!m) return t
+  const body = m[2]!.replace(/\\(['"\\])/g, '$1')
+  return `"${body.replace(/(["\\])/g, '\\$1')}"`
+}
+
+/** Two literals that write the same value: `'run'` and `"run"` agree. */
+export const sameLiteral = (a: string, b: string): boolean => asWritten(a) === asWritten(b)
+
+/**
+ * What the player's program made of case `i` on its last run, for the
+ * scoreboard: the value `name` was left pointing at (as `asWritten`
+ * writes it), `nothing` when the program never bound it, or the type of
+ * the error it stopped with (`never ends` for one stopped for running too
+ * long). `ok` is whether that is the case's `want`. Null before any run,
+ * or for a case the run did not try.
+ */
+export function caseResult(view: PropView, i: number): { got: string; ok: boolean; how: 'value' | 'nothing' | 'error' } | null {
+  if (view.prop.kind !== 'cases') return null
+  const row = view.prop.rows[i]
+  const c = view.run?.cases?.[i]
+  // A run tried on another step's cases is not this scoreboard's.
+  const given = c ? Object.entries(c.given).map(([k, v]) => `${k} = ${v}`).join(', ') : ''
+  if (!row || !c || given !== row.given) return null
+  if (c.raised) return { got: c.raised === 'steps' ? 'never ends' : c.raised, ok: false, how: 'error' }
+  const name = view.prop.name
+  const b = c.final.bindings.find((x) => x.name === name && x.scope === 'global') ?? c.final.bindings.find((x) => x.name === name)
+  const o = b ? c.final.objects[b.target] : undefined
+  if (!o) return { got: 'nothing', ok: row.want === 'nothing', how: 'nothing' }
+  // A list by its items, as Python writes them (and so as the step's
+  // `want` does): its own repr is only how many it holds.
+  if (o.type === 'list' && o.elements) {
+    const items = `[${o.elements.map((el) => c.final.objects[el.target]?.repr ?? '?').join(', ')}]`
+    return { got: items, ok: items === row.want, how: 'value' }
+  }
+  const got = asWritten(o.repr)
+  return { got, ok: sameLiteral(got, row.want), how: 'value' }
 }
