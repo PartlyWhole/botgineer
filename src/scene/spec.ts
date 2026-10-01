@@ -137,6 +137,14 @@ export type SceneSpec = {
    * stays under the speech band.
    */
   props?: { x: number; w: number }
+  /**
+   * A landscape drawn behind everything on the stage: the floor, the
+   * pictures and the cast. Scenery only: it reads nothing and says
+   * nothing, so a scene without one is the plain workshop it always was.
+   * `trailhead` is a sky, distant mountains, pines and a cave in a rock
+   * face, with a trail running off to it (`Backdrop` in ScenePanel).
+   */
+  backdrop?: 'trailhead'
 }
 
 /* ------------------------------------------------------------------ */

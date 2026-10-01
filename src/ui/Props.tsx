@@ -46,6 +46,9 @@ import {
   exprWorking,
   goalShown,
   hotbarLit,
+  backpackLit,
+  backpackTicks,
+  BACKPACK_MAX,
   HOTBAR_ICONS,
   HOTBAR_MAX,
   type GoalShownRow,
@@ -270,6 +273,8 @@ function draw(view: PropView): ReactNode {
       return <GoalMemory view={view} p={p} />
     case 'hotbar':
       return <Hotbar view={view} p={p} />
+    case 'backpack':
+      return <Backpack view={view} p={p} />
   }
 }
 
@@ -442,6 +447,8 @@ function drawnAs(view: PropView): string {
       return goalSentence(view, p)
     case 'hotbar':
       return hotbarSentence(view, p)
+    case 'backpack':
+      return backpackSentence(view, p)
     case 'code': {
       const lines = codeLines(p.text)
       const marked = p.mark !== undefined && lines[p.mark - 1] !== undefined ? ` Line ${p.mark} is highlighted: ${lines[p.mark - 1]!.trim()}.` : ''
@@ -2909,7 +2916,7 @@ const GOAL = {
 function goalObjectWords(r: GoalShownRow): string {
   if (r.items === null) return reprOf(r.value)
   if (r.items.length === 0) return 'an empty list'
-  return `a list: ${r.items.map((it, i) => `slot ${i} → ${reprOf(it)}`).join(', ')}`
+  return `a list: ${r.items.map((it, i) => `index ${i} → ${reprOf(it)}`).join(', ')}`
 }
 
 /** What memory has for a row that is not met yet. A `same` row holding
@@ -2984,7 +2991,7 @@ function goalListShape(items: string[], lines: 1 | 2) {
  * points at now; names the goal does not list are an amber line at the
  * foot. A goal met settles once (`.goal.met`, props.css).
  *
- * A list is a card of numbered slots, and each slot points down at a
+ * A list is a card of slots, each showing its index, and each points down at a
  * chip of its own (invariant 4: slots are pointers, so no value is
  * written inside the list). A `same` row draws no object: its arrow
  * converges on the list another row drew, as memory draws aliasing.
@@ -3360,12 +3367,12 @@ const SLOT_WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six']
 function hotbarSentence(view: PropView, p: Extract<Prop, { kind: 'hotbar' }>): string {
   const items = p.items.slice(0, HOTBAR_MAX)
   const count = SLOT_WORDS[items.length] ?? String(items.length)
-  const held = items.map((it, i) => (i === 0 ? `slot 0 holds ${anItem(it)}` : `slot ${i} ${anItem(it)}`)).join(', ')
-  const picked = p.mark !== undefined && items[p.mark] !== undefined ? ` Slot ${p.mark} is selected.` : ''
+  const held = items.map((it, i) => (i === 0 ? `index 0 holds ${anItem(it)}` : `index ${i} ${anItem(it)}`)).join(', ')
+  const picked = p.mark !== undefined && items[p.mark] !== undefined ? ` Index ${p.mark} is selected.` : ''
   const a = view.answer
   const lit = hotbarLit(p, a)
   const said =
-    a === null || textOf(a) === null ? '' : lit !== null ? ` The robot's ${a.repr} lights slot ${lit}.` : ` No slot holds ${a.repr}.`
+    a === null || textOf(a) === null ? '' : lit !== null ? ` The robot's ${a.repr} lights index ${lit}.` : ` No slot holds ${a.repr}.`
   return `A hotbar of ${count} slot${items.length === 1 ? '' : 's'}${items.length > 0 ? `: ${held}` : ''}.${picked}${said}`
 }
 
@@ -3445,6 +3452,145 @@ function Hotbar({ view, p }: { view: PropView; p: Extract<Prop, { kind: 'hotbar'
       {picked !== null && (
         <rect x={cellX(picked) - 2} y={cy - 2} width={c + 4} height={c + 4} rx="5.5" className="hotbar-select" data-testid="hotbar-select" />
       )}
+    </g>
+  )
+}
+
+/* --- backpack: a list of strs, carried --- */
+
+/** The pack's pieces, in the picture's units. Its indexes end above
+ *  y = 116, clear of the answer tag over the picture's foot. */
+const PACK = { x: 8, w: 184, top: 26, body: 30, bottom: 100, pocketTop: 52, pocketH: 42, foot: 116, number: 12, gap: 3, side: 8 } as const
+
+function backpackSentence(view: PropView, p: Extract<Prop, { kind: 'backpack' }>): string {
+  const items = p.items.slice(0, BACKPACK_MAX)
+  const count = SLOT_WORDS[items.length] ?? String(items.length)
+  const held = items.map((it, i) => (i === 0 ? `index 0 holds ${anItem(it)}` : `index ${i} ${anItem(it)}`)).join(', ')
+  const lifted = p.mark !== undefined && items[p.mark] !== undefined ? ` The item at index ${p.mark} is lifted out.` : ''
+  const a = view.answer
+  let said = ''
+  if (a !== null && unworked(view)) said = ` The robot thought of ${a.repr}, but it has not counted them yet.`
+  else if (a !== null && textOf(a) !== null) {
+    const lit = backpackLit(p, a)
+    said = lit !== null ? ` The robot's ${a.repr} lights index ${lit}.` : ` No pocket holds ${a.repr}.`
+  } else if (a !== null && a.type === 'int') {
+    const ticks = backpackTicks(view)
+    said = ` The robot counts ${a.repr} thing${a.repr === '1' ? '' : 's'}${ticks !== null && ticks > 0 ? `, ticking ${ticks === items.length && Number(a.repr) === ticks ? 'every pocket' : `${ticks} pocket${ticks === 1 ? '' : 's'}`}` : ''}.`
+  }
+  return `A backpack with ${count} pocket${items.length === 1 ? '' : 's'}${items.length > 0 ? `: ${held}` : ''}.${lifted}${said}`
+}
+
+/**
+ * An open adventure backpack: a canvas body, its flap thrown back over
+ * the top with the buckle hanging, two straps, and across its front a
+ * row of stitched pockets, one per item, each item peeking out of its
+ * pocket with its name under it. Each pocket's number stands under the
+ * pack in a list's slot style.
+ *
+ * `mark` lifts that item out of its pocket and lights the pocket and its
+ * number; the light is per pocket and eases, so moving `mark` moves it.
+ * An item is keyed by its pocket and name, so a swapped one pops in. An
+ * int answer is a count: a tag over the pack says how many things, and
+ * that many pockets get a tick, in order; the right count typed by hand
+ * (`unworked`) ticks nothing and the tag waits with an amber `?`.
+ */
+function Backpack({ view, p }: { view: PropView; p: Extract<Prop, { kind: 'backpack' }> }) {
+  const items = p.items.slice(0, BACKPACK_MAX)
+  const n = Math.max(1, items.length)
+  const inner = PACK.w - 2 * PACK.side
+  const pw = (inner - (n - 1) * PACK.gap) / n
+  const px = (i: number) => PACK.x + PACK.side + i * (pw + PACK.gap)
+  const lit = backpackLit(p, view.answer)
+  const no = refusedOf(view)
+  const idle = unworked(view)
+  const ticks = backpackTicks(view)
+  const a = view.answer
+  const counting = a !== null && a.type === 'int'
+  const picked = p.mark !== undefined && p.mark >= 0 && p.mark < items.length ? p.mark : null
+  const icon = Math.min(20, pw * 0.62)
+  const nameSize = (it: string) => Math.min(7, (pw - 3) / (Math.max(1, [...it].length) * 0.6))
+  const cx = PACK.x + PACK.w / 2
+  return (
+    <g className={['backpack', no && 'refused', idle && 'unworked'].filter(Boolean).join(' ')}>
+      {/* Straps behind the body, looping over the top. */}
+      <path d={`M${cx - 46} ${PACK.body + 4} C${cx - 46} ${PACK.top - 22} ${cx + 46} ${PACK.top - 22} ${cx + 46} ${PACK.body + 4}`} className="pack-handle" />
+      <rect x={PACK.x} y={PACK.body} width={PACK.w} height={PACK.bottom - PACK.body} rx="14" className="pack-body" />
+      <rect x={PACK.x + 4} y={PACK.bottom - 8} width={PACK.w - 8} height="8" rx="4" className="pack-base" />
+      {/* The flap, thrown open over the top, its buckle hanging. */}
+      <path
+        d={`M${PACK.x + 18} ${PACK.body + 2} C${PACK.x + 22} ${PACK.top - 6} ${PACK.x + PACK.w - 22} ${PACK.top - 6} ${PACK.x + PACK.w - 18} ${PACK.body + 2} Z`}
+        className="pack-flap"
+      />
+      <rect x={cx - 5} y={PACK.body - 2} width="10" height="16" rx="2" className="pack-strap" />
+      <rect x={cx - 7} y={PACK.body + 12} width="14" height="9" rx="2" className="pack-buckle" />
+      <rect x={cx - 3.5} y={PACK.body + 14.5} width="7" height="4" rx="1" className="pack-buckle-hole" />
+      <line x1={PACK.x + 10} x2={PACK.x + PACK.w - 10} y1={PACK.body + 6} y2={PACK.body + 6} className="pack-seam" />
+      {counting && (
+        <g className={['pack-count', idle && 'waiting', ticks === items.length && Number(a!.repr) === items.length && !idle && 'all'].filter(Boolean).join(' ')} data-testid="pack-count">
+          <rect x={PACK.x + PACK.w - 58} y="2" width="56" height="15" rx="7.5" />
+          <text x={PACK.x + PACK.w - 30} y="12.6">
+            {idle ? '? things' : `${short(a!.repr, 4)} thing${a!.repr === '1' ? '' : 's'}`}
+          </text>
+        </g>
+      )}
+      {items.map((it, i) => {
+        const x = px(i)
+        const known = hasIcon(it)
+        const word = short(it, Math.max(3, Math.floor((pw - 6) / (6 * 0.6))))
+        const ticked = ticks !== null && i < ticks
+        return (
+          <g
+            key={i}
+            className={['pack-pocket', picked === i && 'marked', lit === i && 'lit', ticked && 'ticked'].filter(Boolean).join(' ')}
+            data-testid={`pocket-${i}`}
+            data-marked={picked === i ? 'yes' : undefined}
+            data-lit={lit === i ? 'yes' : undefined}
+            data-ticked={ticked ? 'yes' : undefined}
+            style={{ ['--i' as string]: i }}
+          >
+            <rect x={x} y={PACK.pocketTop} width={pw} height={PACK.pocketH} rx="5" className="pocket-back" />
+            {/* The item, peeking out over the pocket's lip; lifted when marked. */}
+            <g className="pocket-lift">
+              <g key={`${i}:${it}`} className="pocket-item" data-item={it}>
+                {known ? (
+                  <g transform={`translate(${x + pw / 2},${PACK.pocketTop + 11}) scale(${icon / 20})`} className="icon">
+                    {ICONS[it]}
+                  </g>
+                ) : (
+                  <>
+                    <rect x={x + 2} y={PACK.pocketTop + 4} width={pw - 4} height="12" rx="2.5" className="hotbar-tile" />
+                    <text x={x + pw / 2} y={PACK.pocketTop + 12.2} className="hotbar-word" style={{ fontSize: `${Math.min(7, (pw - 6) / (Math.max(1, [...word].length) * 0.6)).toFixed(2)}px` }}>
+                      {word}
+                    </text>
+                  </>
+                )}
+              </g>
+            </g>
+            <path
+              d={`M${x} ${PACK.pocketTop + 18} H${x + pw} V${PACK.pocketTop + PACK.pocketH - 5} Q${x + pw} ${PACK.pocketTop + PACK.pocketH} ${x + pw - 5} ${PACK.pocketTop + PACK.pocketH} H${x + 5} Q${x} ${PACK.pocketTop + PACK.pocketH} ${x} ${PACK.pocketTop + PACK.pocketH - 5} Z`}
+              className="pocket-front"
+            />
+            <path d={`M${x + 2.5} ${PACK.pocketTop + 20.5} H${x + pw - 2.5}`} className="pocket-stitch" />
+            {known && (
+              <text x={x + pw / 2} y={PACK.pocketTop + PACK.pocketH - 6} className="pocket-name" style={{ fontSize: `${nameSize(it).toFixed(2)}px` }}>
+                {it}
+              </text>
+            )}
+            {ticked && (
+              <g className="pocket-tick" transform={`translate(${x + pw - 5},${PACK.pocketTop + 22.5})`}>
+                <circle r="4" />
+                <path d="M-2 0.1 l1.4 1.5 l2.6 -3" />
+              </g>
+            )}
+            <g className="pocket-number">
+              <rect x={x + pw / 2 - 8} y={PACK.foot - PACK.number} width="16" height={PACK.number} rx="3" className="slot-strip" />
+              <text x={x + pw / 2} y={PACK.foot - 3.2} className="slot-index" style={{ fontSize: '8.5px' }}>
+                {i}
+              </text>
+            </g>
+          </g>
+        )
+      })}
     </g>
   )
 }

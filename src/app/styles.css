@@ -2001,3 +2001,155 @@ button.tidy:hover {
   outline: 2px solid var(--brand-deep);
   outline-offset: 2px;
 }
+
+/* ---------------- a scene's backdrop (`Backdrop`, ScenePanel) ---------------- */
+
+/* Scenery behind everything on the stage, standing on the floor line.
+   Pale and low in contrast up where speech, the robot's cloud and a
+   raised goal stand; a little richer only near the ground. It takes no
+   presses and is hidden from screen readers. */
+.backdrop {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background: linear-gradient(#f8fafe 0%, #f1f5fb calc(var(--floor-at, 76%) * 0.55), #e6eef6 var(--floor-at, 76%));
+}
+
+.backdrop svg {
+  position: absolute;
+  display: block;
+  overflow: visible;
+}
+
+/* Every layer's foot is on the floor line. */
+.backdrop .bd-far,
+.backdrop .bd-near,
+.backdrop .bd-pines,
+.backdrop .bd-rock {
+  bottom: calc(100% - var(--floor-at, 76%));
+}
+
+.backdrop .bd-clouds {
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: min(18cqw, calc(var(--floor-at, 76%) * 0.4));
+}
+.backdrop .bd-cloud {
+  fill: #ffffff;
+  opacity: 0.85;
+}
+
+.backdrop .bd-far {
+  left: 0;
+  width: 100%;
+  height: min(24cqw, calc(var(--floor-at, 76%) * 0.5));
+}
+.backdrop .bd-far-1 {
+  fill: #e3e9f3;
+}
+.backdrop .bd-snow {
+  fill: #f6f8fc;
+}
+.backdrop .bd-far-2 {
+  fill: #d7e0ec;
+}
+
+.backdrop .bd-near {
+  left: 0;
+  width: 100%;
+  height: min(9cqw, calc(var(--floor-at, 76%) * 0.2));
+}
+.backdrop .bd-hill {
+  fill: #c9d8cc;
+}
+
+.backdrop .bd-pines {
+  left: 1.5%;
+  width: 13cqw;
+  height: calc(13cqw * 110 / 120);
+}
+.backdrop .bd-pine path {
+  fill: #9db3a1;
+}
+.backdrop .bd-trunk {
+  fill: #a8968a;
+}
+
+/* The rock face is ROCK_W (26) wide at the right edge, so the trail can
+   aim at its mouth. */
+.backdrop .bd-rock {
+  right: 0;
+  width: 26cqw;
+  height: calc(26cqw * 230 / 300);
+}
+.backdrop .bd-rock-face {
+  fill: #c3bcb3;
+}
+.backdrop .bd-rock-shade {
+  fill: #b3aba1;
+}
+.backdrop .bd-rock-ledge {
+  fill: none;
+  stroke: #ada59b;
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+.backdrop .bd-cave {
+  fill: #4b4655;
+}
+.backdrop .bd-cave-rim {
+  fill: none;
+  stroke: #a39a90;
+  stroke-width: 4;
+  stroke-linecap: round;
+}
+.backdrop .bd-rock .bd-pine path {
+  fill: #8fa894;
+}
+
+/* Below the line: ground, and the trail running off to the cave. */
+.backdrop .bd-ground {
+  left: 0;
+  top: var(--floor-at, 76%);
+  width: 100%;
+  height: calc(100% - var(--floor-at, 76%));
+}
+.backdrop .bd-ground-fill {
+  fill: #d9dcc4;
+}
+.backdrop .bd-trail {
+  fill: #ece2c7;
+}
+.backdrop .bd-grass {
+  stroke: #c3c9aa;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+/* On a backdrop the floor is the ground it draws: only the contact line
+   and the cast's shadows stay. */
+.stage[data-backdrop] .floor {
+  background: transparent;
+  border-top-color: rgb(150 160 130 / 0.45);
+}
+.stage[data-backdrop] .floor::before {
+  display: none;
+}
+
+/* The clouds drift, very slowly, and only where motion is welcome. */
+@media (prefers-reduced-motion: no-preference) {
+  .backdrop .bd-cloud {
+    animation: bd-drift 160s linear var(--d, 0s) infinite alternate;
+  }
+  @keyframes bd-drift {
+    from {
+      translate: -60px 0;
+    }
+    to {
+      translate: 60px 0;
+    }
+  }
+}

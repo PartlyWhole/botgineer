@@ -4,7 +4,7 @@
  *
  * A small stand-in for the console plays lines into evidence the way the
  * workbench records them, with lists as objects of their own whose slots
- * point at value objects, so `team = party` is the very same list.
+ * point at value objects, so `bag = backpack` is the very same list.
  */
 import { describe, expect, it } from 'vitest'
 import { progress, script, type Evidence, type Heard, type LineMemory, type Pick } from '../../../content/lessons'
@@ -169,7 +169,7 @@ describe('v2-lists: the eight', () => {
     }
   })
 
-  it('wants `team` to be the very same list, not an equal copy', () => {
+  it('wants `bag` to be the very same list, not an equal copy', () => {
     const seed = 3
     const lesson = listsLesson(seed)
     const p = practice(seed)
@@ -180,10 +180,10 @@ describe('v2-lists: the eight', () => {
       else lines.push(...step.model!.split('\n'))
     }
     // A copy: a new list with the same names in it, as the goal shows them.
-    const shown = (p[5]!.show as { goal: { value: string }[] }).goal[0]!.value
+    const shown = (p[p.length - 2]!.show as { goal: { value: string }[] }).goal[0]!.value
     const before = 7 + p.length - 1
-    expect(progress(lesson, play([...lines, `team = ${shown}`], picks))).toBe(before)
-    expect(progress(lesson, play([...lines, 'team = party'], picks))).toBe(before + 1)
+    expect(progress(lesson, play([...lines, `bag = ${shown}`], picks))).toBe(before)
+    expect(progress(lesson, play([...lines, 'bag = backpack'], picks))).toBe(before + 1)
   })
 })
 
@@ -191,8 +191,8 @@ describe('v2-lists: a typo', () => {
   it('says first that a name the line just made is not in the goal', () => {
     const lesson = listsLesson(3)
     const first = practice(3)[0]!
-    const m = play(['party = ["Sprocket"]', 'partty = 1']).snapshot
-    expect(first.nudge!({ source: 'partty = 1', ok: true, error: null, thought: null, memory: m })).toMatch(/`partty` isn't in the goal. Undo/)
+    const m = play(['backpack = ["map"]', 'backpak = 1']).snapshot
+    expect(first.nudge!({ source: 'backpak = 1', ok: true, error: null, thought: null, memory: m })).toMatch(/`backpak` isn't in the goal. Undo/)
     void lesson
   })
 })

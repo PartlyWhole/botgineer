@@ -19,6 +19,8 @@ import {
   GOAL_ITEMS,
   GOAL_ROWS,
   GOAL_ROWS_WITH_LIST,
+  BACKPACK_MAX,
+  backpackTicks,
   HOTBAR_ICONS,
   HOTBAR_MAX,
   goalShown,
@@ -504,7 +506,7 @@ describe('a goal memory with a list', () => {
     const card = /<rect[^>]*class="goal-list-card slot-strip"[^>]*>/.exec(html)
     expect(card).not.toBeNull()
     expect(html.match(/class="goal-card goal-chip" data-kind="int"/g)).toHaveLength(3)
-    expect(sentence(view(list))).toBe('Goal, a memory to make: scores points at a list: slot 0 → 3, slot 1 → 9, slot 2 → 2.')
+    expect(sentence(view(list))).toBe('Goal, a memory to make: scores points at a list: index 0 → 3, index 1 → 9, index 2 → 2.')
   })
 
   it('says what the list holds now, slot by slot', () => {
@@ -624,8 +626,8 @@ describe('an inventory hotbar', () => {
   })
 
   it('says what each slot holds, and which is selected', () => {
-    expect(sentence(view(p(three, 1)))).toBe('A hotbar of three slots: slot 0 holds a sword, slot 1 a shield, slot 2 a potion. Slot 1 is selected.')
-    expect(sentence(view(p(['apple'])))).toBe('A hotbar of one slot: slot 0 holds an apple.')
+    expect(sentence(view(p(three, 1)))).toBe('A hotbar of three slots: index 0 holds a sword, index 1 a shield, index 2 a potion. Index 1 is selected.')
+    expect(sentence(view(p(['apple'])))).toBe('A hotbar of one slot: index 0 holds an apple.')
   })
 
   it('selects the marked slot, and moving the mark or swapping an item is narration', () => {
@@ -647,7 +649,7 @@ describe('an inventory hotbar', () => {
     expect(drawn(lit).match(/data-lit="yes"/g)).toHaveLength(1)
     expect(drawn(lit)).toContain('data-testid="answer-tag"')
     expect(sentence(lit)).toBe(
-      "A hotbar of three slots: slot 0 holds a sword, slot 1 a shield, slot 2 a potion. Slot 1 is selected. The robot's 'shield' lights slot 1.",
+      "A hotbar of three slots: index 0 holds a sword, index 1 a shield, index 2 a potion. Index 1 is selected. The robot's 'shield' lights index 1.",
     )
     const miss = view(p(three), th('str', "'bow'"), 'miss')
     expect(drawn(miss)).not.toContain('data-lit')
@@ -672,6 +674,86 @@ describe('an inventory hotbar', () => {
     const html = drawn(view(p(['sword', 'shield', 'potion', 'pickaxe', 'helmet', 'torch'], 5)))
     // The bar's own boxes; the icons' shapes are drawn inside their cells.
     const boxes = [...html.matchAll(/<rect x="([-\d.]+)" y="([-\d.]+)" width="([\d.]+)" height="([\d.]+)"[^>]*class="(?:hotbar|slot)/g)].map((m) => m.slice(1, 5).map(Number))
+    expect(boxes.length).toBeGreaterThan(12)
+    expect(Math.min(...boxes.map((b) => b[0]!))).toBeGreaterThanOrEqual(4)
+    expect(Math.max(...boxes.map((b) => b[0]! + b[2]!))).toBeLessThanOrEqual(196)
+    expect(Math.max(...boxes.map((b) => b[1]! + b[3]!))).toBeLessThanOrEqual(117)
+  })
+})
+
+describe('a backpack', () => {
+  const p = (items: string[], mark?: number): Prop => (mark === undefined ? { kind: 'backpack', items } : { kind: 'backpack', items, mark })
+  const four = ['map', 'torch', 'rope', 'apple']
+
+  it('tucks each item into a pocket with its icon or a tile, its name, and its index under the pack', () => {
+    const html = drawn(view(p(four)))
+    expect(html.match(/class="pack-pocket"/g)).toHaveLength(4)
+    expect(html.match(/data-item="(\w+)"/g)).toEqual(four.map((it) => `data-item="${it}"`))
+    expect(html.match(/class="icon"/g)).toHaveLength(3)
+    expect(html).toMatch(/class="hotbar-word"[^>]*>rope</)
+    expect(html.match(/class="slot-index"[^>]*>(\d)</g)?.map((m) => m.slice(-2, -1))).toEqual(['0', '1', '2', '3'])
+    expect(drawn(view(p(['a', 'b', 'c', 'd', 'e', 'f', 'g']))).match(/class="pocket-back"/g)).toHaveLength(BACKPACK_MAX)
+    expect(sentence(view(p(four, 1)))).toBe('A backpack with four pockets: index 0 holds a map, index 1 a torch, index 2 a rope, index 3 an apple. The item at index 1 is lifted out.')
+  })
+
+  it('lifts the marked item, and moving the mark or swapping an item is narration', () => {
+    expect(drawn(view(p(four, 2)))).toMatch(/class="pack-pocket marked" data-testid="pocket-2"/)
+    expect(sameProp(p(four, 0), p(four, 3))).toBe(true)
+    expect(sameProp(p(four, 1), p(['map', 'gem', 'rope', 'apple'], 1))).toBe(true)
+    expect(sameProp(p(four), p([...four, 'key']))).toBe(false)
+    expect(sameProp(p(four), { kind: 'hotbar', items: four })).toBe(false)
+  })
+
+  it('lights the item a str names, the marked one first; a str none holds is only its tag', () => {
+    const lit = view(p(['key', 'gem', 'key'], 2), th('str', "'key'"), 'right')
+    expect(drawn(lit)).toMatch(/data-testid="pocket-2"[^>]*data-lit="yes"/)
+    expect(drawn(lit).match(/data-lit="yes"/g)).toHaveLength(1)
+    expect(sentence(lit)).toMatch(/The robot's 'key' lights index 2\.$/)
+    const miss = view(p(four), th('str', "'bow'"), 'miss')
+    expect(drawn(miss)).not.toContain('data-lit')
+    expect(drawn(miss)).toContain('data-testid="answer-tag"')
+    expect(sentence(miss)).toMatch(/No pocket holds 'bow'\.$/)
+  })
+
+  it('counts with an int: a tag, and that many pockets ticked in order', () => {
+    const right = view(p(four), th('int', '4'), 'right')
+    expect(backpackTicks(right)).toBe(4)
+    expect(drawn(right).match(/data-ticked="yes"/g)).toHaveLength(4)
+    expect(drawn(right)).toMatch(/class="pack-count all"[\s\S]*>4 things</)
+    expect(sentence(right)).toMatch(/The robot counts 4 things, ticking every pocket\.$/)
+    const two = view(p(four), th('int', '2'), 'miss')
+    expect(backpackTicks(two)).toBe(2)
+    expect(drawn(two)).toMatch(/data-testid="pocket-0"[^>]*data-ticked="yes"/)
+    expect(drawn(two)).toMatch(/data-testid="pocket-1"[^>]*data-ticked="yes"/)
+    expect(drawn(two)).not.toMatch(/data-testid="pocket-2"[^>]*data-ticked/)
+    expect(backpackTicks(view(p(four), th('int', '9'), 'miss'))).toBe(4)
+  })
+
+  it('draws the right count typed by hand unworked: an amber ?, nothing ticked', () => {
+    expect(rightNumber(p(four))).toBe(4)
+    const typed = view(p(four), th('int', '4'), 'miss')
+    expect(unworked(typed)).toBe(true)
+    expect(refused(typed)).toBe(false)
+    expect(backpackTicks(typed)).toBeNull()
+    expect(drawn(typed)).not.toContain('data-ticked')
+    expect(drawn(typed)).toMatch(/class="pack-count waiting"[\s\S]*>\? things</)
+    expect(drawn(typed)).toContain('data-worked="no"')
+    expect(sentence(typed)).toMatch(/has not counted them yet\./)
+  })
+
+  it('looks right with the marked item or the count, so a refused item is amber', () => {
+    expect(looksRight(view(p(four, 1), th('str', "'torch'")))).toBe(true)
+    expect(looksRight(view(p(four, 1), th('str', "'map'")))).toBe(false)
+    expect(looksRight(view(p(four), th('int', '4')))).toBe(true)
+    expect(looksRight(view(p(four), th('int', '3')))).toBe(false)
+    const no = view(p(four, 1), th('str', "'torch'"), 'miss')
+    expect(refused(no)).toBe(true)
+    expect(drawn(no)).toMatch(/class="backpack refused"/)
+  })
+
+  it('keeps six pockets inside the picture and clear of the answer tag', () => {
+    const html = drawn(view(p(['sword', 'shield', 'potion', 'pickaxe', 'helmet', 'torch'], 5), th('int', '6'), 'right'))
+    const boxes = [...html.matchAll(/<rect x="([-\d.]+)" y="([-\d.]+)" width="([\d.]+)" height="([\d.]+)"[^>]*class="(?:pack|pocket|slot)/g)].map((m) => m.slice(1, 5).map(Number))
     expect(boxes.length).toBeGreaterThan(12)
     expect(Math.min(...boxes.map((b) => b[0]!))).toBeGreaterThanOrEqual(4)
     expect(Math.max(...boxes.map((b) => b[0]! + b[2]!))).toBeLessThanOrEqual(196)

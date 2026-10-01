@@ -3521,10 +3521,10 @@
   }
 }
 
-/* A list in a goal: a card of numbered slots in the reference colours
+/* A list in a goal: a card of slots, each showing its index, in the reference colours
    (a list is an object with an identity, as memory draws it), each slot
    pointing down at its own chip. The slot style is shared with the
-   hotbar's numbers, so a slot number looks the same wherever it is. */
+   hotbar's and backpack's indexes, so an index looks the same wherever it is. */
 .prop .slot-strip {
   fill: rgb(255 255 255 / 0.75);
   stroke: var(--ref);
@@ -3567,7 +3567,7 @@
 /* ------------------------------ hotbar ------------------------------ */
 
 /* A game's hotbar in the app's own flat style: a dark rounded bar, square
-   cells with a soft bevel, and slot numbers under them in the list's slot
+   cells with a soft bevel, and each slot's index under it in the list's slot
    style. The selected slot lifts and a bright frame sits on it; the frame
    slides to the next slot when `mark` moves. A cell the robot's str names
    is lit in the str colour. The icons are plain flat shapes. */
@@ -3594,12 +3594,12 @@
   fill: #e3e9f7;
   text-anchor: middle;
 }
-.hotbar .hotbar-tile {
+:is(.hotbar, .backpack) .hotbar-tile {
   fill: #f4f6fb;
   stroke: #a9b4cf;
   stroke-width: 0.8;
 }
-.hotbar .hotbar-word {
+:is(.hotbar, .backpack) .hotbar-word {
   font-family: var(--mono);
   font-weight: 800;
   fill: var(--k-str);
@@ -3655,37 +3655,37 @@
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-.hotbar .i-steel { fill: #cfd8e8; stroke: #7d8aa6; stroke-width: 0.8; }
-.hotbar .i-wood { fill: #b07a45; stroke: #6f4a26; stroke-width: 0.7; }
-.hotbar .i-grip { stroke: #6f4a26; stroke-width: 2.6; }
-.hotbar .i-gold { fill: #f5c542; stroke: #b3861b; stroke-width: 0.8; }
-.hotbar .i-blue { fill: #5b8def; stroke: #2f4fa8; stroke-width: 0.9; }
-.hotbar .i-blue-dark { fill: #3f6fd1; }
-.hotbar .i-mark { fill: none; stroke: #f5c542; stroke-width: 1.8; }
-.hotbar .i-glass { fill: #e8f1ff; stroke: #8fa3c9; stroke-width: 0.8; }
-.hotbar .i-red { fill: #e5484d; stroke: #a8262b; stroke-width: 0.7; }
-.hotbar .i-shine { fill: rgb(255 255 255 / 0.75); }
-.hotbar .i-bow { fill: none; stroke: #b07a45; stroke-width: 2.4; }
-.hotbar .i-string { fill: none; stroke: #e3e9f7; stroke-width: 0.7; }
-.hotbar .i-shaft { fill: none; stroke: #d9b88a; stroke-width: 1.3; }
-.hotbar .i-paper { fill: #f3e2b8; stroke: #a8874a; stroke-width: 0.8; }
-.hotbar .i-fold { fill: none; stroke: #c9ad74; stroke-width: 0.7; }
-.hotbar .i-route { fill: none; stroke: #8f4700; stroke-width: 1; stroke-dasharray: 1.6 1.4; }
-.hotbar .i-x { fill: none; stroke: #e5484d; stroke-width: 1.5; }
-.hotbar .i-gem { fill: #52d6e0; stroke: #1f8793; stroke-width: 0.8; }
-.hotbar .i-facet { fill: none; stroke: rgb(255 255 255 / 0.7); stroke-width: 0.6; }
-.hotbar .i-key { fill: #f5c542; stroke: #b3861b; stroke-width: 0.8; }
-.hotbar .i-hole { fill: #3b4868; }
-.hotbar .i-key-line { fill: none; stroke: #f5c542; stroke-width: 2.2; }
-.hotbar .i-stem { fill: none; stroke: #6f4a26; stroke-width: 1.3; }
-.hotbar .i-leaf { fill: #52b35f; stroke: #2e7a39; stroke-width: 0.6; }
-.hotbar .i-flame { fill: #ff9f40; stroke: #d9651a; stroke-width: 0.6; }
-.hotbar .i-flame-core { fill: #ffe27a; }
-.hotbar .i-visor { fill: #27324d; }
-.hotbar .i-ridge { fill: none; stroke: #7d8aa6; stroke-width: 1; }
-.hotbar .i-coin-rim { fill: none; stroke: #b3861b; stroke-width: 0.8; }
-.hotbar .i-coin-star { fill: #fff3c4; }
-.hotbar .i-handle { fill: none; stroke: #b07a45; stroke-width: 2.2; }
+:is(.hotbar, .backpack) .i-steel { fill: #cfd8e8; stroke: #7d8aa6; stroke-width: 0.8; }
+:is(.hotbar, .backpack) .i-wood { fill: #b07a45; stroke: #6f4a26; stroke-width: 0.7; }
+:is(.hotbar, .backpack) .i-grip { stroke: #6f4a26; stroke-width: 2.6; }
+:is(.hotbar, .backpack) .i-gold { fill: #f5c542; stroke: #b3861b; stroke-width: 0.8; }
+:is(.hotbar, .backpack) .i-blue { fill: #5b8def; stroke: #2f4fa8; stroke-width: 0.9; }
+:is(.hotbar, .backpack) .i-blue-dark { fill: #3f6fd1; }
+:is(.hotbar, .backpack) .i-mark { fill: none; stroke: #f5c542; stroke-width: 1.8; }
+:is(.hotbar, .backpack) .i-glass { fill: #e8f1ff; stroke: #8fa3c9; stroke-width: 0.8; }
+:is(.hotbar, .backpack) .i-red { fill: #e5484d; stroke: #a8262b; stroke-width: 0.7; }
+:is(.hotbar, .backpack) .i-shine { fill: rgb(255 255 255 / 0.75); }
+:is(.hotbar, .backpack) .i-bow { fill: none; stroke: #b07a45; stroke-width: 2.4; }
+:is(.hotbar, .backpack) .i-string { fill: none; stroke: #e3e9f7; stroke-width: 0.7; }
+:is(.hotbar, .backpack) .i-shaft { fill: none; stroke: #d9b88a; stroke-width: 1.3; }
+:is(.hotbar, .backpack) .i-paper { fill: #f3e2b8; stroke: #a8874a; stroke-width: 0.8; }
+:is(.hotbar, .backpack) .i-fold { fill: none; stroke: #c9ad74; stroke-width: 0.7; }
+:is(.hotbar, .backpack) .i-route { fill: none; stroke: #8f4700; stroke-width: 1; stroke-dasharray: 1.6 1.4; }
+:is(.hotbar, .backpack) .i-x { fill: none; stroke: #e5484d; stroke-width: 1.5; }
+:is(.hotbar, .backpack) .i-gem { fill: #52d6e0; stroke: #1f8793; stroke-width: 0.8; }
+:is(.hotbar, .backpack) .i-facet { fill: none; stroke: rgb(255 255 255 / 0.7); stroke-width: 0.6; }
+:is(.hotbar, .backpack) .i-key { fill: #f5c542; stroke: #b3861b; stroke-width: 0.8; }
+:is(.hotbar, .backpack) .i-hole { fill: #3b4868; }
+:is(.hotbar, .backpack) .i-key-line { fill: none; stroke: #f5c542; stroke-width: 2.2; }
+:is(.hotbar, .backpack) .i-stem { fill: none; stroke: #6f4a26; stroke-width: 1.3; }
+:is(.hotbar, .backpack) .i-leaf { fill: #52b35f; stroke: #2e7a39; stroke-width: 0.6; }
+:is(.hotbar, .backpack) .i-flame { fill: #ff9f40; stroke: #d9651a; stroke-width: 0.6; }
+:is(.hotbar, .backpack) .i-flame-core { fill: #ffe27a; }
+:is(.hotbar, .backpack) .i-visor { fill: #27324d; }
+:is(.hotbar, .backpack) .i-ridge { fill: none; stroke: #7d8aa6; stroke-width: 1; }
+:is(.hotbar, .backpack) .i-coin-rim { fill: none; stroke: #b3861b; stroke-width: 0.8; }
+:is(.hotbar, .backpack) .i-coin-star { fill: #fff3c4; }
+:is(.hotbar, .backpack) .i-handle { fill: none; stroke: #b07a45; stroke-width: 2.2; }
 
 /* Arriving, the items pop into their cells in turn; an item swapped into
    a cell is a new one there, and pops in by itself. */
@@ -3708,6 +3708,164 @@
     opacity: 0;
     scale: 0.3;
   }
+}
+
+/* ------------------------------ backpack ------------------------------ */
+
+/* An open adventure backpack in flat canvas tones, its items peeking out
+   of stitched pockets. The marked item lifts out and its pocket and number
+   light gold; a str the robot names lights its pocket in the str colour;
+   a count ticks pockets in order, green. Amber is a refused answer, or a
+   count typed by hand and not worked out. */
+.backpack .pack-handle {
+  fill: none;
+  stroke: #8a6a43;
+  stroke-width: 5;
+  stroke-linecap: round;
+}
+.backpack .pack-body {
+  fill: #c98f4e;
+  stroke: #8a5d2c;
+  stroke-width: 1.4;
+}
+.backpack .pack-base {
+  fill: #a8733b;
+}
+.backpack .pack-flap {
+  fill: #b57a3c;
+  stroke: #8a5d2c;
+  stroke-width: 1.2;
+}
+.backpack .pack-strap {
+  fill: #8a5d2c;
+}
+.backpack .pack-buckle {
+  fill: #f2c94c;
+  stroke: #a77f17;
+  stroke-width: 1;
+}
+.backpack .pack-buckle-hole {
+  fill: #8a5d2c;
+}
+.backpack .pack-seam {
+  stroke: #e3b57b;
+  stroke-width: 1;
+  stroke-dasharray: 3 2.5;
+}
+.backpack .pocket-back {
+  fill: #6f4a26;
+}
+.backpack .pocket-front {
+  fill: #e0a965;
+  stroke: #8a5d2c;
+  stroke-width: 1.1;
+  transition: fill 220ms ease, stroke 220ms ease;
+}
+.backpack .pocket-stitch {
+  stroke: #fff2dc;
+  stroke-width: 0.9;
+  stroke-dasharray: 2 1.8;
+}
+.backpack .pocket-name {
+  font-family: 'Nunito', ui-rounded, system-ui, sans-serif;
+  font-weight: 800;
+  fill: #4a2f12;
+  text-anchor: middle;
+}
+.backpack .pocket-lift {
+  transition: translate 300ms cubic-bezier(0.3, 1.4, 0.5, 1);
+}
+.backpack .pack-pocket.marked .pocket-lift {
+  translate: 0 -9px;
+}
+.backpack .pack-pocket.marked .pocket-front {
+  fill: #ffe7a8;
+  stroke: #e0a526;
+  stroke-width: 2;
+}
+.backpack .pack-pocket .pocket-number .slot-strip {
+  transition: fill 220ms ease, stroke 220ms ease;
+}
+.backpack .pack-pocket.marked .pocket-number .slot-strip {
+  fill: #fff1c9;
+  stroke: #e0a526;
+  stroke-width: 1.6;
+}
+.backpack .pack-pocket.lit .pocket-front {
+  fill: var(--k-str-bg);
+  stroke: var(--k-str);
+  stroke-width: 2;
+}
+.backpack .pack-pocket.lit .pocket-name {
+  fill: var(--k-str);
+}
+.backpack.refused .pack-pocket.lit .pocket-front {
+  fill: var(--unworked-bg);
+  stroke: var(--unworked);
+  stroke-dasharray: 3 2;
+}
+.backpack .pocket-tick circle {
+  fill: var(--good);
+}
+.backpack .pocket-tick path {
+  fill: none;
+  stroke: #ffffff;
+  stroke-width: 1.3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+/* The count, as a tag over the pack in the int colour. */
+.backpack .pack-count rect {
+  fill: var(--k-int-bg);
+  stroke: var(--k-int);
+  stroke-width: 1.2;
+}
+.backpack .pack-count text {
+  font-family: var(--mono);
+  font-size: 8.5px;
+  font-weight: 800;
+  fill: var(--k-int);
+  text-anchor: middle;
+}
+.backpack .pack-count.all rect {
+  stroke: var(--good);
+}
+.backpack .pack-count.waiting rect {
+  fill: var(--unworked-bg);
+  stroke: var(--unworked);
+  stroke-dasharray: 3 2;
+}
+.backpack .pack-count.waiting text {
+  fill: var(--unworked);
+}
+.backpack.refused .pack-count rect {
+  stroke: var(--unworked);
+  stroke-dasharray: 3 2;
+}
+/* The icons are the hotbar's, in the same flat colours. */
+.backpack .icon * {
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Arriving, the items drop into their pockets in turn; a swapped item is
+   a new one in its pocket, and pops in by itself. Ticks land in order. */
+.backpack .pocket-item {
+  transform-box: fill-box;
+  transform-origin: center bottom;
+  animation: hotbar-pop 360ms cubic-bezier(0.3, 1.6, 0.5, 1) calc(var(--beat, 0s) + 0.15s + var(--i, 0) * 0.07s) backwards;
+}
+.prop-layer[data-told] .backpack .pocket-item {
+  animation-delay: 0s;
+}
+.backpack .pocket-tick {
+  animation: goal-tick-in 280ms cubic-bezier(0.3, 1.5, 0.5, 1) calc(var(--i, 0) * 0.12s) backwards;
+}
+.backpack .pocket-number {
+  animation: from-dark 300ms ease-out calc(var(--beat, 0s) + 0.2s + var(--i, 0) * 0.07s) backwards;
+}
+.prop-layer[data-told] .backpack .pocket-number {
+  animation: none;
 }
 
 /* ------------------------------ calm ------------------------------ */

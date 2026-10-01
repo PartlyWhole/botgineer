@@ -14,7 +14,7 @@ async function openSeeded(page: Page) {
   await expect(page.locator('.app')).toHaveAttribute('data-boot', 'ready', { timeout: 60_000 })
 }
 
-test('taught, then the eight, with a wipe and one list under two names', { tag: '@v2' }, async ({ page }) => {
+test('taught, then the backpack: packed, added to, counted, looked up, swapped and shared', { tag: '@v2' }, async ({ page }) => {
   test.setTimeout(180_000)
   await openSeeded(page)
   const lesson = listsLesson(SEED)
@@ -43,10 +43,10 @@ test('taught, then the eight, with a wipe and one list under two names', { tag: 
     }
     await expect.poll(async () => (await beat(page)).kind, { message: `step ${i}: ${step.say}` }).toMatch(/praise|outro/)
   }
-  // `team` and `party` point at one object.
+  // `bag` and `backpack` point at one object.
   const same = await page.evaluate(() => {
     const b = window.botgineer.snapshot().bindings
-    return b.find((x) => x.name === 'team')?.target === b.find((x) => x.name === 'party')?.target
+    return b.find((x) => x.name === 'bag')?.target === b.find((x) => x.name === 'backpack')?.target
   })
   expect(same).toBe(true)
   await page.evaluate(() => window.botgineer.skip())

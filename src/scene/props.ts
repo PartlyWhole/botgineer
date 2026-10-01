@@ -277,6 +277,19 @@ export type Prop =
    *  that item (the selected one first); a str no cell holds lights
    *  nothing, and anything else is only its tag. */
   | { kind: 'hotbar'; items: string[]; mark?: number }
+  /** An open adventure backpack, its items tucked into a row of numbered
+   *  pockets across its front (each index in a list's slot style): a
+   *  list of strs, carried. Each pocket shows its item as the hotbar does
+   *  (an icon from `HOTBAR_ICONS`, else a tile with the word) and its
+   *  name in small type. At most `BACKPACK_MAX`. `mark` (narration) lifts
+   *  that item a little out of its pocket and lights it and its number;
+   *  the items are narration too while their count stays the same, so a
+   *  swapped item pops into its pocket. A str the robot thinks of lights
+   *  the item it names (the marked one first). An int is a count: a tag
+   *  says how many things, and that many pockets are ticked, in order.
+   *  The count is a number to work out (`len`), so the right count typed
+   *  by hand is drawn unworked (`rightNumber`). */
+  | { kind: 'backpack'; items: string[]; mark?: number }
 
 /** How many slots the hotbar draws. */
 export const HOTBAR_MAX = 6
@@ -294,6 +307,22 @@ export function hotbarLit(p: { items: readonly string[]; mark?: number }, t: Tho
   if (p.mark !== undefined && items[p.mark] === text) return p.mark
   const at = items.indexOf(text)
   return at < 0 ? null : at
+}
+
+/** How many items the backpack draws. */
+export const BACKPACK_MAX = 6
+
+/** Which pocket a thought lights: as on the hotbar, a str equal to an
+ *  item, the marked one first. */
+export const backpackLit = hotbarLit
+
+/** How many pockets a count ticks: an int answer, in order from pocket 0,
+ *  no more than the backpack has. Null for anything that is not a whole
+ *  count, or a count not yet worked out. */
+export function backpackTicks(view: PropView): number | null {
+  if (view.prop.kind !== 'backpack' || view.answer?.type !== 'int' || unworked(view)) return null
+  const n = Number(view.answer.repr)
+  return Number.isInteger(n) ? clamp(n, 0, Math.min(BACKPACK_MAX, view.prop.items.length)) : null
 }
 
 /** How many rows of a goal memory the picture draws: four, or three when
@@ -432,6 +461,7 @@ const NARRATION: Partial<Record<Prop['kind'], string[]>> = {
   beads: ['glow'],
   code: ['mark'],
   hotbar: ['mark'],
+  backpack: ['mark'],
 }
 
 /** A prop without its narration: what identifies the picture. A tally
@@ -445,7 +475,7 @@ function picture(p: Prop): Record<string, unknown> {
     out['tally'] = true
   }
   // A hotbar: the items are narration, their count is the picture.
-  if (p.kind === 'hotbar') out['items'] = p.items.length
+  if (p.kind === 'hotbar' || p.kind === 'backpack') out['items'] = p.items.length
   return out
 }
 
@@ -551,6 +581,8 @@ export function rightNumber(p: Prop): number | null {
       return packsTotal(p)
     case 'numberline':
       return p.want ?? null
+    case 'backpack':
+      return p.items.length
     case 'tiles': {
       const made = tilesMake(p.parts ?? [])
       return made && 'number' in made ? made.number : null
@@ -616,7 +648,8 @@ export const HEIGHT_RANGE = [0.5, 2.5] as const
  * (or, under a lone word, one letter tile); every crate's bolts lit; the
  * jug emptied into the tanks; the bolts left ringed; the letter turned;
  * the scale reading what the parcels weigh; the marker where the ask
- * wants it; the selected hotbar slot's item; the note's tag saying the note's words; every item in the
+ * wants it; the selected hotbar slot's item; the backpack's marked item, or
+ * its count; the note's tag saying the note's words; every item in the
  * packs lit. The balance and the working are drawn only once the step is
  * right, the shelf and the kinds sort by type (Python's truth either
  * way), and the rest draw no answer: none of those can look right on a
@@ -680,6 +713,8 @@ export function looksRight(view: PropView): boolean {
       return n !== null && p.want !== undefined && Math.abs(n - p.want) < 1e-9
     case 'hotbar':
       return t !== null && p.mark !== undefined && p.items[p.mark] === t
+    case 'backpack':
+      return (t !== null && p.mark !== undefined && p.items[p.mark] === t) || (a.type === 'int' && n === p.items.length)
     default:
       return false
   }

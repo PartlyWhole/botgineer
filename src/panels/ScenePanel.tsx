@@ -291,8 +291,13 @@ export function ScenePanel({
         className="stage"
         data-scene={spec.id}
         data-props={spec.props ? 'yes' : undefined}
+        data-backdrop={spec.backdrop}
         style={spec.floor ? { ['--floor-at' as string]: `${spec.floor.at}%` } : undefined}
       >
+        {/* Rearmost of all: scenery, behind the floor, the pictures and
+            the cast. It reads nothing and decides nothing (invariant 12). */}
+        {spec.backdrop && <Backdrop kind={spec.backdrop} />}
+
         {/* Drawn before the cast, so everyone stands in front of it. */}
         {spec.floor && (
           <div
@@ -1576,5 +1581,90 @@ function ActorNode({
 
       {actor.kind === 'sign' && <div className="sign-body">{view.caption ?? '—'}</div>}
     </div>
+  )
+}
+
+/**
+ * A scene's landscape, rearmost on the stage. Each layer stands on the
+ * floor line (`--floor-at`) and is sized by the stage's width (`cqw`),
+ * so the horizon stays where the cast stands at any stage shape; the sky
+ * is the layer's own background and simply fills whatever is above.
+ *
+ * Kept pale and low in contrast where the speech, the robot's cloud and a
+ * raised goal stand (the top half), and a little richer near the ground,
+ * so nothing in front of it is ever harder to read. The clouds drift very
+ * slowly, and not at all under reduced motion (`styles.css`).
+ *
+ * The trail meets the cave at a point fixed in stage width: the rock face
+ * is `ROCK_W` wide at the right edge and its mouth sits `MOUTH` of the way
+ * across it, so the ground, drawn in percent of the width, can aim there.
+ * That puts the mouth about 77% across, in the gap a scene leaves between
+ * the robot and a third character at the far end, rather than behind one.
+ */
+const ROCK_W = 26
+const MOUTH = 0.12
+
+export function Backdrop({ kind }: { kind: 'trailhead' }) {
+  const meet = 100 - ROCK_W * (1 - MOUTH)
+  return (
+    <div className="backdrop" data-backdrop={kind} data-testid="backdrop" aria-hidden="true">
+      <svg className="bd-clouds" viewBox="0 0 1000 200" preserveAspectRatio="xMidYMin slice">
+        <g className="bd-cloud" style={{ ['--d' as string]: '0s' }}>
+          <ellipse cx="170" cy="62" rx="70" ry="16" />
+          <ellipse cx="210" cy="52" rx="44" ry="16" />
+        </g>
+        <g className="bd-cloud" style={{ ['--d' as string]: '-40s' }}>
+          <ellipse cx="640" cy="40" rx="86" ry="15" />
+          <ellipse cx="600" cy="32" rx="46" ry="14" />
+        </g>
+        <g className="bd-cloud" style={{ ['--d' as string]: '-90s' }}>
+          <ellipse cx="880" cy="96" rx="58" ry="12" />
+        </g>
+      </svg>
+      <svg className="bd-far" viewBox="0 0 1000 300" preserveAspectRatio="xMidYMax slice">
+        <path
+          className="bd-far-1"
+          d="M0 300 L0 190 L90 120 L150 160 L250 60 L330 140 L400 110 L500 30 L590 130 L660 90 L760 170 L840 80 L930 150 L1000 120 L1000 300 Z"
+        />
+        <path className="bd-snow" d="M250 60 L272 82 L258 80 L246 90 L232 78 Z M500 30 L526 58 L510 54 L498 66 L482 52 Z M840 80 L860 100 L846 98 L834 108 L822 96 Z" />
+        <path
+          className="bd-far-2"
+          d="M0 300 L0 230 L120 180 L210 215 L330 160 L450 210 L560 170 L690 220 L800 175 L910 215 L1000 190 L1000 300 Z"
+        />
+      </svg>
+      <svg className="bd-near" viewBox="0 0 1000 120" preserveAspectRatio="xMidYMax slice">
+        <path className="bd-hill" d="M0 120 L0 70 C120 40 220 60 330 74 C460 92 560 40 700 52 C820 62 900 86 1000 70 L1000 120 Z" />
+      </svg>
+      <svg className="bd-pines" viewBox="0 0 120 110" preserveAspectRatio="xMinYMax meet">
+        <Pine x={22} h={78} />
+        <Pine x={52} h={100} />
+        <Pine x={84} h={66} />
+      </svg>
+      <svg className="bd-rock" viewBox="0 0 300 230" preserveAspectRatio="xMaxYMax meet">
+        <path className="bd-rock-face" d="M0 230 L2 176 L20 128 L58 100 L96 104 L132 66 L188 52 L232 26 L300 34 L300 230 Z" />
+        <path className="bd-rock-shade" d="M232 26 L300 34 L300 230 L246 230 L238 120 Z" />
+        <path className="bd-rock-ledge" d="M120 112 L170 98 L214 106" />
+        {/* The mouth, centred at MOUTH across the face. */}
+        <path className="bd-cave" d="M11 230 L12 186 C15 152 26 132 36 132 C46 132 57 152 60 186 L61 230 Z" />
+        <path className="bd-cave-rim" d="M12 186 C15 152 26 132 36 132 C46 132 57 152 60 186" />
+        <Pine x={118} h={62} y={230} />
+        <Pine x={278} h={54} y={230} />
+      </svg>
+      <svg className="bd-ground" viewBox="0 0 100 100" preserveAspectRatio="none">
+        <rect x="0" y="0" width="100" height="100" className="bd-ground-fill" />
+        <path className="bd-trail" d={`M22 100 C34 70 ${meet - 22} 30 ${meet - 1.6} 0 L${meet + 1.6} 0 C${meet - 12} 34 48 72 46 100 Z`} />
+        <path className="bd-grass" d="M4 34 h7 M14 60 h9 M70 52 h8 M82 80 h10 M60 22 h6" />
+      </svg>
+    </div>
+  )
+}
+
+function Pine({ x, h, y = 110 }: { x: number; h: number; y?: number }) {
+  const w = h * 0.42
+  return (
+    <g className="bd-pine">
+      <rect x={x - 2} y={y - h * 0.16} width="4" height={h * 0.16} className="bd-trunk" />
+      <path d={`M${x} ${y - h} L${x + w * 0.62} ${y - h * 0.52} L${x + w * 0.36} ${y - h * 0.52} L${x + w} ${y - h * 0.14} L${x - w} ${y - h * 0.14} L${x - w * 0.36} ${y - h * 0.52} L${x - w * 0.62} ${y - h * 0.52} Z`} />
+    </g>
   )
 }

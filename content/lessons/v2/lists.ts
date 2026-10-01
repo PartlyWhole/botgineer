@@ -4,11 +4,11 @@
  * The robot's problem (R12): Mira brings it loot — a sword, a shield, a
  * potion — and one name per item (`a`, `b`, `c`) does not scale. It ends
  * able to keep many things in order under one name, the way a game's
- * hotbar does: pick any slot by its number, swap one, pick up a new one,
+ * hotbar does: pick any slot by its index, swap one, pick up a new one,
  * and know that two names can share a list.
  *
  * The example is a game inventory on purpose: young learners are often
- * gamers, and a hotbar is already a list they know — numbered slots in a
+ * gamers, and a hotbar is already a list they know — slots in a
  * row, one item each, a new item landing in the next free slot, and no
  * slot past the end.
  *
@@ -17,7 +17,8 @@
  * hotbar's slot selected on the stage, and asked straight after:
  *
  * 1. `hotbar = ["sword", "shield", "potion"]`: one name, one list object,
- *    each slot a pointer to an object of its own (invariant 4), numbered
+ *    each slot a pointer to an object of its own (invariant 4), each at an
+ *    index counted
  *    from `0`.
  * 2. `hotbar[0]`: follow the name, then the slot. A slot past the end
  *    stops the robot with an `IndexError`. Predicted, then typed.
@@ -28,13 +29,11 @@
  *    three lines of a code card through memory, `a = [1, 2]` then `b = a`,
  *    and stops before the append's effect: that is the question.
  *
- * Then eight, from a seed, one concept each, taking turns between building
- * a goal memory, predicting, and asking the robot: a party of heroes from
- * scratch; a score's slot (or an `IndexError`); a hero swapped; the last
- * hero looked up; the last slot's number; a hero joining; a change seen
- * through a second name; two names on one party, built.
+ * Then eight, from a seed, told as packing a backpack for an adventure
+ * with Mira (`practice`): pack it, add to it twice, count it, find the
+ * n-th thing, reach past the end, swap one thing, and share it.
  */
-import { between, rng } from '../../../src/practice/exercises'
+import { between, pick, rng } from '../../../src/practice/exercises'
 import { compare, holds, itemsOf, type Goal, type GoalBinding } from '../../../src/memory/goal'
 import type { MemorySnapshot } from '../../../src/memory/model'
 import type { Prop } from '../../../src/scene/props'
@@ -72,7 +71,7 @@ const bindingOf = (s: MemorySnapshot | undefined, name: string) => {
 /** The usual misses on a line that makes or changes a list. */
 function listMiss(name: string, example: string) {
   return (l: Line): string | undefined => {
-    if (errorType(l) === 'IndexError') return 'There\'s no slot with that number yet. `append` adds one on the end.'
+    if (errorType(l) === 'IndexError') return 'There\'s no slot at that index yet. `append` adds one on the end.'
     // Words without quotes read as names the robot has never heard of.
     if (errorType(l) === 'NameError' && /\[\s*[A-Za-z]/.test(l.source)) return 'Words need quotes, or the robot reads them as names: `"sword"`.'
     if (errorType(l) === 'NameError') return `The robot has no memory called that yet. Start with \`${example}\`.`
@@ -89,15 +88,15 @@ function lookupMiss(name: string, slot: number, repr: string) {
     if (errorType(l) === 'IndexError') return `There's no slot that high. The slots start at \`0\`.`
     const t = l.thought
     if (t?.repr === repr && !l.source.includes('[')) return `That's the right item, typed in. Let the robot look it up: \`${name}[${slot}]\`.`
-    if (t && l.source.includes('[')) return `That's slot ${/\[\s*(-?\d+)/.exec(l.source)?.[1] ?? '?'}. Counting from \`0\`, the one you want is slot \`${slot}\`.`
-    return stopped(l, `Look it up by its slot: \`${name}[${slot}]\`.`)
+    if (t && l.source.includes('[')) return `That's index ${/\[\s*(-?\d+)/.exec(l.source)?.[1] ?? '?'}. Counting from \`0\`, the one you want is at index \`${slot}\`.`
+    return stopped(l, `Look it up by its index: \`${name}[${slot}]\`.`)
   }
 }
 
 /** What a line left memory looking like, against a goal: the first thing off. */
 function goalMiss(goal: Goal, how?: { pattern: RegExp; say: string }) {
   return (l: Line): string | undefined => {
-    if (errorType(l) === 'IndexError') return 'There\'s no slot with that number. `append` adds one on the end.'
+    if (errorType(l) === 'IndexError') return 'There\'s no slot at that index. `append` adds one on the end.'
     if (errorType(l) === 'NameError') return 'That uses a name the robot has no memory of yet.'
     if (!l.ok) return stopped(l, 'Check the line against the goal.')
     if (!l.memory) return undefined
@@ -145,10 +144,10 @@ const slotTwo: Choices = {
   answer: "'potion'",
   nudge: (c) =>
     c === "'shield'"
-      ? 'Slots count from `0`: slot `2` is the third item.'
+      ? 'Indexes count from `0`: index `2` is the third item.'
       : c === 'IndexError'
-        ? 'Three items make slots `0`, `1` and `2`, so slot `2` is there: the last one.'
-        : 'Slot `0` is the first. Count `0`, `1`, `2` along the hotbar.',
+        ? 'Three items have indexes `0`, `1` and `2`, so index `2` is there: the last one.'
+        : 'Index `0` is the first. Count `0`, `1`, `2` along the hotbar.',
 }
 
 const alias: Choices = {
@@ -175,7 +174,7 @@ const teach: LessonStep[] = [
       { say: 'That\'s a *list*: the items in square brackets, with commas between.', types: MADE, memory: [MADE], show: hotbar(HOT) },
       { say: 'The robot makes one list object, and points `hotbar` at it.', memory: [MADE], mark: ['hotbar'], show: hotbar(HOT) },
       { say: 'Each slot of the list points at an object of its own: three `str`s.', memory: [MADE], mark: ['hotbar'], show: hotbar(HOT) },
-      { say: 'Like a game\'s hotbar, the slots are numbered. They start at `0`.', memory: [MADE], show: hotbar(HOT, 0) },
+      { say: 'Each slot\'s position is called its *index*. Indexes start at `0`.', memory: [MADE], show: hotbar(HOT, 0) },
     ],
     say: 'Your turn. Point `hotbar` at a list of "sword", "shield" and "potion".',
     tag: 'you',
@@ -186,11 +185,11 @@ const teach: LessonStep[] = [
   },
   {
     beats: [
-      { say: 'To use an item, pick its slot: the number in square brackets.', types: 'hotbar[0]', thought: "'sword'", memory: [MADE], mark: ['hotbar'], show: hotbar(HOT, 0) },
-      { say: '`hotbar[0]`: follow `hotbar` to the list, then slot `0` to its object, `"sword"`.', memory: [MADE], mark: ['hotbar'], show: hotbar(HOT, 0) },
-      { say: 'Slot `1` is the second item: `"shield"`.', types: 'hotbar[1]', thought: "'shield'", memory: [MADE], show: hotbar(HOT, 1) },
-      { say: 'Three items, so the slots are `0`, `1` and `2`. There\'s no slot `3`.', types: 'hotbar[3]', stops: 'IndexError', thought: '', memory: [MADE], show: hotbar(HOT) },
-      { say: 'Asking for a slot that isn\'t there stops the robot: an `IndexError`.', memory: [MADE], show: hotbar(HOT) },
+      { say: 'To use an item, put its index in square brackets.', types: 'hotbar[0]', thought: "'sword'", memory: [MADE], mark: ['hotbar'], show: hotbar(HOT, 0) },
+      { say: '`hotbar[0]`: follow `hotbar` to the list, then index `0` to its object, `"sword"`.', memory: [MADE], mark: ['hotbar'], show: hotbar(HOT, 0) },
+      { say: 'Index `1` is the second item: `"shield"`.', types: 'hotbar[1]', thought: "'shield'", memory: [MADE], show: hotbar(HOT, 1) },
+      { say: 'Three items, so the indexes are `0`, `1` and `2`. There\'s no index `3`.', types: 'hotbar[3]', stops: 'IndexError', thought: '', memory: [MADE], show: hotbar(HOT) },
+      { say: 'Asking for an index that isn\'t there stops the robot: an `IndexError`.', memory: [MADE], show: hotbar(HOT) },
     ],
     say: 'What does `hotbar[2]` make?',
     show: { kind: 'value', text: 'hotbar[2]' },
@@ -198,7 +197,7 @@ const teach: LessonStep[] = [
     tag: 'you',
     choices: slotTwo,
     done: (e) => chose(e, slotTwo),
-    praise: '`0`, `1`, `2`: slot `2` is the third item, the potion.',
+    praise: '`0`, `1`, `2`: index `2` is the third item, the potion.',
   },
   {
     say: 'Equip the first item: ask the robot for it.',
@@ -206,14 +205,14 @@ const teach: LessonStep[] = [
     ask: 'The first item',
     tag: 'robot',
     done: (e) => lookedUp(e, 'hotbar', "'sword'"),
-    praise: 'The first is slot `0`: the sword.',
+    praise: 'The first is at index `0`: the sword.',
     nudge: lookupMiss('hotbar', 0, "'sword'"),
     model: 'hotbar[0]',
   },
   {
     beats: [
       { say: '`len` counts the slots in a list.', types: 'len(hotbar)', thought: '3', memory: [MADE], mark: ['hotbar'], show: hotbar(HOT) },
-      { say: 'Three slots, numbered `0` to `2`: the last is always one less than the length.', memory: [MADE], show: hotbar(HOT, 2) },
+      { say: 'Three slots, at indexes `0` to `2`: the last index is always one less than the length.', memory: [MADE], show: hotbar(HOT, 2) },
     ],
     say: 'Ask the robot how many items are in the hotbar.',
     show: hotbar(HOT),
@@ -227,33 +226,33 @@ const teach: LessonStep[] = [
   {
     beats: [
       { speaker: 'courier', say: 'Swap your shield for my bow! It\'s better.', show: hotbar(HOT, 1) },
-      { say: '`hotbar[1] = "bow"` moves slot `1` to a new object, `"bow"`.', types: 'hotbar[1] = "bow"', memory: [MADE, 'hotbar[1] = "bow"'], mark: ['hotbar'], show: hotbar(SWAPPED, 1) },
+      { say: '`hotbar[1] = "bow"` points the slot at index `1` at a new object, `"bow"`.', types: 'hotbar[1] = "bow"', memory: [MADE, 'hotbar[1] = "bow"'], mark: ['hotbar'], show: hotbar(SWAPPED, 1) },
       { say: 'It\'s the same list, with one arrow moved. Nothing points at the shield now, so it\'s let go.', memory: [MADE, 'hotbar[1] = "bow"'], show: hotbar(SWAPPED) },
     ],
-    say: 'Make the robot\'s hotbar match: swap slot `1` to "bow".',
+    say: 'Make the robot\'s hotbar match: swap index `1` to "bow".',
     show: { kind: 'goal', goal: [{ name: 'hotbar', value: '["sword", "bow", "potion"]' }] },
-    ask: 'Swap slot 1.',
+    ask: 'Swap index 1.',
     tag: 'you',
     done: (e) => madeBy(e, /\bhotbar\s*\[\s*1\s*\]\s*=/, { name: 'hotbar', value: '["sword", "bow", "potion"]' }),
-    praise: 'Slot `1` moved to the bow. The list is still the same list.',
+    praise: 'Index `1` moved to the bow. The list is still the same list.',
     nudge: goalMiss([{ name: 'hotbar', value: '["sword", "bow", "potion"]' }], {
       pattern: /\[\s*1\s*\]\s*=/,
-      say: 'That made a whole new list. Move just the one slot: `hotbar[1] = "bow"`.',
+      say: 'That made a whole new list. Move just index `1`: `hotbar[1] = "bow"`.',
     }),
     model: 'hotbar[1] = "bow"',
   },
   {
     beats: [
       { speaker: 'courier', say: 'And you picked up a map!', show: hotbar(SWAPPED) },
-      { say: 'There\'s no slot `3` to change. `append` adds a new slot on the end.', types: 'hotbar.append("map")', memory: [MADE, 'hotbar[1] = "bow"', 'hotbar.append("map")'], mark: ['hotbar'], show: hotbar(GROWN, 3) },
-      { say: 'The list grows. Its new slot, `3`, points at `"map"`.', memory: [MADE, 'hotbar[1] = "bow"', 'hotbar.append("map")'], show: hotbar(GROWN, 3) },
+      { say: 'There\'s no index `3` to change. `append` adds a new slot on the end.', types: 'hotbar.append("map")', memory: [MADE, 'hotbar[1] = "bow"', 'hotbar.append("map")'], mark: ['hotbar'], show: hotbar(GROWN, 3) },
+      { say: 'The list grows. Its new slot, at index `3`, points at `"map"`.', memory: [MADE, 'hotbar[1] = "bow"', 'hotbar.append("map")'], show: hotbar(GROWN, 3) },
     ],
     say: 'Put the map in a new slot at the end of the robot\'s hotbar.',
     show: { kind: 'goal', goal: [{ name: 'hotbar', value: '["sword", "bow", "potion", "map"]' }] },
     ask: 'Add it on the end.',
     tag: 'you',
     done: (e) => madeBy(e, /\bhotbar\.append\s*\(/, { name: 'hotbar', value: '["sword", "bow", "potion", "map"]' }),
-    praise: '`append` gave the list a fourth slot, `3`, pointing at the map.',
+    praise: '`append` gave the list a fourth slot, at index `3`, pointing at the map.',
     nudge: goalMiss([{ name: 'hotbar', value: '["sword", "bow", "potion", "map"]' }], {
       pattern: /\.append\s*\(/,
       say: 'That made a whole new list. Add to this one: `hotbar.append("map")`.',
@@ -281,149 +280,176 @@ const teach: LessonStep[] = [
 /* --------------------------------- the eight --------------------------------- */
 
 /**
- * The practice, from a seed: one concept each, taking turns between a goal
- * memory to build, a prediction to pick, and a look-up to type. They share
- * one party of heroes, so each builds on the last, as a memory does.
+ * The practice, from a seed: the robot packs a backpack for an adventure
+ * with Mira, and what she needs drives each step — pack it, add to it
+ * (`append`, twice: the caves are dark, and they will be hungry), count
+ * it (`len`), find the n-th thing in it (index n − 1), reach past the end
+ * (`IndexError`), swap one thing (an index moved), and share it (`bag =
+ * backpack`, the same list). One concept each, taking turns between
+ * building a goal memory, asking the robot, and predicting, never three of
+ * a kind in a row; the items are drawn from a seed, from the hotbar's
+ * icons.
  */
 export function practice(seed: number): LessonStep[] {
   const r = rng(seed)
-  const pool = ['Mira', 'Bolt', 'Pip', 'Dot', 'Sprocket', 'Nib']
-  const pickOut = () => pool.splice(Math.floor(r() * pool.length), 1)[0]!
-  const [a, b, c, d] = [pickOut(), pickOut(), pickOut(), pickOut()]
-  const q = (s: string) => `"${s}"`
-  const listOf = (...xs: string[]) => `[${xs.map(q).join(', ')}]`
+  const q = (x: string) => `"${x}"`
+  const listOf = (xs: string[]) => `[${xs.map(q).join(', ')}]`
+  const ORDINAL = ['first', 'second', 'third', 'fourth']
 
-  // 1. A list of words, from scratch.
-  const g1: Goal = [{ name: 'party', value: listOf(a, b) }]
-  // 2. A slot's value, or a slot that is not there.
-  // Three different numbers, so every option is a different answer.
-  const nums: number[] = []
-  while (nums.length < 3) {
-    const x = between(r, 2, 9)
-    if (!nums.includes(x)) nums.push(x)
-  }
-  const past = r() < 0.34
-  const k = past ? 3 : between(r, 0, 2)
-  const slotAsk: Choices = {
-    id: 'practice-slot',
+  // What goes in, and why.
+  const second = pick(r, ['key', 'helmet', 'coin'])
+  const snack = pick(r, ['apple', 'potion'])
+  const packed = ['map', second]
+  const lit = [...packed, 'torch']
+  const full = [...lit, snack]
+  const swapped = full.map((x) => (x === second ? 'gem' : x))
+
+  const g1: Goal = [{ name: 'backpack', value: listOf(packed) }]
+  const g2: Goal = [{ name: 'backpack', value: listOf(lit) }]
+  const g3: Goal = [{ name: 'backpack', value: listOf(full) }]
+  const g7: Goal = [{ name: 'backpack', value: listOf(swapped) }]
+  const g8: Goal = [...g7, { name: 'bag', value: listOf(swapped), same: 'backpack' }]
+  const appendHow = (item: string) => ({ pattern: /\.append\s*\(/, say: `That's a whole new list. Add to this one: \`backpack.append(${q(item)})\`.` })
+
+  // The n-th thing: index n − 1.
+  const k = between(r, 1, 3)
+  // Reaching past the end.
+  const pastEnd: Choices = {
+    id: 'practice-past',
     options: [
-      ...new Set([past ? 'IndexError' : String(nums[k]), ...nums.map(String), 'IndexError']),
-    ]
-      .slice(0, 4)
-      .map((x) => ({ id: x, label: x === 'IndexError' ? 'It stops: `IndexError`' : `\`${x}\`` })),
-    answer: past ? 'IndexError' : String(nums[k]),
-    nudge: () => (past ? 'Three items make slots `0` to `2`. There\'s no slot `3`.' : `Count from \`0\`: slot \`${k}\` holds \`${nums[k]}\`.`),
-  }
-  // 3. A slot changed.
-  const g3: Goal = [{ name: 'party', value: listOf(c, b) }]
-  // 5. The last slot's number.
-  const size = between(r, 4, 7)
-  const lastAsk: Choices = {
-    id: 'practice-last',
-    options: [size - 1, size, size + 1, 0].map((x) => ({ id: String(x), label: `\`${x}\`` })),
-    answer: String(size - 1),
-    nudge: (x) => (x === String(size) ? `Slots start at \`0\`, so ${size} items end at slot \`${size - 1}\`.` : `${size} items: slots \`0\` to \`${size - 1}\`.`),
-  }
-  // 6. An item appended.
-  const g6: Goal = [{ name: 'party', value: listOf(c, b, d) }]
-  // 7. A change seen through a second name.
-  const n = between(r, 2, 8)
-  const seen: Choices = {
-    id: 'practice-alias',
-    options: [
-      { id: 'changed', label: `\`[${n}, 0]\`` },
-      { id: 'kept', label: '`[1, 0]`' },
-      { id: 'error', label: 'It stops: `IndexError`' },
-      { id: 'one', label: `\`${n}\`` },
+      { id: 'IndexError', label: 'It stops: `IndexError`' },
+      { id: `'${full[3]}'`, label: `\`"${full[3]}"\`` },
+      { id: `'${full[0]}'`, label: `\`"${full[0]}"\`` },
+      { id: '4', label: '`4`' },
     ],
-    answer: 'changed',
-    nudge: (x) => (x === 'kept' ? '`y = x` shares the list: changing slot `0` through `x` changes it for `y` too.' : 'Slot `0` of the one shared list now points at the new value.'),
+    answer: 'IndexError',
+    nudge: (c) =>
+      c === `'${full[3]}'`
+        ? `The fourth thing is at index \`3\`. Four things have indexes \`0\` to \`3\`: there is no index \`4\`.`
+        : 'Four things have indexes `0` to `3`. Index `4` is past the end, so the robot stops.',
   }
-  // 8. Two names on one list, built.
-  const g8: Goal = [...g6, { name: 'team', value: listOf(c, b, d), same: 'party' }]
+
+  // Where an appended thing lands: the index after the last, which is how
+  // many there were.
+  const lands: Choices = {
+    id: 'practice-lands',
+    options: [
+      { id: '3', label: '`3`' },
+      { id: '4', label: '`4`' },
+      { id: '2', label: '`2`' },
+      { id: '0', label: '`0`' },
+    ],
+    answer: '3',
+    nudge: (c) =>
+      c === '4'
+        ? 'It\'s the fourth thing, but indexes count from `0`: the fourth thing is at index `3`.'
+        : 'Three things are at indexes `0`, `1` and `2`, so the next one goes at index `3`.',
+  }
 
   return [
     {
       beats: [
-        { say: 'Now you build them. I\'ve wiped the robot\'s memory for a new one: your party of heroes.', show: { kind: 'goal', goal: g1 }, focus: 'memory' },
-        { say: 'Something went wrong? Undo takes back the last line.', show: { kind: 'goal', goal: g1 }, focus: 'memory' },
+        { speaker: 'courier', say: 'Let\'s go on an adventure! The robot needs a backpack.', show: { kind: 'goal', goal: g1 } },
+        { say: 'I\'ve wiped the robot\'s memory for it. Something went wrong? Undo takes back the last line.', show: { kind: 'goal', goal: g1 }, focus: 'memory' },
       ],
-      wipeFirst: true,
-      say: 'Make the robot\'s memory match the goal.',
+      speaker: 'courier',
+      say: `Pack a map and a ${second}: make the robot's memory match.`,
       show: { kind: 'goal', goal: g1 },
-      ask: 'Make memory match.',
+      ask: 'Pack the backpack.',
       tag: 'you',
+      wipeFirst: true,
       done: (e) => reached(e, g1),
-      praise: 'A party of two: each slot points at a hero\'s name, a `str`.',
+      praise: 'A backpack of two: each slot points at a `str`.',
       nudge: goalMiss(g1),
-      model: `party = ${listOf(a, b)}`,
+      model: `backpack = ${listOf(packed)}`,
     },
     {
-      say: `\`nums = [${nums.join(', ')}]\`. What does \`nums[${k}]\` make?`,
-      show: { kind: 'value', text: `scores[${k}]` },
+      speaker: 'courier',
+      say: 'The caves will be dark. Add a torch to the end!',
+      show: { kind: 'goal', goal: g2 },
+      ask: 'Add a torch.',
+      tag: 'you',
+      done: (e) => madeBy(e, /\bbackpack\.append\s*\(/, g2[0]!) && reached(e, g2),
+      praise: '`append` gave the backpack a third slot, at index `2`, for the torch.',
+      nudge: goalMiss(g2, appendHow('torch')),
+      model: 'backpack.append("torch")',
+    },
+    {
+      speaker: 'courier',
+      say: `And we'll get hungry! Before you pack ${snack === 'apple' ? 'an apple' : 'a potion'}: what index will it land at?`,
+      show: { kind: 'backpack', items: lit },
+      ask: 'Which index?',
+      tag: 'you',
+      choices: lands,
+      done: (e) => chose(e, lands),
+      praise: 'Indexes `0` to `2` are taken, so `append` puts it at index `3`.',
+    },
+    {
+      speaker: 'courier',
+      say: `Now pack it: ${snack === 'apple' ? 'an apple' : 'a potion'}, on the end.`,
+      show: { kind: 'goal', goal: g3 },
+      ask: `Add ${snack === 'apple' ? 'an apple' : 'a potion'}.`,
+      tag: 'you',
+      done: (e) => madeBy(e, /\bbackpack\.append\s*\(/, g3[0]!) && reached(e, g3),
+      praise: 'Another slot on the end. The backpack keeps growing.',
+      nudge: goalMiss(g3, appendHow(snack)),
+      model: `backpack.append(${q(snack)})`,
+    },
+    {
+      speaker: 'courier',
+      say: 'How many things are in the backpack now? Ask the robot.',
+      show: { kind: 'backpack', items: full },
+      ask: 'How many things?',
+      tag: 'robot',
+      done: (e) => heard(e, (t) => t.type === 'int' && t.repr === String(full.length) && /\blen\s*\(\s*backpack\s*\)/.test(t.source ?? '')),
+      praise: `\`len(backpack)\` is \`${full.length}\`: ${full.length} slots.`,
+      nudge: (l) =>
+        l.thought?.repr === String(full.length) && !/len/.test(l.source)
+          ? 'Let the robot count them: `len(backpack)`.'
+          : stopped(l, 'Count them with `len(backpack)`.'),
+      model: 'len(backpack)',
+    },
+    {
+      speaker: 'courier',
+      say: `What's the ${ORDINAL[k]} thing in the backpack? Ask the robot.`,
+      show: { kind: 'backpack', items: full },
+      ask: `The ${ORDINAL[k]} thing`,
+      tag: 'robot',
+      done: (e) => lookedUp(e, 'backpack', `'${full[k]}'`),
+      praise: `The ${ORDINAL[k]} thing is at index \`${k}\`, counting from \`0\`: the ${full[k]}.`,
+      nudge: lookupMiss('backpack', k, `'${full[k]}'`),
+      model: `backpack[${k}]`,
+    },
+    {
+      say: 'There are four things in the backpack. What does `backpack[4]` make?',
+      show: { kind: 'value', text: 'backpack[4]' },
       ask: 'What does it make?',
       tag: 'you',
-      choices: slotAsk,
-      done: (e) => chose(e, slotAsk),
-      praise: past ? 'Slots `0` to `2`, so slot `3` stops the robot: `IndexError`.' : `Slot \`${k}\`, counting from \`0\`: \`${nums[k]}\`.`,
+      choices: pastEnd,
+      done: (e) => chose(e, pastEnd),
+      praise: 'Indexes `0` to `3`, so index `4` is past the end: `IndexError`.',
     },
     {
-      say: `${c} takes ${a}'s place in the party, in slot \`0\`. Change it in the robot's list.`,
-      show: { kind: 'goal', goal: g3 },
-      ask: 'Change slot 0.',
+      speaker: 'courier',
+      say: `I'll swap you my gem for your ${second}. Change just that index.`,
+      show: { kind: 'goal', goal: g7 },
+      ask: `Swap the ${second} for a gem.`,
       tag: 'you',
-      done: (e) => madeBy(e, /\bparty\s*\[\s*0\s*\]\s*=/, g3[0]!) && reached(e, g3),
-      praise: 'One slot moved, and it\'s still the same list.',
-      nudge: goalMiss(g3, { pattern: /\[\s*0\s*\]\s*=/, say: `That's a new list. Move just slot \`0\`: \`party[0] = ${q(c)}\`.` }),
-      model: `party[0] = ${q(c)}`,
+      done: (e) => madeBy(e, /\bbackpack\s*\[\s*1\s*\]\s*=/, g7[0]!) && reached(e, g7),
+      praise: 'One slot moved, and it\'s still the same backpack.',
+      nudge: goalMiss(g7, { pattern: /\[\s*1\s*\]\s*=/, say: 'That\'s a whole new list. Move just index `1`: `backpack[1] = "gem"`.' }),
+      model: 'backpack[1] = "gem"',
     },
     {
-      say: 'Ask the robot for the last hero in `party`.',
-      show: { kind: 'goal', goal: g3 },
-      ask: 'The last hero',
-      tag: 'robot',
-      done: (e) => lookedUp(e, 'party', `'${b}'`),
-      praise: 'Two heroes, slots `0` and `1`: the last is slot `1`.',
-      nudge: lookupMiss('party', 1, `'${b}'`),
-      model: 'party[1]',
-    },
-    {
-      say: `A hotbar has ${size} slots. What number is its last slot?`,
-      show: { kind: 'value', text: `len(xs) == ${size}` },
-      ask: 'The last slot is…',
-      tag: 'you',
-      choices: lastAsk,
-      done: (e) => chose(e, lastAsk),
-      praise: `From \`0\` to \`${size - 1}\`: one less than the length.`,
-    },
-    {
-      say: `${d} joins the party. Add them to the end of the list.`,
-      show: { kind: 'goal', goal: g6 },
-      ask: 'Add to the end.',
-      tag: 'you',
-      done: (e) => madeBy(e, /\bparty\.append\s*\(/, g6[0]!) && reached(e, g6),
-      praise: '`append` added a slot on the end.',
-      nudge: goalMiss(g6, { pattern: /\.append\s*\(/, say: `That's a new list. Add to this one: \`party.append(${q(d)})\`.` }),
-      model: `party.append(${q(d)})`,
-    },
-    {
-      say: 'After these three lines, what is `y`?',
-      show: { kind: 'code', text: `x = [1, 0]\ny = x\nx[0] = ${n}` },
-      ask: 'What is y?',
-      tag: 'you',
-      choices: seen,
-      done: (e) => chose(e, seen),
-      praise: `One list, two names: \`y\` is \`[${n}, 0]\` too.`,
-    },
-    {
-      say: 'Give the same party a second name, `team`. Not a copy: the same list.',
+      speaker: 'courier',
+      say: 'I\'ll carry it too, as `bag`. The same backpack, not a copy!',
       show: { kind: 'goal', goal: g8 },
-      ask: 'Two names, one list',
+      ask: 'Two names, one backpack',
       tag: 'you',
       done: (e) => reached(e, g8),
-      praise: '`team` and `party` point at one list, so they will never disagree.',
+      praise: '`bag` and `backpack` are one list: whatever one of you packs, the other has.',
       nudge: goalMiss(g8),
-      model: 'team = party',
+      model: 'bag = backpack',
     },
   ]
 }
@@ -442,9 +468,9 @@ export const listsLesson = (seed: number): Lesson => ({
   steps: [...teach, ...practice(seed)],
   outro: [
     { say: 'Now the robot can keep a whole hotbar of things under one name.', focus: 'memory' },
-    { speaker: 'courier', say: 'And pick any item by its slot number. Nice one, robot!' },
+    { speaker: 'courier', say: 'Packed, counted, and shared. Let\'s go, robot!' },
   ],
-  takeaway: 'A list keeps many objects in order under one name. Its slots count from `0`, and two names can share one list.',
+  takeaway: 'A list keeps many objects in order under one name. Its indexes count from `0`, and two names can share one list.',
 })
 
 export const v2lists = listsLesson(seedOfPage())

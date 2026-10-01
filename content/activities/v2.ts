@@ -94,7 +94,8 @@ const lists: Activity = {
   lesson: 'v2-lists',
   starter: '',
   options: { max_steps: 3000, wall_clock_s: 15 },
-  scene: WORKSHOP_WITH_MIRA,
+  // An adventure: the trailhead, with the cave the backpack is packed for.
+  scene: { ...WORKSHOP_WITH_MIRA, id: 'trailhead', title: 'Trailhead', backdrop: 'trailhead' },
 }
 
 export const V2_ACTIVITIES: Activity[] = [meet, types, ops, bind, lists]

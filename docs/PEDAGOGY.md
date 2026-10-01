@@ -45,6 +45,13 @@ Two rules for the whole progression:
 - **Vocabulary is earned.** A term appears on screen as a label the moment
   it is named and stays for the rest of the lesson. No term is used before
   its label exists.
+- **A position in a list is an *index*, never a "number".** "Slot" is the
+  place; its index is what goes in the square brackets: "the slot at index
+  `2`", "what index will it land at?", "indexes count from `0`". Never
+  "slot number", "numbered slots" or "what number is its last slot":
+  beside a list of `int`s, a "number" could be the value or the position,
+  and the learner cannot tell which is meant. (A count is still a number:
+  `len` says how many.)
 
 Plus one that is a bug if broken: **a step's `done` cannot be passed by
 typing the answer the step forbids** (a "make the robot work it out" step
