@@ -24,9 +24,9 @@
  * 3. `len(hotbar)`: how many slots; the last is one less.
  * 4. `hotbar[1] = "bow"`: one slot moves; the list is the same list.
  * 5. `hotbar.append("map")`: a new slot on the end.
- * 6. `saved = hotbar`: it looks like a save, and it is not a copy — one
- *    list with two names, so a change through either shows through both.
- *    Predicted.
+ * 6. `b = a`: not a copy — one list with two names. The crow walks the
+ *    three lines of a code card through memory, `a = [1, 2]` then `b = a`,
+ *    and stops before the append's effect: that is the question.
  *
  * Then eight, from a seed, one concept each, taking turns between building
  * a goal memory, predicting, and asking the robot: a party of heroes from
@@ -262,11 +262,13 @@ const teach: LessonStep[] = [
   },
   {
     beats: [
-      { say: 'One more thing. You might think `saved = hotbar` saves a copy…', types: 'saved = hotbar', memory: ['hotbar = ["sword", "bow", "potion", "map"]', 'saved = hotbar'], mark: ['saved'] },
-      { say: '…but it doesn\'t. `saved` points at the very same list.', memory: ['hotbar = ["sword", "bow", "potion", "map"]', 'saved = hotbar'], mark: ['saved', 'hotbar'] },
-      { say: 'So a change through one name shows through the other.', types: 'hotbar.append("gem")', memory: ['hotbar = ["sword", "bow", "potion", "map"]', 'saved = hotbar', 'hotbar.append("gem")'], mark: ['saved', 'hotbar'] },
+      { say: 'One more thing, and only lists do it. Read these three lines with me.', show: { kind: 'code', text: 'a = [1, 2]\nb = a\na.append(3)' } },
+      { say: '`a = [1, 2]`: the robot makes a list, and points `a` at it.', types: 'a = [1, 2]', memory: ['a = [1, 2]'], mark: ['a'], show: { kind: 'code', text: 'a = [1, 2]\nb = a\na.append(3)', mark: 1 } },
+      { say: '`b = a` follows `a` to its list… and points `b` at that very list.', types: 'b = a', memory: ['a = [1, 2]', 'b = a'], mark: ['b'], show: { kind: 'code', text: 'a = [1, 2]\nb = a\na.append(3)', mark: 2 } },
+      { say: 'No copy is made: one list, two names.', memory: ['a = [1, 2]', 'b = a'], mark: ['a', 'b'], show: { kind: 'code', text: 'a = [1, 2]\nb = a\na.append(3)', mark: 2 } },
+      { say: 'The last line, `a.append(3)`, adds a slot to the list `a` points at.', memory: ['a = [1, 2]', 'b = a'], mark: ['a'], show: { kind: 'code', text: 'a = [1, 2]\nb = a\na.append(3)', mark: 3 } },
     ],
-    say: 'After these three lines, what is `b`?',
+    say: 'So after all three lines, what is `b`?',
     show: { kind: 'code', text: 'a = [1, 2]\nb = a\na.append(3)' },
     ask: 'What is b?',
     tag: 'you',
