@@ -144,7 +144,7 @@ export type SceneSpec = {
    * `trailhead` is a sky, distant mountains, pines and a cave in a rock
    * face, with a trail running off to it (`Backdrop` in ScenePanel).
    */
-  backdrop?: 'trailhead'
+  backdrop?: 'trailhead' | 'cave'
 }
 
 /* ------------------------------------------------------------------ */

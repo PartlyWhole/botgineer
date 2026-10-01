@@ -32,9 +32,12 @@ import { v2types } from './v2/types'
 import { v2ops } from './v2/ops'
 import { v2bind } from './v2/bind'
 import { v2lists } from './v2/lists'
+import { v2logic } from './v2/logic'
+import { v2if } from './v2/ifs'
+import { v2loops } from './v2/loops'
 
 export * from './core'
-export { meet, types, choose, operations, namesPoint, takeAnOrder, wake, s1Ideas, s2Ideas, s3Ideas, s4Ideas, s5Ideas, s6Ideas, s7Ideas, s8Ideas, decide, v2meet, v2types, v2ops, v2bind, v2lists }
+export { meet, types, choose, operations, namesPoint, takeAnOrder, wake, s1Ideas, s2Ideas, s3Ideas, s4Ideas, s5Ideas, s6Ideas, s7Ideas, s8Ideas, decide, v2meet, v2types, v2ops, v2bind, v2lists, v2logic, v2if, v2loops }
 
 export const LESSONS: Record<string, Lesson> = {
   [meet.id]: meet,
@@ -59,4 +62,7 @@ export const LESSONS: Record<string, Lesson> = {
   [v2ops.id]: v2ops,
   [v2bind.id]: v2bind,
   [v2lists.id]: v2lists,
+  [v2logic.id]: v2logic,
+  [v2if.id]: v2if,
+  [v2loops.id]: v2loops,
 }

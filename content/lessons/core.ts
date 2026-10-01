@@ -144,7 +144,64 @@ export type Evidence = {
   /** The pick just made, when the last thing the player did was pick
    *  rather than type. Only a reply reads it. */
   lastPick?: Pick | null | undefined
+  /**
+   * An editor lesson's runs, oldest first: each program the player sent to
+   * the robot, how it ended, which lines it reached, and the memory it
+   * left. Only grows, like the rest. The same runs are in `lines` (source
+   * and final memory), so `ever`, `everBy` and `reached` work unchanged.
+   */
+  runs?: Run[] | undefined
 }
+
+/**
+ * One run of the player's program, in an editor lesson.
+ *
+ * `ran` is every line the robot reached, so a step can ask which branch of
+ * an `if` ran. `cases` is the same program run again, quietly, with the
+ * step's `cases` swapped in (`withCase`): the robot trying it on other
+ * values, which is how a step knows the *program* decides rather than the
+ * player having picked the answer for the one value on screen.
+ */
+export type Run = {
+  source: string
+  ok: boolean
+  /** The uncaught exception's type name (a syntax error is one), or null.
+   *  `'steps'` for a run stopped because it never finished. */
+  raised: string | null
+  /** The line it stopped on, for an error. */
+  line: number | null
+  ran: number[]
+  final: MemorySnapshot
+  cases?: CaseRun[] | undefined
+}
+
+/** The program run on one case: the given values, and how it ended. */
+export type CaseRun = { given: Record<string, string>; ok: boolean; raised: string | null; final: MemorySnapshot }
+
+/**
+ * The program with a case's values swapped in: each name's first
+ * top-level assignment (`hp = 80`, unindented) becomes `hp = <value>`.
+ * A name the program never assigns at the top is given on a line of its
+ * own at the start. Pure, so a step's cases are the same program the
+ * player wrote, changed only where the case says.
+ */
+export function withCase(source: string, given: Record<string, string>): string {
+  const lines = source.split('\n')
+  const missing: string[] = []
+  for (const [name, value] of Object.entries(given)) {
+    const at = lines.findIndex((l) => new RegExp(`^${name}\\s*=(?!=)`).test(l))
+    if (at === -1) missing.push(`${name} = ${value}`)
+    else lines[at] = `${name} = ${value}`
+  }
+  return [...missing, ...lines].join('\n')
+}
+
+/** Some run of the player's program passes this. */
+export const ran = (e: Evidence, holds: (r: Run) => boolean): boolean => (e.runs ?? []).some(holds)
+
+/** A run that worked on every one of its cases, each passing `holds`. */
+export const allCases = (r: Run, holds: (c: CaseRun) => boolean): boolean =>
+  r.ok && (r.cases?.length ?? 0) > 0 && r.cases!.every((c) => c.ok && holds(c))
 
 /** One multiple-choice answer: which question (`Choices.id`) and which option. */
 export type Pick = { ask: string; choice: string }
@@ -253,6 +310,22 @@ export type Beat = {
   act?: CastAction[]
   /** Pulse that part of the screen. */
   focus?: Focus
+  /**
+   * Editor lessons: the crow's program, in the editor in place of the
+   * player's from this beat on (until another beat sets one, or the
+   * question), read only. What it adds to the beat before's code types
+   * itself in. Narration, never evidence.
+   */
+  code?: string
+  /**
+   * Editor lessons: the crow runs `code` (real Python, quietly) and shows
+   * one moment of the run — memory just after `line` ran for the `pass`-th
+   * time (1 when omitted), that line lit, every line reached so far ticked.
+   * `'end'` is the whole run, and the lines it never reached are dimmed:
+   * skipped. Memory is drawn as the crow's, like `memory`, which it
+   * replaces. Narration, never evidence.
+   */
+  run?: { line: number; pass?: number } | 'end'
 }
 
 export type LessonStep = {
@@ -296,6 +369,16 @@ export type LessonStep = {
    * (`Workbench.wipe`, needing `Lesson.wipe`). A beat should say so.
    */
   wipeFirst?: boolean
+  /** Editor lessons: the program handed to the player as this step is
+   *  asked, once per visit. Omitted, the player keeps theirs. */
+  code?: string
+  /**
+   * Editor lessons: after each run, the robot runs the program again on
+   * each of these (`withCase`), and the run records how each ended
+   * (`Run.cases`). A step judged on them (`allCases`) is about the program
+   * deciding, for any value, not about the one value on screen.
+   */
+  cases?: Record<string, string>[]
 }
 
 export type Lesson = {
@@ -583,6 +666,8 @@ export type ScriptItem = {
   mark?: string[] | undefined
   act?: CastAction[] | undefined
   focus?: Focus | undefined
+  code?: string | undefined
+  run?: Beat['run'] | undefined
   /** On the ask and a reply: who does the work. */
   tag?: 'you' | 'robot' | undefined
   /** On a multiple-choice ask or reply: the options, and the ones already
@@ -638,6 +723,8 @@ const beatItem = (kind: 'beat' | 'outro', b: Beat, i: number, speaker: string | 
   mark: b.mark,
   act: b.act,
   focus: b.focus,
+  code: b.code,
+  run: b.run,
   beat: i,
 })
 
@@ -797,6 +884,7 @@ export function staging(lesson: Lesson, evidence: Evidence, beat?: number): Stag
     verdict: null,
     heard: heardSoFar,
     memory: evidence.snapshot,
+    run: evidence.runs?.[evidence.runs.length - 1] ?? null,
     ...extra,
   })
 
@@ -855,7 +943,7 @@ export function staging(lesson: Lesson, evidence: Evidence, beat?: number): Stag
       // Same picture: it stays, and shows the answer that moved it on.
       current = { ...current, answer, verdict: 'right' }
     } else if (done.show) {
-      leaving = { key: `${lesson.id}:${before}`, prop: done.show, ask: done.ask, answer, verdict: 'right', heard: heardSoFar, memory: evidence.snapshot }
+      leaving = { key: `${lesson.id}:${before}`, prop: done.show, ask: done.ask, answer, verdict: 'right', heard: heardSoFar, memory: evidence.snapshot, run: evidence.runs?.[evidence.runs.length - 1] ?? null }
     }
   } else if (before === at && current && at < n && last && resting && key === baseKey) {
     current = { ...current, answer, verdict: 'miss' }

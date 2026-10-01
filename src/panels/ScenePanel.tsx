@@ -1604,7 +1604,7 @@ function ActorNode({
 const ROCK_W = 26
 const MOUTH = 0.12
 
-export function Backdrop({ kind }: { kind: 'trailhead' }) {
+export function Backdrop({ kind }: { kind: 'trailhead' | 'cave' }) {
   const meet = 100 - ROCK_W * (1 - MOUTH)
   return (
     <div className="backdrop" data-backdrop={kind} data-testid="backdrop" aria-hidden="true">

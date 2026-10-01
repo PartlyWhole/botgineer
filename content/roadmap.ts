@@ -91,6 +91,14 @@ export const ROADMAP_V2: Unit[] = [
     levels: ['v2-bind', 'v2-lists'],
     mascot: 'crow',
   },
+  {
+    id: 'v2-deciding',
+    title: 'Deciding',
+    blurb: 'Ask the robot questions, let it choose, and have it do things again and again',
+    theme: 'sun',
+    levels: ['v2-logic', 'v2-if', 'v2-loops'],
+    mascot: 'courier',
+  },
 ]
 
 /** v2's levels in play order. */

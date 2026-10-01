@@ -89,13 +89,57 @@ const lists: Activity = {
   id: 'v2-lists',
   version: 2,
   title: 'Lists',
-  brief: 'Keep a whole hotbar under one name: pick any slot by its number, swap an item, pick one up, and share a list between names.',
+  brief: 'Keep a whole hotbar under one name: pick any slot by its index, swap an item, pick one up, and share a list between names.',
   mode: 'console',
   lesson: 'v2-lists',
+  next: 'v2-logic',
   starter: '',
   options: { max_steps: 3000, wall_clock_s: 15 },
   // An adventure: the trailhead, with the cave the backpack is packed for.
   scene: { ...WORKSHOP_WITH_MIRA, id: 'trailhead', title: 'Trailhead', backdrop: 'trailhead' },
 }
 
-export const V2_ACTIVITIES: Activity[] = [meet, types, ops, bind, lists]
+/** At the cave's mouth, where the questions are asked: can we go in? */
+const logic: Activity = {
+  id: 'v2-logic',
+  version: 2,
+  title: 'Asking Questions',
+  brief: 'Ask the robot yes-or-no questions about its memory, and join them with and, or and not.',
+  mode: 'console',
+  lesson: 'v2-logic',
+  next: 'v2-if',
+  starter: '',
+  options: { max_steps: 3000, wall_clock_s: 15 },
+  scene: { ...WORKSHOP_WITH_MIRA, id: 'trailhead', title: 'Trailhead', backdrop: 'trailhead' },
+}
+
+/** Inside the cave: where the robot has choices to make, and an editor
+ *  to write them in. */
+const CAVE: SceneSpec = { ...WORKSHOP_WITH_MIRA, id: 'cave', title: 'Cave', backdrop: 'cave' }
+
+const ifs: Activity = {
+  id: 'v2-if',
+  version: 2,
+  title: 'Making Choices',
+  brief: 'Write programs in the editor that choose what to do: if, elif and else.',
+  mode: 'editor',
+  lesson: 'v2-if',
+  next: 'v2-loops',
+  starter: '',
+  options: { max_steps: 3000, wall_clock_s: 15 },
+  scene: CAVE,
+}
+
+const loops: Activity = {
+  id: 'v2-loops',
+  version: 2,
+  title: 'Again and Again',
+  brief: 'Loops: do the same thing for every item in a list, a number of times, or while a question says yes.',
+  mode: 'editor',
+  lesson: 'v2-loops',
+  starter: '',
+  options: { max_steps: 3000, wall_clock_s: 15 },
+  scene: { ...CAVE, id: 'deep-cave', title: 'Deep in the cave' },
+}
+
+export const V2_ACTIVITIES: Activity[] = [meet, types, ops, bind, lists, logic, ifs, loops]

@@ -30,6 +30,7 @@
 import type { MemorySnapshot } from '../memory/model'
 import type { Thought } from '../memory/extract'
 import { compare, itemsOf, type Goal, type GoalRow } from '../memory/goal'
+import type { Run } from '../../content/lessons/core'
 
 export type Prop =
   /** A lamp on a switch. A bool drives it; a word is stuck on it as a note
@@ -416,6 +417,9 @@ export type PropView = {
   /** The robot's memory now, for a picture of a goal memory that ticks
    *  the rows already met (`memory/goal`). */
   memory?: MemorySnapshot | undefined
+  /** An editor lesson's last run, for a picture of the cases the robot
+   *  tried the program on (`cases`). */
+  run?: Run | null | undefined
 }
 
 /**
