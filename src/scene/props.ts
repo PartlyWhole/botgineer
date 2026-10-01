@@ -1369,6 +1369,6 @@ export function caseResult(view: PropView, i: number): { got: string; ok: boolea
     const items = `[${o.elements.map((el) => c.final.objects[el.target]?.repr ?? '?').join(', ')}]`
     return { got: items, ok: items === row.want, how: 'value' }
   }
-  const got = asWritten(o.repr)
-  return { got, ok: sameLiteral(got, row.want), how: 'value' }
+  // As Python writes it, the way memory's cards and the step's `want` do.
+  return { got: o.repr, ok: sameLiteral(o.repr, row.want), how: 'value' }
 }

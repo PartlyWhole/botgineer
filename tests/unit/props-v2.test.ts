@@ -984,8 +984,8 @@ describe('a scoreboard of cases', () => {
 
   it('reads each case from the run: the value, nothing, or the error', () => {
     const v: PropView = { ...view(p), run: run([{ mem: [['action', 'str', "'run'"]] }, { mem: [['action', 'str', "'run'"]] }, { raised: 'NameError', mem: [] }]) }
-    expect(caseResult(v, 0)).toEqual({ got: '"run"', ok: true, how: 'value' })
-    expect(caseResult(v, 1)).toEqual({ got: '"run"', ok: false, how: 'value' })
+    expect(caseResult(v, 0)).toEqual({ got: "'run'", ok: true, how: 'value' })
+    expect(caseResult(v, 1)).toEqual({ got: "'run'", ok: false, how: 'value' })
     expect(caseResult(v, 2)).toEqual({ got: 'NameError', ok: false, how: 'error' })
     expect(caseResult({ ...view(p), run: run([{ mem: [['hp', 'int', '20']] }]) }, 0)).toEqual({ got: 'nothing', ok: false, how: 'nothing' })
     expect(caseResult({ ...view(p), run: run([{ raised: 'steps', mem: [] }]) }, 0)!.got).toBe('never ends')
@@ -997,7 +997,7 @@ describe('a scoreboard of cases', () => {
     const html = drawn(v)
     expect(html).toMatch(/data-testid="case-0" data-state="ok"/)
     expect(html).toMatch(/data-testid="case-1" data-state="wrong"/)
-    expect(sentence(v)).toMatch(/with hp = 80, action should be "fight"; it got "run", not right/)
+    expect(sentence(v)).toMatch(/With hp = 80, action should be "fight"; it got 'run', not right/)
   })
 
   it('reads a list by its items, as Python writes them', () => {

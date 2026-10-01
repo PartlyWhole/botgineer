@@ -4303,15 +4303,36 @@ function casesSentence(view: PropView, p: Extract<Prop, { kind: 'cases' }>): str
     .map((r, i) => {
       const got = caseResult(view, i)
       const tried = got === null ? '' : got.how === 'error' ? `; the program stopped with ${got.got}` : got.ok ? `; it got ${got.got}, right` : `; it got ${got.got}, not right`
-      return `with ${r.given}, ${p.name} should be ${r.want}${tried}`
+      return `With ${r.given}, ${p.name} should be ${r.want}${tried}`
     })
     .join('. ')
   const ran = rows.some((_, i) => caseResult(view, i) !== null)
-  return `The robot tries the program on ${rows.length} case${rows.length === 1 ? '' : 's'}${ran ? '' : ', not run yet'}. ${each.charAt(0).toUpperCase()}${each.slice(1)}.`
+  return `The robot tries the program on ${rows.length} case${rows.length === 1 ? '' : 's'}${ran ? '' : ', not run yet'}. ${each}.`
 }
 
-/** A case's given values, one per line when there are several. */
-const givenLines = (given: string): string[] => given.split(/\s*[,;\n]\s*/).filter((g) => g.trim() !== '').slice(0, 2)
+/** A case's given values, one per line when there are several: split at
+ *  the commas between them, never inside a list or a string. */
+function givenLines(given: string): string[] {
+  const out: string[] = []
+  let depth = 0
+  let quote: string | null = null
+  let cur = ''
+  for (const ch of given) {
+    if (quote) {
+      if (ch === quote) quote = null
+    } else if (ch === '"' || ch === "'") quote = ch
+    else if ('[({'.includes(ch)) depth++
+    else if ('])}'.includes(ch)) depth--
+    else if ((ch === ',' || ch === ';' || ch === '\n') && depth === 0) {
+      if (cur.trim()) out.push(cur.trim())
+      cur = ''
+      continue
+    }
+    cur += ch
+  }
+  if (cur.trim()) out.push(cur.trim())
+  return out.slice(0, 2)
+}
 
 /**
  * A scoreboard of encounter cards: per case, a slime, the given values in
@@ -4322,17 +4343,33 @@ const givenLines = (given: string): string[] => given.split(/\s*[,;\n]\s*/).filt
 function Cases({ view, p }: { view: PropView; p: Extract<Prop, { kind: 'cases' }> }) {
   const rows = p.rows.slice(0, CASES_MAX)
   const n = Math.max(1, rows.length)
-  const col = { given: 24, want: 110, got: 155, mark: 189 } as const
+  // Columns sized to what they hold: a list's want and got need more room
+  // than `"run"`, and a given of two names more than `hp = 20`. Too long
+  // for one row together, and a card stacks: the given values along the
+  // top, want and got under them.
+  const givenW = Math.max(6, ...rows.flatMap((r) => givenLines(r.given).map((l) => monoW(l, 1))))
+  const valueW = Math.max(4, ...rows.map((r, i) => Math.max(monoW(short(r.want, 22), 1), monoW(short(caseResult(view, i)?.got ?? '—', 22), 1))))
+  const stacked = givenW + 2 * valueW > 30
+  const gw = stacked ? 156 : Math.max(52, Math.min(96, (156 * givenW) / (givenW + 2 * valueW)))
+  // Want and got share what is left (all of it, stacked), each centred
+  // in its half (`text-anchor: middle`), clear of the mark at the right.
+  const vx = stacked ? 24 : 24 + gw + 6
+  const vw = (180 - vx) / 2
+  const col = { given: 24, want: vx + vw / 2, got: vx + vw * 1.5, split: vx + vw, mark: 189 } as const
   const head = 22
   const rowH = Math.min(30, (124 - head) / n)
   const top = head + 2
   const nameSize = Math.min(10, 70 / Math.max(1, monoW(p.name, 1)))
   return (
     <g className="cases">
-      <text x={(col.given + 36).toFixed(1)} y="17" className="cases-head">
-        given
-      </text>
-      <text x={(col.want + col.got) / 2} y="9.5" className="cases-name" style={{ fontSize: `${nameSize.toFixed(2)}px` }}>
+      {/* Stacked, the given values head each card, and want and got are
+          under them: the column heads are only want and got. */}
+      {!stacked && (
+        <text x={(col.given + 36).toFixed(1)} y="17" className="cases-head">
+          given
+        </text>
+      )}
+      <text x={col.split} y="9.5" className="cases-name" style={{ fontSize: `${nameSize.toFixed(2)}px` }}>
         {p.name}
       </text>
       <text x={col.want} y="19.5" className="cases-head">
@@ -4346,11 +4383,16 @@ function Cases({ view, p }: { view: PropView; p: Extract<Prop, { kind: 'cases' }
         const cy = y + rowH / 2
         const res = caseResult(view, i)
         const lines = givenLines(r.given)
-        const gsize = Math.min(11, rowH * (lines.length > 1 ? 0.34 : 0.42), 58 / Math.max(1, ...lines.map((l) => monoW(l, 1))))
-        const want = short(r.want, 9)
-        const wsize = Math.min(11.5, rowH * 0.42, 38 / Math.max(1, monoW(want, 1)))
-        const got = res === null ? '—' : short(res.got, 11)
-        const gotSize = Math.min(11.5, rowH * 0.42, 44 / Math.max(1, monoW(got, 1)))
+        // Stacked, the given line has the top half of the card and the
+        // values the bottom half; side by side, each has the whole height.
+        const band = stacked ? rowH / 2 : rowH
+        const gy = stacked ? y + band * 0.62 : cy
+        const vy = stacked ? y + band * 1.5 : cy
+        const gsize = Math.min(11, band * (lines.length > 1 && !stacked ? 0.34 : 0.5), (gw - 2) / Math.max(1, ...(stacked ? [monoW(lines.join(', '), 1)] : lines.map((l) => monoW(l, 1)))))
+        const want = short(r.want, 22)
+        const wsize = Math.min(11.5, band * 0.5, (vw - 6) / Math.max(1, monoW(want, 1)))
+        const got = res === null ? '—' : short(res.got, 22)
+        const gotSize = Math.min(11.5, band * 0.5, (vw - 6) / Math.max(1, monoW(got, 1)))
         const state = res === null ? 'untried' : res.ok ? 'ok' : 'wrong'
         const k = Math.min(1, rowH / 24)
         return (
@@ -4361,21 +4403,21 @@ function Cases({ view, p }: { view: PropView; p: Extract<Prop, { kind: 'cases' }
               <circle cx="-2.8" cy="-1" r="1.4" className="eye" />
               <circle cx="2.8" cy="-1" r="1.4" className="eye" />
             </g>
-            <text x={col.given} y={cy + (lines.length > 1 ? -gsize * 0.2 : gsize * 0.36)} className="cases-given" style={{ fontSize: `${gsize.toFixed(2)}px` }}>
-              {lines.map((l, k2) => (
+            <text x={col.given} y={gy + (lines.length > 1 && !stacked ? -gsize * 0.2 : gsize * 0.36)} className="cases-given" style={{ fontSize: `${gsize.toFixed(2)}px` }}>
+              {(stacked ? [lines.join(', ')] : lines).map((l, k2) => (
                 <tspan key={k2} x={col.given} dy={k2 === 0 ? 0 : gsize * 1.15}>
                   {l}
                 </tspan>
               ))}
             </text>
-            <path d={`M${(col.want + col.got) / 2} ${y + 6} V${y + rowH - 6}`} className="cases-split" />
-            <text x={col.want} y={cy + wsize * 0.36} className="cases-want" data-kind={kindOfLiteral(r.want)} style={{ fontSize: `${wsize.toFixed(2)}px` }}>
+            <path d={`M${col.split} ${stacked ? cy + 1 : y + 6} V${y + rowH - (stacked ? 4 : 6)}`} className="cases-split" />
+            <text x={col.want} y={vy + wsize * 0.36} className="cases-want" data-kind={kindOfLiteral(r.want)} style={{ fontSize: `${wsize.toFixed(2)}px` }}>
               {want}
             </text>
             <text
               key={got}
               x={col.got}
-              y={cy + gotSize * 0.36}
+              y={vy + gotSize * 0.36}
               className={`cases-got ${res?.how ?? 'none'}`}
               data-kind={res?.how === 'value' ? kindOfLiteral(res.got) : 'none'}
               style={{ fontSize: `${gotSize.toFixed(2)}px` }}

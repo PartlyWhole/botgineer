@@ -165,9 +165,9 @@ const teach: LessonStep[] = [
     say: 'Your turn: with a `for` loop, append every thing in `cave` to `bag`.',
     ask: 'Pick them all up',
     tag: 'you',
-    code: 'cave = ["torch", "map", "apple", "coin"]\nbag = []\n',
-    show: { kind: 'cases', name: 'bag', rows: caseRows([{ cave: '["torch", "map", "apple", "coin"]' }, { cave: '["gem", "key"]' }], (g) => listRepr(words(g.cave!))) },
-    cases: [{ cave: '["torch", "map", "apple", "coin"]' }, { cave: '["gem", "key"]' }],
+    code: 'cave = ["map", "gem", "key"]\nbag = []\n',
+    show: { kind: 'cases', name: 'bag', rows: caseRows([{ cave: '["map", "gem", "key"]' }, { cave: '["coin"]' }], (g) => listRepr(words(g.cave!))) },
+    cases: [{ cave: '["map", "gem", "key"]' }, { cave: '["coin"]' }],
     done: (e) => decides(e, FOR, 'bag', (g) => listRepr(words(g.cave!))),
     praise: 'One block, run once for each thing: the loop works for any cave, however full.',
     nudge: (l) =>
@@ -177,7 +177,7 @@ const teach: LessonStep[] = [
         : l.ok && /bag\.append\(\s*(["'])/.test(l.source)
           ? 'That appends the same word every time. Append the loop\'s name, `thing`: it points at each item in turn.'
           : wrongCase(l, 'bag', (g) => listRepr(words(g.cave!)))),
-    model: 'cave = ["torch", "map", "apple", "coin"]\nbag = []\nfor thing in cave:\n    bag.append(thing)',
+    model: 'cave = ["map", "gem", "key"]\nbag = []\nfor thing in cave:\n    bag.append(thing)',
   },
   {
     beats: [
@@ -228,7 +228,9 @@ const teach: LessonStep[] = [
   },
   {
     say: 'The door wants 10 knocks. Make `knocks` count them, with `range`.',
-    show: { kind: 'goal', goal: [{ name: 'knocks', value: '10' }] },
+    // Not a goal memory: the loop's own name (`i`) is in memory too, and
+    // the step is about `knocks` alone.
+    show: { kind: 'hud', title: 'Door', stats: [{ name: 'knocks', value: '10' }] },
     ask: 'Knock 10 times',
     tag: 'you',
     code: 'knocks = 0\n',
