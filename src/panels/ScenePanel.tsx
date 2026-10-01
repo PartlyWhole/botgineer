@@ -1138,7 +1138,7 @@ function usePropsTop(ref: { current: HTMLDivElement | null }, deps: unknown[]) {
  * room to be much larger, and it stays on the floor.
  */
 /** The pictures that stand up top when there is room (`useRaised`). */
-const RAISED = new Set(['goal', 'hud', 'gate', 'paths', 'tally', 'cases', 'code'])
+const RAISED = new Set(['goal', 'hud', 'gate', 'paths', 'tally', 'cases', 'code', 'backpack', 'hotbar'])
 
 function useRaised(ref: { current: HTMLDivElement | null }, raise: boolean, slotPct: number, deps: unknown[]) {
   useLayoutEffect(() => {

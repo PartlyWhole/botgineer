@@ -2,7 +2,7 @@
  * v2, Level 6: Asking Questions (`v2-logic`).
  *
  * The robot's problem (R12): at the cave's mouth there are rules — more
- * than 20 HP to go in, a torch, exactly 12 coins for the chest — and the
+ * than 20 HP to go in, a torch packed where the map says — and the
  * robot can keep Mira's stats and work out sums, but it cannot yet ask
  * whether something is so. To choose (the next level, `if`), it must
  * first ask. It ends able to ask any yes-or-no question of its memory,
@@ -16,8 +16,10 @@
  *    `backpack` (a goal memory: Memories and Lists, used again).
  * 2. `>` and `<`: a *comparison*. Asked of a name, not a number, so the
  *    question fits any explorer (R4: a `True` typed by hand is refused).
- * 3. `==` against `=` (R7, a pair differing in one sign): two asks, one
- *    points. Picked, then typed; `!=` shown.
+ * 3. `==` against `=` (R7, a pair differing in one sign), on Mira checking
+ *    her packing: `backpack[1] == "torch"` asks whether the second thing is
+ *    the torch; `backpack[1] = "torch"` asks nothing — it would *change*
+ *    the backpack. Picked, then typed; `!=` shown.
  * 4. `>=` against `>` on the boundary (`hp` exactly 30): picked.
  * 5. `in`: is it in the list?
  * 6. `and`: both, worked a piece at a time on the stage (`expr`), and
@@ -62,6 +64,10 @@ const CARD: Goal = [
   { name: 'backpack', value: '["map", "torch"]' },
 ]
 const MADE = ['hp = 30', 'coins = 12', 'has_key = False', 'backpack = ["map", "torch"]']
+
+/** Mira's backpack, its pockets indexed, one of them lit. */
+const PACKED0: Prop = { kind: 'backpack', items: ['map', 'torch'], mark: 0 }
+const PACKED1: Prop = { kind: 'backpack', items: ['map', 'torch'], mark: 1 }
 
 const hud = (mark?: string[]): Prop => ({
   kind: 'hud',
@@ -144,11 +150,11 @@ function yesNo(id: string, answer: 'True' | 'False', nudge: (c: string) => strin
 const asks: Choices = {
   id: 'logic-asks',
   options: [
-    { id: 'two', label: '`coins == 12`' },
-    { id: 'one', label: '`coins = 12`' },
+    { id: 'two', label: '`backpack[0] == "map"`' },
+    { id: 'one', label: '`backpack[0] = "map"`' },
   ],
   answer: 'two',
-  nudge: () => 'One `=` points `coins` at `12`: it tells, it doesn\'t ask. Two, `==`, asks *is it the same?*',
+  nudge: () => 'One `=` points the slot at index `0` at `"map"`: it tells, and changes the backpack. Two, `==`, asks *is it the same?*',
 }
 
 const edge: Choices = {
@@ -218,30 +224,39 @@ const teach: LessonStep[] = [
   },
   {
     beats: [
-      { speaker: 'courier', say: 'Look, a chest! It opens for exactly 12 coins.', show: hud(['coins']) },
-      { say: 'To ask *is it the same?*, the robot uses two equals signs: `==`.', types: 'coins == 12', thought: 'True', memory: MADE, mark: ['coins'], show: hud(['coins']) },
-      { say: 'One `=` is different: it points a name at an object. It asks nothing.', types: 'coins = 12', thought: '', memory: MADE, mark: ['coins'], show: hud(['coins']) },
+      { speaker: 'courier', say: 'I always pack the map first, so I can find it fast. Did I?', show: PACKED0 },
+      { say: 'To ask *is it the same?*, the robot uses two equals signs: `==`.', types: 'backpack[0] == "map"', thought: 'True', memory: MADE, mark: ['backpack'], show: PACKED0 },
+      { say: 'It looks up index `0`, finds `"map"`, and asks if that\'s the same as `"map"`. Yes: `True`.', thought: 'True', memory: MADE, mark: ['backpack'], show: PACKED0 },
+      { say: 'One `=` is different: it would point the slot at index `0` at `"map"`: it changes, and asks nothing.', memory: MADE, mark: ['backpack'], show: PACKED0 },
     ],
     say: 'Which line asks the robot a question?',
-    show: hud(['coins']),
+    show: PACKED0,
     ask: 'Which one asks?',
     tag: 'you',
     choices: asks,
     done: (e) => chose(e, asks),
-    praise: '`==` asks *is it the same?* One `=` only points a name.',
+    praise: '`==` asks *is it the same?* One `=` points, and asks nothing.',
   },
   {
     beats: [
-      { say: 'And `!=` asks the opposite: *is it different?*', types: 'coins != 12', thought: 'False', memory: MADE, mark: ['coins'], show: hud(['coins']) },
+      { say: 'And `!=` asks the opposite: *is it different?*', types: 'backpack[0] != "map"', thought: 'False', memory: MADE, mark: ['backpack'], show: PACKED0 },
+      { speaker: 'courier', say: 'And the torch goes second, where I can grab it.', show: PACKED1 },
     ],
-    say: 'Ask the robot: is `coins` exactly 12?',
-    show: hud(['coins']),
-    ask: 'Exactly 12 coins?',
+    say: 'Ask the robot: is the second thing in the backpack the torch?',
+    show: PACKED1,
+    ask: 'Torch second?',
     tag: 'robot',
-    done: (e) => asked(e, /\bcoins\s*==\s*12\b|\b12\s*==\s*coins\b/, 'True'),
-    praise: '`coins == 12` is `True`: the same number, so the chest opens.',
-    nudge: askMiss('coins', 'coins == 12'),
-    model: 'coins == 12',
+    done: (e) => asked(e, /\bbackpack\s*\[\s*1\s*\]\s*==\s*(["'])torch\1|(["'])torch\2\s*==\s*backpack\s*\[\s*1\s*\]/, 'True'),
+    praise: '`backpack[1] == "torch"` is `True`: index `1`, the second thing, is the torch.',
+    nudge: (l) =>
+      l.ok && !l.thought && /^\s*backpack\s*\[[^\]]*\]\s*=(?!=)/.test(l.source)
+        ? 'One `=` pointed that slot at something: it asked nothing, and changed the backpack. Undo that line, and ask with `==`.'
+        : l.thought?.type === 'bool' && /backpack\s*\[\s*2\s*\]/.test(l.source)
+          ? 'Indexes count from `0`: the second thing is at index `1`.'
+          : l.thought?.type === 'bool' && /(["'])torch\1\s+in\b/.test(l.source)
+            ? 'That asks if the torch is anywhere. Ask about the second slot: `backpack[1] == "torch"`.'
+            : askMiss('backpack', 'backpack[1] == "torch"')(l),
+    model: 'backpack[1] == "torch"',
   },
   {
     beats: [
@@ -260,21 +275,21 @@ const teach: LessonStep[] = [
   },
   {
     beats: [
-      { speaker: 'courier', say: 'It\'s dark in there. Did I pack the torch?', show: hud(['backpack']) },
-      { say: '`in` asks *is it in the list?*', types: '"torch" in backpack', thought: 'True', memory: MADE, mark: ['backpack'], show: hud(['backpack']) },
+      { speaker: 'courier', say: 'Did I pack a key at all? I can\'t remember where it would be.', show: hud(['backpack']) },
+      { say: '`in` asks *is it anywhere in the list?* No index needed.', types: '"torch" in backpack', thought: 'True', memory: MADE, mark: ['backpack'], show: hud(['backpack']) },
       { say: 'It looks along the list, slot by slot, for a rope. None: `False`.', types: '"rope" in backpack', thought: 'False', memory: MADE, mark: ['backpack'], show: hud(['backpack']) },
     ],
-    say: 'Ask the robot: is there a map in the backpack?',
+    say: 'Ask the robot: is there a key in the backpack?',
     show: hud(['backpack']),
-    ask: 'A map?',
+    ask: 'A key?',
     tag: 'robot',
-    done: (e) => asked(e, /^\s*(["'])map\1\s+in\s+backpack\s*$/, 'True'),
-    praise: '`"map" in backpack` is `True`: it found `"map"` at index `0`.',
+    done: (e) => asked(e, /^\s*(["'])key\1\s+in\s+backpack\s*$/, 'False'),
+    praise: '`"key" in backpack` is `False`: the robot looked at every slot, and no key.',
     nudge: (l) =>
-      /^\s*map\s+in\b/.test(l.source)
-        ? 'Words need quotes, or the robot reads them as names: `"map" in backpack`.'
-        : askMiss('backpack', '"map" in backpack')(l),
-    model: '"map" in backpack',
+      /^\s*key\s+in\b/.test(l.source)
+        ? 'Words need quotes, or the robot reads them as names: `"key" in backpack`.'
+        : askMiss('backpack', '"key" in backpack')(l),
+    model: '"key" in backpack',
   },
   {
     beats: [
