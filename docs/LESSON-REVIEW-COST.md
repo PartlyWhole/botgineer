@@ -64,3 +64,33 @@ Per agent:
   shots; reviewers would read 3–5× more (perhaps 90–150k each), and the
   picture checker most of all. Expect roughly 1.5–2.5M tokens for a
   long lesson at this design, or 0.6–1M with batched verification.
+
+## The design since: a unit at a time
+
+After this run the review was reshaped around the floor
+([LESSON-REVIEW.md](LESSON-REVIEW.md), `.claude/workflows/review-lessons.js`):
+
+| | First run (per lesson) | Now (per unit) |
+|---|---|---|
+| Text reviewers | 4 per lesson (kid, teacher, continuity, Python) | 2 per unit (story reader, teacher), each reading every lesson of the unit |
+| Picture checkers | 1 per lesson | 1 per lesson |
+| Merging | the lead, by hand | 1 agent, low effort |
+| Verifiers | 1 per cluster | 1 per batch of ≤ 6 clusters, one lesson per batch |
+| Lesson 1 alone | 15 agents, 1.01M tokens | 5 agents (2 + 1 + 1 + 1–2), est. 0.35–0.45M |
+
+Inputs, measured on `v2-ops` (a long lesson: 14 steps):
+
+| | Before | Now |
+|---|---|---|
+| Script, three seeds | 10,606 words | 6,755 words (seeds 2 and 3 only where they differ) |
+| Storyboard | 76 whole-screen shots, ≈104k image tokens | 52 files (12 stage-only), ≈61k image tokens |
+| Storyboard time | — | 139 s |
+
+Projected for a unit of three long lessons (e.g. Lessons 6–8): 2 text
+reviewers at ≈100–130k (the floor plus ~20k words of scripts), 3 picture
+checkers at ≈110–130k, a merge at ≈70k, and 4–5 verifier batches at
+≈80–110k: **≈0.9–1.3M tokens, 10–11 agents**, against ≈4.5–7.5M and
+~45 agents for the first design run lesson by lesson. Wall time is the
+slowest picture checker plus the slowest verifier, about 5–8 minutes,
+after 3–6 minutes of preparation. These are projections; measure the
+first unit run and replace them.

@@ -38,7 +38,7 @@ async function lessonFor(seed: number | undefined): Promise<Lesson> {
   const file = id!.startsWith('v2-') ? `../content/lessons/v2/${{ 'v2-if': 'ifs' }[id!] ?? id!.slice(3)}` : null
   if (!file) return fallback
   const mod = (await import(file)) as Record<string, unknown>
-  const make = Object.values(mod).find((v): v is (s: number) => Lesson => typeof v === 'function' && (v as (s: number) => Lesson).length === 1)
+  const make = Object.entries(mod).find(([k, v]) => /Lesson$/.test(k) && typeof v === 'function')?.[1] as ((s: number) => Lesson) | undefined
   return make ? make(seed) : fallback
 }
 
@@ -146,7 +146,16 @@ function write(lesson: Lesson, seed: number | undefined): string {
   return out.join('\n')
 }
 
+// The first seed in full; each further seed only for the steps that come
+// out differently (a seeded lesson's teaching is the same every time, so
+// writing it three times only tripled what a reviewer reads).
 const runs = seeds.length > 0 ? seeds : [undefined]
-const parts: string[] = []
-for (const s of runs) parts.push(write(await lessonFor(s), s))
+const first = await lessonFor(runs[0])
+const parts: string[] = [write(first, runs[0])]
+const firstSteps = first.steps.map((st, i) => stepLines(st, i).join('\n'))
+for (const s of runs.slice(1)) {
+  const other = await lessonFor(s)
+  const changed = other.steps.map((st, i) => stepLines(st, i).join('\n')).filter((text, i) => text !== firstSteps[i])
+  parts.push([`## \`${id}\` — seed ${s}: only the steps that differ from seed ${runs[0]}`, '', ...(changed.length ? changed : ['(none)'])].join('\n'))
+}
 console.log(parts.join('\n\n---\n\n'))

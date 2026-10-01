@@ -7,18 +7,37 @@ exactly 12 coins" was valid Python, showed `==` before naming it, and
 passed every test; no game has that rule, and no chest was on the stage.
 This review reads a lesson the way a learner hears it.
 
+## Running it
+
+A **unit** at a time (the lessons of one stretch of the map, in play
+order), not a lesson at a time: an agent costs about 55k tokens before it
+reads a word, so the cost is mostly how many agents run
+([LESSON-REVIEW-COST.md](LESSON-REVIEW-COST.md)).
+
+1. With the dev server running:
+   `npx tsx scripts/review-prep.ts <dir> <id> [<id> ...]` — writes each
+   lesson's script and storyboard into `<dir>` (no agents; about a minute
+   a lesson).
+2. Run the `review-lessons` workflow (`.claude/workflows/review-lessons.js`)
+   with `{ dir, lessons: [...] }`, the line `review-prep` prints. It
+   returns the kept findings, most severe first, and the dropped ones.
+3. Write the report to `docs/reviews/<unit or id>.md`.
+
 ## The inputs
 
-1. **The script** — `npx tsx scripts/lesson-script.ts <id> [seed ...]`:
-   every beat, ask, option, praise and reply, in order, with each
-   picture described by the sentence it writes for a screen reader. A
-   seeded lesson is exported for three seeds (`1 2 3`), since its
-   practice changes with each.
-2. **The storyboard** — `npx tsx scripts/storyboard.ts <id> <dir> [seed]`
-   (dev server running): the whole screen at every beat, with `index.md`
-   naming each shot beside its line.
+1. **The script** — `scripts/lesson-script.ts <id> [seed ...]`: every
+   beat, ask, option, praise and reply, in order, with each picture
+   described by the sentence it writes for a screen reader. A seeded
+   lesson is written in full for its first seed, and only the steps that
+   differ for the next two (the teaching is the same every seed).
+2. **The storyboard** — `scripts/storyboard.ts <id> <dir> [seed]`: the
+   screen at every beat that changes it, with `index.md` naming each shot
+   beside its line. A beat that changes only the stage is shot as the
+   stage alone; a beat that puts nothing new on screen is listed against
+   the last shot; the first typed line is also shot while it is typed.
+   (`--every` shoots every beat, whole.)
 3. **The rules already in force** — `docs/PEDAGOGY.md` (R1–R12, the cast,
-   the decisions) and the lesson file's own header (what it means to do).
+   the decisions) and each lesson file's own header (what it means to do).
 
 ## The story-logic rubric
 
@@ -37,26 +56,25 @@ On top of R1–R12. Each finding names one of these.
 
 ## The reviewers
 
-Each is one agent, reading the script and the files it names; they run in
-parallel and do not see each other's findings.
+Five angles in three kinds of agent. They run in parallel and do not see
+each other's findings.
 
-- **The skeptical kid** (S1, S4, S8). Reads only what is said and shown,
-  as a 10-year-old who plays games and has never programmed. Ignores
-  whether the Python is right. Flags what sounds made up, pointless,
-  confusing, babyish or boring.
-- **The teacher** (R1–R12, S2, S6). Does each example *need* its idea?
-  Is anything asked before it is shown? Does each step build on the one
-  before? Is anything taught that is never used, or used and never taught?
-- **The continuity editor** (S5). Reads the lesson beside the lessons
-  before it in its unit (and the previous unit's last). Do facts, names,
-  the cast and the world agree? Does the lesson pick up where the last
-  left off?
-- **The picture checker** (S3, S7). Walks the storyboard shot by shot
-  against its line: is what is mentioned shown, does the picture agree
-  with the words, does the stage give the answer away, is anything
-  unreadable or overlapping?
-- **The Python expert** (R8). Could an expert object to any sentence? Is
-  anything simplified so far it is false?
+- **The story reader** — the skeptical kid and the continuity editor,
+  one agent for the whole unit (S1, S4, S5, S8). As the kid: reads only
+  what is said and shown, as a 10-year-old who plays games and has never
+  programmed; ignores whether the Python is right; flags what sounds made
+  up, pointless, confusing, babyish or boring. As the continuity editor:
+  facts, names, the cast and the world agree from step to step and lesson
+  to lesson, and each lesson picks up where the last left off — which is
+  why one agent reads the whole unit.
+- **The teacher** — the teacher and the Python expert, one agent for the
+  whole unit (R1–R12, S2, S6, R8). Does each example *need* its idea? Is
+  anything asked before it is shown? Is anything taught and never used,
+  or used and never taught? Could an expert object to any sentence?
+- **The picture checker** — one agent per lesson (S3, S7), because the
+  storyboard is the heaviest thing any reviewer reads. Shot by shot: is
+  what is mentioned shown, does the picture agree with the words, does
+  the stage give the answer away, is anything unreadable or overlapping?
 
 ## A finding
 
@@ -74,14 +92,24 @@ parallel and do not see each other's findings.
 No finding without a quote. Taste is not a finding unless it costs the
 learner something; say what it costs.
 
-## Verifying
+## Merging and verifying
 
-Every finding goes to one more agent, told to argue it away: is this a
-real problem for a learner, does the script or storyboard actually say
-that, is the fix better? It answers **keep** (with the reason), **drop**,
-or **merge with** another finding. Only kept findings are reported,
-most severe first. This is the step that keeps a review of taste from
-burying the two findings that matter.
+One agent merges the findings into clusters, one per distinct problem
+(low effort, reading nothing but the findings). Then the clusters go to
+verifiers in **batches** — one lesson per batch, at most six clusters —
+each told to argue every cluster away: is this a real problem for a
+learner, does the script or storyboard actually say that, is the fix
+right? It answers **keep**, **keep-with-changes** or **drop**, with the
+evidence, and may settle a doubt about timing or animation in the live
+page. Only kept findings are reported, most severe first. This is the step
+that keeps a review of taste from burying the findings that matter: on
+Lesson 1 it dropped two claims, confirmed a bug the screenshots could not
+show, and corrected two wrong fixes.
+
+(The first run gave every cluster its own verifier. Batching costs some
+independence — a verifier arguing six findings may grow consistent with
+itself — and saves most of the verification's cost. Keep one lesson per
+batch, so no verifier weighs two lessons' findings against each other.)
 
 ## Calibrating
 
