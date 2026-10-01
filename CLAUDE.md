@@ -150,6 +150,7 @@ that set to about one per area so it stays under a minute.
 | `tests/browser/lesson-<id>.spec.ts` | each lesson played through in the production page, beats and all |
 | `docs/PEDAGOGY.md` | the rubric every lesson step is checked against, the cast, the scripts, and the decisions taken |
 | `docs/AUTHORING.md` | how to write a lesson, a beat and a picture, as built: the API, the rules the engine enforces, the test helpers |
+| `docs/LESSON-REVIEW.md` | the story-and-sense review: rubric S1–S8, the five reviewers, verifying, calibrating. Its inputs: `scripts/lesson-script.ts` (a lesson as the learner meets it, as markdown) and `scripts/storyboard.ts` (the screen at every beat). Reports in `docs/reviews/`, cost in `docs/LESSON-REVIEW-COST.md` |
 | `tests/semantics/` | the shipped wheel in the shipped Pyodide, in Node: the collection audit and sweep, graders on crafted misses, variants |
 | `public/runtime/pyodide/` | copied from the pinned npm package at build time; gitignored |
 

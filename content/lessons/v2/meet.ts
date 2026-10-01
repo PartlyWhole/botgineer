@@ -37,6 +37,7 @@ export const v2meet: Lesson = {
       done: (e) => e.thoughts.some(isNumber),
       praise,
       nudge,
+      model: '7',
     },
   ],
   outro: [{ say: 'That\'s all it takes: you write it, and the robot thinks of it.' }],
