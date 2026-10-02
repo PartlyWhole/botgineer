@@ -94,3 +94,52 @@ checkers at ≈110–130k, a merge at ≈70k, and 4–5 verifier batches at
 slowest picture checker plus the slowest verifier, about 5–8 minutes,
 after 3–6 minutes of preparation. These are projections; measure the
 first unit run and replace them.
+
+## Measured: the Thinking unit's other two lessons (`v2-types`, `v2-ops`)
+
+The first run of the workflow, 2026-10-01. Two long lessons: 11,238 words
+of script (seeds 1–3) and 99 storyboard shots (≈112k image tokens).
+
+| Step | Time |
+|---|---|
+| `review-prep` (scripts and storyboards) | ≈4 min (one rerun: `v2-types` had no keys for its typed steps; now it does) |
+| The workflow, 11 agents | 8 min 17 s |
+
+**31 findings → 29 clusters → 26 kept, 3 dropped** (all three timing
+artifacts, each disproved by sampling the live page).
+
+The workflow reports **1,170,384 subagent tokens** and 276 tool calls —
+the same measure as Lesson 1's 1.01M. That figure is not what the API
+processed. From the agents' own transcripts:
+
+| Agent | Cache written | Cache read | Output | Tool calls | Time |
+|---|---|---|---|---|---|
+| Story reader (both lessons) | 138,675 | 1,215,208 | 7,046 | 11 | 90 s |
+| Teacher (both lessons) | 96,135 | 1,601,206 | 21,212 | 12 | 167 s |
+| Pictures, `v2-types` (47 shots) | 489,285 | 6,169,996 | 15,959 | 56 | 175 s |
+| Pictures, `v2-ops` (52 shots) | 485,821 | 9,028,108 | 15,412 | 67 | 204 s |
+| Merge (low effort) | 135,182 | 0 | 5,031 | 1 | 40 s |
+| Verify `v2-types` #1–3 | 337,250 | 9,071,081 | 34,281 | 73 | 84–248 s |
+| Verify `v2-ops` #4–6 | 348,296 | 7,226,944 | 29,236 | 56 | 70–237 s |
+| **Total** | **2,030,644** | **34,312,543** | **128,177** | **276** | **8 min 17 s** wall |
+
+(Uncached input was 758 tokens.) Cache reads are billed at a fraction of
+fresh input, but they are most of what was done.
+
+### What it shows
+
+- **Against Lesson 1's run:** about the same headline (1.17M against
+  1.01M) for ~40× the script and ~11× the shots, with 11 agents instead of
+  15. Agent count, not lesson length, still sets the floor.
+- **The picture checkers are the quadratic cost.** Every screenshot an
+  agent opens stays in its context, and every later turn re-reads all of
+  it: 47–52 shots made 6–9M cache reads each, 44% of the run. The two
+  verifiers that sampled the live page (#2, #5) grew the same way.
+- **Next, for scale:** split a picture checker into chunks of ~12 shots
+  (a step or two each), so no context holds more than a dozen images —
+  roughly a quarter of the cache reads for the same shots, at the cost of
+  a few more agent floors; and have live-page verifiers read their own
+  screenshots once, then say what they saw, rather than reopening them.
+- **Verification kept 26 of 29.** Batched verifiers dropped only what they
+  could disprove in the page. Whether they are too lenient is the next
+  thing calibration (the pre-fix chest in `v2-logic`) should test.
