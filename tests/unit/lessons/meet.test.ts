@@ -28,7 +28,7 @@ describe('meet', () => {
     const s = script(meet, typed(line('12', th('int', '12'))))
     expect(s.finished).toBe(true)
     expect(s.items[0]).toMatchObject({ kind: 'praise' })
-    expect(s.items[0]!.text).toMatch(/`12`, because that's what you wrote/)
+    expect(s.items[0]!.text).toMatch(/`12`, because that's what you typed/)
     expect(script(meet, typed(line('3 + 4', th('int', '7')))).items[0]!.text).toMatch(/`7`: it worked that out/)
     expect(s.items.slice(1).every((i) => i.kind === 'outro')).toBe(true)
     expect(meet.takeaway).toMatch(/^The robot does nothing until you give it an instruction\./)
@@ -45,7 +45,7 @@ describe('meet', () => {
     expect(reply(line('1,5', th('tuple', '(1, 5)'))).text).toMatch(/dot, not a comma: `1.5`/)
     // The console stops on it today, rather than making the pair.
     expect(reply(failed('1,5', 'TypeError')).text).toMatch(/dot, not a comma: `1.5`/)
-    expect(reply(line('"7"', th('str', "'7'"))).text).toMatch(/quotes make that a word/i)
+    expect(reply(line('"7"', th('str', "'7'"))).text).toMatch(/quotes make that words/i)
     expect(guidance(meet, typed(line('True', th('bool', 'True')))).text).toMatch(/yes-or-no, not a number/)
   })
 

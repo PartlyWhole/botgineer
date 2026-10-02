@@ -28,7 +28,10 @@ import {
   SPEED_MAX,
   boolOf,
   carReading,
-  chipChars,
+  chipEm,
+  CHIP_FONT,
+  CHIP_TEXT_W,
+  emOf,
   chipLines,
   chipText,
   clamp,
@@ -409,7 +412,11 @@ function drawnAs(view: PropView): string {
       }`
     }
     case 'phone':
-      return a ? `A phone showing ${textOf(a) ?? a.repr}.` : 'A phone, waiting for a number.'
+      return a
+        ? `A phone showing ${textOf(a) ?? a.repr}.`
+        : view.ask === undefined && view.verdict === null
+          ? `A phone showing ${p.number}.`
+          : 'A phone, waiting.'
     case 'doorway': {
       const open = doorOpen(view, p.demo)
       const said = a === null ? (p.demo ? `: open is ${open ? 'True' : 'False'}` : '') : b !== null ? `: the robot said ${a.repr}` : ''
@@ -615,13 +622,21 @@ function Fish({ view }: { view: PropView }) {
 
 /* --- basket: counted with an int --- */
 
+/** Where each apple sits, in the order they go in: three along the
+ *  front, then three on a row behind, middle first. When the count is
+ *  the question every apple must be countable, so no apple covers
+ *  another, and each keeps its own stalk and leaf in sight: the old
+ *  heap painted the back apples over the front ones' stalks, and a
+ *  child counting stalks counted one short. The rows sit far enough
+ *  apart that a front apple's stalk tip (17 above its middle) stops
+ *  short of the apple behind it (11 below its middle). */
 const APPLE_AT: [number, number][] = [
-  [80, 72],
-  [120, 72],
-  [100, 64],
-  [90, 58],
-  [110, 56],
-  [100, 48],
+  [77, 72],
+  [100, 72],
+  [123, 72],
+  [100, 43],
+  [77, 43],
+  [123, 43],
 ]
 
 function Basket({ view, apples, demo }: { view: PropView; apples: number; demo: 'count' | 'half' | 'tally' | undefined }) {
@@ -1400,7 +1415,10 @@ function Bolts({ view, have, use }: { view: PropView; have: number; use: number 
     <g className={`bolts ${waiting ? 'unworked' : ''} ${no ? 'refused' : ''}`}>
       {Array.from({ length: have }, (_, i) => {
         const [x, y] = at(i)
-        const used = i >= have - use
+        // The used bolts fade only once the robot has worked out what is
+        // left. Faded before, they left the answer standing in a short
+        // solid row to count, just after the crow said not to.
+        const used = n !== null && i >= have - use
         return (
           <g key={i} transform={`translate(${x},${y})`} className={`bolt-icon ${used ? 'used' : ''} ${i < ringed ? 'ringed' : ''}`} style={{ ['--i' as string]: i - (have - use) }}>
             <g className="bolt-shape">
@@ -1412,7 +1430,8 @@ function Bolts({ view, have, use }: { view: PropView; have: number; use: number 
         )
       })}
       <text x="100" y="22" className="bolts-label">
-        {n !== null ? `${view.answer!.repr} left?` : waiting ? `${have} - ${use} = ?` : `${have} bolts, ${use} used`}
+        {/* A question mark only on a miss: a right answer is said, not doubted. */}
+        {n !== null ? `${view.answer!.repr} left${view.verdict === 'miss' ? '?' : ''}` : waiting ? `${have} - ${use} = ?` : `${have} bolts, ${use} used`}
       </text>
     </g>
   )
@@ -1726,16 +1745,23 @@ function Phone({ view, number }: { view: PropView; number: string }) {
   const calling = !no && t !== null && t.replace(/\D/g, '') === number
   const asInt = a && (a.type === 'int' || a.type === 'float') ? a.repr : null
   const lostZero = asInt !== null && number.startsWith('0') && number.replace(/^0+/, '') === asInt
-  const shown = t ?? asInt
+  // Told, not asked: a narration beat stands the phone with no question
+  // under it and nothing answered, while the crow talks about the number.
+  // The screen shows that number as text, the way a typed str draws it.
+  // A picture only, never evidence; the ask puts the cursor back.
+  const told = a === null && view.ask === undefined && view.verdict === null
+  const shown = told ? number : (t ?? asInt)
+  const asText = told || t !== null
   return (
     <g className={`phone ${calling ? 'calling' : ''} ${no ? 'refused' : ''}`}>
       <g className="phone-shake">
         <rect x="60" y="4" width="80" height="122" rx="12" className="phone-body" />
         <rect x="66" y="15" width="68" height="60" rx="5" className="screen" />
         {shown === null ? (
-          <text x="100" y="48" className="screen-hint">
-            type a number
-          </text>
+          // Waiting: a cursor, and no word for what to type. "Type a
+          // number" ran off the screen, and in the step that teaches a
+          // phone number is words it pointed at the unquoted miss.
+          <rect x="98.5" y="38" width="3" height="15" rx="1" className="screen-cursor" />
         ) : (
           <>
             {lostZero && (
@@ -1752,7 +1778,7 @@ function Phone({ view, number }: { view: PropView; number: string }) {
             <text
               x={lostZero ? 106 : 100}
               y="47"
-              className={`screen-text ${t !== null ? 'text' : 'num'}`}
+              className={`screen-text ${asText ? 'text' : 'num'}`}
               style={{ fontSize: `${Math.min(9.5, (lostZero ? 50 : 60) / (Math.max(1, [...short(shown, 12)].length) * 0.6)).toFixed(2)}px` }}
             >
               {short(shown, 12)}
@@ -2025,16 +2051,19 @@ function Note({ view, text, title }: { view: PropView; text: string; title: stri
 /* --- value: one literal, and nothing to say which kind --- */
 
 function Value({ text }: { text: string }) {
-  const n = Math.max(1, [...text].length)
-  // As big as the card allows: a monospace character is 0.6 of its size.
-  const size = Math.min(46, 148 / (n * 0.6))
+  const shown = short(text, 16)
+  const n = Math.max(1, [...shown].length)
+  // As big as the card allows, with about 12 units clear each side of
+  // the 152-wide card: a monospace character is 0.6 of its size, and at
+  // 148 a bold quote mark sat against the card's edge.
+  const size = Math.min(46, 128 / (n * 0.6))
   return (
     <g className="value">
       <g className="value-card">
         <rect x="24" y="18" width="152" height="94" rx="12" className="value-shadow" />
         <rect x="22" y="14" width="152" height="94" rx="12" className="value-face" />
         <text x="98" y={61 + size * 0.36} className="value-text" style={{ fontSize: `${size.toFixed(2)}px` }}>
-          {short(text, 16)}
+          {shown}
         </text>
       </g>
     </g>
@@ -2120,43 +2149,11 @@ const CHIP_X = 1
  *  longest line needs to fit across the chip (`CHIP_TEXT_W`, which leaves
  *  2 units clear on each side of the chip's 36.5).
  *
- *  Drawn first by estimate, per character, in the stage's face at the
- *  chips' weight (measured in Chromium's system-ui at 800 and display
- *  size: `"` is 0.47 em, a digit 0.67) — a picture is drawn on the
- *  server in the unit tests too, where there is nothing to measure with.
- *  Then, in a browser, `fitText` measures what the face really drew and
- *  sets the size from that, before paint: an estimate is only ever right
- *  for one face at one size, and the old one ran `"hello"` a pixel past
- *  its chip — at 9px the same face is set in a wider cut. */
-const CHIP_FONT = 10.5
-const CHIP_TEXT_W = 32.5
-const emOf = (text: string): number =>
-  [...text].reduce(
-    (w, c) =>
-      w +
-      (/[W%]/.test(c)
-        ? 0.98
-        : /[Mm@w]/.test(c)
-          ? 0.88
-          : c === '"'
-            ? 0.48
-            : /['il.,:;!|j]/.test(c)
-              ? 0.28
-              : c === ' '
-                ? 0.22
-                : /[frtI()\[\]{}\/\\]/.test(c)
-                  ? 0.41
-                  : c === '1'
-                    ? 0.5
-                    : /[\d]/.test(c)
-                      ? 0.67
-                      : /[A-Z]/.test(c)
-                        ? 0.73
-                        : /[-*]/.test(c)
-                          ? 0.47
-                          : 0.61),
-    0,
-  )
+ *  Drawn first by estimate (`emOf`, in scene/props). Then, in a browser,
+ *  `fitText` measures what the face really drew and sets the size from
+ *  that, before paint: an estimate is only ever right for one face at one
+ *  size, and the old one ran `"hello"` a pixel past its chip — at 9px the
+ *  same face is set in a wider cut. */
 const chipFont = (lines: string[], width = CHIP_TEXT_W): number => Math.min(CHIP_FONT, ...lines.map((l) => width / Math.max(emOf(l), 0.01)))
 
 /** The char slot's tag: its size, and the width its longer line
@@ -2280,7 +2277,7 @@ function Shelf({ view, p }: { view: PropView; p: Extract<Prop, { kind: 'shelf' }
   const w = cubbyWidth(slots.length)
   const pitch = w + CUBBY_GAP
   const textW = CHIP_TEXT_W + (w - CUBBY_W)
-  const chars = chipChars(slots.length)
+  const em = chipEm(slots.length)
   const named = (k: TypeSlot) => p.filled.includes(k)
   // The char slot's tag (`str · length 1`) takes two rows of its own,
   // and a chip too long for one row takes two (`chipLines`); what is
@@ -2345,7 +2342,7 @@ function Shelf({ view, p }: { view: PropView; p: Extract<Prop, { kind: 'shelf' }
             )}
             {list.map((r) => {
               const at = row
-              const lines = r.tag ? [] : chipLines(r.text, chars)
+              const lines = r.tag ? [] : chipLines(r.text, em)
               row += r.tag ? tagRows(k) : lines.length
               if (row > CHIP_ROWS) return null
               const y = CHIP_TOP + at * CHIP_PITCH

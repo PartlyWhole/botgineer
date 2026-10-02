@@ -52,6 +52,7 @@ import {
   type Choice,
   type Choices,
   type Evidence,
+  type Heard,
   type Lesson,
   type LessonStep,
   type Line,
@@ -85,6 +86,19 @@ export const hasOp = (source: string): boolean =>
 const workedOut = (e: Evidence, want: { type: string; repr: string }) =>
   heard(e, (t) => t.type === want.type && t.repr === want.repr && hasOp(t.source ?? ''))
 
+/**
+ * Words as the crow writes them, in double quotes, inside the code of a
+ * line (between backticks): Python's `repr` writes `'33'`, and only the
+ * robot's own answer should look like that. Lesson 2 says the two quotes
+ * mean the same; a card in one and the crow's typing in the other, with
+ * nothing said, read as two different things (docs/reviews/v2-types-ops.md).
+ */
+export const dq = (text: string): string =>
+  text.replace(/`([^`]*)`/g, (_, code: string) => '`' + code.replace(/'([^']*)'/g, '"$1"') + '`')
+
+/** An expression as a card or a key shows it: double quotes. */
+const shown = (e: Expr): string => dq('`' + render(e) + '`').slice(1, -1)
+
 /* --------------------------------- replies --------------------------------- */
 
 /**
@@ -92,18 +106,20 @@ const workedOut = (e: Evidence, want: { type: string; repr: string }) =>
  * typed by hand, times written `x`, divide written `÷`, and a sum that
  * came out wrong. `why` names a particular wrong result, when it knows one.
  */
-function workMiss(want: { type: string; repr: string }, example: string, why: Record<string, string> = {}) {
+function workMiss(want: { type: string; repr: string }, example: string, why: Record<string, string> = {}, words = false) {
+  // A join or a repeat is not a sum: "numbers add, words join".
+  const what = words ? 'the words and the operation' : 'the sum'
   return (l: Line): string | undefined => {
     const t = l.thought
-    if (t && t.repr === want.repr && !hasOp(l.source)) return `That's the answer, but you worked it out. Give the robot the sum, like \`${example}\`.`
-    if (t && !hasOp(l.source)) return `Give the robot a sum to work out, like \`${example}\`.`
+    if (t && t.repr === want.repr && !hasOp(l.source)) return `That's the answer, but you worked it out. Give the robot ${what}, like \`${example}\`.`
+    if (t && !hasOp(l.source)) return `Give the robot ${what} to work out, like \`${example}\`.`
     if (/\d\s*[x×]\s*\d/.test(l.source)) return 'The robot writes times as `*`, not `x`.'
     if (/÷/.test(l.source)) return 'The robot writes divide as `/`.'
     if (t && why[t.repr]) return why[t.repr]
     if (t && t.type === 'int' && want.type === 'float' && Number(t.repr) === Number(want.repr)) return `Right number, but it needs to be a \`float\`: use \`/\` to share.`
     if (errorType(l) === 'TypeError') return 'That mixed words and numbers, so the robot stopped. Keep this one to numbers.'
     if (t) return `The robot got \`${t.repr}\`. Check the sum against the picture.`
-    return stopped(l, `Write it as a sum, like \`${example}\`.`)
+    return stopped(l, `Write ${what} for the robot, like \`${example}\`.`)
   }
 }
 
@@ -163,7 +179,7 @@ const teach: LessonStep[] = [
       { say: '`-` takes away.', show: OPS('-'), types: '9 - 4', thought: '5' },
       { say: '`*` is how the robot writes times.', show: OPS('*'), types: '6 * 3', thought: '18' },
       { say: '`/` divides.', show: OPS('/'), types: '8 / 2', thought: '4.0' },
-      { say: 'You write the sum; the robot does the working. So don\'t work it out yourself!', show: crates.show },
+      { say: 'The robot\'s learning, so give it the sum, not the answer: then it can do sums too big for your head.', show: crates.show },
     ],
     say: 'Seven crates of six bolts. Let the robot work out how many bolts.',
     show: crates.show,
@@ -184,16 +200,25 @@ const teach: LessonStep[] = [
           right: { text: '8 * 2', kind: 'int', result: '16', resultKind: 'int' },
         },
       },
-      { say: 'And a `float` anywhere in a sum makes the answer a `float` too.', types: '2 + 0.5', thought: '2.5' },
+      {
+        say: 'And a `float` anywhere in a sum makes the answer a `float` too.',
+        types: '2 + 0.5',
+        thought: '2.5',
+        show: {
+          kind: 'contrast',
+          left: { text: '2 + 0.5', kind: 'float', result: '2.5', resultKind: 'float' },
+          right: { text: '2 + 1', kind: 'int', result: '3', resultKind: 'int' },
+        },
+      },
     ],
-    say: 'Nine litres of oil, shared between two robots. Let the robot work out each share.',
+    say: 'Nine litres of oil, poured evenly into two tanks. Let the robot work out how much goes in each.',
     show: share.show,
     ask: 'How much each?',
     tag: 'robot',
     model: '9 / 2',
     done: (e) => workedOut(e, truth(share.e)),
     praise: '`9 / 2` is `4.5`: shared out, so a `float`.',
-    nudge: workMiss(truth(share.e), '9 / 2', { '18': 'That\'s times. Sharing between two is divide: `/`.' }),
+    nudge: workMiss(truth(share.e), '9 / 2', { '18': 'That\'s times. Pouring evenly is divide: `/`.' }),
   },
   {
     beats: [
@@ -208,7 +233,7 @@ const teach: LessonStep[] = [
         thought: '14',
       },
       {
-        say: 'Two of the same kind go left to right: `10 - 2 - 3` is `5`.',
+        say: 'When it\'s only `+` and `-`, it goes left to right: `10 - 2 - 3` is `5`.',
         show: { kind: 'expr', text: '10 - 2 - 3', first: '10 - 2', then: ['8 - 3', '5'], demo: 'work' },
       },
       {
@@ -254,7 +279,7 @@ const teach: LessonStep[] = [
         },
       },
       { say: 'But a word can\'t be added to a number. The robot stops.', show: { kind: 'clash', left: '"3"', op: '+', right: '4' }, types: '"3" + 4', stops: 'TypeError', thought: '' },
-      { say: 'It can\'t take away from words, or divide them, either.', show: { kind: 'clash', left: '"ha"', op: '-', right: '"a"' } },
+      { say: 'It can\'t take away from words, divide them, or times a word by a word, either.', show: { kind: 'clash', left: '"ha"', op: '-', right: '"a"' } },
       { say: 'Stopping like that is a `TypeError`: the wrong types for the operation.', show: { kind: 'clash', left: '"3"', op: '+', right: '4' } },
     ],
     say: 'What does the robot do with `"5" + 5`?',
@@ -278,7 +303,7 @@ function makes(id: string, e: Expr, wrong: string[], why: (picked: string) => st
   // A stable order: the error last, the rest as generated.
   const options = [...ids.filter((x) => x !== STOPS), ...ids.filter((x) => x === STOPS)].map((x) => ({ id: x, label: label(x) }))
   const choices: Choices = { id, options, answer, nudge: why }
-  const text = render(e)
+  const text = shown(e)
   return {
     say: `What does the robot make of \`${text}\`?`,
     show: { kind: 'value', text },
@@ -286,22 +311,30 @@ function makes(id: string, e: Expr, wrong: string[], why: (picked: string) => st
     tag: 'you',
     choices,
     done: (ev) => chose(ev, choices),
-    praise,
+    praise: dq(praise),
   }
 }
 
 /** A typed situation: the picture, the sum that answers it, and what to say. */
-function situation(e: Expr, show: Prop, say: string, ask: string, praise: string, why: Record<string, string> = {}): LessonStep {
+function situation(
+  e: Expr,
+  show: Prop,
+  say: string,
+  ask: string,
+  praise: string | ((answer: Heard | null) => string),
+  why: Record<string, string> = {},
+  words = false,
+): LessonStep {
   const want = truth(e)
   return {
     say,
     show,
     ask,
     tag: 'robot',
-    model: render(e),
+    model: shown(e),
     done: (ev) => workedOut(ev, want),
-    praise,
-    nudge: workMiss(want, render(e), why),
+    praise: typeof praise === 'string' ? dq(praise) : (a) => dq(praise(a)),
+    nudge: workMiss(want, shown(e), why, words),
   }
 }
 
@@ -374,7 +407,7 @@ function chained(r: Rng): LessonStep {
 function typePick(r: Rng): LessonStep {
   const e = pick(r, [bin('/', int(6), int(3)), bin('+', int(2), float(0.5)), bin('*', int(4), int(2)), bin('*', str('4'), int(2))])
   const o = truth(e)
-  const text = render(e)
+  const text = shown(e)
   const why: Record<string, string> = {
     float: text.includes('/') ? 'Dividing always makes a `float`, even when it comes out whole.' : 'A `float` in the sum makes the answer a `float`.',
     int: 'Two `int`s multiplied make an `int`: no dot anywhere.',
@@ -388,7 +421,7 @@ function typePick(r: Rng): LessonStep {
     tag: 'you',
     choices,
     done: (ev) => chose(ev, choices),
-    praise: `\`${text}\` makes \`${o.repr}\`, a \`${o.type}\`. ${why[o.type]}`,
+    praise: dq(`\`${text}\` makes \`${o.repr}\`, a \`${o.type}\`. ${why[o.type]}`),
   }
 }
 
@@ -398,10 +431,10 @@ function sharing(r: Rng): LessonStep {
   return situation(
     e,
     { kind: 'share', litres, robots },
-    `${litres} litres of oil, shared between ${robots} robots. Let the robot work out each share.`,
+    `${litres} litres of oil, poured evenly into ${robots} tanks. Let the robot work out how much goes in each.`,
     'How much each?',
     `\`${render(e)}\` is \`${truth(e).repr}\`: divided, so a \`float\`.`,
-    { [String(litres * robots)]: 'That\'s times. Sharing out is divide: `/`.' },
+    { [String(litres * robots)]: 'That\'s times. Pouring evenly is divide: `/`.' },
   )
 }
 
@@ -418,7 +451,7 @@ function rulePick(r: Rng): LessonStep {
   }
   if (which === 'times-words') {
     const e = bin('*', str('4'), str('2'))
-    return makes('quiz-rule', e, ['8', "'8'", "'42'"], () => 'Both sides are words. A word can be repeated a number of times, but not a word of times.', 'Words times words: the robot stops with a `TypeError`.')
+    return makes('quiz-rule', e, ['8', "'8'", "'42'"], () => 'Both sides are words. `*` repeats a word a *number* of times, so the robot stops.', 'Words times words: the robot stops with a `TypeError`.')
   }
   const n = between(r, 2, 4)
   const e = bin('*', str('ha'), int(n))
@@ -427,16 +460,23 @@ function rulePick(r: Rng): LessonStep {
 
 function brackets(r: Rng): LessonStep {
   const n = between(r, 2, 4)
-  const red = between(r, 2, 5)
+  // Orange, as the picture draws them.
+  const orange = between(r, 2, 5)
   const blue = between(r, 2, 5)
-  const e = bin('*', int(n), bin('+', int(red), int(blue)))
+  const e = bin('*', int(n), bin('+', int(orange), int(blue)))
+  const total = n * (orange + blue)
   return situation(
     e,
-    { kind: 'packs', packs: n, each: [red, blue] },
-    `${n} boxes, each with ${red} red and ${blue} blue sweets. Let the robot count them all.`,
+    { kind: 'packs', packs: n, each: [orange, blue] },
+    `${n} boxes, each with ${orange} orange and ${blue} blue sweets. Let the robot count them all.`,
     'How many sweets?',
-    `\`${render(e)}\`: each box first, in brackets, then times the boxes.`,
-    { [String(n * red + blue)]: `Without brackets, \`*\` went first and only the red were counted ${n} times. Bracket each box.` },
+    // A right sum without brackets is still right; the praise only says
+    // "in brackets" when there were some, and offers them when not.
+    (a) =>
+      a?.source?.includes('(')
+        ? `\`${render(e)}\`: each box first, in brackets, then times the boxes.`
+        : `Right, \`${total}\`! Brackets say it shorter: \`${render(e)}\`, each box first.`,
+    { [String(n * orange + blue)]: `Without brackets, \`*\` went first and only the orange were counted ${n} times. Bracket each box.` },
   )
 }
 
@@ -454,11 +494,11 @@ function words(r: Rng): LessonStep {
       ['sun', 'flower'],
     ] as const)
     const e = bin('+', str(a), str(b))
-    return situation(e, { kind: 'tiles', parts: [`"${a}"`, '+', `"${b}"`] }, `Let the robot join "${a}" and "${b}" into one word.`, 'Join the words.', `\`${render(e)}\` joins them: \`${truth(e).repr}\`.`, { [`'${a} ${b}'`]: 'Nearly! `+` joins words with nothing between them. Leave out the space.' })
+    return situation(e, { kind: 'tiles', parts: [`"${a}"`, '+', `"${b}"`] }, `Let the robot join "${a}" and "${b}" into one word.`, 'Join the words.', `\`${render(e)}\` joins them: \`${truth(e).repr}\`.`, { [`'${a} ${b}'`]: 'Nearly! `+` joins words with nothing between them. Leave out the space.' }, true)
   }
   const n = between(r, 2, 4)
   const e = bin('*', str('ha'), int(n))
-  return situation(e, { kind: 'tiles', parts: ['"ha"', '*', String(n)] }, `Let the robot laugh: "ha", ${n} times over.`, 'Laugh!', `\`${render(e)}\` repeats it: \`${truth(e).repr}\`.`)
+  return situation(e, { kind: 'tiles', parts: ['"ha"', '*', String(n)] }, `Let the robot laugh: "ha", ${n} times over.`, 'Laugh!', `\`${render(e)}\` repeats it: \`${truth(e).repr}\`.`, {}, true)
 }
 
 /**
@@ -488,7 +528,7 @@ export const opsLesson = (seed: number): Lesson => ({
     { say: 'Now the robot can work things out: `+ - * /`, in the right order.', show: OPS() },
     { say: 'And it knows which types go together, and which make it stop.' },
   ],
-  takeaway: 'You write the sum and the robot works it out: `*` and `/` before `+` and `-`, brackets first, and words don\'t mix with numbers.',
+  takeaway: 'You write the sum and the robot works it out: `*` and `/` before `+` and `-`, brackets first. Words join with `+` and repeat with `*`, but a word plus a number stops the robot.',
 })
 
 export const v2ops = opsLesson(seedOfPage())

@@ -1,6 +1,8 @@
 # Review: `v2-types` and `v2-ops` (Lessons 2–3), 2026-10-01
 
-The rest of the Thinking unit, run with the `review-lessons` workflow (two text reviewers over both lessons, a picture checker per lesson, one merge, verification in batches of one lesson and at most six clusters). Seed 1 storyboards; scripts for seeds 1–3. 31 findings → 29 clusters → **26 kept, 3 dropped**. Cost in [LESSON-REVIEW-COST.md](../LESSON-REVIEW-COST.md). Nothing here is fixed yet.
+**Fixed** 2026-10-01: all 26 kept findings.
+
+The rest of the Thinking unit, run with the `review-lessons` workflow (two text reviewers over both lessons, a picture checker per lesson, one merge, verification in batches of one lesson and at most six clusters). Seed 1 storyboards; scripts for seeds 1–3. 31 findings → 29 clusters → **26 kept, 3 dropped**. Cost in [LESSON-REVIEW-COST.md](../LESSON-REVIEW-COST.md).
 
 ## Kept
 

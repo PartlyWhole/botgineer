@@ -1,10 +1,12 @@
 # Review: `v2-meet` (Lesson 1), 2026-10-01
 
+**Fixed** 2026-10-01: all eight kept findings (and the memory pulse, hidden the same way as the console's).
+
 Five reviewers, then one verifier per finding cluster
 ([LESSON-REVIEW.md](../LESSON-REVIEW.md); cost in
 [LESSON-REVIEW-COST.md](../LESSON-REVIEW-COST.md)). 20 findings, merged
 into 10 clusters; after verification, 9 kept (one folded into another), 2
-dropped. Most severe first. Nothing here is fixed yet.
+dropped. Most severe first.
 
 ## Kept
 

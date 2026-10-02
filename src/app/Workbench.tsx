@@ -65,7 +65,7 @@ import { ScenePanel, type Telling } from '../panels/ScenePanel'
 import { hasExamples, noteAt, raisedNote, readTo, sectionsOf, type Reach } from '../collection/voice'
 import { MemoryPanel } from '../panels/MemoryPanel'
 import { RobotPanel, type Transcript } from '../panels/RobotPanel'
-import type { Demo } from '../ui/demo'
+import type { Demo, DemoLine } from '../ui/demo'
 import type { Exchange } from '../ui/RobotConsole'
 import type { EditorApi } from '../ui/CodeEditor'
 import type { LineMarks } from '../ui/editorLines'
@@ -1031,24 +1031,27 @@ export function Workbench({ activity }: { activity: Activity }) {
     setCloudFrom({ key: tellKey, ...from })
   }
   // A demonstration line (`Beat.types`): the crow types it into the
-  // console, and it stays there for the beats after it until the next
-  // one or the question. Narration, like a beat's thought — never run,
-  // never evidence (`src/ui/demo.ts`). The robot's answer reaches the
-  // cloud only once the line is in, which the console says when it is.
-  let demoAt = -1
+  // console, and it stays there for the rest of the step until the
+  // question, the step's later demonstrations piling up under it, so
+  // "Now another: `42`" still has the `7` above it. Narration, like a
+  // beat's thought — never run, never evidence (`src/ui/demo.ts`). Only
+  // the newest types itself in; the robot's answer reaches the cloud only
+  // once it is in, which the console says when it is.
+  const demoAts: number[] = []
   for (let i = beatAt; i >= 0 && talking && !reading && lines[i]?.kind !== 'ask' && lines[i]?.kind !== 'reply'; i--) {
-    if (lines[i]?.types !== undefined) {
-      demoAt = i
-      break
-    }
+    if (lines[i]?.types !== undefined) demoAts.unshift(i)
   }
+  const demoLine = (i: number): DemoLine => {
+    const l = lines[i]!
+    return { source: l.types!, echo: l.stops ? null : l.thought || null, error: l.stops ?? null }
+  }
+  const demoAt = demoAts.length > 0 ? demoAts[demoAts.length - 1]! : -1
   const demoItem = demoAt >= 0 ? lines[demoAt] : undefined
   const demo: Demo | null = demoItem
     ? {
         key: `${tellKey}:${demoAt}`,
-        source: demoItem.types!,
-        echo: demoItem.stops ? null : demoItem.thought || null,
-        error: demoItem.stops ?? null,
+        ...demoLine(demoAt),
+        before: demoAts.slice(0, -1).map(demoLine),
       }
     : null
   const [typed, setTyped] = useState('')

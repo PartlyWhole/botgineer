@@ -1115,8 +1115,18 @@
   }
 }
 
+/* An option keeps its own border under the pointer: the page's
+   `button:hover` repaints it in the brand blue, which reads as a pick,
+   and after a tap a touchscreen keeps the hover, so the option in the
+   same place on the next question opened ringed. Only the lift says
+   hover, and only where there is a pointer that hovers. */
 .stage .choice:hover:not([disabled]) {
-  translate: 0 -1px;
+  border-color: var(--c-line);
+}
+@media (hover: hover) {
+  .stage .choice:hover:not([disabled]) {
+    translate: 0 -1px;
+  }
 }
 
 .stage .choice:active:not([disabled]) {

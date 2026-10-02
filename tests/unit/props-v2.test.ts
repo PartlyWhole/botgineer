@@ -11,9 +11,9 @@ import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import {
-  CHIP_CHARS,
   carReading,
-  chipChars,
+  chipEm,
+  emOf,
   cubbyWidth,
   exprWorking,
   GOAL_ITEMS,
@@ -86,8 +86,8 @@ describe('a shelf of four slots', () => {
     expect(shelfSlots({ slots: [] })).toHaveLength(5)
     expect(cubbyWidth(5)).toBeCloseTo(38.5)
     expect(4 * cubbyWidth(4) + 3 * 1.875).toBeCloseTo(200)
-    expect(chipChars(5)).toBe(CHIP_CHARS)
-    expect(chipChars(4)).toBeGreaterThan(CHIP_CHARS)
+    expect(chipEm(5)).toBeCloseTo(emOf('"hello"'))
+    expect(chipEm(4)).toBeGreaterThan(chipEm(5))
     const html = drawn(view({ kind: 'shelf', filled: [...FOUR], slots: [...FOUR] }))
     expect(html.match(/class="cubby /g)).toHaveLength(4)
     expect(html).not.toContain('data-kind="char"')

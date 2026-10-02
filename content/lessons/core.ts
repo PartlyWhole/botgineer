@@ -292,8 +292,9 @@ export type Beat = {
    * A line typed into the console for the player while this beat shows,
    * as a demonstration: it types itself out, and the robot answers with
    * `thought`, which reaches the cloud only once the line is in. Never
-   * run and never evidence, like `thought`; gone when the beat moves on
-   * (`src/ui/demo.ts`).
+   * run and never evidence, like `thought`. It stays in the console, with
+   * the step's later demonstrations piling up under it, until the
+   * question (`src/ui/demo.ts`).
    */
   types?: string
   /** The demonstration line stops the robot instead of answering, and the
@@ -468,12 +469,32 @@ export function boolMiss(line: Line): string | undefined {
   return stopped(line, 'Just `True` or `False`.')
 }
 
+/**
+ * The usual misses on a yes-or-no question whose answer is known: `true`
+ * for a `True` is nearly right, but `true` for a `False` is the wrong
+ * answer *and* the wrong spelling, and `True` for a `False` is a real
+ * bool that only means the wrong thing — which `boolMiss` cannot tell,
+ * since it does not know which was wanted. `wrong` says what the other
+ * answer would do, in the picture's own words: "`True` is yes, so the
+ * door stays open. Shut is `False`."
+ */
+export function boolFor(want: 'True' | 'False', wrong: string) {
+  const other = want === 'True' ? 'False' : 'True'
+  return (line: Line): string | undefined => {
+    const s = line.source.trim()
+    if (s === want.toLowerCase()) return `Nearly — it needs a capital letter: \`${want}\`.`
+    if (s === other.toLowerCase()) return `${wrong} And the robot's ${want === 'True' ? 'yes' : 'no'} starts with a capital.`
+    if (line.thought?.type === 'bool' && line.thought.repr === other) return wrong
+    return boolMiss(line)
+  }
+}
+
 /** The usual misses on a how-many question. */
 export function countMiss(line: Line, things: string): string | undefined {
   const t = line.thought
   const n = numberOf(t)
   if (t?.type === 'float' && n !== null && Number.isInteger(n)) {
-    return `${t.repr} ${things}? The dot means *measured*. ${cap(things)} are counted — no dot.`
+    return `\`${t.repr}\` has a dot, so it's a \`float\`. ${cap(things)} are counted in whole numbers, no dot.`
   }
   if (t?.type === 'float') return `A piece of one? These ${things} are whole — count them.`
   if (t?.type === 'bool') return `\`${t.repr}\` answers yes or no. This asks *how many*.`

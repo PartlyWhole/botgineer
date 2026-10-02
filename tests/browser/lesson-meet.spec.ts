@@ -53,7 +53,7 @@ test('the misses are shown and named, then a number is thought of and let go', {
   // Digits in quotes are a word.
   await say(page, '"7"')
   await expect(page.getByTestId('thought')).toHaveText("'7'")
-  await expect(page.getByTestId('guide')).toContainText('quotes make that a word')
+  await expect(page.getByTestId('guide')).toContainText('quotes make that words')
 
   // A yes-or-no is not a number either.
   await say(page, 'True')
@@ -63,7 +63,7 @@ test('the misses are shown and named, then a number is thought of and let go', {
   await say(page, '7')
   await expect(page.getByTestId('thought')).toHaveText('7')
   expect(await beat(page)).toMatchObject({ kind: 'praise', listening: true })
-  await expect(page.getByTestId('guide')).toContainText("It's thinking of 7, because that's what you wrote.")
+  await expect(page.getByTestId('guide')).toContainText("It's thinking of 7, because that's what you typed.")
   // Thought of and let go: nothing had a name.
   await expect(page.getByTestId('memory')).toContainText('Nothing kept yet')
   // Finished, but the crow is still talking: Next, not Continue.
@@ -86,5 +86,5 @@ test('a sum typed is worked out, and the praise says so', async ({ page }) => {
   await open(page, 'sandbox')
   await say(page, '3 + 4')
   await expect(page.getByTestId('thought')).toHaveText('7')
-  await expect(page.getByTestId('guide')).toContainText('it worked that out from what you wrote')
+  await expect(page.getByTestId('guide')).toContainText('it worked that out from what you typed')
 })

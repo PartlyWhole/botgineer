@@ -33,7 +33,7 @@
 import { pick, rng, type Rng } from '../../../src/practice/exercises'
 import { textOf, type Prop, type TypeSlot } from '../../../src/scene/props'
 import {
-  boolMiss,
+  boolFor,
   chose,
   countMiss,
   digits,
@@ -73,7 +73,7 @@ const PHONE = '0412 555 019'
 function phoneMiss(l: Line): string | undefined {
   const t = l.thought
   const text = textOf(t)
-  if (t?.type === 'int') return 'Without quotes it\'s a number, and the `0` at the front falls off. Put it in quotes.'
+  if (t?.type === 'int') return `A number can't start with \`0\`, so the robot can't keep it that way. Put the whole thing in quotes: \`"${PHONE}"\`.`
   if (t?.type === 'float' || t?.type === 'tuple') return 'Nobody adds up phone numbers. Keep it as text, in quotes.'
   if (text !== null && digits(text) !== digits(PHONE)) return `Check the digits: ${PHONE}.`
   return wordsMiss(l, `"${PHONE}"`)
@@ -112,9 +112,9 @@ const teach: LessonStep[] = [
       { say: 'There are four basic ones, and everything the robot does is built on them.', show: shelf([], { pulse: true }) },
       // bool
       { say: 'Some things are only ever one of two ways. This light is on…', show: { kind: 'lamp', demo: 'on' }, types: 'True', thought: 'True' },
-      { say: '…or off. On is `True`, and off is `False`.', show: { kind: 'lamp', demo: 'off' }, thought: 'False' },
-      { say: 'A door is open, `True`…', show: { kind: 'doorway', demo: 'open' }, thought: 'True' },
-      { say: '…or it\'s shut, `False`.', show: { kind: 'doorway', demo: 'closed' }, thought: 'False' },
+      { say: '…or off. On is `True`, and off is `False`.', show: { kind: 'lamp', demo: 'off' }, types: 'False', thought: 'False' },
+      { say: 'A door is open, `True`…', show: { kind: 'doorway', demo: 'open' }, types: 'True', thought: 'True' },
+      { say: '…or it\'s shut, `False`.', show: { kind: 'doorway', demo: 'closed' }, types: 'False', thought: 'False' },
       { say: '`True` and `False` are called *bools*.', show: shelf(['bool']) },
     ],
     say: 'The lamp is off. Turn it on.',
@@ -124,13 +124,13 @@ const teach: LessonStep[] = [
     done: (e) => e.thoughts.some(was('bool', 'True')),
     model: 'True',
     praise: 'The lamp is on, because `True` is the robot\'s yes.',
-    nudge: boolMiss,
+    nudge: boolFor('True', '`False` is no, so the lamp stays dark. On is `True`.'),
   },
   {
     beats: [
       { say: 'Next, things you count. Here are three apples.', show: { kind: 'basket', apples: 3, demo: 'tally' }, types: '3', thought: '3' },
-      { say: 'Add two more, and the robot thinks `5`.', show: { kind: 'basket', apples: 5, demo: 'tally' }, thought: '5' },
-      { say: 'Take three away: `2`. Always a whole number.', show: { kind: 'basket', apples: 2, demo: 'tally' }, thought: '2' },
+      { say: 'Add two more, and I tell the robot `5`.', show: { kind: 'basket', apples: 5, demo: 'tally' }, types: '5', thought: '5' },
+      { say: 'Take three away: `2`. Always a whole number.', show: { kind: 'basket', apples: 2, demo: 'tally' }, types: '2', thought: '2' },
       { say: 'Whole numbers are called *ints*, short for *integer*.', show: shelf(['bool', 'int']) },
     ],
     say: 'How many apples are in the basket?',
@@ -145,8 +145,8 @@ const teach: LessonStep[] = [
   {
     beats: [
       { say: 'Some things aren\'t counted, they\'re measured. Like how fast a car goes.', show: { kind: 'car', speed: 12.5, demo: 'drive' }, types: '12.5', thought: '12.5' },
-      { say: 'It speeds up: `48.5`.', show: { kind: 'car', speed: 48.5, demo: 'drive' }, thought: '48.5' },
-      { say: 'And slows down: `30.2`. It can land anywhere between the whole numbers.', show: { kind: 'car', speed: 30.2, demo: 'drive' }, thought: '30.2' },
+      { say: 'It speeds up: `48.5`.', show: { kind: 'car', speed: 48.5, demo: 'drive' }, types: '48.5', thought: '48.5' },
+      { say: 'And slows down: `30.2`. It can land anywhere between the whole numbers.', show: { kind: 'car', speed: 30.2, demo: 'drive' }, types: '30.2', thought: '30.2' },
       { say: 'Numbers with a dot are called *floats*.', show: shelf(['bool', 'int', 'float']) },
     ],
     say: 'The car is going 36.5 km/h. Tell the robot its speed.',
@@ -161,14 +161,17 @@ const teach: LessonStep[] = [
   {
     beats: [
       { say: 'Last, words, for people to read. They go in quotes.', show: { kind: 'note', text: 'Mira', title: 'name' }, types: '"Mira"', thought: "'Mira'" },
-      { say: 'A note is words too.', show: { kind: 'note', text: 'buy more bolts', title: 'note' }, thought: "'buy more bolts'" },
-      { say: 'So is a phone number. It can start with `0`, and it has spaces.', show: { kind: 'phone', number: PHONE }, thought: `'${PHONE}'` },
+      // The robot's own way of writing words: Lesson 3's cards and answers
+      // are all in single quotes, and nothing else says the two agree.
+      { say: 'The robot writes words back with single quotes. Either kind works, as long as both ends match.', show: { kind: 'note', text: 'Mira', title: 'name' }, thought: "'Mira'" },
+      { say: 'A note is words too.', show: { kind: 'note', text: 'buy more bolts', title: 'note' }, types: '"buy more bolts"', thought: "'buy more bolts'" },
+      { say: 'So is a phone number. It can start with `0`, and it has spaces.', show: { kind: 'phone', number: PHONE }, types: `"${PHONE}"`, thought: `'${PHONE}'` },
       { say: 'Nobody adds up phone numbers, so to the robot it\'s words, not a number.', show: { kind: 'phone', number: PHONE }, thought: `'${PHONE}'` },
       { say: 'Words in quotes are called *strs*, short for *string*.', show: shelf(FOUR, { cheer: true }) },
     ],
-    say: `Make the robot think of Mira's phone number: ${PHONE}.`,
+    say: `Make the robot think of this phone number: ${PHONE}.`,
     show: { kind: 'phone', number: PHONE },
-    ask: 'Mira\'s phone number',
+    ask: 'The phone number',
     tag: 'you',
     done: (e) => e.thoughts.some((t) => t.type === 'str' && digits(textOf(t) ?? '') === digits(PHONE)),
     model: `"${PHONE}"`,
@@ -192,7 +195,9 @@ type Situation = {
 }
 
 const situations = (r: Rng): Record<Kind, Situation> => {
-  const apples = 3 + Math.floor(r() * 6)
+  // Never the teaching step's own count (4), or the quiz repeats it word
+  // for word with the old answer still in the console.
+  const apples = pick(r, [3, 5, 6, 7, 8])
   const speed = pick(r, [24.5, 52.5, 61.5, 18.5])
   const name = pick(r, ['Bolt', 'Sprocket', 'Pip'])
   const bool: Situation = pick(r, [
@@ -200,15 +205,16 @@ const situations = (r: Rng): Record<Kind, Situation> => {
       kind: 'bool' as const,
       show: { kind: 'lamp' } as Prop,
       about: 'whether the lamp is on',
+      // The other way round from the teaching step's "turn it on".
       typed: {
-        say: 'Turn the lamp on.',
-        show: { kind: 'lamp' } as Prop,
-        ask: 'Turn the lamp on.',
+        say: 'The lamp is on. Turn it off.',
+        show: { kind: 'lamp', demo: 'on' } as Prop,
+        ask: 'Turn the lamp off.',
         tag: 'you' as const,
-        done: (e: Evidence) => e.thoughts.some(was('bool', 'True')),
-        model: 'True',
-        praise: 'On, because `True` is the robot\'s yes.',
-        nudge: boolMiss,
+        done: (e: Evidence) => e.thoughts.some(was('bool', 'False')),
+        model: 'False',
+        praise: 'Off, because `False` is the robot\'s no.',
+        nudge: boolFor('False', '`True` is yes, so the lamp stays on. Off is `False`.'),
       },
     },
     {
@@ -223,7 +229,7 @@ const situations = (r: Rng): Record<Kind, Situation> => {
         done: (e: Evidence) => e.thoughts.some(was('bool', 'False')),
         model: 'False',
         praise: 'Shut, because `False` is the robot\'s no.',
-        nudge: boolMiss,
+        nudge: boolFor('False', '`True` is yes, so the door stays open. Shut is `False`.'),
       },
     },
   ])
@@ -301,21 +307,65 @@ export function quiz(seed: number): LessonStep[] {
   const n = pick(r, [3, 7, 12])
   const dotted = r() < 0.5
   const numeric = dotted
-    ? literal('q-dot', `${n}.0`, 'float', { int: 'The dot makes it a `float`, even when it\'s `.0`.' }, `The dot makes \`${n}.0\` a \`float\`, even with \`.0\`.`)
-    : literal('q-dot', String(n), 'int', { float: 'No dot, so it\'s a whole number: an `int`.' }, `No dot, so \`${n}\` is an \`int\`.`)
+    ? literal(
+        'q-dot',
+        `${n}.0`,
+        'float',
+        {
+          int: 'The dot makes it a `float`, even when it\'s `.0`.',
+          bool: 'Only `True` and `False` are bools. This is a number with a dot: a `float`.',
+          str: 'No quotes, so it isn\'t words. The dot makes it a `float`.',
+        },
+        `The dot makes \`${n}.0\` a \`float\`, even with \`.0\`.`,
+      )
+    : literal(
+        'q-dot',
+        String(n),
+        'int',
+        {
+          float: 'No dot, so it\'s a whole number: an `int`.',
+          bool: 'Only `True` and `False` are bools. This is a whole number: an `int`.',
+          str: 'No quotes, so it isn\'t words. A whole number is an `int`.',
+        },
+        `No dot, so \`${n}\` is an \`int\`.`,
+      )
   // True against "True".
   const word = pick(r, ['True', 'False'])
   const quoted = r() < 0.5
   const truth = quoted
-    ? literal('q-quote', `"${word}"`, 'str', { bool: 'The quotes make it words: a `str`, not the robot\'s yes or no.' }, `The quotes make \`"${word}"\` words: a \`str\`.`)
-    : literal('q-quote', word, 'bool', { str: 'No quotes, so it\'s the robot\'s own yes or no: a `bool`.' }, `No quotes: \`${word}\` is a \`bool\`.`)
+    ? literal(
+        'q-quote',
+        `"${word}"`,
+        'str',
+        {
+          bool: 'The quotes make it words: a `str`, not the robot\'s yes or no.',
+          int: 'The quotes make it words: a `str`.',
+          float: 'The quotes make it words: a `str`.',
+        },
+        `The quotes make \`"${word}"\` words: a \`str\`.`,
+      )
+    : literal(
+        'q-quote',
+        word,
+        'bool',
+        {
+          str: 'No quotes, so it\'s the robot\'s own yes or no: a `bool`.',
+          int: 'No quotes, and it\'s one of the robot\'s two answers, yes or no: a `bool`.',
+          float: 'No quotes, and it\'s one of the robot\'s two answers, yes or no: a `bool`.',
+        },
+        `No quotes: \`${word}\` is a \`bool\`.`,
+      )
   // Digits in quotes.
   const inside = pick(r, ['42', '3.5', '0'])
   const digitsIn = literal(
     'q-digits',
     `"${inside}"`,
     'str',
-    { int: 'The quotes make it words, even with digits inside: a `str`.', float: 'The quotes make it words, even with digits inside: a `str`.' },
+    {
+      int: 'The quotes make it words, even with digits inside: a `str`.',
+      float: 'The quotes make it words, even with digits inside: a `str`.',
+      bool: 'The quotes make it words, even a `0`: a `str`.',
+    },
     `Quotes, so \`"${inside}"\` is words: a \`str\`.`,
   )
 
@@ -341,7 +391,7 @@ export function quiz(seed: number): LessonStep[] {
   }
   const typed = (s: Situation): LessonStep => ({ ...s.typed })
   const sign: LessonStep = {
-    say: 'Write the word True on the sign, as words.',
+    say: 'The sign says True, in words. Make the robot think of it as words too.',
     show: { kind: 'note', text: 'True', title: 'sign' },
     ask: 'The word True, as words',
     tag: 'you',
@@ -375,7 +425,7 @@ export const typesLesson = (seed: number): Lesson => ({
     { say: 'Everything the robot does from here is built out of these.', show: shelf(FOUR) },
   ],
   finale: shelf(FOUR),
-  takeaway: 'Yes-or-no is a `bool`, counted is an `int`, measured is a `float`, and words in quotes are a `str`.',
+  takeaway: 'Yes-or-no is a `bool`, a whole number is an `int`, a number with a dot is a `float`, and words in quotes are a `str`.',
 })
 
 export const v2types = typesLesson(seedOfPage())

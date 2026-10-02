@@ -39,7 +39,7 @@ test('twelve questions, each miss drawn and named, each praise giving the reason
   // drawn in amber: the eggs outlined, not laid.
   await expect(prop(page)).toHaveAttribute('data-refused', 'yes')
   await expect(prop(page).locator('.carton')).toHaveClass(/refused/)
-  await expect(guide(page)).toContainText('The dot means measured')
+  await expect(guide(page)).toContainText('has a dot, so it\'s a float')
   await right(page, '6', /Counted, so an int/)
 
   // 3. A quarter-full glass that is not empty.
@@ -116,7 +116,7 @@ test('twelve questions, each miss drawn and named, each praise giving the reason
     .evaluateAll((els) => els.map((el) => [...el.querySelectorAll('text')].map((t) => t.textContent).join(' ')))
   // A value too long for a chip's row is cut short with an ellipsis; the
   // shelf's sentence still says it whole.
-  const said = ['False', 'True', '6', '-1', '0.25', '1.4', '1.5', '"M"', '"Mira"', '"0412…', '"Yeah…']
+  const said = ['False', 'True', '6', '-1', '0.25', '1.4', '1.5', '"M"', '"Mira"', '"041…', '"Yea…']
   expect(chips).toHaveLength(said.length)
   for (const text of said) expect(chips).toContain(text)
   const sentence = await page.getByTestId('prop').first().getAttribute('aria-label')

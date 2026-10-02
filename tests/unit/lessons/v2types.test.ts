@@ -42,7 +42,7 @@ describe('v2-types: teaching', () => {
     const phone = lesson.steps[3]!
     expect(phone.done(thinking(th('int', '412555019')))).toBe(false)
     expect(phone.done(thinking(th('str', "'0412 555 019'")))).toBe(true)
-    expect(phone.nudge!(line('0412555019', th('int', '412555019')))).toMatch(/`0` at the front falls off/)
+    expect(phone.nudge!(line('0412555019', th('int', '412555019')))).toMatch(/can.t start with `0`/)
   })
 })
 

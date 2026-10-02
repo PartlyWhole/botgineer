@@ -78,7 +78,7 @@ describe('choose', () => {
       expect(staging(choose, typed(line('"no"', th('str', "'no'")))).current).toMatchObject({ prop: { kind: 'fish' }, verdict: 'miss' })
     })
 
-    it('six eggs, measured', () => expect(reply(1, line('6.0', th('float', '6.0'))).text).toMatch(/The dot means \*measured\*/))
+    it('six eggs, measured', () => expect(reply(1, line('6.0', th('float', '6.0'))).text).toMatch(/has a dot, so it.s a `float`/))
 
     it('an empty glass that is not empty', () => expect(reply(2, line('0', th('int', '0'))).text).toMatch(/There's water in it/))
 

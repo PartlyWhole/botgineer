@@ -874,9 +874,62 @@ export const CUBBY_GAP = 1.875
  *  units: 38.5 for five, 48.6 for four. */
 export const cubbyWidth = (count: number): number => (200 - (Math.max(1, count) - 1) * CUBBY_GAP) / Math.max(1, count)
 
-/** How many characters a chip's row holds on a shelf of `count` slots:
- *  `CHIP_CHARS` for five, more as the slots widen. */
-export const chipChars = (count: number): number => Math.max(CHIP_CHARS, Math.floor((CHIP_CHARS * cubbyWidth(count)) / cubbyWidth(SLOTS.length)))
+/** A chip's type: as large as `CHIP_FONT`, and smaller only as far as
+ *  its text needs to fit across `CHIP_TEXT_W` (2 units clear on each side
+ *  of a five-slot shelf's 36.5-wide chip; wider slots add their extra). */
+export const CHIP_FONT = 10.5
+export const CHIP_TEXT_W = 32.5
+
+/** How wide a chip's text may run on a shelf of `count` slots. */
+export const chipTextWidth = (count: number = SLOTS.length): number => CHIP_TEXT_W + cubbyWidth(count) - cubbyWidth(SLOTS.length)
+
+/**
+ * A line's width in ems, by estimate, per character, in the stage's face
+ * at the chips' weight (measured in Chromium's system-ui at 800 and
+ * display size: `"` is 0.47 em, a digit 0.67, `…` 0.71) — a picture is
+ * drawn on the server in the unit tests too, where there is nothing to
+ * measure with. The shelf's `fitText` then measures what the face really
+ * drew; this only has to be close.
+ */
+export const emOf = (text: string): number =>
+  [...text].reduce(
+    (w, c) =>
+      w +
+      (/[W%]/.test(c)
+        ? 0.98
+        : /[Mm@w]/.test(c)
+          ? 0.88
+          : c === '…'
+            ? 0.71
+            : c === '"'
+              ? 0.48
+              : /['il.,:;!|j]/.test(c)
+                ? 0.28
+                : c === ' '
+                  ? 0.22
+                  : /[frtI()\[\]{}\/\\]/.test(c)
+                    ? 0.41
+                    : c === '1'
+                      ? 0.5
+                      : /[\d]/.test(c)
+                        ? 0.67
+                        : /[A-Z]/.test(c)
+                          ? 0.73
+                          : /[-*]/.test(c)
+                            ? 0.47
+                            : 0.61),
+    0,
+  )
+
+/** How many ems a chip's one row holds on a shelf of `count` slots: as
+ *  much as fits at the size the widest example (`"hello"`) draws at
+ *  there. On five slots that is `"hello"`'s own width; wider slots fit
+ *  it at `CHIP_FONT` with room over, and that room is the row's. */
+export const chipEm = (count: number = SLOTS.length): number => {
+  const w = chipTextWidth(count)
+  const widest = Math.max(...Object.values(SLOT_EXAMPLES).flat().map(emOf))
+  return w / Math.min(CHIP_FONT, w / widest)
+}
 
 /** A thought as the shelf writes it: a str in double quotes, the way the
  *  lessons write one, everything else as Python's repr. */
@@ -887,23 +940,28 @@ export function chipText(t: Thought): string {
 
 export type ShelfSlot = { examples: { text: string; said: boolean }[]; heard: string[] }
 
-/** How many rows a slot has under its label, and how many characters a
- *  chip's row holds at the shelf's size. */
+/** How many rows a slot has under its label. */
 export const CHIP_ROWS = 5
-export const CHIP_CHARS = 8
 
 /**
  * A chip's text as the shelf writes it: one row, and a value too long for
- * it cut short with an ellipsis, at the length of `"hello"`, so it draws
- * at the same size as the chips beside it. Over two rows, the choose
+ * it cut short with an ellipsis, no wider than `"hello"` (`chipEm`), so it
+ * draws at the same size as the chips beside it. Over two rows, the choose
  * close's phone number and short sentence came out at 6.8px and 8.1px on
- * a desktop shelf; shortened, they read at the shelf's own size. The whole
- * value is still in the shelf's sentence for a screen reader (`shelved`).
+ * a desktop shelf; shortened, they read at the shelf's own size. The cut
+ * is by width, not by characters: digits are wider than letters, and a
+ * phone number cut at `"hello"`'s eight characters still came out smaller
+ * than the chips beside it. The whole value is still in the shelf's
+ * sentence for a screen reader (`shelved`).
  */
-export function chipLines(text: string, width = CHIP_CHARS): string[] {
+export function chipLines(text: string, em: number = chipEm()): string[] {
+  if (emOf(text) <= em + 1e-9) return [text]
   const chars = [...text]
-  if (chars.length <= width) return [text]
-  return [`${chars.slice(0, width - 2).join('').trimEnd()}…`]
+  for (let k = chars.length - 1; k > 0; k--) {
+    const cut = `${chars.slice(0, k).join('').trimEnd()}…`
+    if (emOf(cut) <= em + 1e-9) return [cut]
+  }
+  return ['…']
 }
 
 /** The rows a chip takes: one per line of its text. */

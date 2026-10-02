@@ -41,18 +41,18 @@ const commaTyped = (l: Line) => commaDecimal(l) || /^\s*-?\d+\s*,\s*\d+\s*$/.tes
 export function praise(a: Heard | null): string {
   if (!a) return 'It\'s thinking of your number!'
   // Worked out, not copied: `3 + 4` is thought of as `7`.
-  if (a.source !== undefined && a.source.trim() !== a.repr) return `It's thinking of \`${a.repr}\`: it worked that out from what you wrote.`
-  return `It's thinking of \`${a.repr}\`, because that's what you wrote.`
+  if (a.source !== undefined && a.source.trim() !== a.repr) return `It's thinking of \`${a.repr}\`: it worked that out from what you typed.`
+  return `It's thinking of \`${a.repr}\`, because that's what you typed.`
 }
 
 export function nudge(l: Line): string | undefined {
   const word = bareWord(l)
-  if (word) return `The robot doesn't know the word \`${word}\`. Try digits: \`7\`.`
+  if (word) return `The robot doesn't know the word \`${word}\`. Write the number in digits, like \`7\` or \`42\`.`
   if (commaTyped(l)) return 'Python writes a decimal point as a dot, not a comma: `1.5`.'
   const t = l.thought
-  if (t?.type === 'str') return 'The quotes make that a word, not a number. Leave them off: `7`.'
-  if (t?.type === 'bool') return `\`${t.repr}\` is a yes-or-no, not a number. Try digits: \`7\`.`
-  return stopped(l, 'A number, in digits: `7`.')
+  if (t?.type === 'str') return 'The quotes make that words, not a number. A number is just digits, like `7` or `42`, with no quotes.'
+  if (t?.type === 'bool') return `\`${t.repr}\` is a yes-or-no, not a number. Try any number in digits, like \`7\` or \`42\`.`
+  return stopped(l, 'Any number, in digits, like `7` or `42`.')
 }
 
 export const meet: Lesson = {

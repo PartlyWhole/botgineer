@@ -9,7 +9,10 @@ import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import {
-  CHIP_CHARS,
+  CHIP_FONT,
+  chipEm,
+  chipTextWidth,
+  emOf,
   CHIP_ROWS,
   SLOT_EXAMPLES,
   boolOf,
@@ -445,12 +448,26 @@ describe('the balance', () => {
 })
 
 describe('the shelf, drawn', () => {
-  it('cuts a long chip short, to one row as long as "hello"', () => {
+  it('cuts a long chip short, to one row no wider than "hello"', () => {
     expect(chipLines('"True"')).toEqual(['"True"'])
-    expect(chipLines('"0412 555 019"')).toEqual(['"0412…'])
-    expect(chipLines('"Yeah it is"')).toEqual(['"Yeah…'])
-    expect(chipLines('"0412555019"')).toEqual(['"04125…'])
-    for (const t of ['"0412 555 019"', '"a sentence far too long"']) expect([...chipLines(t)[0]!].length).toBeLessThanOrEqual(CHIP_CHARS - 1)
+    expect(chipLines('"hello"')).toEqual(['"hello"'])
+    // Cut by width, not by characters: digits are wide.
+    expect(chipLines('"0412 555 019"')).toEqual(['"041…'])
+    expect(chipLines('"Yeah it is"')).toEqual(['"Yea…'])
+    expect(chipLines('"0412555019"')).toEqual(['"041…'])
+    for (const t of ['"0412 555 019"', '"a sentence far too long"', '"WWWWWWWW"']) expect(emOf(chipLines(t)[0]!)).toBeLessThanOrEqual(emOf('"hello"'))
+  })
+
+  it("cuts by the width a wider slot has, so the cut chip draws at the shelf's own size", () => {
+    // Four slots, as the types lesson's outro has: `"hello"` fits at the
+    // full size with room over, and the phone number takes that room.
+    const em = chipEm(4)
+    expect(em).toBeGreaterThan(chipEm(5))
+    const [cut] = chipLines('"0412 555 019"', em)
+    expect(cut).toBe('"0412…')
+    const size = (t: string) => Math.min(CHIP_FONT, chipTextWidth(4) / emOf(t))
+    expect(size(cut!)).toBe(size('"hello"'))
+    expect(size(cut!)).toBe(CHIP_FONT)
   })
 
   it('counts every chip as one row of room', () => {
@@ -484,7 +501,7 @@ describe('the shelf, drawn', () => {
     const heard = [th('str', "'Mira'"), th('str', "'0412 555 019'"), th('str', "'Yeah it is'")]
     const none = { bool: [], int: [], float: [], char: [], str: [] }
     const html = drawn(view({ kind: 'shelf', filled: ['bool', 'int', 'float', 'char', 'str'], examples: none }, null, null, heard))
-    for (const part of ['"Mira"', '"0412…', '"Yeah…']) expect(html).toContain(`>${part.replaceAll('"', '&quot;')}<`)
+    for (const part of ['"Mira"', '"041…', '"Yea…']) expect(html).toContain(`>${part.replaceAll('"', '&quot;')}<`)
     // A screen reader still hears every value in full.
     expect(html).toContain('0412 555 019')
     expect(html).toContain('Yeah it is')

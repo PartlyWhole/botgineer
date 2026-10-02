@@ -27,7 +27,7 @@ import { CROW_NAME } from '../../content/cast'
 import { DemoTag } from './CrowTag'
 import { asBlank, backspace, newline, tab, untab, type Edit } from '../repl/indent'
 import { needsContinuation } from '../repl/program'
-import type { Demo } from './demo'
+import type { Demo, DemoLine } from './demo'
 
 export type Exchange = {
   id: number
@@ -124,7 +124,7 @@ export function RobotConsole({
   useEffect(() => {
     const el = scrollRef.current
     if (el) el.scrollTop = el.scrollHeight
-  }, [exchanges.length, buffer, busy, shown?.typed, shown?.phase])
+  }, [exchanges.length, buffer, busy, shown?.typed, shown?.phase, demo?.key])
 
   // And when the console itself changes size — a window resized, a
   // phone's keyboard opening, the gutter dragged — which moves nothing
@@ -290,21 +290,16 @@ export function RobotConsole({
             </div>
           ))}
 
-          {demo !== null && shown && shown.phase !== 'typing' && (
+          {demo !== null && ((demo.before?.length ?? 0) > 0 || (shown && shown.phase !== 'typing')) && (
+            // One frame for the step's demonstrations, so they read as one
+            // thing the crow showed: the earlier ones answered, the newest
+            // joining them once it has been typed in at the prompt.
             <div className="exchange demo" data-testid="demo-exchange">
               <DemoTag />
-              <span className="sr-only">Shown by {CROW_NAME}, not run: </span>
-              <Typed source={demo.source} />
-              {shown.phase === 'answered' && demo.echo !== null && <Echo text={demo.echo} demo />}
-              {shown.phase === 'answered' && demo.error && (
-                <>
-                  <span className="sr-only">The robot could not do that:</span>
-                  <pre className="said err" data-testid="demo-error">
-                    <WarnMark />
-                    {demo.error}
-                  </pre>
-                </>
-              )}
+              {(demo.before ?? []).map((d, i) => (
+                <DemoLineShown key={i} line={d} answered />
+              ))}
+              {shown && shown.phase !== 'typing' && <DemoLineShown line={demo} answered={shown.phase === 'answered'} />}
             </div>
           )}
 
@@ -455,6 +450,27 @@ function Typed({ source }: { source: string }) {
         </span>
       ))}
     </pre>
+  )
+}
+
+/** One of the crow's lines, with what the robot answered once
+ *  `answered`. */
+function DemoLineShown({ line, answered }: { line: DemoLine; answered: boolean }) {
+  return (
+    <div className="demo-line" data-testid="demo-line">
+      <span className="sr-only">Shown by {CROW_NAME}, not run: </span>
+      <Typed source={line.source} />
+      {answered && line.echo !== null && <Echo text={line.echo} demo />}
+      {answered && line.error && (
+        <>
+          <span className="sr-only">The robot could not do that:</span>
+          <pre className="said err" data-testid="demo-error">
+            <WarnMark />
+            {line.error}
+          </pre>
+        </>
+      )}
+    </div>
   )
 }
 

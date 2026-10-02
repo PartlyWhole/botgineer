@@ -75,7 +75,7 @@ crow who knows how it works, and you — the one who learns to instruct it.**
 
 | Who | Actor id | Name tag | Role | Never does |
 |---|---|---|---|---|
-| The crow | `crow` | `CROW_NAME` (see §8) | Guide. Knows the robot; has no hands to type. Warm, brief, a little dry. Asks more than it tells | Types for you; talks for more than a few beats without handing over |
+| The crow | `crow` | `CROW_NAME` (see §8) | Guide. Knows the robot. Shows before it asks: in v2 it may type a demonstration (`Beat.types`, `Beat.code`), which is never run as yours and never counts. Warm, brief, a little dry. Asks more than it tells | Answers your question for you (types what you were asked to type); talks for more than a few beats without handing over |
 | The robot | `robot` | Robot | Does exactly what it is told. Wordless: it *thinks*, in a cloud | Guesses what you meant |
 | Mira | `courier` | Mira | A person. Brings problems from outside. Speaks no robot | Understands `True` or `12` |
 | You | — | — | The robot's engineer: the BotGineer | — |
@@ -85,6 +85,10 @@ Mira speaks. Mira is referred to as she/her — she is a character the
 content defines.
 
 ### The arc
+
+Version 1's map (`ROADMAP`) first; version 2's (`ROADMAP_V2`, the one
+shown) below it. `content/roadmap.ts` is still the only place the order
+lives.
 
 | Level (activity id) | The robot's problem at the start | What it can do at the end |
 |---|---|---|
@@ -100,6 +104,19 @@ content defines.
 | 7 Wake the robot (`wake`) | One line at a time is slow | Run a whole program |
 | Stages 1–9 | Others wrote programs for it; it runs them faithfully, bugs and all | You can say what a short program will do *before* it runs |
 | Making Choices (`decide`), in Stage 5 | It runs every line it is given | Choose which lines run, with `if` and `else` |
+
+Version 2 (`#/`, the map shown):
+
+| Unit | Level (activity id) | The robot's problem at the start | What it can do at the end |
+|---|---|---|---|
+| Thinking | 1 Meet the Robot (`v2-meet`) | On its own it does nothing; it needs someone to tell it | Think of each instruction you type, then let it go |
+| | 2 Basic Data Types (`v2-types`) | Thinks of everything the same way | Know four kinds: `bool`, `int`, `float`, `str` |
+| | 3 Working Things Out (`v2-ops`) | Has only ever thought of what it was told | Work answers out, in the right order, with the right types |
+| Memory | 4 Memories (`v2-bind`) | Lets every thought go | Keep objects under names, and build any memory it is shown |
+| | 5 Lists (`v2-lists`) | One name per thing does not scale | Keep many things in order under one name, by index |
+| Deciding | 6 Asking Questions (`v2-logic`) | Can keep stats, but cannot ask whether something is so | Ask yes-or-no questions of memory; join them with `and`, `or`, `not` |
+| | 7 Making Choices (`v2-if`) | Runs every line; the editor arrives | Run a block only when a question says yes: `if`, `elif`, `else` |
+| | 8 Again and Again (`v2-loops`) | One line per item, a hundred items | Repeat a block for each item, a number of times, or while a question says yes |
 
 As shipped, levels 4–6, the Stage 1 ideas and Wake are the start of
 Stage 1's unit on the map (in that order: `names`, `order`,
