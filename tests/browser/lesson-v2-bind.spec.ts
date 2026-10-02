@@ -41,8 +41,15 @@ test('taught, then every goal built in real memory, with wipes', { tag: '@v2' },
       await page.evaluate(() => window.botgineer.skip())
       await page.getByTestId(`choice-${step.choices.answer}`).click()
     } else {
-      // The goals begin with the robot's memory wiped for the player.
+      // The goals begin with the robot's memory wiped for the player, on
+      // the beat that says so: the praise before it is still read over
+      // what the player made, and reaching the ask has wiped.
       if (step.wipeFirst) await expect.poll(() => names(page)).toEqual([])
+      if ((step.beats ?? []).some((b) => b.wipe)) {
+        expect(await names(page)).not.toEqual([])
+        await page.evaluate(() => window.botgineer.skip())
+        await expect.poll(() => names(page)).toEqual([])
+      }
       if (i === lesson.steps.length - 1) {
         await page.evaluate(() => window.botgineer.skip())
         await page.getByTestId('memory-reset').click()

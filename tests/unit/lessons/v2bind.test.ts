@@ -108,8 +108,11 @@ describe('v2-bind: goal memories', () => {
   it('wipes the memory for the player as the goals begin, and the last goal needs a wipe of theirs', () => {
     const g = goals(4)
     expect(g).toHaveLength(6)
-    expect(g[0]!.wipeFirst).toBe(true)
-    expect(g.slice(1).some((x) => x.wipeFirst)).toBe(false)
+    // Wiped on the beat that says so, not as the step begins (where the
+    // counting step's praise is still being read over the learner's work).
+    expect(g[0]!.wipeFirst).toBeUndefined()
+    expect((g[0]!.beats ?? []).filter((b) => b.wipe).map((b) => b.say)).toEqual(['I\'ve wiped the robot\'s memory, so you start clean.'])
+    expect(g.slice(1).some((x) => x.wipeFirst || (x.beats ?? []).some((b) => b.wipe))).toBe(false)
     // No step asks the player to wipe first: the goals start as soon as
     // the teaching is done.
     expect(progress(lesson, play(TAUGHT, PICKS))).toBe(6)

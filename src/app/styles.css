@@ -1038,6 +1038,44 @@ kbd {
   }
 }
 
+/* A card whose object just left memory (MemoryGraph's `GhostCard`): it
+   stays where it stood, dims while its replacement waits beside it and the
+   arrow swings across, then fades and sinks away. So `x = 1 + 2` reads as
+   the arrow moving to a new object and the old one let go — not as the
+   `1` turning into a `3` in place. `translate` and `scale`, never
+   `transform`: the transform is the card's place. Under reduced motion no
+   ghost is drawn at all (the graph skips it), so this is only the look. */
+.node.ghost {
+  pointer-events: none;
+  cursor: default;
+  opacity: 0;
+  z-index: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .node.ghost {
+    animation: node-out 1100ms ease-in forwards;
+  }
+  @keyframes node-out {
+    0% {
+      opacity: 1;
+    }
+    18% {
+      opacity: 0.55;
+    }
+    55% {
+      opacity: 0.5;
+      translate: 0 0;
+      scale: 1;
+    }
+    100% {
+      opacity: 0;
+      translate: 0 12px;
+      scale: 0.88;
+    }
+  }
+}
+
 .node .partial {
   font-size: 10px;
   text-transform: uppercase;
@@ -1189,6 +1227,27 @@ kbd {
 
 .memory-view:has(.memory.demo) .memory-tools {
   display: none;
+}
+
+/* A beat pointing at Undo and Wipe (`focus: 'memory-tools'`): a ring
+   round the two of them, not the whole pane. They keep their disabled
+   look — a greyed button that does nothing yet is the truth — and the
+   ring says where they are. Still under reduced motion. */
+.memory-tools.pulse {
+  border-radius: 999px;
+  outline: 3px solid var(--brand);
+  outline-offset: 3px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .memory-tools.pulse {
+    animation: tools-pulse 1.3s ease-in-out infinite;
+  }
+  @keyframes tools-pulse {
+    50% {
+      outline-color: var(--brand-line);
+      outline-offset: 5px;
+    }
+  }
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -1664,6 +1723,12 @@ kbd {
 .actor.crow.standing::before,
 .actor.courier.standing::before {
   animation: stage-in 360ms ease-out calc(var(--order, 0) * 70ms + 80ms) both;
+}
+
+/* A code chip and the punctuation straight after it (`richText`): one
+   piece, so a full stop never starts a line alone. */
+.glued {
+  white-space: nowrap;
 }
 
 code.inline {

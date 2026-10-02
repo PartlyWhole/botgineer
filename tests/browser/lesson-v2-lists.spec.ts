@@ -23,8 +23,15 @@ test('taught, then the backpack: packed, added to, counted, looked up, swapped a
       await page.evaluate(() => window.botgineer.skip())
       await page.getByTestId(`choice-${step.choices.answer}`).click()
     } else {
-      // The eight start from a memory wiped for the player.
-      if (step.wipeFirst) {
+      // The eight start from a memory wiped for the player, on the beat
+      // that says so (or as the step begins, for `wipeFirst`): the praise
+      // before it is read over the hotbar, and reaching the ask has wiped.
+      const wipes = (step.beats ?? []).some((b) => b.wipe)
+      if (wipes) {
+        expect(await page.evaluate(() => window.botgineer.snapshot().bindings.length)).toBeGreaterThan(0)
+        await page.evaluate(() => window.botgineer.skip())
+      }
+      if (step.wipeFirst || wipes) {
         await expect
           .poll(() => page.evaluate(() => window.botgineer.snapshot().bindings.length))
           .toBe(0)

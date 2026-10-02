@@ -19,28 +19,41 @@
  * straight to the elements as they ease to where the placement put them;
  * React is never asked to render the motion.
  */
-import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
+  along,
   approach,
+  beside,
   cameraDistance,
   curve,
   ease,
   frame,
   hidden,
+  LEAVE_MS,
+  lerpBox,
   orderNames,
   overview,
   place,
+  REPLACE_CREEP,
+  REPLACE_MS,
+  REPLACE_WAIT,
   scrolled,
+  SLIDE,
+  SLIDE_MS,
   slotLabel,
   spread,
   svgTransformOf,
+  swing,
+  SWING_TO,
   transformOf,
+  type Box,
   type Camera,
   type LayoutInput,
+  type Trip,
   type Size,
   type Viewport,
 } from './graphLayout'
-import type { MemorySnapshot, ObjectId } from '../memory/model'
+import type { MemorySnapshot, ObjectId, PyObject } from '../memory/model'
 
 export type GraphPick = { kind: 'name'; name: string; scope: string } | { kind: 'object'; id: ObjectId } | null
 
@@ -81,8 +94,20 @@ const reduced = () =>
   typeof window !== 'undefined' &&
   window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true
 
-/** Where a node is drawn now, where it is going, and how big it is. */
-type Body = { x: number; y: number; tx: number; ty: number; w: number; h: number }
+/** Where a node is drawn now, where it is going, and how big it is. A
+ *  newcomer on its way in has a `trip`, timed, instead of the ease. */
+type Body = { x: number; y: number; tx: number; ty: number; w: number; h: number; trip?: Trip }
+
+/** A card whose object has just left memory, drawn where it stood while it
+ *  fades (`graphLayout`, comings and goings). Not a node: nothing points at
+ *  it, the camera does not frame it, and it cannot be picked or reached. */
+type Ghost = { key: string; id: string; object: PyObject; handle: string; box: Box; until: number }
+
+/** An arrow moving to a new target: where it is leaving from (a ghost's
+ *  box, or a node still in memory), and since when. */
+type Swing = { from: string; box: Box | null; t0: number }
+
+const now = () => performance.now()
 
 export function MemoryGraph({ snapshot, handles, runKey, picked, onPick, fit = false, marked }: Props) {
   const hostRef = useRef<HTMLDivElement | null>(null)
@@ -107,6 +132,19 @@ export function MemoryGraph({ snapshot, handles, runKey, picked, onPick, fit = f
   const raf = useRef<number | null>(null)
   const run = useRef(runKey)
 
+  /** Cards that just left memory, still drawn. React state, because they
+   *  are elements the snapshot no longer has. */
+  const [ghosts, setGhosts] = useState<Ghost[]>([])
+  const ghostTimers = useRef(new Set<ReturnType<typeof setTimeout>>())
+  const swings = useRef(new Map<string, Swing>())
+  /** What each arrow pointed at, and the objects, as last drawn: what a
+   *  departure and a swing are measured against. Null until this run has
+   *  drawn once, so the first picture simply appears. */
+  const last = useRef<{ targets: Map<string, string>; objects: MemorySnapshot['objects'] } | null>(null)
+  /** Until when something is arriving, leaving or swinging, so the loop
+   *  keeps painting. */
+  const busyUntil = useRef(0)
+
   /* ------------------------------ the shape ------------------------------ */
 
   const model = useMemo(() => {
@@ -120,7 +158,10 @@ export function MemoryGraph({ snapshot, handles, runKey, picked, onPick, fit = f
     /** The widest slot label into each object, for the gap in front of it. */
     const labelW = new Map<string, number>()
     const edges: Edge[] = []
-    for (const n of names) edges.push({ from: n.id, to: n.target, label: null, key: `${n.id}>${n.target}` })
+    // Keyed by the name alone, so a rebinding is the same arrow moving to
+    // its new object (it swings, `Swing`), not one arrow going and another
+    // fading in where it was.
+    for (const n of names) edges.push({ from: n.id, to: n.target, label: null, key: `${n.id}>` })
     for (const o of Object.values(snapshot.objects)) {
       const kids = (o.elements ?? []).map((e) => `o:${e.target}`)
       children.set(`o:${o.id}`, kids)
@@ -190,11 +231,19 @@ export function MemoryGraph({ snapshot, handles, runKey, picked, onPick, fit = f
     // Every card is something an arrow must not pass through.
     const cards = [...bodies.current.values()]
     const labels: { el: SVGTextElement; x: number; y: number; w: number; anchor: string }[] = []
+    const t = now()
     for (const e of edgesRef.current) {
       const path = edgeRefs.current.get(e.key)
       const a = bodies.current.get(e.from)
-      const b = bodies.current.get(e.to)
+      let b: Box | undefined = bodies.current.get(e.to)
       if (!path || !a || !b) continue
+      const sw = swings.current.get(e.key)
+      if (sw) {
+        const p = swing(t - sw.t0)
+        const from = sw.box ?? bodies.current.get(sw.from)
+        if (p >= 1 || !from) swings.current.delete(e.key)
+        else b = lerpBox(from, b, p)
+      }
       const c = curve(a, b, cards)
       path.setAttribute('d', c.d)
       const label = labelRefs.current.get(e.key)
@@ -225,10 +274,17 @@ export function MemoryGraph({ snapshot, handles, runKey, picked, onPick, fit = f
   const loop = () => {
     if (raf.current !== null) return
     const step = () => {
-      let moving = false
+      const t = now()
+      let moving = t < busyUntil.current
       for (const b of bodies.current.values()) {
         const to = { x: b.tx, y: b.ty }
-        if (ease(b, to) > 0) moving = true
+        if (b.trip) {
+          const at = along(b.trip, to, t)
+          b.x = at.x
+          b.y = at.y
+          if (at.done) delete b.trip
+          moving = true
+        } else if (ease(b, to) > 0) moving = true
       }
       const v = viewport.current
       const far = cameraDistance(camera.current, target.current, v) > 0.6
@@ -286,6 +342,9 @@ export function MemoryGraph({ snapshot, handles, runKey, picked, onPick, fit = f
       run.current = runKey
       bodies.current.clear()
       seen.current.clear()
+      swings.current.clear()
+      last.current = null
+      setGhosts((g) => (g.length === 0 ? g : []))
     }
 
     // Measure before placing: a column is as wide as its widest card.
@@ -303,12 +362,62 @@ export function MemoryGraph({ snapshot, handles, runKey, picked, onPick, fit = f
     const placed = place(input, sizes.current)
 
     const live = new Set(placed.keys())
-    for (const id of [...bodies.current.keys()]) if (!live.has(id)) bodies.current.delete(id)
+    const snap = reduced()
+    const t = now()
+    // Comings and goings are shown only between two pictures of one run,
+    // and never in a thumbnail or under reduced motion.
+    const moving = last.current !== null && !snap && !fit
+    const left = new Map<string, Ghost>()
+    for (const [id, b] of [...bodies.current]) {
+      if (live.has(id)) continue
+      bodies.current.delete(id)
+      const object = last.current?.objects[id.slice(2)]
+      if (moving && id.startsWith('o:') && object) {
+        left.set(id, {
+          key: `${id}@${t}`,
+          id,
+          object,
+          handle: handles.get(object.id) ?? '',
+          box: { x: b.x, y: b.y, w: b.w, h: b.h },
+          until: t + LEAVE_MS,
+        })
+      }
+    }
+    if (moving || left.size > 0) {
+      setGhosts((g) => {
+        const kept = g.filter((x) => x.until > t && !live.has(x.id) && !left.has(x.id))
+        return kept.length === g.length && left.size === 0 ? g : [...kept, ...left.values()]
+      })
+    }
+    if (left.size > 0) {
+      const timer = setTimeout(() => {
+        ghostTimers.current.delete(timer)
+        setGhosts((g) => {
+          const kept = g.filter((x) => x.until > now())
+          return kept.length === g.length ? g : kept
+        })
+      }, LEAVE_MS + 20)
+      ghostTimers.current.add(timer)
+      busyUntil.current = Math.max(busyUntil.current, t + LEAVE_MS)
+    }
+
+    // An arrow whose target changed swings from the old one to the new;
+    // a new object that replaces one that just left waits beside it.
+    const replacing = new Map<string, Box>()
+    if (moving) {
+      for (const e of model.edges) {
+        const was = last.current!.targets.get(e.key)
+        if (was === undefined || was === e.to) continue
+        const gone = left.get(was)
+        swings.current.set(e.key, { from: was, box: gone?.box ?? null, t0: t })
+        busyUntil.current = Math.max(busyUntil.current, t + SWING_TO)
+        if (gone && !bodies.current.has(e.to) && !replacing.has(e.to)) replacing.set(e.to, gone.box)
+      }
+    }
 
     const first = bodies.current.size === 0
     if (first) scroll.current = null
     const arrived: string[] = []
-    const snap = reduced()
     for (const [id, p] of placed) {
       const s = sizes.current.get(id) ?? { w: 70, h: 26 }
       const b = bodies.current.get(id)
@@ -322,17 +431,37 @@ export function MemoryGraph({ snapshot, handles, runKey, picked, onPick, fit = f
           b.y = p.y
         }
       } else {
-        // A newcomer appears where it belongs — it fades in there (CSS),
-        // rather than flying in from somewhere it never was.
-        bodies.current.set(id, { x: p.x, y: p.y, tx: p.x, ty: p.y, ...s })
+        // A newcomer fades in (CSS) close to where it belongs. An object
+        // that replaces one that just left starts beside it, so both are
+        // seen; any other slides the last few px in from the right, the
+        // side the robot's thought comes from. A name just appears.
+        const old = replacing.get(id)
+        const from = old ? beside(old, s) : { x: p.x + SLIDE, y: p.y }
+        const body: Body = { x: p.x, y: p.y, tx: p.x, ty: p.y, ...s }
+        if (moving && id.startsWith('o:')) {
+          body.x = from.x
+          body.y = from.y
+          body.trip = old
+            ? { ...from, t0: t, dur: REPLACE_MS, wait: REPLACE_WAIT, creep: REPLACE_CREEP }
+            : { ...from, t0: t, dur: SLIDE_MS, wait: 0, creep: 0 }
+        }
+        bodies.current.set(id, body)
         arrived.push(id)
       }
+    }
+
+    last.current = {
+      targets: new Map(model.edges.map((e) => [e.key, e.to])),
+      objects: snapshot.objects,
     }
 
     aimRef.current(first ? [] : arrived)
     if (first) camera.current = target.current
     paintRef.current()
     loopRef.current()
+    // `snapshot` and `handles` are read for what just left; `model` is
+    // derived from the snapshot and is the change that matters.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [model, runKey, pickedId])
 
   // Picking moves the camera, and nothing else changes place.
@@ -414,6 +543,13 @@ export function MemoryGraph({ snapshot, handles, runKey, picked, onPick, fit = f
     },
     [],
   )
+  useEffect(() => {
+    const timers = ghostTimers.current
+    return () => {
+      for (const timer of timers) clearTimeout(timer)
+      timers.clear()
+    }
+  }, [])
 
   /** The `more` buttons: most of a pane sideways, eased like any other
    *  camera move, and never past what there is (`scrolled` clamps). */
@@ -525,6 +661,9 @@ export function MemoryGraph({ snapshot, handles, runKey, picked, onPick, fit = f
       )}
 
       <div className="world" ref={worldRef}>
+        {ghosts.map((g) => (
+          <GhostCard key={g.key} ghost={g} />
+        ))}
         {nodes.map((spec) => (
           <Pill
             key={spec.id}
@@ -543,6 +682,30 @@ export function MemoryGraph({ snapshot, handles, runKey, picked, onPick, fit = f
         ))}
       </div>
     </div>
+  )
+}
+
+/** A card that has left memory, as it looked, standing where it stood
+ *  while it fades out (`.node.ghost`). Inert and hidden from assistive
+ *  technology: it is a picture of what went, not something in memory. */
+function GhostCard({ ghost }: { ghost: Ghost }) {
+  const { object, box } = ghost
+  return (
+    <button
+      type="button"
+      tabIndex={-1}
+      inert
+      aria-hidden="true"
+      className={`node object ${object.kind} ghost`}
+      data-ghost={object.id}
+      style={{ transform: `translate(${box.x}px, ${box.y}px) translate(-50%, -50%)` }}
+    >
+      <span className="meta">
+        <span className="handle">{ghost.handle}</span>
+        <span className="type">{object.type}</span>
+      </span>
+      <span className="repr">{object.repr}</span>
+    </button>
   )
 }
 

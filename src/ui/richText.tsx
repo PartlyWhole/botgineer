@@ -27,13 +27,32 @@ import { glossaryAnchor } from '../collection/glossaryTerms'
 // exponentially (16 spans: 92ms, and doubling).
 const TOKEN = /(`[^`]+`|\*\*(?:`[^`]*`|[^*`])+?\*\*|\*(?:`[^`]*`|[^*`\n])+?\*)/g
 
+// Punctuation that closes what comes before it, so it must never start a
+// line: `.` after a chip wrapped onto a line of its own ("points at the
+// `10`" / "."). It is kept with the chip in one span that does not wrap.
+const TRAILING = /^[.,:;!?)\]}\u2026'"\u2019\u201d]+/
+
+const isCode = (part: string) => part.startsWith('`') && part.endsWith('`') && part.length > 1
+
 export function richText(text: string): ReactNode {
-  return text.split(TOKEN).map((part, i) => {
-    if (part.startsWith('`') && part.endsWith('`') && part.length > 1) {
-      return (
+  const parts = text.split(TOKEN)
+  return parts.map((part, i) => {
+    if (isCode(part)) {
+      const chip = (
         <code key={i} className="inline">
           {part.slice(1, -1)}
         </code>
+      )
+      // `split` with a capturing group alternates plain text and tokens,
+      // so what follows a token is always plain text (perhaps empty).
+      const tail = parts[i + 1]?.match(TRAILING)?.[0]
+      if (!tail) return chip
+      parts[i + 1] = parts[i + 1]!.slice(tail.length)
+      return (
+        <span key={i} className="glued">
+          <code className="inline">{part.slice(1, -1)}</code>
+          {tail}
+        </span>
       )
     }
     if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {

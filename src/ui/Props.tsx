@@ -154,7 +154,9 @@ export function PropLayer({ view, role, beat }: { view: PropView; role: 'current
       <svg viewBox="0 0 200 130" className={`prop prop-${view.prop.kind}`} aria-hidden="true">
         {draw(view)}
       </svg>
-      {said && !OWN_ANSWER.has(view.prop.kind) && <AnswerTag key={`${said.type}:${said.repr}`} thought={said} right={view.verdict === 'right'} waiting={waiting} refused={refused} />}
+      {said && !OWN_ANSWER.has(view.prop.kind) && (
+        <AnswerTag key={`${said.type}:${said.repr}`} thought={said} right={view.verdict === 'right'} waiting={waiting} refused={refused} at={tagAt(view)} />
+      )}
     </button>
   )
 }
@@ -171,10 +173,17 @@ const OWN_ANSWER = new Set(['goal', 'hud', 'gate', 'tally', 'cases', 'paths'])
  *  where the tick would go: the value, not yet the answer. A miss the
  *  picture draws refused (`refused`) is outlined in amber too, with no
  *  mark at all: not the answer, and nothing owed but another go. */
-function AnswerTag({ thought, right, waiting, refused }: { thought: Thought; right: boolean; waiting: boolean; refused: boolean }) {
+function AnswerTag({ thought, right, waiting, refused, at }: { thought: Thought; right: boolean; waiting: boolean; refused: boolean; at: TagAt }) {
   const kind = kindOf(thought) ?? 'other'
   return (
-    <span className={`answer-tag ${waiting ? 'unworked' : ''} ${refused ? 'refused' : ''}`} data-kind={kind} data-testid="answer-tag">
+    <span
+      className={`answer-tag ${waiting ? 'unworked' : ''} ${refused ? 'refused' : ''}`}
+      data-kind={kind}
+      data-testid="answer-tag"
+      data-at={at === null ? undefined : at === 'corner' ? 'corner' : 'slot'}
+      data-slot={typeof at === 'number' ? at.toFixed(1) : undefined}
+      style={typeof at === 'number' ? { ['--tag-x' as string]: at.toFixed(2) } : undefined}
+    >
       <span className="answer-value">{short(thought.repr, 14)}</span>
       <span className="answer-kind">{thought.type}</span>
       {right && (
@@ -192,6 +201,32 @@ function AnswerTag({ thought, right, waiting, refused }: { thought: Thought; rig
 }
 
 const short = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s)
+
+/**
+ * Where the answer tag stands, for the pictures whose foot is a row of
+ * index badges (the hotbar, the backpack): null for every other picture,
+ * whose tag is centred in the band under it. Centred, it stood over the
+ * badges — on a raised picture the band is gone and the tag lands on the
+ * row — and under no slot in particular, hiding the very index the crow
+ * was naming ("at index `2`"). So it hangs *below* the badge row: under
+ * the slot a looked-up item lit (its centre, in the picture's units), and
+ * in the corner for anything that lights no slot, a `len` count among
+ * them, which is about the whole bag, not one pocket.
+ */
+export type TagAt = number | 'corner' | null
+
+export function tagAt(view: PropView): TagAt {
+  const p = view.prop
+  if (p.kind === 'hotbar') {
+    const lit = hotbarLit(p, view.answer)
+    return lit === null ? 'corner' : hotbarSlotX(p.items.slice(0, HOTBAR_MAX).length, lit)
+  }
+  if (p.kind === 'backpack') {
+    const lit = backpackLit(p, view.answer)
+    return lit === null ? 'corner' : pocketX(p.items.slice(0, BACKPACK_MAX).length, lit)
+  }
+  return null
+}
 
 /** Breaks text into at most `lines` lines of about `width` characters. */
 function wrap(text: string, width: number, lines: number): string[] {
@@ -3421,15 +3456,26 @@ function hotbarSentence(view: PropView, p: Extract<Prop, { kind: 'hotbar' }>): s
  * one mounts a new item in that cell and it pops in, while the rest stay.
  * A str the robot thinks of that one cell holds lights that cell.
  */
-function Hotbar({ view, p }: { view: PropView; p: Extract<Prop, { kind: 'hotbar' }> }) {
-  const items = p.items.slice(0, HOTBAR_MAX)
-  const n = Math.max(1, items.length)
+/** The bar's cell size, its left edge and each cell's left edge, for `count` items. */
+function hotbarCells(count: number) {
+  const n = Math.max(1, count)
   const c = Math.min(HOTBAR.most, (HOTBAR.width - 2 * HOTBAR.pad - (n - 1) * HOTBAR.gap) / n)
   const barW = n * c + (n - 1) * HOTBAR.gap + 2 * HOTBAR.pad
-  const barH = c + 2 * HOTBAR.pad
   const bx = (200 - barW) / 2
+  return { c, barW, bx, cellX: (i: number) => bx + HOTBAR.pad + i * (c + HOTBAR.gap) }
+}
+
+/** The middle of a hotbar slot, and of its index badge, in the picture's units. */
+const hotbarSlotX = (count: number, i: number) => {
+  const { c, cellX } = hotbarCells(count)
+  return cellX(i) + c / 2
+}
+
+function Hotbar({ view, p }: { view: PropView; p: Extract<Prop, { kind: 'hotbar' }> }) {
+  const items = p.items.slice(0, HOTBAR_MAX)
+  const { c, barW, bx, cellX } = hotbarCells(items.length)
+  const barH = c + 2 * HOTBAR.pad
   const by = HOTBAR.foot - HOTBAR.number - 3 - barH
-  const cellX = (i: number) => bx + HOTBAR.pad + i * (c + HOTBAR.gap)
   const cy = by + HOTBAR.pad
   const lit = hotbarLit(p, view.answer)
   const no = refusedOf(view)
@@ -3530,12 +3576,22 @@ function backpackSentence(view: PropView, p: Extract<Prop, { kind: 'backpack' }>
  * that many pockets get a tick, in order; the right count typed by hand
  * (`unworked`) ticks nothing and the tag waits with an amber `?`.
  */
+/** Each pocket's width and left edge, for `count` items. */
+function pockets(count: number) {
+  const n = Math.max(1, count)
+  const pw = (PACK.w - 2 * PACK.side - (n - 1) * PACK.gap) / n
+  return { pw, px: (i: number) => PACK.x + PACK.side + i * (pw + PACK.gap) }
+}
+
+/** The middle of a pocket, and of its index badge, in the picture's units. */
+const pocketX = (count: number, i: number) => {
+  const { pw, px } = pockets(count)
+  return px(i) + pw / 2
+}
+
 function Backpack({ view, p }: { view: PropView; p: Extract<Prop, { kind: 'backpack' }> }) {
   const items = p.items.slice(0, BACKPACK_MAX)
-  const n = Math.max(1, items.length)
-  const inner = PACK.w - 2 * PACK.side
-  const pw = (inner - (n - 1) * PACK.gap) / n
-  const px = (i: number) => PACK.x + PACK.side + i * (pw + PACK.gap)
+  const { pw, px } = pockets(items.length)
   const lit = backpackLit(p, view.answer)
   const no = refusedOf(view)
   const idle = unworked(view)

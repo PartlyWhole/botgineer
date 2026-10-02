@@ -523,6 +523,26 @@
   box-shadow: none;
 }
 
+/* Undo and Wipe pointed at: the ring in phosphor, breathing like the
+   screen's edge does, round the two keys only. Disabled keys stay dim. */
+.robot-panel[data-look='v2'] .memory-tools.pulse {
+  outline: 2px solid rgb(93 255 168 / 0.85);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 4px rgb(93 255 168 / 0.12), 0 0 18px 4px rgb(93 255 168 / 0.22);
+  animation: none;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .robot-panel[data-look='v2'] .memory-tools.pulse {
+    animation: v2-tools-pulse 1.3s ease-in-out infinite;
+  }
+  @keyframes v2-tools-pulse {
+    50% {
+      outline-color: rgb(93 255 168 / 0.4);
+      box-shadow: 0 0 0 4px rgb(93 255 168 / 0.04), 0 0 26px 8px rgb(93 255 168 / 0.32);
+    }
+  }
+}
+
 /* Empty: rows of sockets where names and objects will go. */
 .bank-empty {
   position: absolute;

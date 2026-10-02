@@ -9,7 +9,7 @@
 import { describe, expect, it } from 'vitest'
 import { CROW_NAME } from '../../../content/cast'
 import { castAt, cloud, guidance, script, staging, type Lesson } from '../../../content/lessons'
-import { beforeLast, everBy, heard, points, targetOf, was, type Evidence, type Line, type LineMemory } from '../../../content/lessons/core'
+import { beforeLast, everBy, wipedBy, heard, points, targetOf, was, type Evidence, type Line, type LineMemory } from '../../../content/lessons/core'
 import type { MemorySnapshot } from '../../../src/memory/model'
 import { EMPTY, NOTHING, bound, failed, line, snap, th, typed } from './fixtures'
 
@@ -101,6 +101,23 @@ describe('script', () => {
     }
     expect(script(WHERE, NOTHING).items.map((i) => i.text)).toEqual(['Type it on the right.', 'Now on the right.'])
     expect(script(WHERE, NOTHING, 'stacked').items.map((i) => i.text)).toEqual(['Type it below.', 'Now below.'])
+  })
+
+  it('carries a beat\'s wipe, and says when a wipe beat has been passed', () => {
+    const WIPE: Lesson = {
+      ...DEMO,
+      steps: [DEMO.steps[0]!, { ...DEMO.steps[1]!, beats: [{ say: 'Look.' }, { say: 'Wiped.', wipe: true }, { say: 'Now.' }] }],
+    }
+    const s = script(WIPE, typed(RIGHT[0]!))
+    expect(s.items.map((i) => i.kind)).toEqual(['praise', 'beat', 'beat', 'beat', 'ask'])
+    expect(s.items[2]!.wipe).toBe(true)
+    // The praise and the beat before are read over what the player made;
+    // the wipe beat and everything after it, the ask included (a skip), have
+    // wiped.
+    expect(s.items.map((_, i) => wipedBy(s.items, i))).toEqual([false, false, true, true, true])
+    // A step with no wipe beat never wipes.
+    const plain = script(DEMO, NOTHING)
+    expect(plain.items.some((_, i) => wipedBy(plain.items, i))).toBe(false)
   })
 
   it('swaps the ask for a reply to a miss, in the same place', () => {

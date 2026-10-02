@@ -72,7 +72,9 @@ function goalMiss(goal: Goal) {
     if (made && extra.includes(made)) return `\`${made}\` isn't in the goal. Undo that line, and try again.`
     const off = rows.find((r) => !r.ok)
     if (off && off.have !== null) return `\`${off.name}\` points at \`${off.have}\` now. The goal has it at \`${off.value}\`.`
-    if (extra.length) return `\`${extra[0]}\` isn't in the goal. Undo that line, or wipe the memory and start again.`
+    // Extra names this line did not make came from earlier lines: Undo
+    // would take back the one right line, so the way back is a wipe.
+    if (extra.length) return `\`${extra[0]}\` isn't in the goal. Wipe the memory, then build just what the goal shows.`
     if (off) return `Nearly: \`${off.name}\` is still missing.`
     return undefined
   }
@@ -151,7 +153,7 @@ const teach: LessonStep[] = [
     tag: 'you',
     choices: afterSum,
     done: (e) => chose(e, afterSum),
-    praise: 'The right side first: `2 * 5` is `10`, and `x` points at the `10`.',
+    praise: 'The right side first: `2 * 5` is `10`, so that line points `x` at the `10`.',
   },
   {
     beats: [
@@ -161,7 +163,7 @@ const teach: LessonStep[] = [
       { say: '…and points `x` at it.', memory: ['y = 1', 'x = y + 2'], mark: ['x'] },
       { say: '`y` still points at `1`. Reading a name never moves it.', memory: ['y = 1', 'x = y + 2'], mark: ['y'] },
     ],
-    say: 'Point `a` at `4`. Then point `b` at `a + 1`.',
+    say: 'Point `a` at `4`. Then let the robot work out `b` from it: `b = a + 1`.',
     tag: 'you',
     done: (e) => everBy(e, (src, s) => /^\s*b\s*=.*\ba\b/m.test(src) && points(s, 'a', '4') && points(s, 'b', '5')),
     praise: 'The robot followed `a` to `4`, worked out `5`, and pointed `b` at it. `a` didn\'t move.',
@@ -188,7 +190,7 @@ const teach: LessonStep[] = [
     praise: 'One up each time: `5`, `6`, `7`.',
   },
   {
-    say: 'Make the robot count: point `score` at `0`, then add one to it, three times.',
+    say: 'Make the robot count: point `score` at `0`, then move it on by one, three times.',
     tag: 'you',
     done: (e) => everBy(e, (src, s) => /^\s*score\s*=\s*score\s*\+\s*1\s*$/m.test(src) && points(s, 'score', '3')),
     praise: '`0`, `1`, `2`, `3`: `score` moved on one each time.',
@@ -243,16 +245,28 @@ export function goals(seed: number): LessonStep[] {
     {
       ...goalStep(g1, 'Make the robot\'s memory look like the goal.', `That's it: \`x\` points at \`${n}\`.`, [
         { say: 'Now you\'re the one making memories. I\'ll show you one, and you build it.', show: goalPicture(g1) },
-        { say: 'I\'ve wiped the robot\'s memory, so you start clean.', show: goalPicture(g1), focus: 'memory' },
+        // The wipe happens here, on the line that says so, not during the
+        // praise of the counting step, which is about the learner's `score`.
+        { say: 'I\'ve wiped the robot\'s memory, so you start clean.', show: goalPicture(g1), focus: 'memory', wipe: true },
         { say: 'Make it look exactly like the goal: the same names, the same values.', show: goalPicture(g1) },
-        { say: 'A line went wrong? Undo takes it back. Wipe starts the whole memory again.', show: goalPicture(g1), focus: 'memory' },
+        { say: 'A line went wrong? Undo takes it back. Wipe starts the whole memory again.', show: goalPicture(g1), focus: 'memory-tools' },
       ]),
-      wipeFirst: true,
     },
     goalStep(g2, 'I\'ve added to the goal. Make the robot\'s memory match again.', `\`name\` points at the words \`"${name}"\`.`),
     goalStep(g3, '`x` has moved on by one. Move the robot\'s `x` to match.', `\`x\` moved to \`${n + 1}\`, and \`name\` stayed put.`, [], 'x = x + 1'),
-    goalStep(g4, 'Add a `speed` to the robot\'s memory.', `\`speed\` points at a \`float\`, \`${speed}\`.`, [], `speed = ${speed}`),
-    goalStep(g5, 'The speed has doubled. Let the robot work out the new one.', `\`speed * 2\` is \`${doubled}\`: still a \`float\`.`, [], 'speed = speed * 2'),
+    goalStep(g4, 'Give the robot a `speed`.', `\`speed\` points at a \`float\`, \`${speed}\`.`, [], `speed = ${speed}`),
+    // Worked out, as the ask says, and as Step 4 refuses a typed `b = 5`:
+    // the goal alone would take `speed = 5.0` typed in.
+    {
+      ...goalStep(g5, 'The robot\'s speed has doubled. Let it work out the new one.', `\`speed * 2\` is \`${doubled}\`: still a \`float\`.`, [], 'speed = speed * 2'),
+      done: (e) => everBy(e, (src, s) => /^\s*speed\s*=.*\bspeed\b.*\*/m.test(src) && compare(g5, s).met),
+      nudge: (l) =>
+        /^\s*speed\s*=\s*[\d.]+\s*$/.test(l.source)
+          ? 'That\'s the answer typed in. Let the robot double it: `speed = speed * 2`.'
+          : l.ok && /^\s*speed\s*=/.test(l.source) && !/\*/.test(l.source)
+            ? 'Doubled is times two: `speed = speed * 2`.'
+            : goalMiss(g5)(l),
+    },
     goalStep(g6, 'A new memory: only `total`, pointing at `' + total + '`. Nothing else.', 'A fresh memory, just as the goal shows.', [], `total = ${total}`),
   ]
 }

@@ -163,7 +163,8 @@ describe('v2-lists: the eight', () => {
       for (let i = 2; i < kinds.length; i++) expect(kinds[i] === kinds[i - 1] && kinds[i] === kinds[i - 2]).toBe(false)
       for (const s of practice(seed).filter((x) => x.choices)) {
         const ids = s.choices!.options.map((o) => o.id)
-        expect(new Set(ids).size).toBe(4)
+        expect(new Set(ids).size).toBe(ids.length)
+        expect(ids.length).toBeGreaterThanOrEqual(2)
         expect(ids).toContain(s.choices!.answer)
       }
     }
@@ -175,13 +176,17 @@ describe('v2-lists: the eight', () => {
     const p = practice(seed)
     const lines = [...TAUGHT, 'WIPE']
     const picks = [...TEACH_PICKS]
-    for (const step of p.slice(0, -1)) {
+    // Up to the `bag` step, which is second to last: the last asks what
+    // `bag` holds once `backpack` is pointed at a new list.
+    const bagAt = p.findIndex((x) => x.model === 'bag = backpack')
+    expect(bagAt).toBe(p.length - 2)
+    for (const step of p.slice(0, bagAt)) {
       if (step.choices) picks.push({ ask: step.choices.id, choice: step.choices.answer })
       else lines.push(...step.model!.split('\n'))
     }
     // A copy: a new list with the same names in it, as the goal shows them.
-    const shown = (p[p.length - 2]!.show as { goal: { value: string }[] }).goal[0]!.value
-    const before = 7 + p.length - 1
+    const shown = (p[bagAt - 1]!.show as { goal: { value: string }[] }).goal[0]!.value
+    const before = 7 + bagAt
     expect(progress(lesson, play([...lines, `bag = ${shown}`], picks))).toBe(before)
     expect(progress(lesson, play([...lines, 'bag = backpack'], picks))).toBe(before + 1)
   })

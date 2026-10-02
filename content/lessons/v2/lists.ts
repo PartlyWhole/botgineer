@@ -94,9 +94,14 @@ function lookupMiss(name: string, slot: number, repr: string) {
 }
 
 /** What a line left memory looking like, against a goal: the first thing off. */
-function goalMiss(goal: Goal, how?: { pattern: RegExp; say: string }) {
+function goalMiss(goal: Goal, how?: { pattern: RegExp; say: string }, indexError = 'There\'s no slot at that index. `append` adds one on the end.') {
+  // The words the goal's lists hold: typed without quotes, `map` is one
+  // of Python's own names, so the line runs and leaves no word behind.
+  const words = goal.flatMap((g) => itemsOf(g.value) ?? []).map((w) => w.replace(/^["']|["']$/g, ''))
   return (l: Line): string | undefined => {
-    if (errorType(l) === 'IndexError') return 'There\'s no slot at that index. `append` adds one on the end.'
+    if (errorType(l) === 'IndexError') return indexError
+    const unquoted = words.find((w) => new RegExp(`(^|[^"'\\w])${w}(?![\\w"'])`).test(l.source.replace(/(["'])(?:(?!\1).)*\1/g, '""')))
+    if (unquoted) return `Words need quotes, or the robot reads them as names: \`"${unquoted}"\`. Undo that line, and try again.`
     if (errorType(l) === 'NameError') return 'That uses a name the robot has no memory of yet.'
     if (!l.ok) return stopped(l, 'Check the line against the goal.')
     if (!l.memory) return undefined
@@ -168,7 +173,8 @@ const alias: Choices = {
 const teach: LessonStep[] = [
   {
     beats: [
-      { speaker: 'courier', say: 'Loot for the robot! A sword, a shield and a potion.', show: hotbar(HOT), act: [{ actor: 'courier', do: 'enter' }] },
+      { say: 'Out of the workshop today. This is Mira, a person. She\'s off to explore the caves.', act: [{ actor: 'courier', do: 'enter' }] },
+      { speaker: 'courier', say: 'And I\'ve brought the robot some loot! A sword, a shield and a potion.', show: hotbar(HOT) },
       { say: 'One name each would work: `a`, `b` and `c`…', types: 'a = "sword"', memory: ['a = "sword"', 'b = "shield"', 'c = "potion"'], show: hotbar(HOT) },
       { say: '…but fifty items would need fifty names. The robot needs one name for the whole row.', memory: ['a = "sword"', 'b = "shield"', 'c = "potion"'], show: hotbar(HOT) },
       { say: 'That\'s a *list*: the items in square brackets, with commas between.', types: MADE, memory: [MADE], show: hotbar(HOT) },
@@ -191,16 +197,16 @@ const teach: LessonStep[] = [
       { say: 'Three items, so the indexes are `0`, `1` and `2`. There\'s no index `3`.', types: 'hotbar[3]', stops: 'IndexError', thought: '', memory: [MADE], show: hotbar(HOT) },
       { say: 'Asking for an index that isn\'t there stops the robot: an `IndexError`.', memory: [MADE], show: hotbar(HOT) },
     ],
-    say: 'What does `hotbar[2]` make?',
+    say: 'What does `hotbar[2]` find?',
     show: { kind: 'value', text: 'hotbar[2]' },
-    ask: 'What does it make?',
+    ask: 'What does it find?',
     tag: 'you',
     choices: slotTwo,
     done: (e) => chose(e, slotTwo),
     praise: '`0`, `1`, `2`: index `2` is the third item, the potion.',
   },
   {
-    say: 'Equip the first item: ask the robot for it.',
+    say: 'Which item is in the first slot? Ask the robot.',
     show: hotbar(HOT),
     ask: 'The first item',
     tag: 'robot',
@@ -211,7 +217,7 @@ const teach: LessonStep[] = [
   },
   {
     beats: [
-      { say: '`len` counts the slots in a list.', types: 'len(hotbar)', thought: '3', memory: [MADE], mark: ['hotbar'], show: hotbar(HOT) },
+      { say: '`len` counts the slots in a list. What it counts goes in round brackets: `len(hotbar)`.', types: 'len(hotbar)', thought: '3', memory: [MADE], mark: ['hotbar'], show: hotbar(HOT) },
       { say: 'Three slots, at indexes `0` to `2`: the last index is always one less than the length.', memory: [MADE], show: hotbar(HOT, 2) },
     ],
     say: 'Ask the robot how many items are in the hotbar.',
@@ -227,7 +233,7 @@ const teach: LessonStep[] = [
     beats: [
       { speaker: 'courier', say: 'Swap your shield for my bow! It\'s better.', show: hotbar(HOT, 1) },
       { say: '`hotbar[1] = "bow"` points the slot at index `1` at a new object, `"bow"`.', types: 'hotbar[1] = "bow"', memory: [MADE, 'hotbar[1] = "bow"'], mark: ['hotbar'], show: hotbar(SWAPPED, 1) },
-      { say: 'It\'s the same list, with one arrow moved. Nothing points at the shield now, so it\'s let go.', memory: [MADE, 'hotbar[1] = "bow"'], show: hotbar(SWAPPED) },
+      { say: 'Same list, one arrow moved. Nothing points at the shield now, so the robot lets it go. It\'s Mira\'s now.', memory: [MADE, 'hotbar[1] = "bow"'], show: hotbar(SWAPPED) },
     ],
     say: 'Make the robot\'s hotbar match: swap index `1` to "bow".',
     show: { kind: 'goal', goal: [{ name: 'hotbar', value: '["sword", "bow", "potion"]' }] },
@@ -235,16 +241,19 @@ const teach: LessonStep[] = [
     tag: 'you',
     done: (e) => madeBy(e, /\bhotbar\s*\[\s*1\s*\]\s*=/, { name: 'hotbar', value: '["sword", "bow", "potion"]' }),
     praise: 'Index `1` moved to the bow. The list is still the same list.',
-    nudge: goalMiss([{ name: 'hotbar', value: '["sword", "bow", "potion"]' }], {
-      pattern: /\[\s*1\s*\]\s*=/,
-      say: 'That made a whole new list. Move just index `1`: `hotbar[1] = "bow"`.',
-    }),
+    nudge: goalMiss(
+      [{ name: 'hotbar', value: '["sword", "bow", "potion"]' }],
+      { pattern: /\[\s*1\s*\]\s*=/, say: 'That made a whole new list. Move just index `1`: `hotbar[1] = "bow"`.' },
+      // `append` comes next; here an IndexError is a miscounted index.
+      'Three items have indexes `0`, `1` and `2`: the shield is at index `1`.',
+    ),
     model: 'hotbar[1] = "bow"',
   },
   {
     beats: [
       { speaker: 'courier', say: 'And you picked up a map!', show: hotbar(SWAPPED) },
-      { say: 'There\'s no index `3` to change. `append` adds a new slot on the end.', types: 'hotbar.append("map")', memory: [MADE, 'hotbar[1] = "bow"', 'hotbar.append("map")'], mark: ['hotbar'], show: hotbar(GROWN, 3) },
+      { say: 'There\'s no index `3` to change.', memory: [MADE, 'hotbar[1] = "bow"'], show: hotbar(SWAPPED) },
+      { say: '`hotbar.append("map")` adds a slot on the end: the dot says it\'s `hotbar`\'s list that grows.', types: 'hotbar.append("map")', memory: [MADE, 'hotbar[1] = "bow"', 'hotbar.append("map")'], mark: ['hotbar'], show: hotbar(GROWN, 3) },
       { say: 'The list grows. Its new slot, at index `3`, points at `"map"`.', memory: [MADE, 'hotbar[1] = "bow"', 'hotbar.append("map")'], show: hotbar(GROWN, 3) },
     ],
     say: 'Put the map in a new slot at the end of the robot\'s hotbar.',
@@ -253,15 +262,20 @@ const teach: LessonStep[] = [
     tag: 'you',
     done: (e) => madeBy(e, /\bhotbar\.append\s*\(/, { name: 'hotbar', value: '["sword", "bow", "potion", "map"]' }),
     praise: '`append` gave the list a fourth slot, at index `3`, pointing at the map.',
-    nudge: goalMiss([{ name: 'hotbar', value: '["sword", "bow", "potion", "map"]' }], {
-      pattern: /\.append\s*\(/,
-      say: 'That made a whole new list. Add to this one: `hotbar.append("map")`.',
-    }),
+    nudge: (l) =>
+      errorType(l) === 'NameError' && /^\s*append\b/.test(l.source)
+        ? '`append` belongs to a list: `hotbar.append("map")`.'
+        : errorType(l) === 'SyntaxError' && /\.append\b/.test(l.source)
+          ? 'The item goes in round brackets: `hotbar.append("map")`.'
+          : goalMiss([{ name: 'hotbar', value: '["sword", "bow", "potion", "map"]' }], {
+              pattern: /\.append\s*\(/,
+              say: 'That made a whole new list. Add to this one: `hotbar.append("map")`.',
+            })(l),
     model: 'hotbar.append("map")',
   },
   {
     beats: [
-      { say: 'One more thing, and only lists do it. Read these three lines with me.', show: { kind: 'code', text: 'a = [1, 2]\nb = a\na.append(3)' } },
+      { say: 'One more thing. `b = a` never makes a copy, and a list is where you can see it. Read these lines.', show: { kind: 'code', text: 'a = [1, 2]\nb = a\na.append(3)' } },
       { say: '`a = [1, 2]`: the robot makes a list, and points `a` at it.', types: 'a = [1, 2]', memory: ['a = [1, 2]'], mark: ['a'], show: { kind: 'code', text: 'a = [1, 2]\nb = a\na.append(3)', mark: 1 } },
       { say: '`b = a` follows `a` to its list… and points `b` at that very list.', types: 'b = a', memory: ['a = [1, 2]', 'b = a'], mark: ['b'], show: { kind: 'code', text: 'a = [1, 2]\nb = a\na.append(3)', mark: 2 } },
       { say: 'No copy is made: one list, two names.', memory: ['a = [1, 2]', 'b = a'], mark: ['a', 'b'], show: { kind: 'code', text: 'a = [1, 2]\nb = a\na.append(3)', mark: 2 } },
@@ -329,6 +343,17 @@ export function practice(seed: number): LessonStep[] {
         : 'Four things have indexes `0` to `3`. Index `4` is past the end, so the robot stops.',
   }
 
+  // Pointing one name at a new list leaves the other on the old one.
+  const rebound: Choices = {
+    id: 'practice-rebound',
+    options: [
+      { id: 'old', label: `\`${listOf(swapped)}\`` },
+      { id: 'rope', label: '`["rope"]`' },
+    ],
+    answer: 'old',
+    nudge: () => '`backpack = ["rope"]` makes a new list and moves only `backpack` to it. `bag` still points at the old one.',
+  }
+
   // Where an appended thing lands: the index after the last, which is how
   // many there were.
   const lands: Choices = {
@@ -349,15 +374,18 @@ export function practice(seed: number): LessonStep[] {
   return [
     {
       beats: [
-        { speaker: 'courier', say: 'Let\'s go on an adventure! The robot needs a backpack.', show: { kind: 'goal', goal: g1 } },
-        { say: 'I\'ve wiped the robot\'s memory for it. Something went wrong? Undo takes back the last line.', show: { kind: 'goal', goal: g1 }, focus: 'memory' },
+        // The payoff of the question just answered, drawn: the crow's own
+        // run of the three lines, before the memory is wiped for the backpack.
+        { say: 'Here it is: one list, two names, and the `3` on the end of it.', memory: ['a = [1, 2]', 'b = a', 'a.append(3)'], mark: ['a', 'b'], show: { kind: 'code', text: 'a = [1, 2]\nb = a\na.append(3)', mark: 3 } },
+        { speaker: 'courier', say: 'Now let\'s go on our adventure! The robot needs a backpack.', show: { kind: 'goal', goal: g1 } },
+        { say: 'The hotbar\'s game is over, so I\'ve wiped the robot\'s memory: the backpack starts from nothing.', show: { kind: 'goal', goal: g1 }, focus: 'memory', wipe: true },
+        { say: 'Something went wrong? Undo takes back the last line.', show: { kind: 'goal', goal: g1 }, focus: 'memory-tools' },
+        { speaker: 'courier', say: `I'll need my map, and my ${second}!`, show: { kind: 'goal', goal: g1 } },
       ],
-      speaker: 'courier',
       say: `Pack a map and a ${second}: make the robot's memory match.`,
       show: { kind: 'goal', goal: g1 },
       ask: 'Pack the backpack.',
       tag: 'you',
-      wipeFirst: true,
       done: (e) => reached(e, g1),
       praise: 'A backpack of two: each slot points at a `str`.',
       nudge: goalMiss(g1),
@@ -375,8 +403,8 @@ export function practice(seed: number): LessonStep[] {
       model: 'backpack.append("torch")',
     },
     {
-      speaker: 'courier',
-      say: `And we'll get hungry! Before you pack ${snack === 'apple' ? 'an apple' : 'a potion'}: what index will it land at?`,
+      beats: [{ speaker: 'courier', say: `And we'll get hungry! I'll bring ${snack === 'apple' ? 'an apple' : 'a potion'}.`, show: { kind: 'backpack', items: lit } }],
+      say: 'Before it goes in: what index will it land at?',
       show: { kind: 'backpack', items: lit },
       ask: 'Which index?',
       tag: 'you',
@@ -421,28 +449,32 @@ export function practice(seed: number): LessonStep[] {
       model: `backpack[${k}]`,
     },
     {
-      say: 'There are four things in the backpack. What does `backpack[4]` make?',
+      say: 'There are four things in the backpack. What does `backpack[4]` find?',
       show: { kind: 'value', text: 'backpack[4]' },
-      ask: 'What does it make?',
+      ask: 'What does it find?',
       tag: 'you',
       choices: pastEnd,
       done: (e) => chose(e, pastEnd),
       praise: 'Indexes `0` to `3`, so index `4` is past the end: `IndexError`.',
     },
     {
-      speaker: 'courier',
-      say: `I'll swap you my gem for your ${second}. Change just that index.`,
+      beats: [{ speaker: 'courier', say: `I'll swap you my gem for your ${second}!`, show: { kind: 'goal', goal: g7 } }],
+      say: `Change just that slot: index \`1\`, to "gem".`,
       show: { kind: 'goal', goal: g7 },
       ask: `Swap the ${second} for a gem.`,
       tag: 'you',
       done: (e) => madeBy(e, /\bbackpack\s*\[\s*1\s*\]\s*=/, g7[0]!) && reached(e, g7),
       praise: 'One slot moved, and it\'s still the same backpack.',
-      nudge: goalMiss(g7, { pattern: /\[\s*1\s*\]\s*=/, say: 'That\'s a whole new list. Move just index `1`: `backpack[1] = "gem"`.' }),
+      nudge: goalMiss(
+        g7,
+        { pattern: /\[\s*1\s*\]\s*=/, say: 'That\'s a whole new list. Move just index `1`: `backpack[1] = "gem"`.' },
+        `Four things have indexes \`0\` to \`3\`: the ${second} is at index \`1\`.`,
+      ),
       model: 'backpack[1] = "gem"',
     },
     {
-      speaker: 'courier',
-      say: 'I\'ll carry it too, as `bag`. The same backpack, not a copy!',
+      beats: [{ speaker: 'courier', say: 'I want to carry the backpack too!', show: { kind: 'goal', goal: g8 } }],
+      say: 'Point `bag` at the same list as `backpack`, not a copy.',
       show: { kind: 'goal', goal: g8 },
       ask: 'Two names, one backpack',
       tag: 'you',
@@ -450,6 +482,17 @@ export function practice(seed: number): LessonStep[] {
       praise: '`bag` and `backpack` are one list: whatever one of you packs, the other has.',
       nudge: goalMiss(g8),
       model: 'bag = backpack',
+    },
+    // Why a swap moves a slot: pointing a name at a new list leaves the
+    // other name where it was.
+    {
+      say: 'Then `backpack = ["rope"]` runs. What is `bag` now?',
+      show: { kind: 'code', text: 'bag = backpack\nbackpack = ["rope"]' },
+      ask: 'What is bag?',
+      tag: 'you',
+      choices: rebound,
+      done: (e) => chose(e, rebound),
+      praise: '`backpack` points at a new list now; `bag` still has the old one. That\'s why a swap moves a slot instead.',
     },
   ]
 }
@@ -467,7 +510,7 @@ export const listsLesson = (seed: number): Lesson => ({
   wipe: true,
   steps: [...teach, ...practice(seed)],
   outro: [
-    { say: 'Now the robot can keep a whole hotbar of things under one name.', focus: 'memory' },
+    { say: 'Now the robot can keep a whole backpack of things under one name.', focus: 'memory' },
     { speaker: 'courier', say: 'Packed, counted, and shared. Let\'s go, robot!' },
   ],
   takeaway: 'A list keeps many objects in order under one name. Its indexes count from `0`, and two names can share one list.',

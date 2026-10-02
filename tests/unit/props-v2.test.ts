@@ -53,7 +53,7 @@ import {
   type PropView,
 } from '../../src/scene/props'
 import type { Run } from '../../content/lessons/core'
-import { PropLayer, describe as sentence } from '../../src/ui/Props'
+import { PropLayer, describe as sentence, tagAt } from '../../src/ui/Props'
 import type { MemorySnapshot } from '../../src/memory/model'
 
 const th = (type: string, repr: string) => ({ type, repr })
@@ -691,6 +691,30 @@ describe('an inventory hotbar', () => {
     expect(Math.min(...boxes.map((b) => b[0]!))).toBeGreaterThanOrEqual(4)
     expect(Math.max(...boxes.map((b) => b[0]! + b[2]!))).toBeLessThanOrEqual(196)
     expect(Math.max(...boxes.map((b) => b[1]! + b[3]!))).toBeLessThanOrEqual(117)
+  })
+})
+
+describe('the answer tag over a row of index badges', () => {
+  // Centred, it covered the badges on a raised picture and sat under no
+  // slot in particular: now under the slot it lit, or in the corner.
+  const four = ['map', 'coin', 'torch', 'apple']
+  it('stands under the slot a looked-up item lit, left to right with the slots', () => {
+    const xs = four.map((it) => tagAt(view({ kind: 'backpack', items: four }, th('str', `'${it}'`), 'right')))
+    for (const x of xs) expect(typeof x).toBe('number')
+    expect(xs).toEqual([...xs].sort((a, b) => (a as number) - (b as number)))
+    expect(xs[0]).toBeLessThan(100)
+    expect(xs[3]).toBeGreaterThan(100)
+    const bar = tagAt(view({ kind: 'hotbar', items: ['sword', 'shield', 'potion'] }, th('str', "'sword'"), 'right'))
+    expect(bar).toBeLessThan(100)
+    const html = drawn(view({ kind: 'backpack', items: four }, th('str', "'torch'"), 'right'))
+    expect(html).toMatch(/data-testid="answer-tag" data-at="slot" data-slot="[\d.]+" style="--tag-x:/)
+  })
+
+  it('stands in the corner for a count, or anything that lights no slot; elsewhere it is centred as before', () => {
+    expect(tagAt(view({ kind: 'backpack', items: four }, th('int', '4'), 'right'))).toBe('corner')
+    expect(tagAt(view({ kind: 'hotbar', items: four }, th('str', "'bow'"), 'miss'))).toBe('corner')
+    expect(drawn(view({ kind: 'hotbar', items: four }, th('int', '4'), 'right'))).toContain('data-at="corner"')
+    expect(tagAt(view({ kind: 'value', text: 'backpack[4]' }, th('int', '4')))).toBeNull()
   })
 })
 

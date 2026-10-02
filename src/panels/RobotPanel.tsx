@@ -61,7 +61,7 @@ type Props = {
   /** A question is waiting for a typed answer: the instrument glows. */
   asked?: boolean | undefined
   /** A beat points at part of this panel, which pulses while it shows. */
-  focus?: 'console' | 'memory' | 'run' | undefined
+  focus?: 'console' | 'memory' | 'run' | 'memory-tools' | undefined
   /** Which design the panel wears: `v2` is the robot's terminal and
    *  storage bank (`robot-v2.css`), scoped under `data-look`. */
   look?: 'v1' | 'v2' | undefined
@@ -131,7 +131,9 @@ export function RobotPanel({
     reading ? 220 : talking ? NaN : 280,
   )
   const memoryRef = useRef<HTMLDivElement | null>(null)
-  useMemoryInView(focus === 'memory', memoryRef)
+  // Memory's Undo and Wipe sit in its top corner, so a beat pointing at
+  // them needs memory on screen just the same.
+  useMemoryInView(focus === 'memory' || focus === 'memory-tools', memoryRef)
 
   return (
     <div
@@ -211,7 +213,13 @@ export function RobotPanel({
           data-focus={focus === 'memory' ? 'yes' : 'no'}>
           {memory}
           {talking && onReset && (
-            <MemoryTools onReset={onReset} onUndo={onUndo} canUndo={canUndo} disabled={busy || listening} />
+            <MemoryTools
+              onReset={onReset}
+              onUndo={onUndo}
+              canUndo={canUndo}
+              disabled={busy || listening}
+              pulse={focus === 'memory-tools'}
+            />
           )}
         </div>
       </div>
@@ -500,16 +508,26 @@ function MemoryTools({
   onUndo,
   canUndo,
   disabled,
+  pulse,
 }: {
   onReset: () => void
   onUndo?: (() => void) | undefined
   canUndo: boolean
   disabled: boolean
+  /** A beat points at these two (`focus: 'memory-tools'`): the group
+   *  wears a ring. Disabled buttons stay disabled; only the ring is new. */
+  pulse: boolean
 }) {
   const wipe = "Wipe the robot's memory"
   const back = 'Undo the last line'
   return (
-    <div className="memory-tools" role="group" aria-label="Memory">
+    <div
+      className={`memory-tools ${pulse ? 'pulse' : ''}`}
+      role="group"
+      aria-label="Memory"
+      data-testid="memory-tools"
+      data-focus={pulse ? 'yes' : 'no'}
+    >
       {onUndo && (
         <button
           type="button"

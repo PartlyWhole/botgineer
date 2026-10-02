@@ -7,7 +7,14 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
+  along,
   approach,
+  beside,
+  lerpBox,
+  swing,
+  SWING_FROM,
+  SWING_TO,
+  tripProgress,
   cameraDistance,
   COL_GAP,
   curve,
@@ -442,5 +449,41 @@ describe('the camera', () => {
 
   it('writes a transform both layers can share', () => {
     expect(transformOf({ x: 10, y: 20, k: 2 }, V)).toBe('translate(450px, 210px) scale(2) translate(-10px, -20px)')
+  })
+})
+
+describe('comings and goings', () => {
+  // A card that left memory is drawn by the component, never placed: these
+  // are the timings it reads, and they promise a replacement is seen
+  // beside the old card before it takes the old card's place.
+  it('waits a replacement beside the card it replaces, to the right and a little lower, clear of it', () => {
+    const old = { x: 100, y: 40, w: 50, h: 30 }
+    const at = beside(old, { w: 40, h: 30 })
+    expect(at.x - 20).toBeGreaterThan(old.x + old.w / 2)
+    expect(at.y).toBeGreaterThan(old.y)
+  })
+
+  it('creeps, then glides, and never goes backwards', () => {
+    const trip = { x: 200, y: 60, t0: 0, dur: 1000, wait: 0.6, creep: 0.12 }
+    let last = -1
+    for (let t = 0; t <= 1000; t += 50) {
+      const p = tripProgress(trip, t)
+      expect(p).toBeGreaterThan(last)
+      last = p
+    }
+    expect(tripProgress(trip, 599)).toBeLessThanOrEqual(0.12)
+    expect(along(trip, { x: 100, y: 40 }, 1000)).toEqual({ x: 100, y: 40, done: true })
+    expect(along(trip, { x: 100, y: 40 }, 300).done).toBe(false)
+    // No wait: a plain slide, decelerating.
+    const slide = { ...trip, wait: 0, creep: 0 }
+    expect(tripProgress(slide, 500)).toBeGreaterThan(0.5)
+  })
+
+  it('swings an arrow from its old target to its new one over its window', () => {
+    expect(swing(0)).toBe(0)
+    expect(swing(SWING_FROM)).toBe(0)
+    expect(swing((SWING_FROM + SWING_TO) / 2)).toBeCloseTo(0.5)
+    expect(swing(SWING_TO)).toBe(1)
+    expect(lerpBox({ x: 0, y: 0, w: 10, h: 10 }, { x: 100, y: 50, w: 30, h: 10 }, 0.5)).toEqual({ x: 50, y: 25, w: 20, h: 10 })
   })
 })

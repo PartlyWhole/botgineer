@@ -304,7 +304,7 @@ describe('the rest', () => {
     const c5 = itemById('9.C5')!
     const text = c5.kind === 'exercise' ? (c5.exercise.key.sections[0]!.blocks[0] as { text: string }).text : ''
     const out = html(text)
-    expect(out).toContain('<strong>Defect 1 — line 2, <code class="inline">[[0] * cols] * rows</code>.</strong>')
+    expect(out).toContain('<strong>Defect 1 — line 2, <span class="glued"><code class="inline">[[0] * cols] * rows</code>.</span></strong>')
     expect(out).toContain('<em>Event:</em> <code class="inline">[0] * cols</code> is evaluated <strong>once</strong>')
     expect(out).toContain('that <code class="inline">*</code> on a list of lists')
     expect(out).not.toContain('**')
@@ -543,5 +543,17 @@ describe('richText', () => {
     const t0 = performance.now()
     richText(text)
     expect(performance.now() - t0).toBeLessThan(50)
+  })
+
+  it('keeps the punctuation after a chip with it, so a full stop never starts a line', () => {
+    const html = (t: string) => renderToStaticMarkup(createElement(Fragment, null, richText(t)))
+    expect(html('points at the `10`.')).toBe('points at the <span class="glued"><code class="inline">10</code>.</span>')
+    expect(html('(`x`), then `y`?! ok')).toBe(
+      '(<span class="glued"><code class="inline">x</code>),</span> then <span class="glued"><code class="inline">y</code>?!</span> ok',
+    )
+    // Nothing after it, or a space: the chip stands alone, as before.
+    expect(html('`a` and `b`')).toBe('<code class="inline">a</code> and <code class="inline">b</code>')
+    // Inside emphasis too.
+    expect(html('**see `x`.**')).toBe('<strong>see <span class="glued"><code class="inline">x</code>.</span></strong>')
   })
 })

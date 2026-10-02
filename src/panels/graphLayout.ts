@@ -198,7 +198,7 @@ export function place(input: LayoutInput, sizes: Map<string, Size>): Map<string,
 
 /* ------------------------------ the arrows ------------------------------ */
 
-type Box = { x: number; y: number; w: number; h: number }
+export type Box = { x: number; y: number; w: number; h: number }
 
 export type Curve = {
   /** SVG path data. */
@@ -414,6 +414,93 @@ export function ease(from: { x: number; y: number }, to: { x: number; y: number 
   from.x += dx * rate
   from.y += dy * rate
   return Math.max(Math.abs(dx), Math.abs(dy)) * (1 - rate)
+}
+
+/* --------------------------- comings and goings --------------------------- */
+
+/*
+ * The placement says where things *are*; it cannot say that something
+ * left. After `x = 1` then `x = 1 + 2` the `1` is not in memory, so `place`
+ * puts the `3` at the head of x's row, exactly where the `1` stood, and a
+ * card that vanished as another faded in on the same spot read as the box's
+ * contents changing — the mutation model the binding lessons exist to
+ * replace. So the component shows the change happening, and everything it
+ * needs to time it is here, pure:
+ *
+ *   - the old card stays where it stood for `LEAVE_MS`, dimming and then
+ *     fading out (CSS, `.node.ghost`), a picture of a thing, not a thing:
+ *     inert and out of the accessibility tree;
+ *   - the new one arrives *beside* it (`beside`), on the right, where the
+ *     robot's thought comes from, creeps there while the arrow swings
+ *     across to it (`swing`), and only then glides into its slot (`trip`);
+ *   - any other newcomer slides the last `SLIDE` px in from the right.
+ *
+ * `place` is untouched by all of it, and nothing that stays in memory
+ * moves because of it: only the cards arriving and leaving animate
+ * (invariant 15). Under reduced motion the component skips all of it.
+ */
+
+/** How long a card that left memory stays drawn, ms. Matches `node-out`. */
+export const LEAVE_MS = 1100
+/** When an arrow moving to a new target leaves its old one and when it
+ *  arrives, ms after the line landed. */
+export const SWING_FROM = 200
+export const SWING_TO = 650
+/** A replacement's trip from beside the old card into its slot, ms, and
+ *  the share of it spent creeping (`WAIT`, covering `CREEP` of the way)
+ *  while the arrow swings and the old card dims. A creep, not a stop: a
+ *  card that stood still would look settled to anything watching for it. */
+export const REPLACE_MS = 1050
+export const REPLACE_WAIT = 0.6
+export const REPLACE_CREEP = 0.12
+/** A plain newcomer slides this far in from the right, over `SLIDE_MS`. */
+export const SLIDE = 28
+export const SLIDE_MS = 320
+/** Room between the old card and its replacement waiting beside it, px. */
+export const BESIDE_GAP = 16
+
+/** A time-based move: from here, to wherever its body is going. */
+export type Trip = { x: number; y: number; t0: number; dur: number; wait: number; creep: number }
+
+const easeOut = (p: number) => 1 - (1 - p) ** 3
+const easeInOut = (p: number) => (p < 0.5 ? 4 * p ** 3 : 1 - (-2 * p + 2) ** 3 / 2)
+
+/** How far along a trip is at `now`, 0..1, never going backwards. With no
+ *  wait it simply decelerates; with one it creeps, then glides. */
+export function tripProgress(t: Trip, now: number): number {
+  const p = clamp((now - t.t0) / t.dur, 0, 1)
+  if (t.wait <= 0) return easeOut(p)
+  if (p < t.wait) return t.creep * (p / t.wait)
+  return t.creep + (1 - t.creep) * easeInOut((p - t.wait) / (1 - t.wait))
+}
+
+/** Where a tripping card is at `now`, heading for `to`, and whether it is
+ *  there. `to` is read each frame, so a target that moves is still met. */
+export function along(t: Trip, to: { x: number; y: number }, now: number): { x: number; y: number; done: boolean } {
+  const f = tripProgress(t, now)
+  return { x: t.x + (to.x - t.x) * f, y: t.y + (to.y - t.y) * f, done: now - t.t0 >= t.dur }
+}
+
+/** How far below the old card's middle a replacement waits, as a share of
+ *  the two cards' half-heights together: low enough that the arrow to it
+ *  visibly turns and passes under the old card, not straight through it. */
+export const BESIDE_DROP = 0.85
+
+/** Where a replacement waits: just to the right of the card it replaces
+ *  and a little below it, so both are seen at once and the arrow's swing
+ *  from one to the other is a turn, not an arrow growing longer. */
+export function beside(old: Box, size: Size): { x: number; y: number } {
+  return { x: old.x + old.w / 2 + BESIDE_GAP + size.w / 2, y: old.y + ((old.h + size.h) / 2) * BESIDE_DROP }
+}
+
+/** How far an arrow has swung from its old target to its new one, 0..1. */
+export function swing(elapsed: number): number {
+  return easeInOut(clamp((elapsed - SWING_FROM) / (SWING_TO - SWING_FROM), 0, 1))
+}
+
+/** Part of the way from one box to another: where a swinging arrow points. */
+export function lerpBox(a: Box, b: Box, p: number): Box {
+  return { x: a.x + (b.x - a.x) * p, y: a.y + (b.y - a.y) * p, w: a.w + (b.w - a.w) * p, h: a.h + (b.h - a.h) * p }
 }
 
 /* ------------------------------ the camera ------------------------------ */

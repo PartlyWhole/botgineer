@@ -1,6 +1,8 @@
 # Review: `v2-bind` and `v2-lists` (Lessons 4–5), 2026-10-02
 
-The Memory unit, run with the `review-lessons` workflow. Seed 1 storyboards; scripts for seeds 1–3. 30 findings → 28 clusters → **24 kept, 4 dropped**. Cost in [LESSON-REVIEW-COST.md](../LESSON-REVIEW-COST.md). Nothing here is fixed yet.
+**Fixed** 2026-10-02: all 24 kept findings.
+
+The Memory unit, run with the `review-lessons` workflow. Seed 1 storyboards; scripts for seeds 1–3. 30 findings → 28 clusters → **24 kept, 4 dropped**. Cost in [LESSON-REVIEW-COST.md](../LESSON-REVIEW-COST.md).
 
 ## Kept
 

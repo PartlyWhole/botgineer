@@ -45,6 +45,7 @@ import {
   type ScriptItem,
   type Spoken,
   withCase,
+  wipedBy,
 } from '../../content/lessons'
 import { NO_STAGING } from '../scene/props'
 import { goToMap } from './router'
@@ -744,6 +745,18 @@ export function Workbench({ activity }: { activity: Activity }) {
   )
   const beatAt = Math.max(0, Math.min(telling.key === tellKey ? telling.at : 0, lines.length - 1))
   ideasBeatRef.current = beatAt
+
+  // A beat that announces a wipe (`Beat.wipe`) does it as it shows, so the
+  // praise before it is read over what the player made. Once per visit to
+  // the step, like `wipeFirst` (Back and Next past it again do nothing),
+  // never while a line runs, and a skip straight to the ask has passed it.
+  const beatWipedFor = useRef<string | null>(null)
+  const wipeDue = told !== null && !told.finished && lesson?.wipe === true && wipedBy(told.items, beatAt)
+  useEffect(() => {
+    if (!wipeDue || busy || boot.state !== 'ready' || beatWipedFor.current === tellKey) return
+    beatWipedFor.current = tellKey
+    wipe()
+  }, [wipeDue, busy, boot.state, tellKey, wipe])
   // The ideas: how far the sheet has got, and the words named so far.
   const ideasAt = ideas ? readTo(read.ideas, beatAt) : null
   // When an example has run on this beat, the crow points at what it

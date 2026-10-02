@@ -270,8 +270,9 @@ export const was = (type: string, repr: string) => (t: Heard) => t.type === type
  */
 export type CastAction = { actor: string; do: 'enter' | 'hide' | 'wave' | 'hop' | 'sleep' | 'wake' }
 
-/** A part of the screen a beat points at, which pulses while it shows. */
-export type Focus = 'console' | 'memory' | 'run'
+/** A part of the screen a beat points at, which pulses while it shows.
+ *  `memory-tools` is memory's Undo and Wipe buttons, not the whole pane. */
+export type Focus = 'console' | 'memory' | 'run' | 'memory-tools'
 
 /**
  * One line of narration, told before a step's question (R2: one idea, one
@@ -314,6 +315,14 @@ export type Beat = {
   act?: CastAction[]
   /** Pulse that part of the screen. */
   focus?: Focus
+  /**
+   * The robot's memory is wiped for the player as this beat shows — once
+   * per visit to the step, and not again on Back — so it empties on the
+   * line that says so, not during the praise of the step before (where the
+   * learner is still looking at what they made). Needs `Lesson.wipe`.
+   * Replaces `LessonStep.wipeFirst` for a step that announces its wipe.
+   */
+  wipe?: boolean
   /**
    * Editor lessons: the crow's program, in the editor in place of the
    * player's from this beat on (until another beat sets one, or the
@@ -696,6 +705,8 @@ export type ScriptItem = {
   focus?: Focus | undefined
   code?: string | undefined
   run?: Beat['run'] | undefined
+  /** A beat that wipes the robot's memory as it shows (`Beat.wipe`). */
+  wipe?: boolean | undefined
   /** On the ask and a reply: who does the work. */
   tag?: 'you' | 'robot' | undefined
   /** On a multiple-choice ask or reply: the options, and the ones already
@@ -753,8 +764,17 @@ const beatItem = (kind: 'beat' | 'outro', b: Beat, i: number, speaker: string | 
   focus: b.focus,
   code: b.code,
   run: b.run,
+  wipe: b.wipe,
   beat: i,
 })
+
+/**
+ * Whether showing item `at` of a script means its wipe has happened: some
+ * item at or before it carries `wipe`. Reaching the ask by skipping counts,
+ * since the beats skipped were still told past.
+ */
+export const wipedBy = (items: readonly ScriptItem[], at: number): boolean =>
+  items.slice(0, Math.max(0, at + 1)).some((it) => it.wipe === true)
 
 /**
  * Everything said at this point in the lesson, in order:
