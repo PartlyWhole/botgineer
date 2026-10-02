@@ -143,7 +143,20 @@ for (const [i, step] of lesson.steps.entries()) {
     for (const l of (step.model ?? '').split('\n')) await page.evaluate((x) => (window as any).botgineer.say(x), l)
   }
   await page.waitForTimeout(300)
-  const after = await beat()
+  let after = await beat()
+  // A goal that needs a clean memory (a lesson with Wipe): the learner
+  // presses Wipe, then types the key again. Shot, since it is a step the
+  // learner takes.
+  if (after.kind !== 'praise' && after.kind !== 'outro' && lesson.wipe && !step.choices && !editor) {
+    await page.getByTestId('memory-reset').click()
+    await page.waitForTimeout(400)
+    const wiped = `${pad(i + 1)}-wiped.png`
+    await page.screenshot({ path: `${out}/${wiped}` })
+    index.push(`- \`${wiped}\` — (the learner presses Wipe, then types the key again)`)
+    for (const l of (step.model ?? '').split('\n')) await page.evaluate((x) => (window as any).botgineer.say(x), l)
+    await page.waitForTimeout(300)
+    after = await beat()
+  }
   if (after.kind !== 'praise' && after.kind !== 'outro') {
     index.push('', `**Stopped:** the key for step ${i + 1} (\`${step.model ?? step.choices?.answer}\`) did not do it; the screen says: "${after.text}"`)
     break

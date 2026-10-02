@@ -143,3 +143,28 @@ fresh input, but they are most of what was done.
 - **Verification kept 26 of 29.** Batched verifiers dropped only what they
   could disprove in the page. Whether they are too lenient is the next
   thing calibration (the pre-fix chest in `v2-logic`) should test.
+
+## Measured: the Memory unit (`v2-bind`, `v2-lists`)
+
+2026-10-02. 12,505 words of script (seeds 1–3), 105 storyboard shots
+(≈138k image tokens). Prep ≈6 min (one storyboard rebuilt: `v2-bind`'s last
+goal needs Wipe first, which the storyboard now presses, as a learner
+would). The workflow: **10 agents, 8 min 5 s, 1,061,856 subagent tokens**,
+223 tool calls. From the transcripts: 1.82M cache written, 28.1M cache
+read, 105k output. **30 findings → 28 clusters → 24 kept, 4 dropped** (two
+storyboard timing artifacts, two judged deliberate).
+
+| Agent | Cache written | Cache read | Output | Tool calls |
+|---|---|---|---|---|
+| Story reader | 132,113 | 1,922,234 | 10,840 | 16 |
+| Teacher | 110,345 | 1,183,017 | 22,137 | 9 |
+| Pictures, `v2-bind` (49 shots) | 471,474 | 6,497,729 | 11,433 | 52 |
+| Pictures, `v2-lists` (56 shots) | 463,788 | 8,286,126 | 15,869 | 61 |
+| Merge | 134,930 | 0 | 4,859 | 1 |
+| Verifiers (5 batches) | 505,443 | 10,232,843 | 40,157 | 84 |
+
+Again the picture checkers are half the cache reads (52%). One storyboard
+weakness showed: a beat whose only change is a line *finishing* (an
+`IndexError` printed) was listed against the previous shot, and a
+reviewer read the shot as the line never running; the verifier caught it
+in the live page.
