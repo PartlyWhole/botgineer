@@ -109,6 +109,18 @@ const reset = predict(
       : 'The last pass sets `total` to `0`, then adds that pass\'s coin, `2`.',
 )
 
+const door = (n: number): Prop => ({ kind: 'hud', title: 'Door', stats: [{ name: 'knocks', value: String(n) }] })
+const fire = (hp: number): Prop => ({ kind: 'hud', title: 'Campfire', stats: [{ name: 'hp', value: String(hp) }] })
+/** The big gems, a pass at a time: the pointer on the gem being asked
+ *  about, a tick on those kept and a cross on those skipped. */
+const gemsAt = (pass: number, label = 'big'): Prop => ({
+  kind: 'tally',
+  item: 'gem',
+  values: [7, 2, 9],
+  label,
+  ...(pass >= 0 && pass < 3 ? { mark: pass } : {}),
+  kept: [7, 2, 9].map((g, i) => (i <= pass ? g > 4 : null)),
+})
 const KNOCK = 'knocks = 0\nfor i in range(3):\n    knocks = knocks + 1'
 const lastI = predict(
   'loops-range',
@@ -157,6 +169,7 @@ const teach: LessonStep[] = [
       { say: 'The robot could pick each one up with a line of its own…', code: BY_HAND, show: floor(CAVE) },
       { say: '…but a hundred things would need a hundred lines. A *loop* runs one block for each item.', code: BY_HAND, show: floor(CAVE) },
       { say: '`for thing in cave:` is a header with a colon and a block, like an `if`.', code: PICK, show: floor(CAVE) },
+      { say: 'Here `in` isn\'t a question. It hands `thing` each item in `cave`, one per pass.', code: PICK, show: floor(CAVE) },
       { say: 'Pass 1: `thing` points at the first item, `"gem"`, and the block runs.', code: PICK, run: { line: 4, pass: 1 }, mark: ['thing'], show: floor(CAVE, 0) },
       { say: 'Pass 2: back up to the header. `thing` moves on to `"coin"`, and the block runs again.', code: PICK, run: { line: 4, pass: 2 }, mark: ['thing'], show: floor(CAVE, 1) },
       { say: 'Pass 3: `"key"`.', code: PICK, run: { line: 4, pass: 3 }, mark: ['thing'], show: floor(CAVE, 2) },
@@ -181,7 +194,7 @@ const teach: LessonStep[] = [
   },
   {
     beats: [
-      { speaker: 'courier', say: 'How much is it all worth? Let\'s add up these coins.', show: tally(COINS, undefined, null) },
+      { speaker: 'courier', say: 'And a pile of coins! How much are they worth? Let\'s add them up.', show: tally(COINS, undefined, null) },
       { say: '`total` starts at `0`, before the loop.', code: SUM, run: { line: 2 }, mark: ['total'], show: tally(COINS, undefined, 0) },
       { say: 'Pass 1: `c` is `3`. `total + c` is `3`, and `total` points at that.', code: SUM, run: { line: 4, pass: 1 }, mark: ['c', 'total'], show: tally(COINS, 0, 3) },
       { say: 'Pass 2: `c` is `5`. `3 + 5` is `8`.', code: SUM, run: { line: 4, pass: 2 }, mark: ['c', 'total'], show: tally(COINS, 1, 8) },
@@ -212,11 +225,11 @@ const teach: LessonStep[] = [
   }),
   {
     beats: [
-      { speaker: 'courier', say: 'A door with a sign: "Knock three times."' },
-      { say: '`range(3)` hands a loop the numbers `0`, `1` and `2`: three, counting from `0`, like indexes.', code: KNOCK },
-      { say: 'Pass 1: `i` is `0`, and `knocks` goes up to `1`.', code: KNOCK, run: { line: 3, pass: 1 }, mark: ['i', 'knocks'] },
-      { say: 'Pass 2: `i` is `1`, `knocks` is `2`.', code: KNOCK, run: { line: 3, pass: 2 }, mark: ['i', 'knocks'] },
-      { say: 'Pass 3: `i` is `2`, `knocks` is `3`. That\'s three knocks, and the loop ends.', code: KNOCK, run: 'end', mark: ['i', 'knocks'] },
+      { speaker: 'courier', say: 'A door with a sign: "Knock three times."', show: door(0) },
+      { say: '`range(3)` hands a loop the numbers `0`, `1` and `2`: three, counting from `0`, like indexes.', code: KNOCK, show: door(0) },
+      { say: 'Pass 1: `i` is `0`, and `knocks` goes up to `1`.', code: KNOCK, run: { line: 3, pass: 1 }, mark: ['i', 'knocks'], show: door(1) },
+      { say: 'Pass 2: `i` is `1`, `knocks` is `2`.', code: KNOCK, run: { line: 3, pass: 2 }, mark: ['i', 'knocks'], show: door(2) },
+      { say: 'Pass 3: `i` is `2`, `knocks` is `3`. That\'s three knocks, and the loop ends.', code: KNOCK, run: 'end', mark: ['i', 'knocks'], show: door(3) },
     ],
     say: 'In `for i in range(5):`, what does `i` point at on the last pass?',
     show: { kind: 'value', text: 'range(5)' },
@@ -227,7 +240,8 @@ const teach: LessonStep[] = [
     praise: '`range(5)` is `0` to `4`: five numbers, and the last is one less than five.',
   },
   {
-    say: 'The door wants 10 knocks. Make `knocks` count them, with `range`.',
+    beats: [{ speaker: 'courier', say: 'Another door, and this one wants 10 knocks!', show: door(10) }],
+    say: 'Make `knocks` count 10 knocks, with `range`.',
     // Not a goal memory: the loop's own name (`i`) is in memory too, and
     // the step is about `knocks` alone.
     show: { kind: 'hud', title: 'Door', stats: [{ name: 'knocks', value: '10' }] },
@@ -247,12 +261,12 @@ const teach: LessonStep[] = [
   },
   looping({
     beats: [
-      { speaker: 'courier', say: 'Only the big gems are worth carrying: more than 4.', show: floor(['gem', 'gem', 'gem']) },
-      { say: 'An `if` inside a loop\'s block is asked again on every pass.', code: BIG },
-      { say: 'Pass 1: `g` is `7`. `7 > 4`, so it\'s appended.', code: BIG, run: { line: 5, pass: 1 }, mark: ['g', 'big'] },
-      { say: 'Pass 2: `g` is `2`. `2 > 4` is `False`: the `if`\'s block is skipped.', code: BIG, run: { line: 4, pass: 2 }, mark: ['g', 'big'] },
-      { say: 'Pass 3: `g` is `9`, more than 4: appended.', code: BIG, run: { line: 5, pass: 2 }, mark: ['g', 'big'] },
-      { say: 'Three passes, two appends: `big` is `[7, 9]`.', code: BIG, run: 'end', mark: ['big'] },
+      { speaker: 'courier', say: 'Only the big gems are worth carrying: more than 4.', show: gemsAt(-1) },
+      { say: 'An `if` inside a loop\'s block is asked again on every pass.', code: BIG, show: gemsAt(-1) },
+      { say: 'Pass 1: `g` is `7`. `7 > 4`, so it\'s appended.', code: BIG, run: { line: 5, pass: 1 }, mark: ['g', 'big'], show: gemsAt(0) },
+      { say: 'Pass 2: `g` is `2`. `2 > 4` is `False`: the `if`\'s block is skipped.', code: BIG, run: { line: 4, pass: 2 }, mark: ['g', 'big'], show: gemsAt(1) },
+      { say: 'Pass 3: `g` is `9`, more than 4: appended.', code: BIG, run: { line: 5, pass: 2 }, mark: ['g', 'big'], show: gemsAt(2) },
+      { say: 'Three passes, two appends: `big` is `[7, 9]`.', code: BIG, run: 'end', mark: ['big'], show: gemsAt(3) },
     ],
     say: 'Make `count` count how many `gems` are more than 4.',
     ask: 'Count the big ones',
@@ -267,13 +281,13 @@ const teach: LessonStep[] = [
   }),
   {
     beats: [
-      { speaker: 'courier', say: 'Ouch, that troll! Let\'s rest by a campfire until I\'m back to 100 HP.' },
-      { say: 'A `while` loop runs its block for as long as its question says `True`.', code: HEAL },
-      { say: 'It asks first: is `hp` under 100? `70` is: yes, so the block runs. `hp` is `80`.', code: HEAL, run: { line: 3, pass: 1 }, mark: ['hp'] },
-      { say: 'Back to the question. `80 < 100`: yes again. `90`… then `100`.', code: HEAL, run: { line: 3, pass: 3 }, mark: ['hp'] },
-      { say: 'Is `100` under 100? No: the loop stops.', code: HEAL, run: 'end', mark: ['hp'] },
-      { say: 'Careful: if `hp` went *down*, the answer would never be no.', code: NEVER },
-      { say: 'The robot would go round for ever. It gives up after a while, and says so.', code: NEVER, run: 'end' },
+      { speaker: 'courier', say: 'That potion only got me to 70 HP. Let\'s rest by a campfire until I\'m back to 100.', show: fire(70) },
+      { say: 'A `while` loop runs its block for as long as its question says `True`.', code: HEAL, show: fire(70) },
+      { say: 'It asks first: is `hp` under 100? `70` is: yes, so the block runs. `hp` is `80`.', code: HEAL, run: { line: 3, pass: 1 }, mark: ['hp'], show: fire(80) },
+      { say: 'Back to the question. `80 < 100`: yes again. `90`… then `100`.', code: HEAL, run: { line: 3, pass: 3 }, mark: ['hp'], show: fire(100) },
+      { say: 'Is `100` under 100? No: the loop stops.', code: HEAL, run: 'end', mark: ['hp'], show: fire(100) },
+      { say: 'Careful: if `hp` went *down*, the answer would never be no.', code: NEVER, show: fire(60) },
+      { say: 'The robot would go round for ever. It gives up after a while, and says so.', code: NEVER, run: 'end', show: fire(60) },
       { say: 'Read this one.', code: HEAL20 },
     ],
     say: 'How many times does its block run?',
@@ -353,7 +367,7 @@ export function practice(seed: number): LessonStep[] {
     bug === 'down'
       ? looping({
           speaker: 'courier',
-          say: 'This loop should climb until `height` is at least 50. The robot never finishes it. Fix it!',
+          say: 'This loop should climb 10 at a time until `height` is at least 50. The robot never finishes it. Fix it!',
           ask: 'Fix the loop',
           code: 'height = 10\nwhile height < 50:\n    height = height - 10\n',
           name: 'height',

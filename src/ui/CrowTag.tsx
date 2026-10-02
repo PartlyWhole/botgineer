@@ -17,11 +17,13 @@ export function FeatherMark() {
   )
 }
 
-export function DemoTag() {
+/** `note` follows the name, quieter: `not run yet`. */
+export function DemoTag({ note }: { note?: string | undefined } = {}) {
   return (
     <span className="demo-tag" aria-hidden="true">
       <FeatherMark />
       {CROW_NAME}
+      {note && <span className="demo-note" data-testid="demo-note">· {note}</span>}
     </span>
   )
 }

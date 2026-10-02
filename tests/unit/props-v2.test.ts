@@ -49,11 +49,15 @@ import {
   pathMarks,
   sameLiteral,
   tallyShows,
+  tallyMark,
+  gateRevealed,
+  breakAt,
+  lineRows,
   type Prop,
   type PropView,
 } from '../../src/scene/props'
 import type { Run } from '../../content/lessons/core'
-import { PropLayer, describe as sentence, tagAt } from '../../src/ui/Props'
+import { PropLayer, describe as sentence, exprLayout, tagAt, valueRows } from '../../src/ui/Props'
 import type { MemorySnapshot } from '../../src/memory/model'
 
 const th = (type: string, repr: string) => ({ type, repr })
@@ -296,7 +300,7 @@ describe('the working, played', () => {
   })
 
   it('colours the final value by its kind', () => {
-    expect(drawn(view({ kind: 'expr', text: '8 / 2', first: '8 / 2', then: ['4.0'], demo: 'work' }))).toMatch(/data-kind="float">4\.0</)
+    expect(drawn(view({ kind: 'expr', text: '8 / 2', first: '8 / 2', then: ['4.0'], demo: 'work' }))).toMatch(/data-kind="float"><tspan[^>]*>4\.0</)
   })
 })
 
@@ -927,6 +931,149 @@ describe('a gate worked by and or or', () => {
   })
 })
 
+describe('a gate that asks, its lamps hidden', () => {
+  const hid: Prop = { kind: 'gate', op: 'or', locks: [{ label: '"rope" in backpack', on: false }, { label: 'hp > 50', on: true }], hidden: true }
+  const lamps = (html: string) => [...html.matchAll(/data-testid="lock-\d" data-on="(\w+)"/g)].map((m) => m[1])
+  const truths = (html: string) => [...html.matchAll(/class="gate-truth">([^<]*)</g)].map((m) => m[1])
+
+  it('shows every lamp unlit with a ? and no current while nothing is answered', () => {
+    const html = drawn(view(hid))
+    expect(gateRevealed(view(hid))).toBe(false)
+    expect(lamps(html)).toEqual(['hidden', 'hidden'])
+    expect(truths(html)).toEqual(['?', '?'])
+    expect(html).not.toMatch(/class="gate-lock on/)
+    expect(html).not.toContain('gate-wire live')
+    expect(sentence(view(hid))).not.toMatch(/True|False/)
+  })
+
+  it('keeps them hidden for a miss, which decides nothing', () => {
+    for (const v of [view(hid, th('str', "'yes'"), 'miss'), view(hid, th('bool', 'False'), 'miss')]) {
+      expect(gateRevealed(v)).toBe(false)
+      expect(truths(drawn(v))).toEqual(['?', '?'])
+    }
+  })
+
+  it("shows the lamps' real states once the robot's answer is drawn, or the praise is read", () => {
+    for (const v of [view(hid, th('bool', 'True'), null), view(hid, th('bool', 'True'), 'right'), view(hid, null, 'right')]) {
+      const html = drawn(v)
+      expect(gateRevealed(v)).toBe(true)
+      expect(lamps(html)).toEqual(['no', 'yes'])
+      expect(truths(html)).toEqual(['False', 'True'])
+      expect(html).toMatch(/class="gate-prop open"/)
+      expect(html).toContain('gate-wire live')
+    }
+    // A pick's praise has no thought: the gate still does what it says.
+    expect(gateShows(view({ ...hid, locks: [{ label: 'a', on: false }, { label: 'b', on: false }] }, null, 'right'))).toBe('shut')
+  })
+
+  it('is one picture with the labelled gate before it, and leaves an unhidden gate as it was', () => {
+    expect(sameProp(hid, { ...hid, hidden: false })).toBe(true)
+    const shown = { ...hid, hidden: false }
+    expect(gateRevealed(view(shown))).toBe(true)
+    expect(truths(drawn(view(shown)))).toEqual(['False', 'True'])
+  })
+
+  it('breaks a long lamp label in two rather than drawing it small', () => {
+    const html = drawn(view(hid))
+    expect(html).toMatch(/<tspan[^>]*>&quot;rope&quot;<\/tspan><tspan[^>]*>in backpack<\/tspan>/)
+    const size = Number(/class="gate-label" style="font-size:([\d.]+)px">.{0,80}&quot;rope/.exec(html)![1])
+    expect(size).toBeGreaterThanOrEqual(9.5)
+  })
+})
+
+describe('breaking a line of code', () => {
+  it('breaks before the loosest operator nearest the middle, never inside a string or brackets', () => {
+    const or = '"rope" in backpack or hp > 50'
+    expect(or.slice(breakAt(or)! + 1)).toBe('or hp > 50')
+    expect(lineRows('"Torch" == "torch"').map((r) => r.text)).toEqual(['"Torch"', '== "torch"'])
+    expect(breakAt('"a or b"')).toBeNull()
+    expect(breakAt('range(5)')).toBeNull()
+    expect(breakAt('f(a or b)')).toBeNull()
+    expect(lineRows('2 + 3 * 4')).toHaveLength(2)
+    // A span that must stay whole is not cut.
+    expect(lineRows(or, [[0, 26]])).toHaveLength(1)
+    expect(lineRows(or).map((r) => r.at)).toEqual([0, 19])
+  })
+})
+
+describe('the expression pictures fit their box', () => {
+  const OR = '"rope" in backpack or hp > 50'
+  const working: Extract<Prop, { kind: 'expr' }> = { kind: 'expr', text: OR, first: '"rope" in backpack', then: ['False or hp > 50', 'False or False', 'False'] }
+
+  it('breaks the long expression and draws every row inside the picture, at a readable size', () => {
+    const { size, lines } = exprLayout([{ text: OR, keep: [[0, 18]] }, ...working.then.map((text) => ({ text }))])
+    expect(lines[0]!.map((r) => r.text)).toEqual(['"rope" in backpack', 'or hp > 50'])
+    expect(size).toBeGreaterThanOrEqual(12)
+    for (const r of lines.flat()) {
+      expect(r.text.length * size * 0.6).toBeLessThanOrEqual(188.01)
+      expect(r.y).toBeLessThanOrEqual(126)
+    }
+  })
+
+  it('draws both the ask and the working played with one size for every row', () => {
+    for (const p of [working, { ...working, demo: 'work' as const }]) {
+      const html = drawn(view(p))
+      const size = Number(/class="expr[^"]*" style="font-size:([\d.]+)px"/.exec(html)![1])
+      expect(size).toBeGreaterThanOrEqual(12)
+      expect(size).toBeLessThanOrEqual(16)
+      expect(html).toContain('>or hp &gt; 50<')
+    }
+  })
+
+  it('keeps a short one as it was: one row each, at 16', () => {
+    const { size, lines } = exprLayout([{ text: '2 + 3 * 4' }, { text: '2 + 12' }, { text: '14' }])
+    expect(size).toBe(16)
+    expect(lines.every((l) => l.length === 1)).toBe(true)
+  })
+})
+
+describe('the value card fits its whole text', () => {
+  it('never cuts the text, and writes a long comparison on two rows', () => {
+    const html = drawn(view({ kind: 'value', text: '"Torch" == "torch"' }))
+    expect(html).not.toContain('…')
+    expect(html).toContain('>&quot;Torch&quot;<')
+    expect(html).toContain('>== &quot;torch&quot;<')
+    const { rows, size } = valueRows('"Torch" == "torch"')
+    expect(rows).toHaveLength(2)
+    expect(size).toBeGreaterThan(20)
+    for (const r of rows) expect(r.length * size * 0.6).toBeLessThanOrEqual(128.01)
+    expect(valueRows('3.0')).toEqual({ rows: ['3.0'], size: 46 })
+    // Nowhere to break: one row, shrunk to fit, still whole.
+    const long = valueRows('backpack_contents[10]')
+    expect(long.rows).toEqual(['backpack_contents[10]'])
+    expect(long.size * 0.6 * 21).toBeLessThanOrEqual(128.01)
+  })
+})
+
+describe('a tally of gems with an if: kept and passed over', () => {
+  const gems = (mark: number, kept?: (boolean | null)[]): Prop => ({ kind: 'tally', item: 'gem', values: [7, 2, 9], label: 'big', mark, ...(kept ? { kept } : {}) })
+
+  it('draws each gem with its value', () => {
+    const html = drawn(view(gems(0)))
+    for (const n of ['7', '2', '9']) expect(html).toMatch(new RegExp(`class="tally-value"[^>]*>${n}<`))
+    expect(html).toContain('tally-gem')
+  })
+
+  it('ticks a kept gem, crosses a skipped one, and marks nothing not reached', () => {
+    const p = gems(2, [true, false, null])
+    expect([0, 1, 2].map((i) => tallyMark(p as Extract<Prop, { kind: 'tally' }>, i))).toEqual(['kept', 'skipped', 'none'])
+    const html = drawn(view(p))
+    expect(html).toMatch(/data-testid="coin-0" data-counted="yes" data-kept="yes"/)
+    expect(html).toMatch(/data-testid="coin-1" data-counted="yes" data-kept="no"/)
+    expect(html).toMatch(/data-testid="coin-2" data-marked="yes" style/)
+    expect(html.match(/tally-tick tally-cross/g)).toHaveLength(1)
+    expect(html.match(/class="tally-tick"/g)).toHaveLength(1)
+    expect(sentence(view(p))).toBe('A row of 3 gems: 7, 2, 9. The loop is at the 9; 7, 2 already counted. Kept: 7. Passed over: 2. big is empty.')
+  })
+
+  it('keeps the plain counted tick without kept, and is one picture as kept changes', () => {
+    const plain = gems(2) as Extract<Prop, { kind: 'tally' }>
+    expect(tallyMark(plain, 0)).toBe('counted')
+    expect(drawn(view(plain))).not.toContain('tally-cross')
+    expect(sameProp(gems(0, []), gems(3, [true, false, true]))).toBe(true)
+  })
+})
+
 describe('a fork of if, elif and else', () => {
   const branches = [
     { test: 'hp > 50', result: '"fight"' },
@@ -1043,6 +1190,24 @@ describe('a scoreboard of cases', () => {
     expect(html).not.toContain('cases-mark')
     expect(html.match(/>—</g)).toHaveLength(3)
     expect(sentence(view(p))).toMatch(/^The robot tries the program on 3 cases, not run yet\./)
+  })
+
+  it('draws every row at one size: givens alike, wants and gots alike', () => {
+    const sizes = (html: string, cls: string) => [...html.matchAll(new RegExp(`class="${cls}[^"]*"[^>]*font-size:([\\d.]+)px`, 'g'))].map((m) => Number(m[1]))
+    for (const rows of [
+      [{ given: 'coins = 12', want: '"buy"' }, { given: 'coins = 3', want: '"leave"' }],
+      [{ given: 'coins = [1, 4, 5]', want: '[2, 8, 10]' }, { given: 'coins = [3]', want: '[6]' }],
+      [{ given: 'hp = 80, potions = 1', want: '"fight"' }, { given: 'hp = 20', want: '"run"' }],
+    ]) {
+      const html = drawn(view({ kind: 'cases', name: 'x', rows }))
+      for (const cls of ['cases-given', 'cases-want', 'cases-got']) {
+        const at = sizes(html, cls)
+        expect(at).toHaveLength(rows.length)
+        expect(new Set(at).size, `${cls} in ${rows[0]!.given}`).toBe(1)
+      }
+      // The long list case reads at a size, not shrunk into its column.
+      if (rows[0]!.want === '[2, 8, 10]') expect(sizes(html, 'cases-want')[0]).toBeGreaterThanOrEqual(9)
+    }
   })
 
   it('compares literals by value, whichever quotes', () => {

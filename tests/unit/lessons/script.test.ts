@@ -11,6 +11,7 @@ import { CROW_NAME } from '../../../content/cast'
 import { castAt, cloud, guidance, script, staging, type Lesson } from '../../../content/lessons'
 import { beforeLast, everBy, wipedBy, heard, points, targetOf, was, type Evidence, type Line, type LineMemory } from '../../../content/lessons/core'
 import type { MemorySnapshot } from '../../../src/memory/model'
+import type { Prop } from '../../../src/scene/props'
 import { EMPTY, NOTHING, bound, failed, line, snap, th, typed } from './fixtures'
 
 const LAMP = { kind: 'lamp' } as const
@@ -447,5 +448,68 @@ describe('the cloud', () => {
     expect(cloud(item('praise'), forty2, answered, true)).toBeNull()
     // A beat's demonstration is not the robot's thought, so it still shows.
     expect(cloud(item('beat', '7'), forty2, since, true)).toBe('7')
+  })
+})
+
+describe('a praise picture draws this step’s answer, never an older one', () => {
+  // Unordered, like v2-logic: a thought step, then a step done by binding.
+  const HUD: Prop = { kind: 'hud', title: 'Mira', stats: [{ name: 'coins', value: '12' }, { name: 'rich', value: '?' }] }
+  const BOUND: Lesson = {
+    id: 'bound',
+    teaches: [],
+    steps: [
+      { say: 'Ask `not has_key`.', show: { kind: 'lamp' }, done: (e) => heard(e, was('bool', 'True')), praise: 'Yes.' },
+      { say: 'Remember `rich`.', show: HUD, done: (e) => points(e.snapshot, 'rich', 'False'), praise: '`rich` points at `False`.' },
+      { say: 'Next.', done: () => false },
+    ],
+    outro: 'Done.',
+  }
+  const rich = bound('rich', 'bool', 'False')
+  const after = snap([rich.object], [rich.binding])
+  const e: Evidence = {
+    snapshot: after,
+    thoughts: [th('bool', 'True')],
+    history: [EMPTY, after],
+    last: { ...line('rich = coins > 100', null), memory: after },
+  }
+
+  it('does not hand a binding step the True thought of the step before', () => {
+    const s = staging(BOUND, e, 0).current!
+    expect(s.verdict).toBe('right')
+    expect(s.answer).toEqual({ type: 'bool', repr: 'False' })
+    // The row the question waited on is filled from memory.
+    expect(s.prop).toMatchObject({ kind: 'hud', stats: [{ name: 'coins', value: '12' }, { name: 'rich', value: 'False' }] })
+  })
+
+  it('draws no answer when the picture cannot show the bound object', () => {
+    const LAMPED: Lesson = { ...BOUND, steps: BOUND.steps.map((st, i) => (i === 1 ? { ...st, show: { kind: 'lamp' } as const } : st)) }
+    expect(staging(LAMPED, e, 0).current!.answer).toBeNull()
+  })
+
+  it('still names the thought that did a thought step', () => {
+    const first = staging(BOUND, { ...e, snapshot: EMPTY, history: [EMPTY], last: line('not has_key', th('bool', 'True')) }, 0).current!
+    expect(first.answer).toEqual({ type: 'bool', repr: 'True' })
+  })
+
+  it('fills a tally’s counter from a right pick', () => {
+    const TALLIED: Lesson = {
+      id: 'tallied',
+      teaches: [],
+      steps: [
+        {
+          say: 'What does `total` point at?',
+          show: { kind: 'tally', values: [4, 1, 4], total: null },
+          choices: { id: 'sum', options: [{ id: '9', label: '`9`' }, { id: '3', label: '`3`' }], answer: '9' },
+          done: (ev) => (ev.picks ?? []).some((p) => p.ask === 'sum' && p.choice === '9'),
+          praise: 'One coin a pass: `9`.',
+        },
+        { say: 'Next.', done: () => false },
+      ],
+      outro: 'Done.',
+    }
+    const picked: Evidence = { ...NOTHING, picks: [{ ask: 'sum', choice: '3' }, { ask: 'sum', choice: '9' }], lastPick: { ask: 'sum', choice: '9' } }
+    const s = staging(TALLIED, picked, 0).current!
+    expect(s.answer).toEqual({ type: 'int', repr: '9' })
+    expect(s.verdict).toBe('right')
   })
 })

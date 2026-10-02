@@ -1205,6 +1205,19 @@
   text-decoration-thickness: 2px;
 }
 
+/* Held: the options stand, quiet, while the crow's program they are
+   about is still typing in; they come into play once it is all there. */
+.stage .choices[data-held='yes'] .choice {
+  cursor: default;
+  opacity: 0.45;
+}
+.stage .choices:not([data-held]) .choice:not(.tried) {
+  transition:
+    translate 80ms ease,
+    box-shadow 80ms ease,
+    opacity 200ms ease;
+}
+
 @container stage (max-width: 480px) {
   .stage .choices {
     bottom: calc(8px + var(--foot, 0px));

@@ -61,7 +61,10 @@ import {
   TALLY_MAX,
   caseResult,
   gateCurrent,
+  gateRevealed,
   gateShows,
+  lineRows,
+  tallyMark,
   hudBar,
   hudIcon,
   literalBool,
@@ -1555,6 +1558,66 @@ function Balance({ view, p }: { view: PropView; p: Extract<Prop, { kind: 'balanc
 
 /* --- expr: one operation at a time --- */
 
+/** The expression pictures' box: what the rows may fill, and at most how
+ *  large. A line that would be drawn under `wrap` breaks in two before an
+ *  operator (`lineRows`) so it is read at a size, not shrunk to fit. */
+const EXPR = { width: 188, height: 122, top: 4, max: 16, wrap: 13, row: 1.25, line: 2.1 } as const
+
+type ExprRow = { text: string; at: number; y: number }
+
+/**
+ * Lines of working laid out as rows in the picture: each line one row, or
+ * two when it is too long to read at `EXPR.wrap` and breaks without
+ * cutting a span it must keep whole (`keep`). Then one size for every row,
+ * as large as fits both the width and the height, and the rows placed top
+ * down: a row's step within a line, a longer one between lines for the
+ * arrow. Every row is centred, so a span `[a, b)` of a line is drawn at
+ * `spanBox`.
+ */
+export function exprLayout(lines: readonly { text: string; keep?: readonly (readonly [number, number])[] }[]): { size: number; lines: ExprRow[][] } {
+  const rowsOf = lines.map(({ text, keep }) => (EXPR.width / Math.max(1, text.length * 0.6) < EXPR.wrap ? lineRows(text, keep ?? []) : [{ text, at: 0 }]))
+  const rows = rowsOf.reduce((k, r) => k + r.length, 0)
+  const tall = 1 + (rows - lines.length) * EXPR.row + Math.max(0, lines.length - 1) * EXPR.line + 0.3
+  const longest = Math.max(1, ...rowsOf.flat().map((r) => r.text.length))
+  const size = Math.min(EXPR.max, EXPR.width / (longest * 0.6), EXPR.height / tall)
+  let y = EXPR.top + size
+  const out = rowsOf.map((line, i) => {
+    if (i > 0) y += size * EXPR.line
+    return line.map((r, k) => {
+      if (k > 0) y += size * EXPR.row
+      return { ...r, y }
+    })
+  })
+  return { size, lines: out }
+}
+
+/** Where a span `[a, b)` of a laid-out line is drawn: on the row that
+ *  holds it, padded, a highlight's box. Null when no one row holds it. */
+function spanBox(rows: readonly ExprRow[], [a, b]: readonly [number, number], size: number): { x: number; y: number; w: number; h: number } | null {
+  const r = rows.find((row) => row.at <= a && b <= row.at + row.text.length)
+  if (!r) return null
+  const cw = size * 0.6
+  const pad = size / 8
+  return { x: 100 - (r.text.length * cw) / 2 + (a - r.at) * cw - pad, y: r.y - size, w: (b - a) * cw + 2 * pad, h: size * 1.375 }
+}
+
+/** A line's rows as text: centred, each row its own `tspan`. */
+function ExprLine({ rows, className, kind }: { rows: readonly ExprRow[]; className: string; kind?: string | undefined }) {
+  return (
+    <text x="100" y={rows[0]!.y.toFixed(2)} className={className} data-kind={kind}>
+      {rows.map((r, k) => (
+        <tspan key={k} x="100" y={r.y.toFixed(2)}>
+          {r.text}
+        </tspan>
+      ))}
+    </text>
+  )
+}
+
+/** The arrow from one line's last row down to the next line's first. */
+const exprArrow = (from: readonly ExprRow[], to: readonly ExprRow[], size: number) =>
+  `M 100 ${(from[from.length - 1]!.y + size * 0.5).toFixed(2)} V ${(to[0]!.y - size * 1.125).toFixed(2)}`
+
 function Expr({ view, text, first, then }: { view: PropView; text: string; first: string; then: string[] }) {
   // The working is the payoff, so it waits for the robot to have worked it
   // out: shown on a miss, it would hand over the answer to the question.
@@ -1562,25 +1625,26 @@ function Expr({ view, text, first, then }: { view: PropView; text: string; first
   // The right number typed by hand shows no working either — and says so
   // in amber: that is the number, and it is still `?` how it was made.
   const waiting = unworked(view)
-  const cw = 9.6
-  const x0 = 100 - (text.length * cw) / 2
   const at = text.indexOf(first)
+  const keep: [number, number][] = at >= 0 ? [[at, at + first.length]] : []
+  // Laid out with its working (and, before it shows, the `= ?` in the
+  // working's first place), so the expression does not move when the
+  // working arrives.
+  const { size, lines } = exprLayout([{ text, keep }, ...(then.length ? then : ['= ?']).map((t) => ({ text: t }))])
+  const firstBox = at >= 0 ? spanBox(lines[0]!, keep[0]!, size) : null
+  const fs = { fontSize: `${size.toFixed(2)}px` }
   return (
-    <g className={`expr ${shown ? 'shown' : ''} ${waiting ? 'unworked' : ''}`}>
-      {at >= 0 && shown && <rect x={x0 + at * cw - 2} y="14" width={first.length * cw + 4} height="24" rx="5" className="first" />}
-      <text x="100" y="31" className="expr-text">
-        {text}
-      </text>
-      {then.map((line, i) => (
+    <g className={`expr ${shown ? 'shown' : ''} ${waiting ? 'unworked' : ''}`} style={fs}>
+      {firstBox && shown && <rect x={firstBox.x.toFixed(2)} y={firstBox.y.toFixed(2)} width={firstBox.w.toFixed(2)} height={firstBox.h.toFixed(2)} rx="5" className="first" />}
+      <ExprLine rows={lines[0]!} className="expr-text" />
+      {then.map((_, i) => (
         <g key={i} className="step" style={{ ['--i' as string]: i }}>
-          <path d={`M 100 ${44 + i * 30} v 8`} className="step-arrow" />
-          <text x="100" y={68 + i * 30} className={`expr-text ${i === then.length - 1 ? 'result' : ''}`}>
-            {line}
-          </text>
+          <path d={exprArrow(lines[i]!, lines[i + 1]!, size)} className="step-arrow" />
+          <ExprLine rows={lines[i + 1]!} className={`expr-text ${i === then.length - 1 ? 'result' : ''}`} />
         </g>
       ))}
       {!shown && (
-        <text x="100" y="80" className="expr-hint">
+        <text x="100" y={lines[1]![0]!.y.toFixed(2)} className="expr-hint">
           = ?
         </text>
       )}
@@ -1594,43 +1658,37 @@ function Expr({ view, text, first, then }: { view: PropView; text: string; first
  *  kind's colour. Every piece is where it rests; the playing is CSS
  *  (`backwards`), so without motion this is the finished working. */
 function Working({ text, first, then }: { text: string; first: string; then: string[] }) {
-  const lines = exprWorking(text, first, then)
-  const cw = 9.6
-  // Evenly spaced, with room for an arrow between one line's lit span
-  // and the next's: as far apart as four lines allow, at most 36.
-  const pitch = Math.min(36, 100 / Math.max(1, lines.length - 1))
-  const y = (i: number) => 24 + i * pitch
-  const x0 = (t: string) => 100 - (t.length * cw) / 2
-  const box = (i: number, [a, b]: [number, number]) => ({ x: x0(lines[i]!.text) + a * cw - 2, y: y(i) - 16, w: (b - a) * cw + 4 })
-  const last = lines[lines.length - 1]!.text
+  const worked = exprWorking(text, first, then)
+  const { size, lines } = exprLayout(worked.map((l) => ({ text: l.text, keep: [l.work, l.made].filter((s): s is [number, number] => !!s) })))
+  const box = (i: number, span: [number, number]) => spanBox(lines[i]!, span, size)
+  const last = worked[worked.length - 1]!.text
   return (
-    <g className="expr working">
-      {lines.map((l, i) => {
+    <g className="expr working" style={{ fontSize: `${size.toFixed(2)}px` }}>
+      {worked.map((l, i) => {
         const made = l.made ? box(i, l.made) : null
-        const from = i > 0 && lines[i - 1]!.work ? box(i - 1, lines[i - 1]!.work!) : null
+        const from = i > 0 && worked[i - 1]!.work ? box(i - 1, worked[i - 1]!.work!) : null
         const work = l.work ? box(i, l.work) : null
+        const result = i === worked.length - 1 && i > 0
         return (
           <g key={i} className={i > 0 ? 'step' : 'start'} style={{ ['--i' as string]: i - 1, ['--s' as string]: i }}>
-            {i > 0 && <path d={`M 100 ${y(i - 1) + 8} V ${y(i) - 18}`} className="step-arrow" />}
+            {i > 0 && <path d={exprArrow(lines[i - 1]!, lines[i]!, size)} className="step-arrow" />}
             {made && (
               <rect
                 x={+made.x.toFixed(2)}
-                y={made.y}
+                y={+made.y.toFixed(2)}
                 width={+made.w.toFixed(2)}
-                height="22"
+                height={+made.h.toFixed(2)}
                 rx="5"
                 className="made"
                 style={
                   from
-                    ? { ['--dx' as string]: `${(from.x - made.x).toFixed(2)}px`, ['--dy' as string]: `${from.y - made.y}px`, ['--sx' as string]: (from.w / made.w).toFixed(3) }
+                    ? { ['--dx' as string]: `${(from.x - made.x).toFixed(2)}px`, ['--dy' as string]: `${(from.y - made.y).toFixed(2)}px`, ['--sx' as string]: (from.w / made.w).toFixed(3) }
                     : undefined
                 }
               />
             )}
-            {work && i < lines.length - 1 && <rect x={+work.x.toFixed(2)} y={work.y} width={+work.w.toFixed(2)} height="22" rx="5" className="work" />}
-            <text x="100" y={y(i)} className={`expr-text ${i === lines.length - 1 && i > 0 ? 'result' : ''}`} data-kind={i === lines.length - 1 && i > 0 ? literalKind(last) : undefined}>
-              {l.text}
-            </text>
+            {work && i < worked.length - 1 && <rect x={+work.x.toFixed(2)} y={+work.y.toFixed(2)} width={+work.w.toFixed(2)} height={+work.h.toFixed(2)} rx="5" className="work" />}
+            <ExprLine rows={lines[i]!} className={`expr-text ${result ? 'result' : ''}`} kind={result ? literalKind(last) : undefined} />
           </g>
         )
       })}
@@ -2085,20 +2143,36 @@ function Note({ view, text, title }: { view: PropView; text: string; title: stri
 
 /* --- value: one literal, and nothing to say which kind --- */
 
+/** How the value card writes its text: one row, as big as the card
+ *  allows with about 12 units clear each side of the 152-wide card (a
+ *  monospace character is 0.6 of its size, and at 148 a bold quote mark
+ *  sat against the card's edge); or, when that would be small
+ *  (`"Torch" == "torch"`), two rows broken before an operator, if that
+ *  reads larger. Never cut: the whole text is the question. */
+export function valueRows(text: string): { rows: string[]; size: number } {
+  const fit = (rows: string[]) => Math.min(46, 128 / (Math.max(1, ...rows.map((r) => [...r].length)) * 0.6), 72 / (rows.length * 1.2))
+  const one = fit([text])
+  if (one >= 24) return { rows: [text], size: one }
+  const rows = lineRows(text).map((r) => r.text)
+  const two = rows.length > 1 ? fit(rows) : 0
+  return two > one ? { rows, size: two } : { rows: [text], size: one }
+}
+
 function Value({ text }: { text: string }) {
-  const shown = short(text, 16)
-  const n = Math.max(1, [...shown].length)
-  // As big as the card allows, with about 12 units clear each side of
-  // the 152-wide card: a monospace character is 0.6 of its size, and at
-  // 148 a bold quote mark sat against the card's edge.
-  const size = Math.min(46, 128 / (n * 0.6))
+  const { rows, size } = valueRows(text)
+  // The rows centred on the card's middle, 1.2 sizes apart.
+  const y0 = 61 + size * 0.36 - ((rows.length - 1) * size * 1.2) / 2
   return (
     <g className="value">
       <g className="value-card">
         <rect x="24" y="18" width="152" height="94" rx="12" className="value-shadow" />
         <rect x="22" y="14" width="152" height="94" rx="12" className="value-face" />
-        <text x="98" y={61 + size * 0.36} className="value-text" style={{ fontSize: `${size.toFixed(2)}px` }}>
-          {shown}
+        <text x="98" y={y0.toFixed(2)} className="value-text" style={{ fontSize: `${size.toFixed(2)}px` }}>
+          {rows.map((r, k) => (
+            <tspan key={k} x="98" y={(y0 + k * size * 1.2).toFixed(2)}>
+              {r}
+            </tspan>
+          ))}
         </text>
       </g>
     </g>
@@ -3941,10 +4015,26 @@ function gateLampYs(n: number): number[] {
   return Array.from({ length: n }, (_, i) => 60 - span / 2 + (i * span) / (n - 1))
 }
 
+/** A lamp's label: one row as large as fits beside the lamp, or, when
+ *  that would be small to read (`"rope" in backpack`), two rows broken
+ *  before an operator, as large as the longer allows. Two rows only when
+ *  the lamps are far enough apart to take them. */
+function gateLabel(text: string, locks: number): { rows: string[]; size: number } {
+  const room = GATE.labelEnd - 4
+  const fit = (rows: string[]) => Math.min(11.5, room / Math.max(1, ...rows.map((r) => monoW(r, 1))))
+  const one = fit([text])
+  if (one >= 9.5 || locks > 2) return { rows: [text], size: one }
+  const rows = lineRows(text).map((r) => r.text)
+  const two = fit(rows)
+  return two > one ? { rows, size: two } : { rows: [text], size: one }
+}
+
 function gateSentence(view: PropView, p: Extract<Prop, { kind: 'gate' }>): string {
   const locks = p.locks.slice(0, GATE_LOCKS)
   const wired = locks.length < 2 ? 'one lamp' : p.op === 'and' ? 'lamps in a row on one wire (and: every one must be lit)' : 'lamps side by side (or: any one lit will do)'
-  const lamps = locks.map((l) => `${l.label} is ${l.on ? 'lit, True' : 'dark, False'}`).join('; ')
+  const lamps = gateRevealed(view)
+    ? locks.map((l) => `${l.label} is ${l.on ? 'lit, True' : 'dark, False'}`).join('; ')
+    : `${locks.map((l) => l.label).join('; ')}, each not asked yet`
   const shows = gateShows(view)
   const end =
     shows === 'open'
@@ -3976,6 +4066,8 @@ function Gate({ view, p }: { view: PropView; p: Extract<Prop, { kind: 'gate' }> 
   const shows = gateShows(view)
   const current = gateCurrent(p)
   const flowing = shows === 'open' || shows === 'shut'
+  // A hidden gate's lamps say nothing until the gate has decided.
+  const revealed = gateRevealed(view)
   const series = p.op === 'and'
   const last = ys[n - 1] ?? 66
   const X = GATE.lamp
@@ -4028,14 +4120,25 @@ function Gate({ view, p }: { view: PropView; p: Extract<Prop, { kind: 'gate' }> 
           .map((w, i) => <path key={`l${i}:${w.d}`} d={w.d} className="gate-wire live" style={{ ['--at' as string]: `${(w.at * step).toFixed(2)}s` }} />)}
       {locks.map((l, i) => {
         const y = ys[i]!
-        const size = Math.min(11.5, (GATE.labelEnd - 4) / Math.max(1, monoW(l.label, 1)))
+        const label = gateLabel(l.label, n)
+        const on = revealed && l.on
         return (
-          <g key={i} className={['gate-lock', l.on && 'on'].filter(Boolean).join(' ')} data-testid={`lock-${i}`} data-on={l.on ? 'yes' : 'no'} style={{ ['--i' as string]: i }}>
-            <text x={GATE.labelEnd} y={y - 1} className="gate-label" style={{ fontSize: `${size.toFixed(2)}px` }}>
-              {l.label}
+          <g
+            key={i}
+            className={['gate-lock', on && 'on', !revealed && 'hidden'].filter(Boolean).join(' ')}
+            data-testid={`lock-${i}`}
+            data-on={revealed ? (l.on ? 'yes' : 'no') : 'hidden'}
+            style={{ ['--i' as string]: i }}
+          >
+            <text x={GATE.labelEnd} y={(y - 1 - (label.rows.length - 1) * label.size * 1.1).toFixed(2)} className="gate-label" style={{ fontSize: `${label.size.toFixed(2)}px` }}>
+              {label.rows.map((row, k) => (
+                <tspan key={k} x={GATE.labelEnd} dy={k === 0 ? 0 : (label.size * 1.1).toFixed(2)}>
+                  {row}
+                </tspan>
+              ))}
             </text>
-            <text x={GATE.labelEnd} y={y + 9.5} className="gate-truth">
-              {l.on ? 'True' : 'False'}
+            <text x={GATE.labelEnd} y={y + 10} className="gate-truth">
+              {revealed ? (l.on ? 'True' : 'False') : '?'}
             </text>
             <circle cx={X} cy={y} r={r + 4} className="gate-halo" />
             <circle cx={X} cy={y} r={r} className="gate-lamp" />
@@ -4254,7 +4357,10 @@ function tallySentence(view: PropView, p: Extract<Prop, { kind: 'tally' }>): str
         : ` The loop is at the ${values[at]}${at > 0 ? `; ${values.slice(0, at).join(', ')} already counted` : ''}.`
   const shown = tallyShows(view)
   const holds = shown === null ? `${label} is empty` : `${label} holds ${shown.text}${shown.refused ? ', not taken' : ''}`
-  return `A row of ${values.length} ${things}: ${values.join(', ')}.${pass} ${holds}.`
+  const kept = values.filter((_, i) => tallyMark(p, i) === 'kept')
+  const skipped = values.filter((_, i) => tallyMark(p, i) === 'skipped')
+  const sorted = p.kept ? `${kept.length ? ` Kept: ${kept.join(', ')}.` : ''}${skipped.length ? ` Passed over: ${skipped.join(', ')}.` : ''}` : ''
+  return `A row of ${values.length} ${things}: ${values.join(', ')}.${pass}${sorted} ${holds}.`
 }
 
 /**
@@ -4274,7 +4380,8 @@ function Tally({ view, p }: { view: PropView; p: Extract<Prop, { kind: 'tally' }
   const cy = 26 + r
   const mark = p.mark
   const at = mark !== undefined && mark >= 0 && mark < values.length ? mark : null
-  const counted = (i: number) => mark !== undefined && i < mark
+  const marks = values.map((_, i) => tallyMark(p, i))
+  const counted = (i: number) => marks[i] !== 'none'
   const shown = tallyShows(view)
   const label = p.label ?? 'total'
   const gem = p.item === 'gem'
@@ -4293,10 +4400,11 @@ function Tally({ view, p }: { view: PropView; p: Extract<Prop, { kind: 'tally' }
         return (
           <g
             key={i}
-            className={['tally-coin', at === i && 'marked', counted(i) && 'counted'].filter(Boolean).join(' ')}
+            className={['tally-coin', at === i && 'marked', counted(i) && 'counted', marks[i] === 'kept' && 'kept', marks[i] === 'skipped' && 'skipped'].filter(Boolean).join(' ')}
             data-testid={`coin-${i}`}
             data-marked={at === i ? 'yes' : undefined}
             data-counted={counted(i) ? 'yes' : undefined}
+            data-kept={marks[i] === 'kept' ? 'yes' : marks[i] === 'skipped' ? 'no' : undefined}
             style={{ ['--i' as string]: i }}
           >
             <g className="coin-face">
@@ -4314,10 +4422,17 @@ function Tally({ view, p }: { view: PropView; p: Extract<Prop, { kind: 'tally' }
             </g>
             {counted(i) && (
               <g transform={`translate(${cx(i) + r * 0.72},${cy - r * 0.72})`}>
-                <g className="tally-tick">
-                  <circle r="4.6" />
-                  <path d="M-2.2 0.1 l1.5 1.7 l3 -3.4" />
-                </g>
+                {marks[i] === 'skipped' ? (
+                  <g className="tally-tick tally-cross">
+                    <circle r="4.6" />
+                    <path d="M-1.9 -1.9 l3.8 3.8 M1.9 -1.9 l-3.8 3.8" />
+                  </g>
+                ) : (
+                  <g className="tally-tick">
+                    <circle r="4.6" />
+                    <path d="M-2.2 0.1 l1.5 1.7 l3 -3.4" />
+                  </g>
+                )}
               </g>
             )}
           </g>
@@ -4402,17 +4517,47 @@ function Cases({ view, p }: { view: PropView; p: Extract<Prop, { kind: 'cases' }
   // top, want and got under them.
   const givenW = Math.max(6, ...rows.flatMap((r) => givenLines(r.given).map((l) => monoW(l, 1))))
   const valueW = Math.max(4, ...rows.map((r, i) => Math.max(monoW(short(r.want, 22), 1), monoW(short(caseResult(view, i)?.got ?? '—', 22), 1))))
-  const stacked = givenW + 2 * valueW > 30
-  const gw = stacked ? 156 : Math.max(52, Math.min(96, (156 * givenW) / (givenW + 2 * valueW)))
-  // Want and got share what is left (all of it, stacked), each centred
-  // in its half (`text-anchor: middle`), clear of the mark at the right.
-  const vx = stacked ? 24 : 24 + gw + 6
-  const vw = (180 - vx) / 2
-  const col = { given: 24, want: vx + vw / 2, got: vx + vw * 1.5, split: vx + vw, mark: 189 } as const
   const head = 22
-  const rowH = Math.min(30, (124 - head) / n)
   const top = head + 2
   const nameSize = Math.min(10, 70 / Math.max(1, monoW(p.name, 1)))
+  const gotText = (i: number) => {
+    const res = caseResult(view, i)
+    return res === null ? '—' : short(res.got, 22)
+  }
+  // One size for every row's given, and one for every want and got:
+  // each the largest the longest of them allows, so no row is drawn
+  // smaller than the one beside it because its values are longer. A got
+  // is never drawn larger than the wants. Laid out both ways, side by
+  // side and stacked, and drawn the way that reads larger.
+  const layout = (stacked: boolean) => {
+    const gw = stacked ? 156 : Math.max(52, Math.min(96, (156 * givenW) / (givenW + 2 * valueW)))
+    // Want and got share what is left (all of it, stacked), each centred
+    // in its half (`text-anchor: middle`), clear of the mark at the right.
+    const vx = stacked ? 24 : 24 + gw + 6
+    const vw = (180 - vx) / 2
+    // A stacked card holds two lines, so it may be taller, where there is
+    // room for it.
+    const rowH = Math.min(stacked ? 44 : 30, (124 - head) / n)
+    const band = stacked ? rowH / 2 : rowH
+    const twoLines = !stacked && rows.some((r) => givenLines(r.given).length > 1)
+    const gsize = Math.min(
+      11,
+      band * (twoLines ? 0.34 : 0.5),
+      ...rows.map((r) => {
+        const lines = givenLines(r.given)
+        return (gw - 2) / Math.max(1, ...(stacked ? [monoW(lines.join(', '), 1)] : lines.map((l) => monoW(l, 1))))
+      }),
+    )
+    const fitValue = (t: string) => (vw - 6) / Math.max(1, monoW(t, 1))
+    const wsize = Math.min(11.5, band * 0.5, ...rows.map((r) => fitValue(short(r.want, 22))))
+    const gotSize = Math.min(wsize, ...rows.map((_, i) => fitValue(gotText(i))))
+    return { stacked, vx, vw, rowH, band, gsize, wsize, gotSize }
+  }
+  const side = layout(false)
+  const stack = layout(true)
+  // Stacking costs the card its height, so it has to read clearly larger.
+  const { stacked, vx, vw, rowH, band, gsize, wsize, gotSize } = Math.min(stack.gsize, stack.wsize) > Math.min(side.gsize, side.wsize) * 1.15 ? stack : side
+  const col = { given: 24, want: vx + vw / 2, got: vx + vw * 1.5, split: vx + vw, mark: 189 } as const
   return (
     <g className="cases">
       {/* Stacked, the given values head each card, and want and got are
@@ -4438,14 +4583,10 @@ function Cases({ view, p }: { view: PropView; p: Extract<Prop, { kind: 'cases' }
         const lines = givenLines(r.given)
         // Stacked, the given line has the top half of the card and the
         // values the bottom half; side by side, each has the whole height.
-        const band = stacked ? rowH / 2 : rowH
         const gy = stacked ? y + band * 0.62 : cy
         const vy = stacked ? y + band * 1.5 : cy
-        const gsize = Math.min(11, band * (lines.length > 1 && !stacked ? 0.34 : 0.5), (gw - 2) / Math.max(1, ...(stacked ? [monoW(lines.join(', '), 1)] : lines.map((l) => monoW(l, 1)))))
         const want = short(r.want, 22)
-        const wsize = Math.min(11.5, band * 0.5, (vw - 6) / Math.max(1, monoW(want, 1)))
         const got = res === null ? '—' : short(res.got, 22)
-        const gotSize = Math.min(11.5, band * 0.5, (vw - 6) / Math.max(1, monoW(got, 1)))
         const state = res === null ? 'untried' : res.ok ? 'ok' : 'wrong'
         const k = Math.min(1, rowH / 24)
         return (

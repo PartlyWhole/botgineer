@@ -28,6 +28,7 @@ export function MemoryPanel({
   look = 'v1',
   marked,
   demo = false,
+  note,
 }: {
   snapshot: MemorySnapshot
   /** Owned by the workbench, so every view that shows a handle shows the
@@ -46,6 +47,9 @@ export function MemoryPanel({
    *  framed dashed and tagged with the crow's name, as the console
    *  frames the crow's demonstration line. */
   demo?: boolean | undefined
+  /** A word beside the crow's tag on that frame: `not run yet`, for the
+   *  crow's program on show and not run, whose memory is empty. */
+  note?: string | undefined
 }) {
   const [picked, setPicked] = useState<GraphPick>(null)
 
@@ -93,7 +97,7 @@ export function MemoryPanel({
       />
       {demo && (
         <div className="memory-demo-frame" data-testid="memory-demo">
-          <DemoTag />
+          <DemoTag note={note} />
           <p className="sr-only">This is {CROW_NAME}'s example of a memory, not the robot's own.</p>
         </div>
       )}

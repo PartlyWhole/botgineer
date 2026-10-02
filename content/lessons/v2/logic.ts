@@ -2,7 +2,7 @@
  * v2, Level 6: Asking Questions (`v2-logic`).
  *
  * The robot's problem (R12): at the cave's mouth there are rules — more
- * than 20 HP to go in, a torch packed where the map says — and the
+ * than 20 HP to go in, a torch for the gate, a rope for the next — and the
  * robot can keep Mira's stats and work out sums, but it cannot yet ask
  * whether something is so. To choose (the next level, `if`), it must
  * first ask. It ends able to ask any yes-or-no question of its memory,
@@ -154,7 +154,7 @@ const asks: Choices = {
     { id: 'one', label: '`backpack[0] = "map"`' },
   ],
   answer: 'two',
-  nudge: () => 'One `=` points the slot at index `0` at `"map"`: it tells, and changes the backpack. Two, `==`, asks *is it the same?*',
+  nudge: () => 'One `=` points the slot at index `0` at `"map"`: it tells, and asks nothing. Two, `==`, asks *is it the same?*',
 }
 
 const edge: Choices = {
@@ -171,18 +171,26 @@ const edge: Choices = {
       : '`<` asks *is it less than?* Mira needs 30 or more: `>=`.',
 }
 
+// The question asked of `and` and of `or`, and the different ones their
+// working is shown on: worked out on the stage first, the question's own
+// answer would be read off the picture.
 const AND = 'hp > 20 and coins > 50'
+const AND_SHOWN = 'hp > 20 and has_key'
 const both = yesNo('logic-and', 'False', (c) =>
   c === 'True' ? '`hp > 20` is `True`, but `coins > 50` is `False`. `and` needs both.' : undefined,
 )
 const OR = '"rope" in backpack or hp > 50'
+const OR_SHOWN = '"torch" in backpack or hp > 50'
 const either = yesNo('logic-or', 'False', (c) =>
   c === 'True' ? 'No rope in the backpack, and 30 isn\'t more than 50: both are `False`, so `or` is too.' : undefined,
 )
 
-const gateAnd = (on: [boolean, boolean]): Prop => ({
+/** The cave gate. Asking, its lamps are unknown (`hidden`) until the robot
+ *  answers: lit lamps would answer the question for the learner. */
+const gateAnd = (on: [boolean, boolean], hidden = false): Prop => ({
   kind: 'gate',
   op: 'and',
+  ...(hidden ? { hidden: true } : {}),
   locks: [
     { label: 'hp > 20', on: on[0] },
     { label: '"torch" in backpack', on: on[1] },
@@ -195,6 +203,7 @@ const teach: LessonStep[] = [
       { speaker: 'courier', say: 'The cave! I\'ve always wanted to go in.', act: [{ actor: 'courier', do: 'enter' }] },
       { say: 'Caves have rules, Mira. The robot will need to know all about you first.', show: hud() },
       { say: 'Here\'s your explorer card: HP, coins, a key, and your backpack.', show: hud() },
+      { speaker: 'courier', say: 'I left the snacks and the gem at camp. Just the map and the torch for the cave.', show: hud(['backpack']) },
     ],
     say: 'Write Mira\'s card into the robot\'s memory.',
     show: { kind: 'goal', goal: CARD },
@@ -207,7 +216,7 @@ const teach: LessonStep[] = [
   },
   {
     beats: [
-      { say: 'The sign says: explorers need more than 20 HP to go in.', show: hud(['hp']), memory: MADE, mark: ['hp'] },
+      { say: 'The sign at the cave\'s mouth says: explorers need more than 20 HP to go in.', show: hud(['hp']), memory: MADE, mark: ['hp'] },
       { say: 'The robot can ask that: is `hp` more than 20?', types: 'hp > 20', thought: 'True', memory: MADE, mark: ['hp'], show: hud(['hp']) },
       { say: 'It follows `hp` to `30`, and asks: is 30 more than 20? Yes: `True`.', thought: 'True', memory: MADE, mark: ['hp'], show: hud(['hp']) },
       { say: '`<` asks *is it less than?* 30 isn\'t less than 20: `False`.', types: 'hp < 20', thought: 'False', memory: MADE, mark: ['hp'], show: hud(['hp']) },
@@ -227,7 +236,7 @@ const teach: LessonStep[] = [
       { speaker: 'courier', say: 'I always pack the map first, so I can find it fast. Did I?', show: PACKED0 },
       { say: 'To ask *is it the same?*, the robot uses two equals signs: `==`.', types: 'backpack[0] == "map"', thought: 'True', memory: MADE, mark: ['backpack'], show: PACKED0 },
       { say: 'It looks up index `0`, finds `"map"`, and asks if that\'s the same as `"map"`. Yes: `True`.', thought: 'True', memory: MADE, mark: ['backpack'], show: PACKED0 },
-      { say: 'One `=` is different: it would point the slot at index `0` at `"map"`: it changes, and asks nothing.', memory: MADE, mark: ['backpack'], show: PACKED0 },
+      { say: 'One `=` is different: it points the slot at index `0` at `"map"`. It tells, and asks nothing.', memory: MADE, mark: ['backpack'], show: PACKED0 },
     ],
     say: 'Which line asks the robot a question?',
     show: PACKED0,
@@ -250,7 +259,7 @@ const teach: LessonStep[] = [
     praise: '`backpack[1] == "torch"` is `True`: index `1`, the second thing, is the torch.',
     nudge: (l) =>
       l.ok && !l.thought && /^\s*backpack\s*\[[^\]]*\]\s*=(?!=)/.test(l.source)
-        ? 'One `=` pointed that slot at something: it asked nothing, and changed the backpack. Undo that line, and ask with `==`.'
+        ? 'One `=` tells, and asks nothing: it pointed that slot at what you gave it. To ask, use two: `backpack[1] == "torch"`.'
         : l.thought?.type === 'bool' && /backpack\s*\[\s*2\s*\]/.test(l.source)
           ? 'Indexes count from `0`: the second thing is at index `1`.'
           : l.thought?.type === 'bool' && /(["'])torch\1\s+in\b/.test(l.source)
@@ -260,10 +269,10 @@ const teach: LessonStep[] = [
   },
   {
     beats: [
-      { say: 'Deeper in, another sign: 30 HP *or more*.', show: hud(['hp']) },
-      { say: '`>=` asks *more than, or the same?* `hp >= 30` is `True`.', types: 'hp >= 30', thought: 'True', memory: MADE, mark: ['hp'], show: hud(['hp']) },
-      { say: '`>` alone says no to the same: `hp > 30` is `False`.', types: 'hp > 30', thought: 'False', memory: MADE, mark: ['hp'], show: hud(['hp']) },
-      { say: 'And `<=` asks *less than, or the same?*', show: hud(['hp']) },
+      { say: '`>=` asks *more than, or the same?* Mira has exactly 12 coins: `coins >= 12` is `True`.', types: 'coins >= 12', thought: 'True', memory: MADE, mark: ['coins'], show: hud(['coins']) },
+      { say: '`>` alone says no to the same: `coins > 12` is `False`.', types: 'coins > 12', thought: 'False', memory: MADE, mark: ['coins'], show: hud(['coins']) },
+      { say: 'And `<=` asks *less than, or the same?*', show: hud(['coins']) },
+      { say: 'Now there\'s a second sign on the gate post: 30 HP *or more*.', show: hud(['hp']) },
     ],
     say: 'Mira has exactly 30 HP. Which question lets her in?',
     show: hud(['hp']),
@@ -275,30 +284,31 @@ const teach: LessonStep[] = [
   },
   {
     beats: [
-      { speaker: 'courier', say: 'Did I pack a key at all? I can\'t remember where it would be.', show: hud(['backpack']) },
-      { say: '`in` asks *is it anywhere in the list?* No index needed.', types: '"torch" in backpack', thought: 'True', memory: MADE, mark: ['backpack'], show: hud(['backpack']) },
-      { say: 'It looks along the list, slot by slot, for a rope. None: `False`.', types: '"rope" in backpack', thought: 'False', memory: MADE, mark: ['backpack'], show: hud(['backpack']) },
+      { speaker: 'courier', say: 'Did I pack a rope? The gates further in might need one.', show: { kind: 'backpack', items: ['map', 'torch'] } },
+      { say: '`in` asks *is it anywhere in the list?* No index needed.', types: '"torch" in backpack', thought: 'True', memory: MADE, mark: ['backpack'], show: { kind: 'backpack', items: ['map', 'torch'] } },
+      { say: 'It looks along the list, slot by slot, until it finds one.', memory: MADE, mark: ['backpack'], show: { kind: 'backpack', items: ['map', 'torch'] } },
     ],
-    say: 'Ask the robot: is there a key in the backpack?',
-    show: hud(['backpack']),
-    ask: 'A key?',
+    say: 'Ask the robot: is there a rope in the backpack?',
+    show: { kind: 'backpack', items: ['map', 'torch'] },
+    ask: 'A rope?',
     tag: 'robot',
-    done: (e) => asked(e, /^\s*(["'])key\1\s+in\s+backpack\s*$/, 'False'),
-    praise: '`"key" in backpack` is `False`: the robot looked at every slot, and no key.',
+    done: (e) => asked(e, /^\s*(["'])rope\1\s+in\s+backpack\s*$/, 'False'),
+    praise: '`"rope" in backpack` is `False`: the robot looked at every slot, and no rope.',
     nudge: (l) =>
-      /^\s*key\s+in\b/.test(l.source)
-        ? 'Words need quotes, or the robot reads them as names: `"key" in backpack`.'
-        : askMiss('backpack', '"key" in backpack')(l),
-    model: '"key" in backpack',
+      /^\s*rope\s+in\b/.test(l.source)
+        ? 'Words need quotes, or the robot reads them as names: `"rope" in backpack`.'
+        : askMiss('backpack', '"rope" in backpack')(l),
+    model: '"rope" in backpack',
   },
   {
     beats: [
-      { say: 'Here\'s the cave gate. It opens only if *both* are true: over 20 HP, and a torch.', show: gateAnd([true, true]) },
-      { say: '`and` joins two questions. It\'s `True` only when both answers are `True`.', show: gateAnd([true, true]) },
-      { say: 'The robot asks each side first, then puts the answers together.', show: { kind: 'expr', text: AND, first: 'hp > 20', then: ['True and coins > 50', 'True and False', 'False'], demo: 'work' } },
-      { say: '`hp > 20` is `True`, `coins > 50` is `False`. Not both: `False`.', show: { kind: 'expr', text: AND, first: 'hp > 20', then: ['True and coins > 50', 'True and False', 'False'] } },
+      { say: 'Here\'s the cave gate. It opens only if *both* are true: over 20 HP, and a torch.', show: gateAnd([true, true], true) },
+      { say: '`and` joins two questions. It\'s `True` only when both answers are `True`.', show: gateAnd([true, true], true) },
+      { say: 'Say a door wanted over 20 HP *and* a key. The robot asks the left side first: `True`.', show: { kind: 'expr', text: AND_SHOWN, first: 'hp > 20', then: ['True and has_key', 'True and False', 'False'], demo: 'work' } },
+      { say: 'That doesn\'t settle it, so it asks `has_key` too: `False`. Not both: `False`.', show: { kind: 'expr', text: AND_SHOWN, first: 'hp > 20', then: ['True and has_key', 'True and False', 'False'], demo: 'work' } },
+      { say: 'Another lock wants more than 50 coins as well.', show: { kind: 'code', text: AND } },
     ],
-    say: 'So what does `hp > 20 and coins > 50` make?',
+    say: 'What does `hp > 20 and coins > 50` make?',
     show: { kind: 'code', text: AND },
     ask: 'What does it make?',
     tag: 'you',
@@ -308,22 +318,25 @@ const teach: LessonStep[] = [
   },
   {
     say: 'Will the gate open? Ask the robot: over 20 HP *and* a torch in the backpack.',
-    show: gateAnd([true, true]),
+    show: gateAnd([true, true], true),
     ask: 'Will it open?',
     tag: 'robot',
     done: (e) => asked(e, /^(?=.*\band\b)(?=.*\bhp\s*>\s*20\b)(?=.*(["'])torch\1\s+in\s+backpack)/, 'True'),
     praise: 'Both sides are `True`, so `and` makes `True`: the gate opens!',
     nudge: (l) =>
-      l.thought?.type === 'bool' && !/\band\b/.test(l.source)
+      /^\s*(True|False|true|false)\s*$/.test(l.source)
+        ? askMiss('hp', 'hp > 20 and "torch" in backpack')(l)
+        : l.thought?.type === 'bool' && !/\band\b/.test(l.source)
         ? 'That asks one thing. Join both questions with `and`: `hp > 20 and "torch" in backpack`.'
         : askMiss('hp', 'hp > 20 and "torch" in backpack')(l),
     model: 'hp > 20 and "torch" in backpack',
   },
   {
     beats: [
-      { speaker: 'courier', say: 'A rope bridge! A guard says: you need a rope, *or* more than 50 HP.' },
-      { say: '`or` is `True` when *either* answer is `True`, or both.', show: { kind: 'gate', op: 'or', locks: [{ label: '"rope" in backpack', on: false }, { label: 'hp > 50', on: false }] } },
-      { say: 'Each side is asked first, then `or` puts them together.', show: { kind: 'expr', text: OR, first: '"rope" in backpack', then: ['False or hp > 50', 'False or False', 'False'], demo: 'work' } },
+      { speaker: 'courier', say: 'Another gate! This one opens for a rope, *or* more than 50 HP.', show: { kind: 'gate', op: 'or', hidden: true, locks: [{ label: '"rope" in backpack', on: false }, { label: 'hp > 50', on: false }] } },
+      { say: '`or` is `True` when *either* answer is `True`, or both.', show: { kind: 'gate', op: 'or', hidden: true, locks: [{ label: '"rope" in backpack', on: false }, { label: 'hp > 50', on: false }] } },
+      { say: 'Say it wanted a torch, or more than 50 HP. The robot asks the left side first: `True`.', show: { kind: 'expr', text: OR_SHOWN, first: '"torch" in backpack', then: ['True or hp > 50', 'True'], demo: 'work' } },
+      { say: 'One `True` is enough for `or`, so it doesn\'t even ask the right side.', show: { kind: 'expr', text: OR_SHOWN, first: '"torch" in backpack', then: ['True or hp > 50', 'True'], demo: 'work' } },
     ],
     say: 'What does `"rope" in backpack or hp > 50` make?',
     show: { kind: 'code', text: OR },
@@ -331,11 +344,11 @@ const teach: LessonStep[] = [
     tag: 'you',
     choices: either,
     done: (e) => chose(e, either),
-    praise: 'Neither side was `True`, so even `or` makes `False`. No crossing yet!',
+    praise: 'No rope, so `or` asked the right side too: 30 isn\'t more than 50. Both `False`: this gate stays shut.',
   },
   {
     beats: [
-      { speaker: 'courier', say: 'Some caves are only for explorers *without* a key. Funny rule!', show: hud(['has_key']) },
+      { speaker: 'courier', say: 'A locksmith! She cuts keys, but only for explorers who don\'t have one yet.', show: hud(['has_key']) },
       { say: '`not` flips an answer: `not True` is `False`, and `not False` is `True`.', types: 'not has_key', thought: 'True', memory: MADE, mark: ['has_key'], show: hud(['has_key']) },
     ],
     say: 'Ask the robot: is Mira *without* a key?',
@@ -397,16 +410,21 @@ export function quiz(seed: number): LessonStep[] {
   }
 
   // The same? Words must match exactly; a word is never a number.
-  const same = pick(r, ['case', 'type'] as const)
-  const sameText = same === 'case' ? '"Torch" == "torch"' : '"12" == 12'
-  const sameC = yesNo('quiz-same', 'False', (c) =>
-    c === 'True'
-      ? same === 'case'
-        ? 'A capital `T` and a small `t` are different letters, so the words aren\'t the same.'
-        : '`"12"` is a `str` and `12` is an `int`: a word is never the same as a number.'
-      : c === 'error'
-        ? '`==` can compare any two things. They just aren\'t the same.'
-        : undefined,
+  // Or different? `!=`, shown once in the teaching, is asked here too.
+  const same = pick(r, ['case', 'type', 'differ'] as const)
+  const sameText = same === 'case' ? '"Torch" == "torch"' : same === 'type' ? '"12" == 12' : '"map" != "torch"'
+  const sameC = yesNo('quiz-same', same === 'differ' ? 'True' : 'False', (c) =>
+    same === 'differ'
+      ? c === 'False'
+        ? '`!=` asks *is it different?*, and `"map"` and `"torch"` are different words: `True`.'
+        : '`!=` can compare any two things: it asks *is it different?*'
+      : c === 'True'
+        ? same === 'case'
+          ? 'A capital `T` and a small `t` are different letters, so the words aren\'t the same.'
+          : '`"12"` is a `str` and `12` is an `int`: a word is never the same as a number.'
+        : c === 'error'
+          ? '`==` can compare any two things. They just aren\'t the same.'
+          : undefined,
   )
   const sameStep: LessonStep = {
     say: `What does \`${sameText}\` make?`,
@@ -415,7 +433,12 @@ export function quiz(seed: number): LessonStep[] {
     tag: 'you',
     choices: sameC,
     done: (e) => chose(e, sameC),
-    praise: same === 'case' ? '`False`: `==` checks every letter, capitals too.' : '`False`: a `str` is never equal to an `int`, even when they look alike.',
+    praise:
+      same === 'case'
+        ? '`False`: `==` checks every letter, capitals too.'
+        : same === 'type'
+          ? '`False`: a `str` is never equal to an `int`, even when they look alike.'
+          : '`True`: they are different words, and `!=` asks *is it different?*',
   }
 
   // The boundary, asked the other way round.
@@ -435,24 +458,30 @@ export function quiz(seed: number): LessonStep[] {
     praise: k === 'le' ? '`True`: *or the same* counts, and 30 is the same as 30.' : '`False`: 30 isn\'t *less than* 30. It\'s the same.',
   }
 
-  // In.
-  const thing = pick(r, ['torch', 'rope'] as const)
+  // In: not the rope the teaching asked about, and nothing the card shows.
+  const thing = pick(r, ['map', 'apple'] as const)
   const inStep: LessonStep = {
     speaker: 'courier',
-    say: `Did I pack ${thing === 'torch' ? 'a torch' : 'a rope'}? Ask the robot.`,
-    show: hud(['backpack']),
-    ask: thing === 'torch' ? 'A torch?' : 'A rope?',
+    say: `Did I pack ${thing === 'map' ? 'the map' : 'an apple'}? Ask the robot.`,
+    show: { kind: 'backpack', items: ['map', 'torch'] },
+    ask: thing === 'map' ? 'The map?' : 'An apple?',
     tag: 'robot',
     done: (e) =>
-      thing === 'torch'
-        ? heard(e, (t) => t.type === 'bool' && t.repr === 'True' && /(["'])torch\1\s+in\s+backpack/.test(t.source ?? '') && !/\band\b/.test(t.source ?? ''))
-        : heard(e, (t) => t.type === 'bool' && t.repr === 'False' && /(["'])rope\1\s+in\s+backpack/.test(t.source ?? '') && !/\bor\b/.test(t.source ?? '')),
-    praise: thing === 'torch' ? '`True`: the torch is at index `1`.' : '`False`: the robot looked at every slot, and no rope.',
+      heard(
+        e,
+        (t) =>
+          t.type === 'bool' &&
+          t.repr === (thing === 'map' ? 'True' : 'False') &&
+          new RegExp(`(["'])${thing}\\1\\s+in\\s+backpack`).test(t.source ?? '') &&
+          !/\b(and|or)\b/.test(t.source ?? ''),
+      ),
+    praise: thing === 'map' ? '`True`: the map is at index `0`.' : '`False`: the robot looked at every slot, and no apple. The snacks are at camp!',
     nudge: askMiss('backpack', `"${thing}" in backpack`),
     model: `"${thing}" in backpack`,
   }
 
-  // And or or, on the gate, from Mira's card.
+  // And or or, on a gate, from Mira's card. Its lamps are unknown until
+  // the pick: lit, they would be the answer.
   const op = pick(r, ['and', 'or'] as const)
   const tests: [string, boolean][] = [
     ['has_key', false],
@@ -470,7 +499,7 @@ export function quiz(seed: number): LessonStep[] {
   )
   const gateStep: LessonStep = {
     say: `Will this gate open? What does \`${gateText}\` make?`,
-    show: { kind: 'gate', op, locks: [{ label: a[0], on: a[1] }, { label: b[0], on: b[1] }] },
+    show: { kind: 'gate', op, hidden: true, locks: [{ label: a[0], on: a[1] }, { label: b[0], on: b[1] }] },
     ask: 'Will it open?',
     tag: 'you',
     choices: gateC,
@@ -478,23 +507,27 @@ export function quiz(seed: number): LessonStep[] {
     praise: op === 'and' ? '`False`: one lamp is dark, and `and` needs both.' : '`True`: one lamp is lit, and `or` needs only one.',
   }
 
-  // A question joined with or, asked of the robot.
-  const limit = pick(r, [40, 50, 60])
+  // A question joined with or, asked of the robot: the rope-or-50-HP gate
+  // again, its rule eased for a reason, and still "more than" HP.
+  const limit = pick(r, [20, 25])
   const orStep: LessonStep = {
+    beats: [{ speaker: 'courier', say: 'Look, someone lowered a rope ladder at that gate. Now it opens for less!' }],
     speaker: 'courier',
-    say: `The bridge holds anyone with a rope, or under ${limit} HP. Ask the robot if I can cross.`,
-    show: { kind: 'gate', op: 'or', locks: [{ label: '"rope" in backpack', on: false }, { label: `hp < ${limit}`, on: true }] },
-    ask: 'Can she cross?',
+    say: `It opens for anyone with a rope, or more than ${limit} HP now. Ask the robot if I can get through.`,
+    show: { kind: 'gate', op: 'or', hidden: true, locks: [{ label: '"rope" in backpack', on: false }, { label: `hp > ${limit}`, on: true }] },
+    ask: 'Can she get through?',
     tag: 'robot',
-    done: (e) => asked(e, new RegExp(`^(?=.*\\bor\\b)(?=.*(["'])rope\\1\\s+in\\s+backpack)(?=.*(\\bhp\\s*<\\s*${limit}\\b|\\b${limit}\\s*>\\s*hp\\b))`), 'True'),
-    praise: `No rope, but 30 is under ${limit}: one is enough, so \`or\` makes \`True\`.`,
+    done: (e) => asked(e, new RegExp(`^(?=.*\\bor\\b)(?=.*(["'])rope\\1\\s+in\\s+backpack)(?=.*(\\bhp\\s*>\\s*${limit}\\b|\\b${limit}\\s*<\\s*hp\\b))`), 'True'),
+    praise: `No rope, but 30 is more than ${limit}: one is enough, so \`or\` makes \`True\`.`,
     nudge: (l) =>
-      l.thought?.type === 'bool' && /\band\b/.test(l.source)
-        ? '`and` needs both. *A rope, or* low HP: join them with `or`.'
-        : l.thought?.type === 'bool' && !/\bor\b/.test(l.source)
-          ? `Ask both, joined with \`or\`: \`"rope" in backpack or hp < ${limit}\`.`
-          : askMiss('hp', `"rope" in backpack or hp < ${limit}`)(l),
-    model: `"rope" in backpack or hp < ${limit}`,
+      /^\s*(True|False|true|false)\s*$/.test(l.source)
+        ? askMiss('hp', `"rope" in backpack or hp > ${limit}`)(l)
+        : l.thought?.type === 'bool' && /\band\b/.test(l.source)
+          ? '`and` needs both. *A rope, or* enough HP: join them with `or`.'
+          : l.thought?.type === 'bool' && !/\bor\b/.test(l.source)
+            ? `Ask both, joined with \`or\`: \`"rope" in backpack or hp > ${limit}\`.`
+            : askMiss('hp', `"rope" in backpack or hp > ${limit}`)(l),
+    model: `"rope" in backpack or hp > ${limit}`,
   }
 
   // An answer kept.
@@ -503,6 +536,7 @@ export function quiz(seed: number): LessonStep[] {
     { name: 'broke', say: 'whether `coins` is 0', src: /\bcoins\b/, model: 'broke = coins == 0', value: 'False', reads: 'coins', shows: String(COINS) },
     { name: 'locked_out', say: 'whether Mira has no key', src: /\bhas_key\b/, model: 'locked_out = not has_key', value: 'True', reads: 'has_key', shows: 'False' },
   ])
+  const chained = new RegExp(`^\\s*${keep.name}\\s*=\\s*([A-Za-z_]\\w*)\\s*=(?!=)`)
   const keepStep: LessonStep = {
     say: `Make the robot remember \`${keep.name}\`: ${keep.say}.`,
     show: {
@@ -516,7 +550,9 @@ export function quiz(seed: number): LessonStep[] {
     done: (e) => everBy(e, (src, s) => new RegExp(`^\\s*${keep.name}\\s*=[^=]`).test(src) && keep.src.test(src) && compare([{ name: keep.name, value: keep.value }], s).rows[0]!.ok),
     praise: `\`${keep.name}\` points at \`${keep.value}\`: worked out by the robot, and kept.`,
     nudge: (l) =>
-      new RegExp(`^\\s*${keep.name}\\s*=\\s*(True|False)\\s*$`).test(l.source)
+      chained.test(l.source)
+        ? `Two single \`=\` signs pointed \`${chained.exec(l.source)![1]}\` at something new too. Undo that line, and ask with \`==\`: \`${keep.model}\`.`
+        : new RegExp(`^\\s*${keep.name}\\s*=\\s*(True|False)\\s*$`).test(l.source)
         ? `That's the answer typed in. Let the robot ask: \`${keep.model}\`.`
         : stopped(l, `Try \`${keep.model}\`.`) ?? (l.ok && !l.thought ? `Point \`${keep.name}\` at the robot's answer: \`${keep.model}\`.` : askMiss(keep.name, keep.model)(l)),
     model: keep.model,
@@ -539,7 +575,7 @@ export const logicLesson = (seed: number): Lesson => ({
   steps: [...teach, ...quiz(seed)],
   outro: [
     { say: 'Now the robot can ask questions of its memory, and get `True` or `False`.', focus: 'memory' },
-    { speaker: 'courier', say: 'Next, let\'s teach it to *choose* with the answers. Into the cave!' },
+    { speaker: 'courier', say: 'Through the gate! Next, let\'s teach it to *choose* with the answers.' },
   ],
   takeaway: 'A comparison asks a question and makes a `bool`. `and` needs both, `or` needs one, and `not` flips the answer.',
 })

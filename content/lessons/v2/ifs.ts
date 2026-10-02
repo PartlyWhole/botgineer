@@ -264,7 +264,7 @@ const teach: LessonStep[] = [
   }),
   {
     beats: [
-      { speaker: 'courier', say: 'A troll! Fight it if you\'re strong. If not, drink a potion if you have one. Or run!' },
+      { speaker: 'courier', say: 'There\'s a troll up ahead! Fight it if you\'re strong. If not, drink a potion if you have one. Or run!' },
       { say: 'That\'s three ways. `elif` means *else if*: asked only if the questions above said no.', code: TROLL, show: paths(TROLL_PATHS) },
       { say: 'Lines 1 and 2: `hp` is `30`, and there\'s one potion.', code: TROLL, run: { line: 2 } },
       { say: 'Line 3: is `hp` more than 50? No. So its block is skipped.', code: TROLL, run: { line: 3 } },
@@ -340,7 +340,7 @@ export function practice(seed: number): LessonStep[] {
   const p1 = choosing({
     beats: [{ say: 'Now some choices of your own, deeper in the cave.' }],
     speaker: 'courier',
-    say: `A rickety bridge! If \`weight\` is under ${limit}, \`move\` is \`"cross"\`. Otherwise it's \`"wait"\`.`,
+    say: `A rickety bridge ahead! If \`weight\` is under ${limit}, \`move\` is \`"cross"\`. Otherwise it's \`"wait"\`.`,
     ask: 'Cross, or wait',
     code: `weight = ${bridgeCases[0]!.weight}\n`,
     name: 'move',
@@ -372,7 +372,7 @@ export function practice(seed: number): LessonStep[] {
           : '0 isn\'t more than 10, or more than 0: both say no, so the `else` runs.',
   )
   const p2: LessonStep = {
-    beats: [{ speaker: 'courier', say: 'A toll gate. The troll takes gems, or a song!', code: GEMS }],
+    beats: [{ speaker: 'courier', say: 'A toll gate up ahead. Its troll takes gems, or a song!', code: GEMS }],
     say: 'What does `pay` point at?',
     show: paths([
       { test: 'gems > 10', result: '"gems"' },
@@ -444,7 +444,11 @@ export function practice(seed: number): LessonStep[] {
   const shop: Want = (g) => (g.has_map === 'True' && Number(g.coins) >= cost ? q('buy') : q('leave'))
   const p5 = choosing({
     speaker: 'courier',
-    say: `The cave shop sells lanterns for ${cost} coins, only to explorers with a map. Set \`plan\` to \`"buy"\` or \`"leave"\`.`,
+    beats: [
+      { speaker: 'courier', say: `Down here, lanterns are cheap: only ${cost} coins!` },
+      { speaker: 'courier', say: 'But they only sell to explorers with a map, so you can find your way back.' },
+    ],
+    say: `Set \`plan\` to \`"buy"\` if Mira has a map *and* ${cost} coins or more. Otherwise, \`"leave"\`.`,
     ask: 'Buy, or leave',
     code: `has_map = True\ncoins = ${cost + 2}\n`,
     name: 'plan',

@@ -2382,3 +2382,10 @@ button.tidy:hover {
     }
   }
 }
+
+/* "not run yet" beside the crow's tag on memory: the crow's program is on
+   show and has not run, so its memory is empty. */
+.memory-demo-frame .demo-tag .demo-note {
+  font-weight: 700;
+  opacity: 0.75;
+}

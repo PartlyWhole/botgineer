@@ -317,8 +317,14 @@ export type Prop =
    *  moves nothing and the plaque turns amber (`gateShows`). `demo:
    *  'try'` (narration) runs the current lamp by lamp and then opens the
    *  gate or rattles it shut. The lamps' `on` is narration too: a beat
-   *  that lights one keeps the gate on stage. 1 to `GATE_LOCKS` locks. */
-  | { kind: 'gate'; op: 'and' | 'or'; locks: { label: string; on: boolean }[]; demo?: 'try' }
+   *  that lights one keeps the gate on stage. 1 to `GATE_LOCKS` locks.
+   *  `hidden` (for a gate that asks) keeps the lamps' truth to itself
+   *  until it is the answer: each lamp unlit, a `?` where its `True` or
+   *  `False` goes, no current; once the robot's answer is drawn, or the
+   *  step's praise is read (`gateRevealed`), the lamps show what they
+   *  are. Narration too, so a beat's labelled gate and the hidden ask
+   *  are one picture. */
+  | { kind: 'gate'; op: 'and' | 'or'; locks: { label: string; on: boolean }[]; demo?: 'try'; hidden?: boolean }
   /** A fork in a cave tunnel, for `if`/`elif`/`else`: a corridor down the
    *  left, and off it one side tunnel per branch, checked top to bottom.
    *  Each has a signpost with its test in code font (`hp > 50`, or
@@ -340,8 +346,11 @@ export type Prop =
    *  done. `total` (narration) is what the counter holds; null or left
    *  out, the counter is empty. A number the robot thinks of is written
    *  in the counter instead, in its kind's colour, amber when refused. At
-   *  most `TALLY_MAX` coins. */
-  | { kind: 'tally'; values: number[]; mark?: number; total?: number | null; label?: string; item?: 'coin' | 'gem' }
+   *  most `TALLY_MAX` coins. `kept` (narration), for a loop with an `if`
+   *  in it: per coin, `true` kept (a tick), `false` passed over (a
+   *  cross, the coin dimmed further), `null` or missing not reached yet
+   *  (no mark); where it marks a coin it replaces the counted tick. */
+  | { kind: 'tally'; values: number[]; mark?: number; total?: number | null; label?: string; item?: 'coin' | 'gem'; kept?: (boolean | null)[] }
   /** The robot trying the player's program on several cases, as a
    *  scoreboard of encounter cards: each row's given values in code font
    *  (`hp = 20`), the value `name` should end up holding (`want`), and
@@ -528,9 +537,9 @@ const NARRATION: Partial<Record<Prop['kind'], string[]>> = {
   hotbar: ['mark'],
   backpack: ['mark'],
   hud: ['mark'],
-  gate: ['demo'],
+  gate: ['demo', 'hidden'],
   paths: ['taken', 'demo'],
-  tally: ['mark', 'total'],
+  tally: ['mark', 'total', 'kept'],
 }
 
 /** A prop without its narration: what identifies the picture. A tally
@@ -1318,6 +1327,9 @@ export function gateCurrent(p: { op: 'and' | 'or'; locks: readonly { on: boolean
 export function gateShows(view: PropView): 'waiting' | 'open' | 'shut' | 'refused' {
   if (view.prop.kind !== 'gate') return 'waiting'
   const opens = gateOpens(view.prop)
+  // The step is done (its praise, or the payoff leaving): the gate does
+  // what its lamps say, whether the answer was a thought or a pick.
+  if (view.verdict === 'right') return opens ? 'open' : 'shut'
   const b = boolOf(view.answer)
   if (view.answer !== null) {
     if (b === null) return 'waiting'
@@ -1325,6 +1337,17 @@ export function gateShows(view: PropView): 'waiting' | 'open' | 'shut' | 'refuse
   }
   if (view.prop.demo === 'try') return opens ? 'open' : 'shut'
   return 'waiting'
+}
+
+/** Whether a gate's lamps show their truth: always, unless it is
+ *  `hidden`; a hidden one once the gate has decided (a right answer, the
+ *  praise, a `try` demonstration). A miss or a word decides nothing, so
+ *  the lamps stay `?` and do not hand over the answer. */
+export function gateRevealed(view: PropView): boolean {
+  if (view.prop.kind !== 'gate') return true
+  if (!view.prop.hidden) return true
+  const shows = gateShows(view)
+  return shows === 'open' || shows === 'shut'
 }
 
 /* ------------------------------ the fork ------------------------------ */
@@ -1381,6 +1404,65 @@ export function tallyShows(view: PropView): { text: string; kind: string; refuse
   const t = view.prop.total
   if (t === null || t === undefined || !Number.isFinite(t)) return null
   return { text: String(t), kind: Number.isInteger(t) ? 'int' : 'float', refused: false }
+}
+
+/** A tally coin's mark: `kept` where `kept` says so, else `counted` for a
+ *  coin the loop has passed (`mark`), else none. */
+export function tallyMark(p: { mark?: number; kept?: readonly (boolean | null)[] }, i: number): 'kept' | 'skipped' | 'counted' | 'none' {
+  const k = p.kept?.[i]
+  if (k === true) return 'kept'
+  if (k === false) return 'skipped'
+  return p.mark !== undefined && i < p.mark ? 'counted' : 'none'
+}
+
+/* --------------------------- breaking a line --------------------------- */
+
+/** The operators a line of code is broken before, loosest first. */
+const BREAK_TIERS: readonly (readonly string[])[] = [
+  ['and', 'or'],
+  ['==', '!=', '<=', '>=', '<', '>', 'in', 'not', 'is'],
+  ['+', '-', '*', '/', '//', '%'],
+]
+
+/**
+ * Where a line of code too long for its picture breaks in two: at a space
+ * outside every string and bracket, before an operator (`and`/`or` first,
+ * then a comparison, then arithmetic), the one of the loosest kind
+ * nearest the middle. The index of that space, or null when there is none
+ * (`range(5)`, a bare name).
+ */
+export function breakAt(text: string): number | null {
+  const spaces: { at: number; next: string }[] = []
+  let depth = 0
+  let quote: string | null = null
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]!
+    if (quote) {
+      if (ch === '\\') i++
+      else if (ch === quote) quote = null
+    } else if (ch === '"' || ch === "'") quote = ch
+    else if ('[({'.includes(ch)) depth++
+    else if ('])}'.includes(ch)) depth--
+    else if (ch === ' ' && depth === 0 && i > 0) spaces.push({ at: i, next: /^\S+/.exec(text.slice(i + 1))?.[0] ?? '' })
+  }
+  const mid = text.length / 2
+  for (const tier of BREAK_TIERS) {
+    const at = spaces.filter((s) => tier.includes(s.next)).sort((a, b) => Math.abs(a.at - mid) - Math.abs(b.at - mid))[0]
+    if (at) return at.at
+  }
+  return null
+}
+
+/** A line as rows, each with where it starts in the line: one row, or
+ *  two broken at `breakAt` — unless a span that must stay whole (`keep`,
+ *  `[from, to)`) would be cut. */
+export function lineRows(text: string, keep: readonly (readonly [number, number])[] = []): { text: string; at: number }[] {
+  const at = breakAt(text)
+  if (at === null || keep.some(([a, b]) => a <= at && b > at)) return [{ text, at: 0 }]
+  return [
+    { text: text.slice(0, at), at: 0 },
+    { text: text.slice(at + 1), at: at + 1 },
+  ]
 }
 
 /* ------------------------------ the cases ------------------------------ */

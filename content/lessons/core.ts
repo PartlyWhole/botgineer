@@ -633,14 +633,72 @@ function moved(lesson: Lesson, evidence: Evidence): { before: number; at: number
   return { before: was === evidence ? at : progress(lesson, was), at }
 }
 
-/** The thought that finished step `i`: exact for an ordered lesson, and
- *  the newest thought otherwise (an unordered step may finish on memory,
- *  with no thought at all). */
+/**
+ * The thought that finished step `i`: exact for an ordered lesson. In an
+ * unordered one it is the first thought without which the step's own test
+ * fails — and none at all for a step its test passes on memory alone (a
+ * binding: `rich = coins > 100` thinks of nothing). The newest thought
+ * used to stand in, which handed a binding step's praise the `True` of
+ * the step before while the crow said `False` (invariant 26).
+ */
 function answerTo(lesson: Lesson, evidence: Evidence, i: number): Heard | null {
-  if (lesson.steps[i]?.choices) return null
-  const { ends } = walk(lesson, evidence)
-  const end = lesson.ordered ? ends[i] : evidence.thoughts.length
-  return end !== undefined && end > 0 ? (evidence.thoughts[end - 1] ?? null) : null
+  const step = lesson.steps[i]
+  if (!step || step.choices) return null
+  if (lesson.ordered) {
+    const end = walk(lesson, evidence).ends[i]
+    return end !== undefined && end > 0 ? (evidence.thoughts[end - 1] ?? null) : null
+  }
+  const all = evidence.thoughts
+  for (let k = 0; k <= all.length; k++) {
+    if (step.done({ ...evidence, thoughts: all.slice(0, k) })) return k === 0 ? null : (all[k - 1] ?? null)
+  }
+  return null
+}
+
+/**
+ * What a step's picture draws as its answer, once the step is done, when
+ * no thought did it. Derived from the same evidence the crow reads:
+ *
+ * - a multiple-choice step pictured as a `tally`: the pick is the total,
+ *   so the counter fills with the number the crow says;
+ * - a step done by a binding: the object the name the picture asks about
+ *   points at now — a `hud` row waiting on `?`, or a `tally`'s label —
+ *   filled into the row, and as the answer where the picture draws one.
+ *
+ * Anything else draws no answer: nothing older than the step is borrowed.
+ */
+function drawnAnswer(step: LessonStep, evidence: Evidence): { prop: Prop; answer: Thought | null } | null {
+  const p = step.show
+  if (!p) return null
+  const c = step.choices
+  if (c) {
+    if (p.kind !== 'tally' || !chose(evidence, c)) return null
+    const n = Number(c.answer)
+    if (c.answer.trim() === '' || !Number.isFinite(n)) return null
+    return { prop: p, answer: { type: /^-?\d+$/.test(c.answer.trim()) ? 'int' : 'float', repr: c.answer.trim() } }
+  }
+  const s = evidence.snapshot
+  const objectOf = (name: string): Thought | null => {
+    const id = targetOf(s, name)
+    const o = id === null ? undefined : s.objects[id]
+    return o ? { type: o.type, repr: o.repr } : null
+  }
+  if (p.kind === 'hud') {
+    let answer: Thought | null = null
+    const stats = p.stats.map((st) => {
+      if (st.value !== '?') return st
+      const o = objectOf(st.name)
+      if (!o) return st
+      answer ??= o
+      return { ...st, value: o.repr }
+    })
+    return answer ? { prop: { ...p, stats }, answer } : null
+  }
+  if (p.kind === 'tally' && p.label) {
+    const o = objectOf(p.label)
+    return o && numberOf(o) !== null ? { prop: p, answer: o } : null
+  }
+  return null
 }
 
 /**
@@ -939,12 +997,16 @@ export function staging(lesson: Lesson, evidence: Evidence, beat?: number): Stag
   if (item.kind === 'praise') {
     const done = lesson.steps[at - 1]!
     if (done.show) {
+      // The answer that did this step, and never a thought from before it
+      // began: a binding's praise draws the object it bound, a pick on a
+      // tally its total, and anything else no answer at all.
       const answered = answerTo(lesson, evidence, at - 1)
+      const drawn = answered ? null : drawnAnswer(done, evidence)
       // No question under it: it has been answered, and the floor is where
       // Next stands while the praise is read.
       return {
-        current: view(`${lesson.id}:${at - 1}`, done.show, {
-          answer: answered ? { type: answered.type, repr: answered.repr } : answer,
+        current: view(`${lesson.id}:${at - 1}`, drawn?.prop ?? done.show, {
+          answer: answered ? { type: answered.type, repr: answered.repr } : (drawn?.answer ?? null),
           verdict: 'right',
         }),
         leaving: null,

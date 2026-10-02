@@ -65,6 +65,7 @@ import { readScene } from '../scene/spec'
 import { ScenePanel, type Telling } from '../panels/ScenePanel'
 import { hasExamples, noteAt, raisedNote, readTo, sectionsOf, type Reach } from '../collection/voice'
 import { MemoryPanel } from '../panels/MemoryPanel'
+import { CROW_NAME } from '../../content/cast'
 import { RobotPanel, type Transcript } from '../panels/RobotPanel'
 import type { Demo, DemoLine } from '../ui/demo'
 import type { Exchange } from '../ui/RobotConsole'
@@ -1112,18 +1113,44 @@ export function Workbench({ activity }: { activity: Activity }) {
 
   // The crow's program in the editor (`Beat.code`): the latest set at or
   // before this beat, within the step, until the question — or through a
-  // multiple-choice question, which is about the code on show. What it
-  // adds to the code before it types itself in.
+  // multiple-choice question, which is about the code on show, and its
+  // replies. What it adds to the code before it types itself in.
   const editing = activity.mode === 'editor' && !reading
   let codeAt = -1
+  let reachedStart = editing
   for (let i = beatAt; i >= 0 && editing; i--) {
     const l = lines[i]
-    if ((l?.kind === 'ask' || l?.kind === 'reply') && (i !== beatAt || !l.choices)) break
+    if ((l?.kind === 'ask' || l?.kind === 'reply') && (i !== beatAt || !l.choices)) {
+      reachedStart = false
+      break
+    }
     if (l?.code !== undefined) {
       codeAt = i
+      reachedStart = false
       break
     }
   }
+  // A multiple-choice question about the crow's program keeps that program
+  // up through its praise, and the next step's beats until one sets its
+  // own: the praise explains the program, and beside the player's old one
+  // it explained nothing. The player's program comes back at the next ask.
+  // Derived from the lesson, like the rest of the script: the step before's
+  // last `code`, and its last `run` from there.
+  const prevStep = told && told.at > 0 && lines[0]?.kind === 'praise' ? lesson?.steps[told.at - 1] : undefined
+  const carried = (() => {
+    if (!reachedStart || current?.asking || !prevStep?.choices) return null
+    const beats = prevStep.beats ?? []
+    let at = -1
+    for (let j = beats.length - 1; j >= 0; j--) {
+      if (beats[j]!.code !== undefined) {
+        at = j
+        break
+      }
+    }
+    if (at < 0) return null
+    const ran = beats.slice(at).reverse().find((b) => b.run !== undefined)?.run
+    return { text: beats[at]!.code!, run: ran }
+  })()
   let before = ''
   for (let i = codeAt - 1; i >= 0; i--) {
     const l = lines[i]
@@ -1133,10 +1160,16 @@ export function Workbench({ activity }: { activity: Activity }) {
       break
     }
   }
-  const codeText = codeAt >= 0 ? lines[codeAt]!.code! : null
+  const codeText = codeAt >= 0 ? lines[codeAt]!.code! : (carried?.text ?? null)
   let common = 0
   while (codeText !== null && common < before.length && common < codeText.length && before[common] === codeText[common]) common++
-  const codeDemo = codeText !== null ? { key: `${tellKey}:${codeAt}`, text: codeText, typeFrom: common } : null
+  const codeDemo =
+    codeText === null
+      ? null
+      : codeAt >= 0
+        ? { key: `${tellKey}:${codeAt}`, text: codeText, typeFrom: common }
+        : // Carried over: already on screen, so nothing types in again.
+          { key: `${tellKey}:carried`, text: codeText, typeFrom: codeText.length }
   const [codeTyped, setCodeTyped] = useState('')
   const codeWaiting = codeDemo !== null && codeTyped !== codeDemo.key
   const onCodeDemoTyped = useCallback(() => {
@@ -1147,7 +1180,7 @@ export function Workbench({ activity }: { activity: Activity }) {
   // quietly — memory just after a line ran, that line lit, what had run
   // ticked; or the whole run, with what it skipped dimmed.
   const runItem = codeAt >= 0 && beatAt >= codeAt ? lines.slice(codeAt, beatAt + 1).reverse().find((l) => l.run !== undefined) : undefined
-  const moment = runItem?.run
+  const moment = codeAt >= 0 ? runItem?.run : carried ? (lines.slice(0, beatAt + 1).reverse().find((l) => l.run !== undefined)?.run ?? carried.run) : undefined
   const [demoRun, setDemoRun] = useState<{ program: string; ev: RunEvidence } | null>(null)
   useEffect(() => {
     if (codeText === null || moment === undefined || boot.state !== 'ready') return
@@ -1206,7 +1239,11 @@ export function Workbench({ activity }: { activity: Activity }) {
         })()
       : null
   const lineMarks = codeDemo ? runMarks : playerMarks
-  const shownMemory = runMemory ?? demoSnapshot
+  // While the crow's program is up and not run, memory is the crow's too,
+  // and empty: not the player's last run, which sat beside a question about
+  // a program that had not run (and offered its values as hints).
+  const notRun = codeDemo !== null && runMemory === null && demoSnapshot === null
+  const shownMemory = runMemory ?? demoSnapshot ?? (notRun ? EMPTY : null)
   const runHandles = useHandles(runMemory ?? EMPTY, `${activity.id}:run:${codeText ?? ''}`)
 
   // A step that hands the player a program (`LessonStep.code`) puts it in
@@ -1232,7 +1269,9 @@ export function Workbench({ activity }: { activity: Activity }) {
           spec={activity.scene}
           snapshot={snapshot}
           moods={cast}
-          guide={guide}
+          // The options wait for the crow's program to finish typing in:
+          // a question about a program half on screen is not yet asked.
+          guide={guide?.choices && codeWaiting ? { ...guide, held: true } : guide}
           onChoose={choose}
           onAdvance={onAdvance}
           // The last thing the robot worked out. It lives nowhere else:
@@ -1304,12 +1343,15 @@ export function Workbench({ activity }: { activity: Activity }) {
             <MemoryPanel
               look={look}
               snapshot={shownMemory ?? snapshot}
-              handles={runMemory ? runHandles : demoSnapshot ? demoHandles : handles}
-              runKey={runMemory ? `${activity.id}:run` : demoSnapshot ? `${activity.id}:demo` : runKey}
+              handles={runMemory ? runHandles : demoSnapshot || notRun ? demoHandles : handles}
+              runKey={runMemory ? `${activity.id}:run` : demoSnapshot || notRun ? `${activity.id}:demo` : runKey}
               demo={shownMemory !== null}
+              note={notRun ? 'not run yet' : undefined}
               marked={marked}
               emptyText={
-                reading
+                notRun
+                  ? `${CROW_NAME}'s program has not run yet, so its memory is empty.`
+                  : reading
                   ? ideas
                     ? read.stage && !hasExamples(read.stage)
                       ? 'No examples to run in this one: the robot runs the capstone program at the end of the stage.'

@@ -72,6 +72,9 @@ export type GuideLine = {
   /** A multiple-choice question: the options, drawn on the stage, and the
    *  ones already tried. */
   choices?: ScriptItem['choices']
+  /** The options stand but cannot be picked yet: what they are about (the
+   *  crow's program) is still typing in. */
+  held?: boolean | undefined
 }
 
 /**
@@ -386,7 +389,7 @@ export function ScenePanel({
           // Next stands during narration, and the console stays closed.
           // An option already tried stays marked, and cannot be picked
           // again.
-          <Options key={guide.choices.id} choices={guide.choices} onChoose={onChoose} />
+          <Options key={guide.choices.id} choices={guide.choices} onChoose={onChoose} held={guide.held === true} />
         )}
 
         {/* No "Type your answer" pointer on the stage: two cues pointing off
@@ -661,14 +664,17 @@ function shuffled<T extends { id: string }>(question: string, options: T[]): T[]
 function Options({
   choices,
   onChoose,
+  held = false,
 }: {
   choices: NonNullable<ScriptItem['choices']>
   onChoose: (choice: string) => void
+  /** Shown, not yet pickable: the program they are about is typing in. */
+  held?: boolean
 }) {
   const tried = choices.tried
   const options = shuffled(choices.id, choices.options)
   return (
-    <div className="choices" role="group" aria-label="Choose an answer" data-testid="choices">
+    <div className="choices" role="group" aria-label="Choose an answer" data-testid="choices" data-held={held ? 'yes' : undefined}>
       {options.map((o, i) => {
         const no = tried.includes(o.id)
         return (
@@ -678,13 +684,13 @@ function Options({
             className={`choice ${KIND_OPTION.has(o.id) ? `kind-${o.id}` : ''} ${no ? 'tried' : ''}`}
             data-testid={`choice-${o.id}`}
             data-tried={no ? 'yes' : 'no'}
-            disabled={no}
+            disabled={no || held}
             aria-label={no ? `${o.label}, already tried` : o.label}
             // A click, and only a click. Enter or Space on a focused option
             // is a click with no pointer behind it (`detail` 0), and was
             // how a learner answered A by pressing Enter to move on.
             onClick={(e) => {
-              if (e.detail === 0) return
+              if (e.detail === 0 || held) return
               onChoose(o.id)
             }}
           >

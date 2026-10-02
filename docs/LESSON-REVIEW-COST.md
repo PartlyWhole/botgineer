@@ -168,3 +168,18 @@ weakness showed: a beat whose only change is a line *finishing* (an
 `IndexError` printed) was listed against the previous shot, and a
 reviewer read the shot as the line never running; the verifier caught it
 in the live page.
+
+## Measured: the Deciding unit (`v2-logic`, `v2-if`, `v2-loops`)
+
+2026-10-02. 20,122 words of script (seeds 1–3), 184 storyboard shots
+(≈230k image tokens). Prep ≈7 min. The workflow: **13 agents, 7 min 25 s,
+1,484,015 subagent tokens**, 335 tool calls; from the transcripts 2.90M
+cache written, 43.8M cache read, 128k output. **45 findings → 35 clusters →
+33 kept, 2 dropped**: the most of any unit, and 6 high, mostly where the
+stage or the crow's working gave a question's answer away before it was
+asked.
+
+Across the four runs a unit of two or three lessons has cost 10–13 agents,
+1.06–1.48M subagent tokens (28–44M cache read) and 7.5–8.5 minutes, plus
+4–7 minutes of preparation; the picture checkers are about half of the
+cache reads every time.

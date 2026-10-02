@@ -102,6 +102,17 @@
   animation: prop-leave var(--beat-len) ease-in both;
 }
 
+/* A right answer's picture (the praise, the payoff leaving) is read for
+   its labels, so on a wide stage it is never drawn narrower than about
+   220px: the floor slot between the cast could be smaller than that, and
+   the gate's lamp labels went unreadable. Capped by the stage so it stays
+   between the crow and the robot. A raised picture is larger already. */
+@container stage (min-width: 481px) {
+  .stage > .props-slot:has(> .prop-layer[data-verdict='right']) {
+    min-width: min(220px, 40cqw);
+  }
+}
+
 @keyframes prop-enter {
   from {
     opacity: 0;
@@ -2004,9 +2015,11 @@
 
 /* ------------------------------ expr ------------------------------ */
 
+/* The size is the picture's own (`exprLayout`, set on the group): one
+   for every row, as large as the box allows. */
 .expr .expr-text {
   font-family: var(--mono);
-  font-size: 16px;
+  font-size: inherit;
   font-weight: 800;
   fill: var(--ink);
 }
@@ -2031,7 +2044,7 @@
 }
 .expr .expr-hint {
   font-family: var(--mono);
-  font-size: 16px;
+  font-size: inherit;
   font-weight: 800;
 }
 @keyframes glow-in {
@@ -4109,7 +4122,7 @@
 }
 .gate-prop .gate-truth {
   font-family: var(--mono);
-  font-size: 8px;
+  font-size: 9px;
   font-weight: 800;
   fill: var(--ink-soft);
   text-anchor: end;
@@ -4499,6 +4512,21 @@
   stroke-width: 1.4;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+/* A loop with an `if` (`kept`): a kept coin is ticked and stays bright
+   enough to read, one passed over is crossed in grey and dims further. */
+.coin-tally .tally-coin.kept .coin-face {
+  opacity: 0.7;
+}
+.coin-tally .tally-coin.skipped .coin-face {
+  opacity: 0.32;
+}
+/* The pass the loop is on stays lit, decided or not. */
+.coin-tally .tally-coin.marked .coin-face {
+  opacity: 1;
+}
+.coin-tally .tally-cross circle {
+  fill: #8a94ad;
 }
 .coin-tally .tally-tick {
   transform-box: fill-box;
