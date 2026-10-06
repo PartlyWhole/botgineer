@@ -33,7 +33,7 @@ import type { LineMarks } from '../ui/editorLines'
 import { MemoryPanel } from '../panels/MemoryPanel'
 import { EditorTransport, OutputLog, type Transcript } from '../panels/RobotPanel'
 import { Gutter, useRemembered, useStacked } from '../ui/Split'
-import { useRoom } from '../collab/useRoom'
+import type { RoomView } from '../collab/useRoom'
 import { RoomBar } from '../collab/RoomBar'
 import { setPeers, sharedEditor } from '../collab/editor'
 import type { PackedRun } from '../collab/trace'
@@ -57,7 +57,7 @@ type Done = {
   threw: string | null
 }
 
-export function Sandbox() {
+export function Sandbox({ roomView }: { roomView: RoomView }) {
   const boot = useRuntime()
   const stacked = useStacked()
   const [codeW, setCodeW] = useRemembered('botgineer.sb.code', NaN)
@@ -71,7 +71,6 @@ export function Sandbox() {
   const [index, setIndex] = useState(0)
   const [runSeq, setRunSeq] = useState(0)
 
-  const roomView = useRoom()
   const room = roomView.room
   const shared = useMemo(() => (room ? { text: () => room.doc()?.code ?? '', extension: sharedEditor(room) } : null), [room])
 

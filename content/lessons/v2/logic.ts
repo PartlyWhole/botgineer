@@ -36,6 +36,7 @@
  * judged on its *shape* (the names and the operator), and real Python
  * gives the answer, so the robot is the key.
  */
+import { pageSeed } from '../seed'
 import { between, pick, rng } from '../../../src/practice/exercises'
 import { compare, type Goal } from '../../../src/memory/goal'
 import type { Prop } from '../../../src/scene/props'
@@ -561,12 +562,6 @@ export function quiz(seed: number): LessonStep[] {
   return [atLeast, sameStep, inStep, edgeStep, orStep, gateStep, keepStep]
 }
 
-function seedOfPage(): number {
-  if (typeof location === 'undefined') return 1
-  const given = Number(new URLSearchParams(location.search).get('seed'))
-  return Number.isFinite(given) && given > 0 ? given : Math.floor(Math.random() * 1e9) + 1
-}
-
 export const logicLesson = (seed: number): Lesson => ({
   id: 'v2-logic',
   teaches: ['compare', 'bool'],
@@ -580,4 +575,4 @@ export const logicLesson = (seed: number): Lesson => ({
   takeaway: 'A comparison asks a question and makes a `bool`. `and` needs both, `or` needs one, and `not` flips the answer.',
 })
 
-export const v2logic = logicLesson(seedOfPage())
+export const v2logic = logicLesson(pageSeed())

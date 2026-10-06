@@ -487,11 +487,18 @@ that set to about one per area so it stays under a minute.
    keyframe replaces the placement for the length of the demonstration.
    The props slot paints behind the cast (no z-index), so a picture never
    covers a face.
-27. **A shared room replicates what one engine produced.** Whoever presses
-   Run runs Python; the others are shown that run's trace, never a run of
-   their own, which would differ for any program using `random`. The room
-   holds only the code and the last run; who is here, carets and the step
-   shown are ephemeral presence. A peer's trace is untrusted until
-   `collab/trace.ts` has checked it. A room link rides after the route
-   (`#/code&room=…`), and `#/code` alone is solo. See
-   [docs/COLLAB.md](docs/COLLAB.md).
+27. **A shared sandbox replicates what one engine produced.** Whoever
+   presses Run runs Python; the others are shown that run's trace, never a
+   run of their own, which would differ for any program using `random`.
+   The room holds only the code and the last run; who is here, carets, the
+   step and the line being told are ephemeral presence. A peer's trace is
+   untrusted until `collab/trace.ts` has checked it. A room link rides
+   after the route (`#/code&room=…`, `#/v2-if&room=…`); without it the
+   page is solo.
+   **A shared lesson replicates what the players did**, not a trace: a v2
+   lesson's inputs are events (`act` in `Workbench`), the room holds their
+   log, and every peer applies it in the document's order and runs Python
+   for it itself, so every peer derives the same step (invariant 11) from
+   the same evidence. Its questions are drawn with the room's seed
+   (`lessonFor`). A wipe the lesson makes itself is an event too, made by
+   one peer (`Room.leads`). See [docs/COLLAB.md](docs/COLLAB.md).

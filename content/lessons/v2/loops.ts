@@ -27,6 +27,7 @@
  * Then five, from a seed (`practice`): predict a total, count with an
  * `if`, fix a broken loop, build a new list, and count the passes.
  */
+import { pageSeed } from '../seed'
 import { between, pick, rng } from '../../../src/practice/exercises'
 import type { Prop } from '../../../src/scene/props'
 import { chose, ran, type Choices, type Lesson, type LessonStep, type Line } from '../core'
@@ -450,12 +451,6 @@ export function practice(seed: number): LessonStep[] {
   return [p1, p2, p3, p4, p5]
 }
 
-function seedOfPage(): number {
-  if (typeof location === 'undefined') return 1
-  const given = Number(new URLSearchParams(location.search).get('seed'))
-  return Number.isFinite(given) && given > 0 ? given : Math.floor(Math.random() * 1e9) + 1
-}
-
 export const loopsLesson = (seed: number): Lesson => ({
   id: 'v2-loops',
   teaches: ['loop-passes', 'accumulator', 'range'],
@@ -468,4 +463,4 @@ export const loopsLesson = (seed: number): Lesson => ({
   takeaway: 'A loop runs its block again and again: `for` once per item, and `while` for as long as its question is `True`.',
 })
 
-export const v2loops = loopsLesson(seedOfPage())
+export const v2loops = loopsLesson(pageSeed())

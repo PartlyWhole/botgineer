@@ -33,6 +33,7 @@
  * with Mira (`practice`): pack it, add to it twice, count it, find the
  * n-th thing, reach past the end, swap one thing, and share it.
  */
+import { pageSeed } from '../seed'
 import { between, pick, rng } from '../../../src/practice/exercises'
 import { compare, holds, itemsOf, type Goal, type GoalBinding } from '../../../src/memory/goal'
 import type { MemorySnapshot } from '../../../src/memory/model'
@@ -497,12 +498,6 @@ export function practice(seed: number): LessonStep[] {
   ]
 }
 
-function seedOfPage(): number {
-  if (typeof location === 'undefined') return 1
-  const given = Number(new URLSearchParams(location.search).get('seed'))
-  return Number.isFinite(given) && given > 0 ? given : Math.floor(Math.random() * 1e9) + 1
-}
-
 export const listsLesson = (seed: number): Lesson => ({
   id: 'v2-lists',
   teaches: ['index', 'alias', 'mutate-vs-rebind'],
@@ -516,4 +511,4 @@ export const listsLesson = (seed: number): Lesson => ({
   takeaway: 'A list keeps many objects in order under one name. Its indexes count from `0`, and two names can share one list.',
 })
 
-export const v2lists = listsLesson(seedOfPage())
+export const v2lists = listsLesson(pageSeed())

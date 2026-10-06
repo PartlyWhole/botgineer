@@ -41,6 +41,7 @@
  * question are two readings of one thing; the browser journey plays a
  * seed against real CPython.
  */
+import { pageSeed } from '../seed'
 import { between, pick, rng, type Rng } from '../../../src/practice/exercises'
 import { bin, evaluate, float, int, PyError, render, repr, str, type Expr } from '../../../src/practice/python'
 import type { Prop } from '../../../src/scene/props'
@@ -512,12 +513,6 @@ export function quiz(seed: number): LessonStep[] {
   return steps
 }
 
-function seedOfPage(): number {
-  if (typeof location === 'undefined') return 1
-  const given = Number(new URLSearchParams(location.search).get('seed'))
-  return Number.isFinite(given) && given > 0 ? given : Math.floor(Math.random() * 1e9) + 1
-}
-
 export const opsLesson = (seed: number): Lesson => ({
   id: 'v2-ops',
   teaches: ['arith', 'divide', 'join', 'order'],
@@ -531,4 +526,4 @@ export const opsLesson = (seed: number): Lesson => ({
   takeaway: 'You write the sum and the robot works it out: `*` and `/` before `+` and `-`, brackets first. Words join with `+` and repeat with `*`, but a word plus a number stops the robot.',
 })
 
-export const v2ops = opsLesson(seedOfPage())
+export const v2ops = opsLesson(pageSeed())

@@ -57,6 +57,9 @@ declare global {
         steps: number
         mode: string
         history: string[]
+        /** A shared lesson: events applied or queued, and still to apply. */
+        log: number
+        pending: number
       }
     }
   }

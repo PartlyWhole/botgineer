@@ -30,8 +30,8 @@ import { events } from '../game/events'
 import { useCast } from '../game/director'
 import type { Activity } from '../../content/activities'
 import {
-  LESSONS,
   NO_CAST,
+  lessonFor,
   castAt,
   cloud,
   script,
@@ -72,6 +72,11 @@ import type { Exchange } from '../ui/RobotConsole'
 import type { EditorApi } from '../ui/CodeEditor'
 import type { LineMarks } from '../ui/editorLines'
 import { Gutter, STACKED, useRemembered, useStacked } from '../ui/Split'
+import type { RoomView } from '../collab/useRoom'
+import type { LessonEvent, LessonInput } from '../collab/room'
+import { RoomBar } from '../collab/RoomBar'
+import { setPeers, sharedEditor } from '../collab/editor'
+import { pageSeed } from '../../content/lessons/seed'
 
 /** What one call to the engine came back with. `output` is everything the
  *  whole program printed — replay included. Separating out the part the
@@ -86,7 +91,18 @@ type Outcome = {
   ok: boolean
 }
 
-export function Workbench({ activity }: { activity: Activity }) {
+export function Workbench({
+  activity,
+  roomView,
+  onDiverged,
+}: {
+  activity: Activity
+  /** The page's shared room (`collab/`), if any. */
+  roomView?: RoomView | undefined
+  /** Two peers' events crossed in the room's log: start over and replay. */
+  onDiverged?: (() => void) | undefined
+}) {
+  const room = roomView?.room ?? null
   const boot = useRuntime()
   const cast = useCast()
   const talking = activity.mode === 'console'
@@ -399,11 +415,12 @@ export function Workbench({ activity }: { activity: Activity }) {
   )
 
   /** The editor's instrument: hand over the whole program. */
-  const run = useCallback(async () => {
+  const run = useCallback(async (given?: string) => {
     if (busy || boot.state !== 'ready') return
     // The editor owns the text. Asking React for it would run whatever was
-    // last rendered, which is not necessarily what is on screen.
-    const source = editorRef.current?.read() ?? programRef.current
+    // last rendered, which is not necessarily what is on screen. A shared
+    // lesson's run carries its own (the text that peer ran).
+    const source = given ?? editorRef.current?.read() ?? programRef.current
     setTranscript([])
     const outcome = await execute(source)
     setTranscript((t) => [
@@ -624,7 +641,11 @@ export function Workbench({ activity }: { activity: Activity }) {
   const runKey = talking ? `${activity.id}:talk:${epoch}` : `${activity.id}:${runSeq}`
   const handles = useHandles(snapshot, runKey)
 
-  const lesson = activity.lesson ? (LESSONS[activity.lesson] ?? null) : null
+  // In a shared room the lesson is drawn with the room's seed, so a helper
+  // is asked what the learner was asked.
+  const lesson = activity.lesson ? lessonFor(activity.lesson, room?.lesson()?.seed) : null
+  /** A v2 lesson can be shared, and its inputs go through `act`. */
+  const shareable = lesson !== null && !reading && activity.version === 2
   // A step may ask the player to *retrieve* something, which leaves no
   // trace in memory — so the evidence includes everything the robot has
   // said back. Both halves only ever grow.
@@ -690,14 +711,16 @@ export function Workbench({ activity }: { activity: Activity }) {
   // wiped for the player once, as the lesson reaches it. Once per visit to
   // the step, and never while a line runs.
   const wipedFor = useRef<string | null>(null)
+  /** A wipe the lesson makes itself, by key (`act` below). */
+  const autoWipeRef = useRef<(key: string) => void>(() => {})
   const stepAt = told ? told.at : null
   useEffect(() => {
     if (stepAt === null || busy || boot.state !== 'ready') return
     const key = `${activity.id}:${stepAt}`
     if (!lesson?.steps[stepAt]?.wipeFirst || wipedFor.current === key) return
     wipedFor.current = key
-    wipe()
-  }, [stepAt, busy, boot.state, activity.id, lesson, wipe])
+    autoWipeRef.current(`first:${key}`)
+  }, [stepAt, busy, boot.state, activity.id, lesson])
 
   // The cases the step being asked tries a program on, read by `run`.
   const stepCasesRef = useRef<Record<string, string>[] | undefined>(undefined)
@@ -756,8 +779,8 @@ export function Workbench({ activity }: { activity: Activity }) {
   useEffect(() => {
     if (!wipeDue || busy || boot.state !== 'ready' || beatWipedFor.current === tellKey) return
     beatWipedFor.current = tellKey
-    wipe()
-  }, [wipeDue, busy, boot.state, tellKey, wipe])
+    autoWipeRef.current(`beat:${tellKey}`)
+  }, [wipeDue, busy, boot.state, tellKey])
   // The ideas: how far the sheet has got, and the words named so far.
   const ideasAt = ideas ? readTo(read.ideas, beatAt) : null
   // When an example has run on this beat, the crow points at what it
@@ -781,18 +804,173 @@ export function Workbench({ activity }: { activity: Activity }) {
   // A multiple-choice question is answered on the stage, not to the robot:
   // the console stays closed while it waits.
   const choosing = !reading && current?.asking === true && current.choices !== undefined
+  const actRef = useRef<(input: LessonInput) => Promise<void>>(async () => {})
   const choose = useCallback(
     (choice: string, item: ScriptItem | undefined = current) => {
       const c = item?.asking ? item.choices : undefined
       if (!c || !c.options.some((o) => o.id === choice)) return
+      if (shareable) return void actRef.current({ kind: 'pick', ask: c.id, choice })
       const pick = { ask: c.id, choice }
       setPicks((p) => [...p, pick])
       setLastPick(pick)
       setLastLine(null)
     },
-    [current],
+    [current, shareable],
   )
-  const moveTo = useCallback((at: number) => setTelling({ key: tellKey, at }), [tellKey])
+  const moveTo = useCallback(
+    (at: number) => {
+      setTelling({ key: tellKey, at })
+      room?.shareBeat(tellKey, at)
+    },
+    [tellKey, room],
+  )
+
+  /* ------------------------------------------------------------------ */
+  /* A lesson, shared (`collab/`)                                         */
+  /* ------------------------------------------------------------------ */
+  /**
+   * Everything a player does to a v2 lesson is an event (`LessonEvent`):
+   * a line typed, a program run, an option picked, Undo, a wipe. Alone,
+   * each is applied as it is made, and kept in `logRef`. Shared, the log
+   * goes into the room with it, and from then on an event is added to the
+   * room's log and *every* peer, this one included, applies the log in the
+   * document's order. The evidence is a function of the log, so every
+   * peer derives the same step (invariant 11) with no new state.
+   *
+   * Two peers adding at once can each have applied their own first; the
+   * document then settles on one order, the logs no longer agree, and the
+   * workbench starts over and replays it (`onDiverged`). Rare, and slow
+   * only by a few seconds.
+   *
+   * Which line is being told is shared too, like a run's step: whoever
+   * presses Next moves everyone on.
+   */
+  const inRoom = room !== null && shareable
+  const logRef = useRef<LessonEvent[]>([])
+  const wipedKeys = useRef(new Set<string>())
+  const chain = useRef<Promise<void>>(Promise.resolve())
+  const [pending, setPending] = useState(0)
+  const pendingRef = useRef(0)
+  pendingRef.current = pending
+  const settled = useRef(new Map<string, () => void>())
+  const soloN = useRef(0)
+  const readyRef = useRef(false)
+  readyRef.current = boot.state === 'ready'
+  const handlers = useRef({ say, run, undo, wipe })
+  handlers.current = { say, run, undo, wipe }
+  // A workbench that starts over (`onDiverged`) leaves its queue behind:
+  // it must stop, or it would go on running Python beside its successor.
+  const alive = useRef(true)
+  useEffect(() => {
+    alive.current = true
+    return () => {
+      alive.current = false
+    }
+  }, [])
+  const applyOne = useCallback(async (e: LessonEvent) => {
+    // One run at a time (invariant 5): wait for Python (a peer joining a
+    // room replays the log while it is still booting), for the robot, and
+    // a frame for the render after it, so the handlers are the newest ones.
+    // The session too: a workbench that has just started over can find its
+    // predecessor's last run still in flight.
+    for (let i = 0; i < 2400 && alive.current && (busyRef.current || session.busy || !readyRef.current); i++)
+      await new Promise((r) => setTimeout(r, 25))
+    await new Promise((r) => setTimeout(r, 25))
+    if (!alive.current) return
+    const h = handlers.current
+    if (e.kind === 'say') await h.say(e.source)
+    else if (e.kind === 'run') await h.run(e.source)
+    else if (e.kind === 'undo') await h.undo()
+    else if (e.kind === 'wipe') {
+      if (wipedKeys.current.has(e.key)) return
+      wipedKeys.current.add(e.key)
+      h.wipe()
+    } else {
+      const pick = { ask: e.ask, choice: e.choice }
+      setPicks((p) => [...p, pick])
+      setLastPick(pick)
+      setLastLine(null)
+    }
+  }, [])
+  const queueEvent = useCallback(
+    (e: LessonEvent): Promise<void> => {
+      logRef.current.push(e)
+      setPending((n) => n + 1)
+      const done = chain.current
+        .then(() => applyOne(e))
+        .catch(() => {})
+        .finally(() => {
+          setPending((n) => n - 1)
+          settled.current.get(e.id)?.()
+          settled.current.delete(e.id)
+        })
+      chain.current = done
+      return done
+    },
+    [applyOne],
+  )
+  /** Does what the player did: at once alone, through the room shared.
+   *  Resolves once it has been applied here. */
+  const act = useCallback(
+    (input: LessonInput): Promise<void> => {
+      if (inRoom && room) return new Promise((resolve) => settled.current.set(room.push(input), resolve))
+      return queueEvent({ ...input, id: `solo-${++soloN.current}`, by: 'solo' } as LessonEvent)
+    },
+    [inRoom, room, queueEvent],
+  )
+  actRef.current = act
+  autoWipeRef.current = (key: string) => {
+    if (!shareable) return void wipe()
+    if (wipedKeys.current.has(key) || logRef.current.some((e) => e.kind === 'wipe' && e.key === key)) return
+    // Every peer reaches the beat; one makes the wipe, or two would land in
+    // the log at once and cross.
+    if (inRoom && room && !room.leads()) return
+    void act({ kind: 'wipe', key })
+  }
+  // The room's log, applied as it grows; joining, from the start.
+  const divergedRef = useRef(onDiverged)
+  divergedRef.current = onDiverged
+  useEffect(() => {
+    if (!inRoom || !room) return
+    const sync = () => {
+      const evs = room.events()
+      const have = logRef.current
+      const agree = evs.length >= have.length && have.every((e, i) => evs[i]!.id === e.id)
+      if (!agree) return void divergedRef.current?.()
+      for (let i = have.length; i < evs.length; i++) void queueEvent(JSON.parse(JSON.stringify(evs[i])) as LessonEvent)
+    }
+    sync()
+    return room.subscribe(sync)
+  }, [inRoom, room, queueEvent])
+  // Another peer moved to a line of this step: so does this one. A peer
+  // still catching up takes the line up when it reaches the step.
+  const tellKeyRef = useRef(tellKey)
+  tellKeyRef.current = tellKey
+  useEffect(
+    () =>
+      room?.onBeat((key, at) => {
+        if (key === tellKeyRef.current) setTelling({ key, at })
+      }),
+    [room],
+  )
+  useEffect(() => {
+    const b = room?.lastBeat
+    if (b && b.key === tellKey) setTelling(b)
+  }, [room, tellKey])
+  // Entering a room in step with its log (the learner, sharing), say
+  // which line this is: a helper joining is shown it once they catch up.
+  const beatAtRef = useRef(0)
+  beatAtRef.current = beatAt
+  useEffect(() => {
+    if (inRoom && room && logRef.current.length === room.events().length) room.shareBeat(tellKeyRef.current, beatAtRef.current)
+  }, [inRoom, room])
+  const shareLesson = useCallback(() => {
+    if (!roomView) return
+    void roomView.share(
+      editorRef.current?.read() ?? programRef.current,
+      shareable ? { level: activity.id, seed: pageSeed(), events: logRef.current } : undefined,
+    )
+  }, [roomView, shareable, activity.id])
   // A practice session is paced by the line being told: its next exercise
   // starts (clean console, setup run) only once the praise for the last
   // one has been read (`usePractice`, "The praise is read over the
@@ -871,7 +1049,7 @@ export function Workbench({ activity }: { activity: Activity }) {
     const api = {
       setProgram: (text: string) => editorRef.current?.replace(text),
       getProgram: () => editorRef.current?.read() ?? programRef.current,
-      run: () => run(),
+      run: () => (shareable ? act({ kind: 'run', source: editorRef.current?.read() ?? programRef.current }) : run()),
       /** An editor lesson's equivalent of `say`: past any narration, the
        *  program in the editor, and Run — resolving once the run (and any
        *  cases) are in. */
@@ -880,7 +1058,7 @@ export function Workbench({ activity }: { activity: Activity }) {
         await new Promise((r) => setTimeout(r, 60))
         await until(() => !latest.current.busy)
         editorRef.current?.replace(program)
-        return latest.current.run()
+        return shareable ? actRef.current({ kind: 'run', source: program }) : latest.current.run()
       },
       /** The console's equivalent of typing a line and pressing Enter.
        *  Skips any narration first, as a player pressing Next through it
@@ -900,7 +1078,7 @@ export function Workbench({ activity }: { activity: Activity }) {
           await restartsRef.current.running
         }
         await until(() => !latest.current.busy)
-        return latest.current.say(line)
+        return shareable ? actRef.current({ kind: 'say', source: line }) : latest.current.say(line)
       },
       /** The line being told: where it is in this step's script, whether it
        *  is the question, and who says it. */
@@ -979,6 +1157,10 @@ export function Workbench({ activity }: { activity: Activity }) {
         steps: stepsRef.current.length,
         mode: activity.mode,
         history: historyRef.current.map((e) => e.source),
+        /** A shared lesson: events applied or queued here, and still to
+         *  apply. */
+        log: logRef.current.length,
+        pending: pendingRef.current,
       }),
     }
     ;(window as unknown as { botgineer: typeof api }).botgineer = api
@@ -1256,8 +1438,35 @@ export function Workbench({ activity }: { activity: Activity }) {
     const given = lesson?.steps[stepAt]?.code
     if (given === undefined || codedFor.current === key) return
     codedFor.current = key
+    // In a room the editor's text is shared: one peer puts it in, or the
+    // room would merge one copy per peer.
+    if (inRoom && room && !room.leads()) return
     editorRef.current?.replace(given)
-  }, [atAsk, stepAt, activity.id, lesson])
+  }, [atAsk, stepAt, activity.id, lesson, inRoom, room])
+
+  // A shared editor lesson: the text is the room's, the others' carets
+  // show, and stepping through a run moves everyone.
+  const sharedCode = useMemo(
+    () => (inRoom && room && activity.mode === 'editor' ? { text: () => room.doc()?.code ?? '', extension: sharedEditor(room) } : null),
+    [inRoom, room, activity.mode],
+  )
+  const peerKey = JSON.stringify(roomView?.peers ?? [])
+  useEffect(() => {
+    if (sharedCode) editorRef.current?.effects([setPeers.of(roomView?.peers ?? [])])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [peerKey, sharedCode])
+  const runsRef = useRef(runs.length)
+  runsRef.current = runs.length
+  useEffect(
+    () =>
+      room?.onStep((runId, i) => {
+        if (runId !== `run${runsRef.current}`) return
+        followingRef.current = false
+        setIndex(i)
+      }),
+    [room],
+  )
+  const roomBusy = inRoom && pending > 1 ? 'Catching up…' : null
 
   return (
     <main className="workbench" style={{ ['--scene-w' as string]: `${sceneW}px` }}>
@@ -1333,8 +1542,10 @@ export function Workbench({ activity }: { activity: Activity }) {
           look={look}
           demo={demo}
           onDemoTyped={onDemoTyped}
-          onReset={lesson?.wipe ? wipe : undefined}
-          onUndo={lesson?.wipe ? () => void undo() : undefined}
+          onReset={lesson?.wipe ? (shareable ? () => void act({ kind: 'wipe', key: `hand:${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}` }) : wipe) : undefined}
+          onUndo={lesson?.wipe ? () => void (shareable ? act({ kind: 'undo' }) : undo()) : undefined}
+          banner={shareable && roomView ? <RoomBar view={roomView} onShare={shareLesson} busy={roomBusy} /> : undefined}
+          shared={sharedCode}
           canUndo={canUndo}
           codeDemo={codeDemo}
           onCodeDemoTyped={onCodeDemoTyped}
@@ -1368,12 +1579,12 @@ export function Workbench({ activity }: { activity: Activity }) {
           onReady={(api) => {
             editorRef.current = api
           }}
-          onRun={() => void run()}
+          onRun={() => void (shareable ? act({ kind: 'run', source: editorRef.current?.read() ?? programRef.current }) : run())}
           onStop={() => session.interrupt()}
           exchanges={exchanges}
-          onSay={(line) => void say(line)}
+          onSay={(line) => void (shareable ? act({ kind: 'say', source: line }) : say(line))}
           greeting={activity.greeting}
-          busy={busy}
+          busy={busy || pending > 0}
           disabled={boot.state !== 'ready'}
           // The crow's program has no run of the player's to walk or report.
           transcript={codeDemo ? [] : transcript}
@@ -1382,6 +1593,7 @@ export function Workbench({ activity }: { activity: Activity }) {
           onIndex={(i) => {
             followingRef.current = false
             setIndex(i)
+            if (inRoom) room?.shareStep(`run${runs.length}`, i)
           }}
           // The crow's program is not the run the scrubber walks.
           traceLine={codeDemo ? null : traceLine}

@@ -28,13 +28,13 @@ import { s7Ideas } from './s7ideas'
 import { s8Ideas } from './s8ideas'
 import { decide } from './decide'
 import { v2meet } from './v2/meet'
-import { v2types } from './v2/types'
-import { v2ops } from './v2/ops'
-import { v2bind } from './v2/bind'
-import { v2lists } from './v2/lists'
-import { v2logic } from './v2/logic'
-import { v2if } from './v2/ifs'
-import { v2loops } from './v2/loops'
+import { typesLesson, v2types } from './v2/types'
+import { opsLesson, v2ops } from './v2/ops'
+import { bindLesson, v2bind } from './v2/bind'
+import { listsLesson, v2lists } from './v2/lists'
+import { logicLesson, v2logic } from './v2/logic'
+import { ifLesson, v2if } from './v2/ifs'
+import { loopsLesson, v2loops } from './v2/loops'
 
 export * from './core'
 export { meet, types, choose, operations, namesPoint, takeAnOrder, wake, s1Ideas, s2Ideas, s3Ideas, s4Ideas, s5Ideas, s6Ideas, s7Ideas, s8Ideas, decide, v2meet, v2types, v2ops, v2bind, v2lists, v2logic, v2if, v2loops }
@@ -65,4 +65,30 @@ export const LESSONS: Record<string, Lesson> = {
   [v2logic.id]: v2logic,
   [v2if.id]: v2if,
   [v2loops.id]: v2loops,
+}
+
+/** The lessons drawn from a seed, by id: the rest ask the same every time. */
+const SEEDED: Record<string, (seed: number) => Lesson> = {
+  [v2types.id]: typesLesson,
+  [v2ops.id]: opsLesson,
+  [v2bind.id]: bindLesson,
+  [v2lists.id]: listsLesson,
+  [v2logic.id]: logicLesson,
+  [v2if.id]: ifLesson,
+  [v2loops.id]: loopsLesson,
+}
+const drawnFor = new Map<string, Lesson>()
+
+/**
+ * The lesson `id` as drawn with `seed`, for a shared room whose questions
+ * must be the ones the learner was asked (`collab/`). Without a seed, or
+ * for a lesson not drawn from one, it is the page's own (`LESSONS`).
+ */
+export function lessonFor(id: string, seed?: number | null): Lesson | null {
+  const make = SEEDED[id]
+  if (seed == null || !make) return LESSONS[id] ?? null
+  const key = `${id}:${seed}`
+  let got = drawnFor.get(key)
+  if (!got) drawnFor.set(key, (got = make(seed)))
+  return got
 }

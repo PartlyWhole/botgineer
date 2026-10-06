@@ -50,7 +50,27 @@ export type SharedRun = {
   tooBig: boolean
 }
 
-type RoomDoc = { code: string; run: SharedRun | null }
+/**
+ * One thing a player did in a shared lesson. A lesson's progress is
+ * derived from its evidence (CLAUDE.md invariant 11), and the evidence is
+ * a function of these, in order, so every peer that applies the same log
+ * derives the same step. Each peer runs Python for them itself: a lesson's
+ * programs are the lesson's, and replaying the console is how the console
+ * works anyway (invariant 7).
+ */
+export type LessonEvent =
+  | { id: string; by: string; kind: 'say'; source: string }
+  | { id: string; by: string; kind: 'run'; source: string }
+  | { id: string; by: string; kind: 'pick'; ask: string; choice: string }
+  | { id: string; by: string; kind: 'undo' }
+  /** `key` names a wipe the lesson makes itself (a beat's, a step's), so
+   *  it is made once however many peers reach it. */
+  | { id: string; by: string; kind: 'wipe'; key: string }
+
+/** What a lesson room adds to the document. */
+export type LessonRoom = { level: string; seed: number; events: LessonEvent[] }
+
+type RoomDoc = { code: string; run: SharedRun | null; level?: string; seed?: number; events?: LessonEvent[] }
 
 export type Me = { id: string; name: string; color: string; role: Role }
 export type Peer = Me & {
@@ -64,6 +84,7 @@ type PresenceState = {
   user: { name: string; color: string; role: Role }
   cursor: { anchor: number; head: number; n: number } | null
   step: { runId: string; index: number; n: number } | null
+  beat: { key: string; at: number; n: number } | null
 }
 
 const NAME_ADJ = ['Plucky', 'Zesty', 'Nimble', 'Cheery', 'Snazzy', 'Bouncy', 'Dapper', 'Breezy', 'Sunny', 'Funky']
@@ -108,6 +129,13 @@ export class Room {
   private presence: Presence<PresenceState, RoomDoc> | null = null
   private listeners = new Set<() => void>()
   private stepListeners = new Set<(runId: string, index: number) => void>()
+  private beatListeners = new Set<(key: string, at: number) => void>()
+  private seenBeat = new Map<string, number>()
+  private beatN = 0
+  private eventN = 0
+  /** The last beat a peer moved to: a peer still catching up to that step
+   *  takes it up when they get there. */
+  lastBeat: { key: string; at: number } | null = null
   private seenStep = new Map<string, number>()
   private seenCursor = new Map<string, { n: number; at: number; announcedAt: number }>()
   private cursorN = 0
@@ -128,12 +156,13 @@ export class Room {
     handle.on('change', this.emit)
   }
 
-  /** Shares `code` in a new room, as its learner. */
-  static async create(code: string, via: Set<Transport>): Promise<Room> {
+  /** Shares `code` in a new room, as its learner; a lesson, with what has
+   *  happened in it so far. */
+  static async create(code: string, via: Set<Transport>, lesson?: LessonRoom): Promise<Room> {
     const lib = await loadLib()
     const id = `bg-${Math.random().toString(36).slice(2, 10)}`
     const repo = new lib.Repo({ network: network(lib, via), peerId: id as PeerId })
-    const handle = repo.create<RoomDoc>({ code, run: null })
+    const handle = repo.create<RoomDoc>(lesson ? { code, run: null, level: lesson.level, seed: lesson.seed, events: lesson.events.map(plain) } : { code, run: null })
     await handle.whenReady()
     const room = new Room(lib, repo, handle, me(id, 'learner'), via)
     room.start()
@@ -181,7 +210,7 @@ export class Room {
   private start() {
     const presence = new this.lib.Presence<PresenceState, RoomDoc>({ handle: this.handle })
     presence.start({
-      initialState: { user: { name: this.me.name, color: this.me.color, role: this.me.role }, cursor: null, step: null },
+      initialState: { user: { name: this.me.name, color: this.me.color, role: this.me.role }, cursor: null, step: null, beat: null },
       heartbeatMs: 5000,
       peerTtlMs: 15_000,
     })
@@ -200,6 +229,28 @@ export class Room {
 
   run(): SharedRun | null {
     return this.doc()?.run ?? null
+  }
+
+  /** The lesson this room is for, and the seed its questions were drawn
+   *  with; null for a sandbox room. */
+  lesson(): { level: string; seed: number } | null {
+    const d = this.doc()
+    return d && typeof d.level === 'string' && typeof d.seed === 'number' ? { level: d.level, seed: d.seed } : null
+  }
+
+  /** The lesson's log, in the order every peer applies it. */
+  events(): readonly LessonEvent[] {
+    return this.doc()?.events ?? []
+  }
+
+  /** Whether this peer leads the room for things only one may do (putting
+   *  a step's program in the shared editor): the learner while here, else
+   *  the first of those here by id. Everyone works it out the same way. */
+  leads(): boolean {
+    const here = [this.me, ...this.peers()]
+    const learner = here.find((p) => p.role === 'learner')
+    if (learner) return learner.id === this.me.id
+    return here.map((p) => p.id).sort()[0] === this.me.id
   }
 
   /** Everyone else here now, oldest message first. */
@@ -268,6 +319,28 @@ export class Room {
     return run.trace ? unpack(run.trace) : null
   }
 
+  /** Adds to the lesson's log. Applied by every peer, this one included,
+   *  in the document's order (`Workbench`). */
+  push(event: LessonInput): string {
+    const e = plain({ ...event, id: `${this.me.id}-${++this.eventN}`, by: this.me.id } as LessonEvent)
+    this.handle.change((d) => {
+      if (!d.events) d.events = []
+      d.events.push(e)
+    })
+    return e.id
+  }
+
+  /** Tells the others which line of the lesson this peer is on. */
+  shareBeat(key: string, at: number): void {
+    this.presence?.broadcast('beat', { key, at, n: ++this.beatN })
+  }
+
+  /** Called when another peer moves to a line of the lesson. */
+  onBeat(fn: (key: string, at: number) => void): () => void {
+    this.beatListeners.add(fn)
+    return () => this.beatListeners.delete(fn)
+  }
+
   /** Tells the others which step of `runId` this peer is looking at. */
   shareStep(runId: string, index: number): void {
     this.presence?.broadcast('step', { runId, index, n: ++this.stepN })
@@ -314,6 +387,14 @@ export class Room {
           for (const fn of this.stepListeners) fn(s.runId, s.index)
         }
       }
+      const b = p.value?.beat
+      if (b && typeof b.n === 'number' && typeof b.key === 'string' && Number.isInteger(b.at)) {
+        if ((this.seenBeat.get(p.peerId) ?? -1) < b.n) {
+          this.seenBeat.set(p.peerId, b.n)
+          this.lastBeat = { key: b.key, at: b.at }
+          for (const fn of this.beatListeners) fn(b.key, b.at)
+        }
+      }
       const c = p.value?.cursor
       if (c && typeof c.n === 'number') {
         const seen = this.seenCursor.get(p.peerId)
@@ -355,12 +436,23 @@ export class Room {
     this.handle.off('change', this.emit)
     this.listeners.clear()
     this.stepListeners.clear()
+    this.beatListeners.clear()
     try {
       void this.repo.shutdown()
     } catch {
       /* best effort */
     }
   }
+}
+
+type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never
+/** An event as a player makes it, before it is given an id and an author. */
+export type LessonInput = DistributiveOmit<LessonEvent, 'id' | 'by'>
+
+/** Automerge refuses `undefined`, and a doc's own objects are proxies: a
+ *  plain copy with no undefined fields goes in. */
+function plain<T extends object>(o: T): T {
+  return JSON.parse(JSON.stringify(o)) as T
 }
 
 function me(id: string, role: Role): Me {

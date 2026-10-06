@@ -8,7 +8,9 @@
  */
 import { useRuntime } from "../runtime/shared";
 import { LEVEL_ORDER, LEVEL_ORDER_V2 } from "../../content/roadmap";
-import { goToMap, useRoute } from "./router";
+import { goToMap, hashWithoutRoom, roomInHash, useRoute } from "./router";
+import { useEffect, useState } from "react";
+import { useRoom } from "../collab/useRoom";
 import { SHOW_V1 } from "./versions";
 import { Workbench } from "./Workbench";
 import { Sandbox } from "./Sandbox";
@@ -20,6 +22,24 @@ import { GlossaryScreen } from "../roadmap/GlossaryScreen";
 export function App() {
   const route = useRoute();
   const boot = useRuntime();
+  // One shared room for the page (`collab/`), up here so a level that
+  // starts over (`gen`) keeps it.
+  const roomView = useRoom();
+  const room = roomView.room;
+  const [gen, setGen] = useState(0);
+  // A link's room is for one page: a lesson's level, or the sandbox. Opened
+  // on another, go to its own.
+  const roomLevel = room ? (room.lesson()?.level ?? "code") : null;
+  const here = route.kind === "level" ? route.activity.id : route.kind;
+  useEffect(() => {
+    if (!room || !roomLevel || here === roomLevel) return;
+    const keep = window.location.hash.slice(hashWithoutRoom().length);
+    history.replaceState(null, "", `${location.pathname}${location.search}#/${roomLevel}${keep}`);
+    window.dispatchEvent(new HashChangeEvent("hashchange"));
+  }, [room, roomLevel, here]);
+  // Joining from a link: the lesson is drawn with the room's seed, so it
+  // waits for the room.
+  const joining = roomInHash() !== null && !room && roomView.status !== "unreachable";
   const level = route.kind === "level" ? route.activity : null;
   const number = level
     ? (level.version === 2 ? LEVEL_ORDER_V2 : LEVEL_ORDER).indexOf(level.id) + 1
@@ -144,12 +164,21 @@ export function App() {
       )}
 
       {/* Remounting per activity keeps each one's run state its own. */}
-      {level ? (
-        <Workbench key={level.id} activity={level} />
+      {joining && (level || route.kind === "code") ? (
+        <main className="joining" data-testid="room-joining">
+          <p>Joining the room…</p>
+        </main>
+      ) : level ? (
+        <Workbench
+          key={`${level.id}:${gen}`}
+          activity={level}
+          roomView={roomView}
+          onDiverged={() => setGen((n) => n + 1)}
+        />
       ) : route.kind === "map2" ? (
         <RoadmapV2Screen />
       ) : route.kind === "code" ? (
-        <Sandbox />
+        <Sandbox roomView={roomView} />
       ) : route.kind === "skills" ? (
         <SkillsScreen />
       ) : route.kind === "glossary" ? (

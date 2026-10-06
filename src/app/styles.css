@@ -2389,3 +2389,13 @@ button.tidy:hover {
   font-weight: 700;
   opacity: 0.75;
 }
+
+/* Joining a shared room from a link (`App`): a lesson waits for the room,
+   because its questions are drawn with the room's seed. */
+.joining {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  color: var(--ink-soft);
+  font-size: 15px;
+}

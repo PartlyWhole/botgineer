@@ -9,7 +9,7 @@
  */
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 import { hashWithoutRoom, roomInHash } from '../app/router'
-import { Room, transportsFrom, type Peer } from './room'
+import { Room, transportsFrom, type LessonRoom, type Peer } from './room'
 
 export type RoomStatus = 'solo' | 'connecting' | 'live' | 'unreachable'
 
@@ -17,8 +17,9 @@ export type RoomView = {
   status: RoomStatus
   room: Room | null
   peers: Peer[]
-  /** Shares `code` in a new room and puts its link in the address bar. */
-  share: (code: string) => Promise<void>
+  /** Shares `code` (and a lesson, with what has happened in it) in a new
+   *  room, and puts its link in the address bar. */
+  share: (code: string, lesson?: LessonRoom) => Promise<void>
   leave: () => Promise<void>
   /** The whole link, for copying. */
   link: () => string | null
@@ -65,6 +66,17 @@ export function useRoom(): RoomView {
     return () => window.removeEventListener('hashchange', check)
   }, [enter])
 
+  // A room belongs to the page it was made on. Going elsewhere (the map,
+  // another level) leaves it.
+  useEffect(() => {
+    if (!room) return
+    const check = () => {
+      if (!roomInHash()) void leaveRef.current()
+    }
+    window.addEventListener('hashchange', check)
+    return () => window.removeEventListener('hashchange', check)
+  }, [room])
+
   // Repaint on every change to the room or to who is in it.
   useEffect(() => (room ? room.subscribe(bump) : undefined), [room])
 
@@ -79,11 +91,11 @@ export function useRoom(): RoomView {
   }, [room])
 
   const share = useCallback(
-    async (code: string) => {
+    async (code: string, lesson?: LessonRoom) => {
       if (roomRef.current) return
       setStatus('connecting')
       try {
-        const r = await Room.create(code, transportsFrom(window.location.search, null))
+        const r = await Room.create(code, transportsFrom(window.location.search, null), lesson)
         history.replaceState(null, '', `${window.location.pathname}${window.location.search}${r.link(hashWithoutRoom())}`)
         enter(r)
       } catch {
@@ -102,6 +114,9 @@ export function useRoom(): RoomView {
     history.replaceState(null, '', `${window.location.pathname}${window.location.search}${hashWithoutRoom()}`)
     await r.leave()
   }, [])
+
+  const leaveRef = useRef(leave)
+  leaveRef.current = leave
 
   const link = useCallback(() => (roomRef.current ? window.location.href : null), [])
 

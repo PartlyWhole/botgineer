@@ -653,17 +653,13 @@ export function CodeEditor({
   }, [head, tail, look])
 
   // A shared room: take its text, then attach what keeps the two in step.
-  // The sync plugin starts from the room's text, so the editor must hold
-  // exactly that text the moment it is attached.
+  // While the crow's program is on screen the player's state is put aside,
+  // so it is attached when that state comes back (`attachShared`).
+  const sharedRef = useRef(shared)
+  sharedRef.current = shared
   useEffect(() => {
     const view = viewRef.current
-    if (!view) return
-    if (shared) {
-      const text = shared.text()
-      const { head: h, tail: tl } = boundsRef.current
-      if (view.state.doc.toString() !== h + text + tl) replaceSolution(view, h, tl, text)
-    }
-    view.dispatch({ effects: sharedSlot.reconfigure(shared ? shared.extension : []) })
+    if (view && !playerRef.current) attachShared(view, sharedRef.current, boundsRef.current)
   }, [shared])
 
   // v1: the trace drives the highlight; the editor never drives the trace.
@@ -739,6 +735,8 @@ export function CodeEditor({
       if (saved) {
         playerRef.current = null
         view.setState(saved)
+        // The room's text moved on while the crow's program showed.
+        attachShared(view, sharedRef.current, boundsRef.current)
         view.dispatch({
           effects: [
             editable.reconfigure(EditorView.editable.of(!closedRef.current)),
@@ -753,7 +751,13 @@ export function CodeEditor({
       return
     }
     const d = demoRef.current!
-    if (!playerRef.current) playerRef.current = view.state
+    if (!playerRef.current) {
+      // Put aside without the room attached: a state swapped back in
+      // rebuilds its plugins from what it was saved with, and the sync
+      // plugin would wake up holding text the room has since changed.
+      view.dispatch({ effects: sharedSlot.reconfigure([]) })
+      playerRef.current = view.state
+    }
     const from = Math.max(0, Math.min(d.typeFrom, d.text.length))
     const finish = () => {
       if (reportedRef.current === demoKey) return
@@ -836,6 +840,24 @@ function LockMark() {
 
 /** Replaces the editable region. Used by the debug API the browser tests
  *  drive, so they never have to type into a contenteditable. */
+/**
+ * Puts a shared room's text in the editor and attaches what keeps the two
+ * in step, or detaches it. The sync plugin starts from the room's text, so
+ * the editor must hold exactly that text the moment it is attached, and the
+ * text is put in while nothing is attached to send it back.
+ */
+function attachShared(
+  view: EditorView,
+  shared: { text: () => string; extension: Extension } | null | undefined,
+  { head, tail }: { head: string; tail: string },
+): void {
+  view.dispatch({ effects: sharedSlot.reconfigure([]) })
+  if (!shared) return
+  const text = shared.text()
+  if (view.state.doc.toString() !== head + text + tail) replaceSolution(view, head, tail, text)
+  view.dispatch({ effects: sharedSlot.reconfigure(shared.extension) })
+}
+
 function replaceSolution(view: EditorView, head: string, tail: string, next: string): void {
   view.dispatch({
     changes: { from: head.length, to: view.state.doc.length - tail.length, insert: next },

@@ -30,6 +30,7 @@
  * The questions take turns between picking and typing, never more than
  * two of a kind in a row, and no concept is asked twice.
  */
+import { pageSeed } from '../seed'
 import { pick, rng, type Rng } from '../../../src/practice/exercises'
 import { textOf, type Prop, type TypeSlot } from '../../../src/scene/props'
 import {
@@ -406,14 +407,6 @@ export function quiz(seed: number): LessonStep[] {
   return steps
 }
 
-/** The seed for this visit: `?seed=` in the address, for a test that
- *  wants the same questions, or a new one each time the page loads. */
-function seedOfPage(): number {
-  if (typeof location === 'undefined') return 1
-  const given = Number(new URLSearchParams(location.search).get('seed'))
-  return Number.isFinite(given) && given > 0 ? given : Math.floor(Math.random() * 1e9) + 1
-}
-
 export const typesLesson = (seed: number): Lesson => ({
   id: 'v2-types',
   teaches: ['bool', 'int', 'float', 'str', 'kind'],
@@ -428,4 +421,4 @@ export const typesLesson = (seed: number): Lesson => ({
   takeaway: 'Yes-or-no is a `bool`, a whole number is an `int`, a number with a dot is a `float`, and words in quotes are a `str`.',
 })
 
-export const v2types = typesLesson(seedOfPage())
+export const v2types = typesLesson(pageSeed())

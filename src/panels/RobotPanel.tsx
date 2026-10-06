@@ -16,6 +16,7 @@
  * can be started and scrubbed while looking at either.
  */
 import { useEffect, useMemo, useRef, type ReactNode } from 'react'
+import type { Extension } from '@codemirror/state'
 import { CodeEditor, type CodeDemo, type EditorApi, type LineMarks } from '../ui/CodeEditor'
 import { runKeyHint } from '../ui/editorLines'
 import type { Demo } from '../ui/demo'
@@ -80,6 +81,10 @@ type Props = {
   onCodeDemoTyped?: (() => void) | undefined
   /** v2 editor: the run drawn onto the code's lines. */
   lineMarks?: LineMarks | null | undefined
+  /** A strip along the top: a shared room's bar (`collab/RoomBar`). */
+  banner?: ReactNode
+  /** The editor in a shared room (`CodeEditor`'s `shared`). */
+  shared?: { text: () => string; extension: Extension } | null | undefined
 }
 
 export function RobotPanel({
@@ -113,6 +118,8 @@ export function RobotPanel({
   codeDemo = null,
   onCodeDemoTyped,
   lineMarks = null,
+  banner,
+  shared = null,
 }: Props) {
   const talking = mode === 'console'
   const reading = mode === 'read'
@@ -143,6 +150,7 @@ export function RobotPanel({
       data-busy={busy ? 'yes' : 'no'}
       data-look={look}
     >
+      {banner}
       {/* Both at once, not one or the other.
       
           A `Talk | Memory` switch meant the effect of an instruction was
@@ -183,6 +191,7 @@ export function RobotPanel({
               traceLine={traceLine}
               disabled={busy}
               look={look}
+              shared={shared}
               {...(look === 'v2' && {
                 marks: lineMarks,
                 demo: codeDemo,

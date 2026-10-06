@@ -31,6 +31,7 @@
  * Undo takes the last line back, and a reply to a line says which row is
  * off, from the memory that line left, and how to get back.
  */
+import { pageSeed } from '../seed'
 import { between, pick, rng } from '../../../src/practice/exercises'
 import { compare, type Goal } from '../../../src/memory/goal'
 import type { Prop } from '../../../src/scene/props'
@@ -271,12 +272,6 @@ export function goals(seed: number): LessonStep[] {
   ]
 }
 
-function seedOfPage(): number {
-  if (typeof location === 'undefined') return 1
-  const given = Number(new URLSearchParams(location.search).get('seed'))
-  return Number.isFinite(given) && given > 0 ? given : Math.floor(Math.random() * 1e9) + 1
-}
-
 export const bindLesson = (seed: number): Lesson => ({
   id: 'v2-bind',
   teaches: ['bind', 'rebind', 'recall'],
@@ -290,4 +285,4 @@ export const bindLesson = (seed: number): Lesson => ({
   takeaway: 'A name points at an object. The robot works out the right side of `=` first, then points the name at the result.',
 })
 
-export const v2bind = bindLesson(seedOfPage())
+export const v2bind = bindLesson(pageSeed())

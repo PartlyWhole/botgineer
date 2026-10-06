@@ -1,9 +1,11 @@
 # Shared rooms
 
-A learner can share the sandbox (`#/code`) with a helper: a parent, a
-teacher, a friend who knows more. Both see the same program, the same run
-and the same step of it, and either can type, run and step. Lessons in a
-room are next (see "Lessons, next" below).
+A learner can share the sandbox (`#/code`) or a v2 lesson with a helper:
+a parent, a teacher, a friend who knows more. In the sandbox both see the
+same program, the same run and the same step of it. In a lesson both are
+told the same line, asked the same question and shown the same robot,
+and either can answer. Whoever shares is the learner; whoever joins is a
+helper.
 
 This is PLP's collaboration (`partlywhole/plp`, `app/COLLAB.md`) ported to
 BotGineer's stack. PLP's document is the long version of most of the
@@ -19,7 +21,9 @@ reasoning; this one says what is the same, what differs, and why.
 | `src/collab/editor.ts` | what the editor wears in a room: the sync plugin, the others' carets |
 | `src/collab/useRoom.ts` | the room for a React page: share, join from the link, leave |
 | `src/collab/RoomBar.tsx` | the strip along the top: Share; then who is here, Copy link, Leave |
-| `src/app/Sandbox.tsx` | uses all of it |
+| `src/app/Sandbox.tsx` | the sandbox, shared |
+| `src/app/Workbench.tsx` | a v2 lesson, shared ("A lesson, shared") |
+| `content/lessons/seed.ts`, `lessonFor` | one seed per page, and a lesson drawn with a room's seed |
 
 ## The document
 
@@ -27,6 +31,8 @@ One Automerge document per room. Its URL is the room's name and its key.
 
 ```
 { code: string,          // the editor's text, merged a character at a time
+  level?, seed?,         // a lesson room: which lesson, drawn with which seed
+  events?: LessonEvent[],// a lesson room: what the players did, in order
   run: { runId, driver,  // the last run, replaced whole by each new one
          status: 'running' | 'done',
          source,          // the program that ran
@@ -96,14 +102,55 @@ child. Share the link the way you would share edit access.
 `tests/browser/code-sandbox-room.spec.ts`: two pages of one browser on
 `tabs` only, asserting no relay socket is opened. A helper joins, edits,
 and both walk the learner's run; a late joiner gets the last run; Leave
-drops you; Run is locked while another's run goes. `tests/unit/collab.test.ts`
-covers packing, the shape check and links.
+drops you; Run is locked while another's run goes.
+`tests/browser/lesson-room.spec.ts`: a console lesson shared after three
+steps, the helper (with no `?seed=`) catching up and the two answering in
+turn to the takeaway, in lockstep after every step, wipes included; an
+editor lesson with one shared program; two answers at the same moment,
+settling on one order. `tests/unit/collab.test.ts` covers packing, the
+shape check and links.
 
-## Lessons, next
+## Lessons
 
-A lesson's step is derived from its evidence (CLAUDE.md invariant 11), so a
-room that shares the evidence (the lines accepted, the picks, the runs)
-has every peer derive the same step with no new state. Console lessons are
-deterministic, so each peer can replay the shared lines itself. Which beat
-is showing is view state and is shared like the step. Every peer marks a
-finished lesson finished; mastery is recorded for whoever answered.
+A lesson's step is derived from its evidence (CLAUDE.md invariant 11), and
+the evidence is a function of what the player did, in order. So a lesson
+room shares *that*: a log of events (a line typed, a program run, an option
+picked, Undo, a wipe), and every peer applies the log in the document's
+order and derives the same step, with no new state.
+
+1. **Everything a player does to a v2 lesson is an event** (`act` in
+   `Workbench`), alone too: the log is what Share hands the room, so a
+   helper joining mid-lesson replays it and catches up. Alone, an event
+   is applied at once; in a room, it is added to the room's log, and every
+   peer, the one who made it included, applies the log in order.
+2. **Each peer runs Python for a lesson itself.** Unlike the sandbox: a
+   lesson's programs are the lesson's, the console is replay anyway
+   (invariant 7), and a run's evidence includes the quiet runs on the
+   step's cases. A line using `random` could differ between peers; no
+   lesson asks for one.
+3. **The questions must be the same**, and v2 lessons are drawn from a
+   seed. The page draws one seed for every lesson (`pageSeed`), the room
+   carries it, and a joiner's lesson is drawn with it (`lessonFor`). So a
+   lesson link waits for the room before the lesson is built ("Joining
+   the room…").
+4. **Crossed events start over.** Two peers adding at once may each have
+   applied their own first; the document settles on one order, a peer
+   whose log no longer agrees remounts its workbench (`App`'s `gen`) and
+   replays. Its old queue stops, and the replay waits for the session's
+   last run to end, or the first replayed line would be refused.
+5. **The lesson's own wipes are events, made by one peer.** A wipe on a
+   beat or at a step's start (`Beat.wipe`, `wipeFirst`) changes the
+   evidence, so it is in the log, keyed, and applied once. Only the
+   room's leader (`Room.leads`: the learner, else the first by id) makes
+   it, or every peer reaching the beat would add one and they would cross.
+   The same leader puts a step's given program in the shared editor.
+6. **Which line is told is shared** like a run's step: Next or Back on one
+   page moves everyone. Sharing announces the learner's line, and a peer
+   still catching up takes the last one announced when it reaches that
+   step.
+7. **Progress:** every peer derives the lesson finished, so every peer's
+   map marks it done. Lessons record no mastery; practice, which does, is
+   not shared.
+
+Not shared: practice, reading levels, and v1 lessons. Going to another
+page (the map, the next level) leaves the room.

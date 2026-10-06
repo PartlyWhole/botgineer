@@ -33,6 +33,7 @@
  * three-way one, fix a broken program, write a three-way choice where the
  * order matters, and choose on a question joined with `and`.
  */
+import { pageSeed } from '../seed'
 import { between, pick, rng } from '../../../src/practice/exercises'
 import { compare, type Goal } from '../../../src/memory/goal'
 import type { Prop } from '../../../src/scene/props'
@@ -463,12 +464,6 @@ export function practice(seed: number): LessonStep[] {
   return [p1, p2, p3, p4, p5]
 }
 
-function seedOfPage(): number {
-  if (typeof location === 'undefined') return 1
-  const given = Number(new URLSearchParams(location.search).get('seed'))
-  return Number.isFinite(given) && given > 0 ? given : Math.floor(Math.random() * 1e9) + 1
-}
-
 export const ifLesson = (seed: number): Lesson => ({
   id: 'v2-if',
   teaches: ['block-indent'],
@@ -481,4 +476,4 @@ export const ifLesson = (seed: number): Lesson => ({
   takeaway: 'An `if` runs its block only when its question is `True`. With `elif` and `else`, the first yes wins and the rest are skipped.',
 })
 
-export const v2if = ifLesson(seedOfPage())
+export const v2if = ifLesson(pageSeed())
