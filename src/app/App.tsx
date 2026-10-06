@@ -11,6 +11,7 @@ import { LEVEL_ORDER, LEVEL_ORDER_V2 } from "../../content/roadmap";
 import { goToMap, useRoute } from "./router";
 import { SHOW_V1 } from "./versions";
 import { Workbench } from "./Workbench";
+import { Sandbox } from "./Sandbox";
 import { RoadmapScreen } from "../roadmap/RoadmapScreen";
 import { RoadmapV2Screen } from "../roadmap/RoadmapV2Screen";
 import { SkillsScreen } from "../roadmap/SkillsScreen";
@@ -77,6 +78,16 @@ export function App() {
               <MapIcon />
               <span className="nav-word">Map</span>
             </a>
+            <a
+              href="#/code"
+              className={`to-map ${route.kind === "code" ? "here" : ""}`}
+              aria-current={route.kind === "code" ? "page" : undefined}
+              data-testid="nav-sandbox"
+              aria-label="Sandbox"
+            >
+              <CodeIcon />
+              <span className="nav-word">Sandbox</span>
+            </a>
             {(SHOW_V1 || route.kind !== "map2") && (
               <a
                 href="#/skills"
@@ -137,6 +148,8 @@ export function App() {
         <Workbench key={level.id} activity={level} />
       ) : route.kind === "map2" ? (
         <RoadmapV2Screen />
+      ) : route.kind === "code" ? (
+        <Sandbox />
       ) : route.kind === "skills" ? (
         <SkillsScreen />
       ) : route.kind === "glossary" ? (
@@ -167,6 +180,19 @@ const BookIcon = () => (
       fill="none"
       stroke="currentColor"
       strokeWidth="2"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
+const CodeIcon = () => (
+  <svg viewBox="0 0 24 24" aria-hidden="true" width="16" height="16">
+    <path
+      d="M8.5 7 3.5 12l5 5M15.5 7l5 5-5 5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.4"
+      strokeLinecap="round"
       strokeLinejoin="round"
     />
   </svg>

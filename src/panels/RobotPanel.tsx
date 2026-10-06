@@ -333,7 +333,7 @@ export function RobotPanel({
  * sit dark until there is a run to walk. The slider is the same native
  * range as ever, so its arrow keys, Home and End work for free.
  */
-function EditorTransport({
+export function EditorTransport({
   onRun,
   onStop,
   busy,
@@ -473,7 +473,7 @@ function platformName(): string {
  * quiet stamp. Before any run it is an empty strip with a dim prompt
  * mark: the place output will land, shown rather than labelled.
  */
-function OutputLog({ transcript }: { transcript: Transcript[] }) {
+export function OutputLog({ transcript }: { transcript: Transcript[] }) {
   const ref = useRef<HTMLDivElement | null>(null)
   useEffect(() => {
     const el = ref.current

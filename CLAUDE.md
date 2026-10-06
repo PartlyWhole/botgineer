@@ -110,6 +110,7 @@ that set to about one per area so it stays under a minute.
 | `content/lessons/v2/code.ts` | what the v2 editor lessons share: a program judged on the cases the robot tries it on, and the replies to a program that stopped the robot |
 | `src/ui/Split.tsx` | draggable, keyboard-operable gutters; sizes remembered in localStorage |
 | `src/app/Workbench.tsx` | the wiring: owns the run, the steps, the index, the snapshot |
+| `src/app/Sandbox.tsx` | `#/code`, the sandbox: the v2 editor on the left, memory on the right, nothing else. A run opens on step 0 and is walked by hand (scrubber or step buttons); an edit puts the run away. `#/sandbox` is v1's first level, not this |
 | `content/roadmap.ts` | the levels, grouped into units, in play order. The only place the order lives |
 | `src/progress/progress.ts` | which levels are finished (localStorage) and what that unlocks. One of the **two stored things** — see invariant 19 |
 | `src/roadmap/RoadmapScreen.tsx` | the home screen: a Duolingo-style winding path of levels, one unit per coloured stretch, the cast beside it |

@@ -1332,3 +1332,55 @@
     box-shadow: 0 0 0 3px rgb(93 255 168 / 0.5);
   }
 }
+
+/* ------------------------------ sandbox ------------------------------ */
+
+/* `#/sandbox` (`Sandbox.tsx`): one pane, the editor with its transport
+   and output on the left, memory on the right, a gutter between. The
+   workbench's two-column grid is not used; the pane fills it. */
+.workbench.sandbox {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.sandbox .robot-panel .views {
+  flex-direction: row;
+}
+
+.sandbox .sandbox-code {
+  flex: none;
+  width: var(--code-w, 46%);
+  min-width: 0;
+  max-width: calc(100% - 280px);
+  display: flex;
+  flex-direction: column;
+}
+
+.sandbox .views .view.instrument {
+  flex: 1 1 auto;
+}
+
+.sandbox .views .memory-view {
+  flex: 1 1 auto;
+  height: auto;
+  max-height: none;
+  border-top: 0;
+  border-left: 1px solid var(--t-edge);
+}
+
+/* Stacked, the editor comes first at a working height, memory under it. */
+@media (max-width: 1000px) {
+  .sandbox .robot-panel .views {
+    flex-direction: column;
+  }
+  .sandbox .sandbox-code {
+    width: auto;
+    max-width: none;
+    height: 520px;
+  }
+  .sandbox .views .memory-view {
+    flex: none;
+    height: 460px;
+    border-left: 0;
+    border-top: 1px solid var(--t-edge);
+  }
+}

@@ -12,6 +12,8 @@
  *   `#/skills`        how well each concept is known, and which mistakes
  *   `#/glossary`      plain phrase to formal term; `#/glossary/<term>`
  *                     opens at one entry
+ *   `#/code`          the sandbox: the editor and memory alone, to write,
+ *                     run and step through (`#/sandbox` is v1's first level)
  *   `#/<level id>`    that level's workbench
  *
  * Anything unrecognised is the map, which is always somewhere sensible to
@@ -28,6 +30,7 @@ export type Route =
   | { kind: 'map' }
   | { kind: 'map2' }
   | { kind: 'skills' }
+  | { kind: 'code' }
   | { kind: 'glossary'; term: string | null }
   | { kind: 'level'; activity: Activity }
 
@@ -35,6 +38,7 @@ function read(): Route {
   const id = window.location.hash.replace(/^#\/?/, '')
   if (id === 'v2') return { kind: 'map2' }
   if (id === 'skills') return { kind: 'skills' }
+  if (id === 'code') return { kind: 'code' }
   if (id === 'glossary' || id.startsWith('glossary/')) return { kind: 'glossary', term: id.slice('glossary/'.length) || null }
   // Home is the map of the version on offer: v2's, while v1 is hidden.
   if (id === '' && !SHOW_V1) return { kind: 'map2' }
