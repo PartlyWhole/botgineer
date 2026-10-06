@@ -51,7 +51,7 @@ test('a helper joins, edits, and both walk the learner\'s run step by step', { t
   await helper.getByTestId('step-last').click()
   await expect.poll(() => call<number>(page, 'return b.state().step')).toBe(mine.steps - 1)
   expect(await call<string[]>(page, 'return b.snapshot().bindings.map(x => x.name)')).toEqual(['x', 'y'])
-  await expect(page.getByTestId('transcript')).toContainText('[1, 2, 3]')
+  await expect(page.getByTestId('program-console')).toContainText('[1, 2, 3]')
 
   // Picking a card picks it on both screens; letting go lets go on both.
   await helper.locator('.node.name', { hasText: 'y' }).click()
@@ -179,7 +179,7 @@ test("a peer's caret holds still while you type before it", async ({ page }) => 
 test('resizing a pane resizes it for everyone; the output has its own gutter', async ({ page }) => {
   const { helper } = await pair(page)
   const width = (p: Page) => p.locator('.sandbox-code').evaluate((el) => Math.round(el.getBoundingClientRect().width))
-  const outputH = (p: Page) => p.getByTestId('transcript').evaluate((el) => Math.round(el.getBoundingClientRect().height))
+  const outputH = (p: Page) => p.getByTestId('program-console').evaluate((el) => Math.round(el.getBoundingClientRect().height))
   const drag = async (p: Page, label: string, dx: number, dy: number) => {
     const g = p.getByRole('separator', { name: label })
     const box = (await g.boundingBox())!
@@ -223,4 +223,24 @@ test('peers on different builds are told to reload', async ({ page }) => {
     r.presence.broadcast('user', { name: r.me.name, color: r.me.color, role: r.me.role, build: 'old0000' })
   })
   await expect(page.getByTestId('room-versions')).toContainText('reload')
+})
+
+test("a shared run's console travels with it, typed answers and all", async ({ page }) => {
+  const { helper } = await pair(page)
+  await call(page, "b.setProgram('name = input(\\'Name? \\')\\nprint(\\'hi\\', name)\\n')")
+  await page.evaluate(() => {
+    ;(window as unknown as { __run: Promise<void> }).__run = (window as unknown as { botgineer: { run: () => Promise<void> } }).botgineer.run()
+  })
+  await expect.poll(() => call<boolean>(page, 'return b.console.isWaiting()'), { timeout: 30_000 }).toBe(true)
+  await page.getByTestId('program-console').click()
+  await page.keyboard.type('Ann')
+  await page.keyboard.press('Enter')
+  await page.evaluate(() => (window as unknown as { __run: Promise<void> }).__run)
+  // The helper is shown the learner's console as it was: the prompt, the
+  // answer typed to it, and how the run ended.
+  await expect.poll(() => call<string>(helper, 'return b.console.buffer()'), { timeout: 20_000 }).toContain('Name? Ann')
+  const theirs = await call<string>(helper, 'return b.console.buffer()')
+  expect(theirs).toContain('hi Ann')
+  expect(theirs).toContain('── program finished ──')
+  expect(await call<string>(helper, 'return b.console.text()')).toBe(await call<string>(page, 'return b.console.text()'))
 })

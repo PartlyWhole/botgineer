@@ -174,8 +174,10 @@ describe('the grid', () => {
   it('cuts a long slot label short, so one key cannot push the grid across the pane', () => {
     expect(slotLabel('0')).toEqual({ text: '0', w: Math.ceil(LABEL_CHAR) })
     const long = slotLabel("'a very long key indeed'")
-    expect(long.text).toHaveLength(12)
+    expect(long.text).toHaveLength(16)
     expect(long.text.endsWith('…')).toBe(true)
+    // Two attributes sharing one arrow (both `None`) are drawn whole.
+    expect(slotLabel('.left, .right').text).toBe('.left, .right')
   })
 
   it('lays the same memory out the same way twice', () => {
@@ -259,6 +261,21 @@ describe('the arrows', () => {
     const labels = [curve(list, box(200, 0)), curve(list, box(200, 50)), curve(list, box(200, 100)), curve(other, box(200, 50))].map((c) => c.label)
     for (let i = 0; i < labels.length; i++)
       for (let j = i + 1; j < labels.length; j++) expect(Math.abs(labels[i]!.y - labels[j]!.y)).toBeGreaterThanOrEqual(20)
+  })
+
+  it("moves a label off a card its arrow passes close under", () => {
+    // A plain arrow from (0,0) to (400,40), clear of a card that sits just
+    // above its middle: halfway, the label (standing above the line) would
+    // land on the card; it moves along the arrow instead.
+    const a = box(0, 0)
+    const b = box(400, 40)
+    const card = { x: 200, y: 4, w: 60, h: 20 }
+    const plain = curve(a, b, [], 40).label
+    const moved = curve(a, b, [a, b, card], 40).label
+    const on = (l: { x: number; y: number }) => l.x + 20 > card.x - 30 && l.x - 20 < card.x + 30 && l.y > card.y - 10 && l.y - 12 < card.y + 10
+    expect(on(plain)).toBe(true)
+    expect(on(moved)).toBe(false)
+    expect(moved.x).toBeLessThan(plain.x)
   })
 
   it('routes an arrow round a card in its way, never through it', () => {

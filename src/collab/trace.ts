@@ -17,11 +17,15 @@
  * about not throwing.
  */
 import type { StepRecord, TerminalRecord } from '../runtime/types'
+import { checkedChunks, type Chunk } from '../console/store'
 
 export type PackedRun = {
   steps: StepRecord[]
   terminal: TerminalRecord | null
   threw: string | null
+  /** The run's console (`console/store`): output, typed answers and the
+   *  page's lines. Absent from a build before the console. */
+  console?: Chunk[] | undefined
 }
 
 /** Above this, a run is not shared: the room says so and each peer can run
@@ -62,7 +66,9 @@ export function checked(raw: unknown): PackedRun | null {
   if (steps.length !== raw.steps.length) return null
   const terminal = isTerminal(raw.terminal) ? raw.terminal : null
   const threw = typeof raw.threw === 'string' ? raw.threw.slice(0, 500) : null
-  return { steps, terminal, threw }
+  // A console that is not one is dropped, and rebuilt from the steps.
+  const chunks = raw.console === undefined ? undefined : (checkedChunks(raw.console) ?? undefined)
+  return { steps, terminal, threw, ...(chunks ? { console: chunks } : {}) }
 }
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)

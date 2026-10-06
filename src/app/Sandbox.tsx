@@ -12,6 +12,12 @@
  * Editing the program puts the run away: its marks and memory describe a
  * program that is no longer on screen.
  *
+ * **The console** under the editor is PLP's terminal (`console/`,
+ * invariant 28): output as it arrives, `input()` typed at the prompt,
+ * Ctrl+C to stop. It is the one view that plays live, since a program may
+ * be waiting for its user; once the run is walked it shows what had been
+ * said by the step shown.
+ *
  * It is the same engine, the same `extract.ts` translation and the same
  * views as the workbench (invariants 2 and 3); only the layout and the
  * transport's starting point differ.
@@ -31,7 +37,10 @@ import { EMPTY } from '../memory/model'
 import { CodeEditor, type EditorApi } from '../ui/CodeEditor'
 import type { LineMarks } from '../ui/editorLines'
 import { MemoryPanel } from '../panels/MemoryPanel'
-import { EditorTransport, ResizableOutput, type Transcript } from '../panels/RobotPanel'
+import { EditorTransport } from '../panels/RobotPanel'
+import { ProgramConsole, QUIET_DIAGNOSTICS, writeRunEnd } from '../ui/ProgramConsole'
+import type { ProgramTerminal } from '../console/terminal'
+import type { Chunk } from '../console/store'
 import { useSyncedSize } from '../collab/sizes'
 import { Gutter, useRemembered, useStacked } from '../ui/Split'
 import type { RoomView } from '../collab/useRoom'
@@ -50,6 +59,17 @@ print(bag, coins)
 
 const OPTIONS = { max_steps: 3000, wall_clock_s: 15 }
 
+/** A run's console from its steps alone: for a shared run from a build
+ *  that did not send its console. */
+function chunksOf(steps: readonly StepRecord[]): Chunk[] {
+  const out: Chunk[] = []
+  steps.forEach((s, at) => {
+    if (s.output.stdout_delta) out.push({ stream: 'stdout', text: s.output.stdout_delta, at })
+    if (s.output.stderr_delta) out.push({ stream: 'stderr', text: s.output.stderr_delta, at })
+  })
+  return out
+}
+
 type Done = {
   runId: string
   /** The text that ran, so an edit can tell the run is stale. */
@@ -67,6 +87,22 @@ export function Sandbox({ roomView }: { roomView: RoomView }) {
   // In a shared room, the split moves on every screen (`collab/sizes`).
   const setCodeShared = useSyncedSize('code', setCodeW, () => viewsRef.current?.offsetWidth ?? 0)
   const editorRef = useRef<EditorApi | null>(null)
+  const consoleRef = useRef<ProgramTerminal | null>(null)
+  const [consoleH, setConsoleH] = useRemembered('botgineer.sb.console', 170)
+  const consoleBoxRef = useRef<HTMLDivElement | null>(null)
+  const setConsoleShared = useSyncedSize('output', setConsoleH, () => codeRef.current?.offsetHeight ?? 0)
+  /** Whether the console follows the step shown. Not right after a run: it
+   *  shows the whole transcript (what just happened, answers typed to
+   *  `input()` included) until the run is walked, as PLP's does. */
+  const consoleFollows = useRef(false)
+  /** Bumped when the console starts following, so it does even when the
+   *  step it is on does not change (First step, pressed on step 1). */
+  const [followed, setFollowed] = useState(0)
+  const follow = useCallback(() => {
+    if (consoleFollows.current) return
+    consoleFollows.current = true
+    setFollowed((n) => n + 1)
+  }, [])
 
   const [program, setProgram] = useState(STARTER)
   const [busy, setBusy] = useState(false)
@@ -78,8 +114,11 @@ export function Sandbox({ roomView }: { roomView: RoomView }) {
   const room = roomView.room
   const shared = useMemo(() => (room ? { text: () => room.doc()?.code ?? '', extension: sharedEditor(room) } : null), [room])
 
-  /** Shows a finished run, from this peer or another, on its first step. */
-  const show = useCallback((runId: string, source: string, packed: PackedRun) => {
+  /** Shows a finished run, from this peer or another, on its first step. A
+   *  peer's comes with its console, put in this one's terminal. */
+  const show = useCallback((runId: string, source: string, packed: PackedRun, fromPeer = false) => {
+    consoleFollows.current = false
+    if (fromPeer) consoleRef.current?.load(packed.console ?? chunksOf(packed.steps), packed.steps.length)
     setSteps(packed.steps)
     setDone({ runId, source, terminal: packed.terminal, threw: packed.threw })
     setIndex(0)
@@ -96,17 +135,35 @@ export function Sandbox({ roomView }: { roomView: RoomView }) {
     setSteps([])
     setDone(null)
     setIndex(0)
-    // Records go to a plain array, and the views see them once, at the end:
-    // the run is walked afterwards, never watched live (invariant 6).
+    // Records go to a plain array, and memory sees them once, at the end:
+    // the run is walked afterwards (invariant 6). The console is the one
+    // view that plays live, because a program may ask for input: what it
+    // prints is written to the terminal as it arrives, never through React.
+    const con = consoleRef.current
+    consoleFollows.current = false
+    void con?.reset()
+    con?.system('── run ──')
     const got: StepRecord[] = []
     let terminal: TerminalRecord | null = null
     let threw: string | null = null
     try {
       const outcome = await session.run({
         source,
-        options: OPTIONS,
+        // Live input: the console echoes the typed line, so the engine must
+        // not (exactly one echo, `console/terminal`). Without isolation the
+        // engine has no live input, and keeps echoing.
+        options: { ...OPTIONS, echo_stdin: !crossOriginIsolated },
         onRecord: (r) => {
-          if (r.kind === 'step' && !isProgramStart(r, got.length)) got.push(r)
+          if (r.kind === 'step') {
+            if (isProgramStart(r, got.length)) return
+            got.push(r)
+            con?.reached(got.length - 1)
+            con?.append('stdout', r.output.stdout_delta)
+            con?.append('stderr', r.output.stderr_delta)
+            if (r.event === 'input' && crossOriginIsolated) con?.showInput()
+          } else if (r.kind === 'diagnostic' && !QUIET_DIAGNOSTICS.has(r.code)) {
+            con?.system(`⚠ ${r.code}: ${r.message}`)
+          }
         },
       })
       terminal = outcome.terminal
@@ -114,7 +171,10 @@ export function Sandbox({ roomView }: { roomView: RoomView }) {
       threw = err instanceof Error ? err.message : String(err)
     } finally {
       // Every path ends the run (invariant 5), and opens it on step 0.
-      const packed = { steps: got, terminal, threw }
+      con?.hideInput()
+      con?.ended(got.length)
+      if (con) writeRunEnd(con, terminal, threw, runOf(got, terminal).line)
+      const packed: PackedRun = { steps: got, terminal, threw, console: [...(con?.chunks() ?? [])] }
       show(runId, source, packed)
       setBusy(false)
       // In a room, everyone else is shown it too, unless another peer's run
@@ -133,12 +193,12 @@ export function Sandbox({ roomView }: { roomView: RoomView }) {
       if (!r || r.status !== 'done' || r.runId === applied.current || r.runId === room.myRun) return
       applied.current = r.runId
       if (r.tooBig) {
-        show(r.runId, r.source, { steps: [], terminal: null, threw: 'That run was too big to share. Press Run to see it here.' })
+        show(r.runId, r.source, { steps: [], terminal: null, threw: 'That run was too big to share. Press Run to see it here.' }, true)
         return
       }
       void room.trace(r).then((packed) => {
         if (applied.current !== r.runId) return
-        show(r.runId, r.source, packed ?? { steps: [], terminal: null, threw: 'That run could not be read.' })
+        show(r.runId, r.source, packed ?? { steps: [], terminal: null, threw: 'That run could not be read.' }, true)
       })
     }
     check()
@@ -149,15 +209,18 @@ export function Sandbox({ roomView }: { roomView: RoomView }) {
   const doneRef = useRef(done)
   doneRef.current = done
   useEffect(() => room?.onStep((runId, i) => {
-    if (doneRef.current?.runId === runId) setIndex(i)
-  }), [room])
+    if (doneRef.current?.runId !== runId) return
+    follow()
+    setIndex(i)
+  }), [room, follow])
   const goTo = useCallback(
     (i: number) => {
+      follow()
       setIndex(i)
       const d = doneRef.current
       if (room && d) room.shareStep(d.runId, i)
     },
-    [room],
+    [room, follow],
   )
 
   // Picking a card in memory picks it for everyone.
@@ -193,6 +256,13 @@ export function Sandbox({ roomView }: { roomView: RoomView }) {
     }
   }, [live, total, steps, shown])
   const handles = useHandles(snapshot, `sandbox:${runSeq}`)
+  // A step to the next or the last one shows what came and went; a jump
+  // across the run just shows where it landed.
+  const prevShown = useRef(shown)
+  const jumped = Math.abs(shown - prevShown.current) > 1
+  useEffect(() => {
+    prevShown.current = shown
+  }, [shown])
   const summary = useMemo(() => (done ? runOf(steps, done.terminal) : null), [done, steps])
 
   const marks: LineMarks | null = useMemo(() => {
@@ -205,27 +275,29 @@ export function Sandbox({ roomView }: { roomView: RoomView }) {
     return { ran, current: atEnd ? null : current, finished: atEnd, error: atEnd ? error : null }
   }, [done, summary, live, total, steps, shown, atEnd])
 
-  // What the program had printed by the step shown, and at the end how it
-  // ended. A step carries the output produced before it, so the last
-  // step's own output is added once the end is reached.
-  const transcript: Transcript[] = useMemo(() => {
-    if (!done || !live) return []
-    const out: Transcript[] = []
-    for (let i = 0; i <= shown && i < total; i++) {
-      const { stdout_delta: o, stderr_delta: e } = steps[i]!.output
-      if (o) out.push({ kind: 'out', text: o })
-      if (e) out.push({ kind: 'err', text: e })
-    }
-    if (atEnd || total === 0) out.push({ kind: done.terminal?.reason === 'completed' ? 'note' : 'err', text: endLine(done) })
-    return out
-  }, [done, live, shown, total, steps, atEnd])
+  // The console shows what had been said by the step shown, once the run
+  // is being walked (`consoleFollows`); the end of a run is everything.
+  useEffect(() => {
+    if (!consoleFollows.current || !live || total === 0) return
+    consoleRef.current?.show(atEnd ? null : shown)
+  }, [live, total, shown, atEnd, followed])
+
+  /** A line typed to `input()`: to the engine, and once it is taken, into
+   *  the transcript (the one echo). Throws if the engine is not waiting. */
+  const provideInput = useCallback((line: string) => {
+    session.provideInput(line)
+    // Taken: no longer waiting, however it was answered (typed, or by a
+    // test), and the line joins the transcript.
+    consoleRef.current?.hideInput()
+    consoleRef.current?.append('echo', line + '\n')
+  }, [])
 
   const current = live && total > 0 ? steps[shown] : undefined
   const traceLine = current?.location.module === '__main__' ? current.location.line : null
 
   // A small surface for the browser tests, like the workbench's.
-  const latest = useRef({ run, busy, shown, total, snapshot, done, steps })
-  latest.current = { run, busy, shown, total, snapshot, done, steps }
+  const latest = useRef({ run, busy, shown, total, snapshot, done, steps, provideInput })
+  latest.current = { run, busy, shown, total, snapshot, done, steps, provideInput }
   useEffect(() => {
     const api = {
       setProgram: (src: string) => editorRef.current?.replace(src),
@@ -234,6 +306,20 @@ export function Sandbox({ roomView }: { roomView: RoomView }) {
       run: () => latest.current.run(),
       step: (i: number) => goTo(i),
       snapshot: () => latest.current.snapshot,
+      /** Answers a waiting `input()`, as typing it and pressing Enter does. */
+      provideInput: (line: string) => latest.current.provideInput(line),
+      interrupt: () => session.interrupt(),
+      /** The program console: its transcript (the truth) and its screen. */
+      console: {
+        text: () => consoleRef.current?.text() ?? '',
+        engineText: () => consoleRef.current?.engineText() ?? '',
+        buffer: () => consoleRef.current?.buffer() ?? '',
+        isWaiting: () => consoleRef.current?.isWaiting() ?? false,
+        chunks: () => consoleRef.current?.chunks() ?? [],
+        rows: () => consoleRef.current?.term.rows ?? 0,
+        /** The terminal itself (cells, append, reset): tests only. */
+        raw: () => consoleRef.current,
+      },
       /** Each step's event and line, for tests of what a step shows. */
       events: () => latest.current.steps.map((s) => `${s.event}:${s.location.module}:${s.location.line}`),
       state: () => ({
@@ -291,7 +377,26 @@ export function Sandbox({ roomView }: { roomView: RoomView }) {
               onIndex={goTo}
               pulse={false}
             />
-            <ResizableOutput transcript={transcript} space={() => codeRef.current?.offsetHeight ?? 0} />
+            <Gutter
+              orientation="horizontal"
+              value={consoleH}
+              measure={() => consoleBoxRef.current?.offsetHeight ?? 170}
+              onChange={setConsoleShared}
+              min={60}
+              max={640}
+              invert
+              label="Resize the output"
+            />
+            <div ref={consoleBoxRef} className="console-box">
+              <ProgramConsole
+                height={consoleH}
+                onReady={(api) => {
+                  consoleRef.current = api
+                }}
+                onInput={provideInput}
+                onInterrupt={() => session.interrupt()}
+              />
+            </div>
           </div>
           {!stacked && (
             <Gutter
@@ -311,6 +416,7 @@ export function Sandbox({ roomView }: { roomView: RoomView }) {
               handles={handles}
               runKey={`sandbox:${runSeq}`}
               sync={pickSync}
+              jumped={jumped}
               emptyText={
                 live && total > 0
                   ? shown === 0
@@ -324,22 +430,4 @@ export function Sandbox({ roomView }: { roomView: RoomView }) {
       </section>
     </main>
   )
-}
-
-function endLine({ terminal, threw }: Done): string {
-  if (threw) return threw
-  switch (terminal?.reason) {
-    case 'completed':
-      return 'Done.'
-    case 'uncaught_exception':
-      return `${terminal.exception?.type_name ?? 'Error'}: the robot stopped there.`
-    case 'step_limit':
-    case 'trace_limit':
-      return 'Ran out of steps. A loop probably never finished.'
-    case 'interrupted':
-    case 'killed':
-      return 'Stopped.'
-    default:
-      return terminal ? `The run ended (${terminal.reason}).` : 'The run ended without saying how.'
-  }
 }

@@ -64,11 +64,16 @@ export type PyObject = {
   /** The engine could not fully render this (a budget, or an object it
    *  refuses to inspect). Shown as such, never quietly as a complete one. */
   partial: boolean
+  /** `attributes`: an instance's or a class's slots are its attributes,
+   *  labelled `.name`, not items. Absent for a collection. */
+  holds?: 'attributes' | undefined
 }
 
 export type Binding = {
   name: string
-  /** `global`, or the function whose frame this local belongs to. */
+  /** `global`, or the function whose frame this local belongs to; a
+   *  deeper live call of the same function is numbered, `total#2`
+   *  (`extractMemory`). */
   scope: string
   target: ObjectId
 }

@@ -215,12 +215,65 @@ function unorderedEquals(a: Decoded[], b: Decoded[]): boolean {
 
 /** `repr()` of a Python float: always a decimal point, and Python's own
  *  spellings for the specials. */
-function pythonFloat(n: number): string {
+export function pythonFloat(n: number): string {
   if (Number.isNaN(n)) return 'nan'
   if (n === Infinity) return 'inf'
   if (n === -Infinity) return '-inf'
+  // Python's repr turns to an exponent from 1e16 up and below 1e-4, with
+  // at least two exponent digits; JavaScript's only from 1e21, with one.
+  const a = Math.abs(n)
+  if (a !== 0 && (a >= 1e16 || a < 1e-4)) return n.toExponential().replace(/e([+-])(\d)$/, 'e$10$2')
   if (Number.isInteger(n)) return Object.is(n, -0) ? '-0.0' : `${n}.0`
   return String(n)
+}
+
+/**
+ * A str the way Python's repr writes it: single quotes unless the text has
+ * a single quote and no double one, and Python's escapes. JSON's quoting,
+ * used before, escaped a double quote Python leaves alone (`'say \"hi\"'`)
+ * and quoted `it's` as `'it's'`.
+ */
+export function pythonStr(s: string): string {
+  const q = s.includes("'") && !s.includes('"') ? '"' : "'"
+  let out = ''
+  for (const ch of s) {
+    const c = ch.codePointAt(0)!
+    if (ch === '\\') out += '\\\\'
+    else if (ch === q) out += '\\' + q
+    else if (ch === '\n') out += '\\n'
+    else if (ch === '\r') out += '\\r'
+    else if (ch === '\t') out += '\\t'
+    else if (c < 0x20 || c === 0x7f) out += '\\x' + c.toString(16).padStart(2, '0')
+    else out += ch
+  }
+  return q + out + q
+}
+
+/** bytes the way Python's repr writes them: printable ASCII as itself,
+ *  the rest escaped. */
+export function pythonBytes(bytes: Uint8Array): string {
+  let quote = "'"
+  if (bytes.includes(0x27) && !bytes.includes(0x22)) quote = '"'
+  let out = ''
+  for (const c of bytes) {
+    if (c === 0x5c) out += '\\\\'
+    else if (String.fromCharCode(c) === quote) out += '\\' + quote
+    else if (c === 0x0a) out += '\\n'
+    else if (c === 0x0d) out += '\\r'
+    else if (c === 0x09) out += '\\t'
+    else if (c < 0x20 || c >= 0x7f) out += '\\x' + c.toString(16).padStart(2, '0')
+    else out += String.fromCharCode(c)
+  }
+  return `b${quote}${out}${quote}`
+}
+
+/** A complex number's repr: `(3+4j)`, `4j`, `(1.5-2j)`. */
+export function pythonComplex(re: number, im: number): string {
+  const part = (x: number) => (Number.isInteger(x) && Math.abs(x) < 1e16 ? (Object.is(x, -0) ? '-0' : String(x)) : pythonFloat(x))
+  const imag = `${part(im)}j`
+  if (re === 0 && !Object.is(re, -0)) return imag
+  const sign = im < 0 || Object.is(im, -0) ? '' : '+'
+  return `(${part(re)}${sign}${imag})`
 }
 
 /** Renders a decoded value the way Python would print it. Used for the
@@ -231,7 +284,7 @@ export function formatDecoded(d: Decoded): string {
   if (typeof d === 'boolean') return d ? 'True' : 'False'
   if (typeof d === 'number') return String(d)
   if (isFloat(d)) return pythonFloat(d.__float)
-  if (typeof d === 'string') return JSON.stringify(d).replace(/^"|"$/g, "'")
+  if (typeof d === 'string') return pythonStr(d)
   if (Array.isArray(d)) return `[${d.map(formatDecoded).join(', ')}]`
   if ('__tuple' in d) {
     const items = d.__tuple.map(formatDecoded)

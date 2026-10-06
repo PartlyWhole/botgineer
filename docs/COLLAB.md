@@ -37,7 +37,7 @@ One Automerge document per room. Its URL is the room's name and its key.
   run: { runId, driver,  // the last run, replaced whole by each new one
          status: 'running' | 'done',
          source,          // the program that ran
-         trace: bytes | null,   // gzipped JSON of the steps (trace.ts)
+         trace: bytes | null,   // gzipped JSON of the steps and the console (trace.ts)
          tooBig: boolean } | null }
 ```
 
@@ -45,6 +45,12 @@ Presence is not in the document. Who is here (a made-up name like
 "Plucky Otter", a colour, learner or helper), each caret, the step each
 person is looking at, the line being told, and the memory card picked
 travel as ephemeral messages, so dragging the scrubber is not history.
+
+**A shared run carries its console** (`PackedRun.console`): the chunks
+the driver's terminal kept (`console/store`), so a helper sees the prompt,
+the answer the learner typed to `input()`, and how the run ended, exactly.
+Checked on arrival (`checkedChunks`); a run from a build without it gets a
+console rebuilt from its steps' output.
 
 **Resizing a pane resizes it for everyone** (`collab/sizes`): the scene,
 memory, the sandbox's code pane and the output. A size goes as a fraction

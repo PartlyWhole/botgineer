@@ -59,7 +59,7 @@ export function shown(s: MemorySnapshot | null, name: string): string | null {
 function reprDeep(s: MemorySnapshot, id: ObjectId, open: Set<ObjectId>): string {
   const o = s.objects[id]
   if (!o) return '?'
-  if (o.elements === null || o.type === 'function') return o.repr
+  if (o.elements === null || o.type === 'function' || o.holds === 'attributes') return o.repr
   if (open.has(id)) return '[...]'
   open.add(id)
   const inner = o.elements.map((e) => (o.type === 'dict' ? `${e.label}: ${reprDeep(s, e.target, open)}` : reprDeep(s, e.target, open)))

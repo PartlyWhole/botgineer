@@ -6,7 +6,7 @@
  * Nothing here is computed *about* the program — it is a translation of
  * what the interpreter reported, and no more.
  */
-import { decodeValue, formatDecoded } from '../runtime/decode'
+import { decodeValue, formatDecoded, pythonBytes, pythonComplex } from '../runtime/decode'
 import { DESCRIBE, THOUGHT, THOUGHT_SEP } from '../repl/program'
 
 /** Where a hidden checker leaves its verdict, and the function it runs in
@@ -39,6 +39,8 @@ const VALUE_TYPE: Record<string, string> = {
 }
 
 const COLLECTION_KINDS = new Set(['list', 'tuple', 'set', 'frozenset', 'dict'])
+/** Objects whose slots are attributes: an instance's, a class's. */
+const ATTRIBUTE_KINDS = new Set(['instance', 'class'])
 
 /** Names the app itself put in the program. They are real bindings, but
  *  they are our plumbing rather than the player's work. */
@@ -73,9 +75,19 @@ export function extractMemory(step: StepRecord | undefined): MemorySnapshot {
     if (g.module !== '__main__') continue
     for (const binding of g.bindings) add(binding, 'global')
   }
+  // Each live call is a scope of its own. A function that has called
+  // itself is live more than once, and its frames' locals share their
+  // names (`t` in every call of a recursive `total(t)`): scoped by the
+  // function's name alone they were one name drawn several times over, on
+  // the same spot. The first live call keeps the plain name; each deeper
+  // one is numbered, `total#2`, which the graph shows as `total 2`.
+  const calls = new Map<string, number>()
   for (const frame of step.stack) {
     if (frame.function === '<module>') continue
-    for (const local of frame.locals) add(local, frame.function)
+    const n = (calls.get(frame.function) ?? 0) + 1
+    calls.set(frame.function, n)
+    const scope = n === 1 ? frame.function : `${frame.function}#${n}`
+    for (const local of frame.locals) add(local, scope)
   }
 
   return { bindings, objects: b.objects, line: step.location.line }
@@ -130,7 +142,7 @@ function intern(value: TraceValue, b: Builder): string {
       type: node.type_name || node.kind,
       kind: 'reference',
       repr: '',
-      elements: COLLECTION_KINDS.has(node.kind) || hasDefaults(node) ? [] : null,
+      elements: COLLECTION_KINDS.has(node.kind) || ATTRIBUTE_KINDS.has(node.kind) || hasDefaults(node) ? [] : null,
       partial: node.kind === 'opaque' || node.kind === 'elided',
     }
     const built = buildReference(id, node, b)
@@ -142,7 +154,7 @@ function intern(value: TraceValue, b: Builder): string {
   // A value: keyed by what it is, not by where it appeared. Two `10`s are
   // one entry, and it carries no identity badge (see model.ts).
   const type = VALUE_TYPE[value.kind] ?? value.kind
-  const repr = formatDecoded(decodeValue(value, b.heap))
+  const repr = valueRepr(value, b.heap)
   const id = `v:${type}:${repr}`
   b.objects[id] ??= {
     id,
@@ -170,6 +182,10 @@ function buildReference(id: string, node: HeapNode, b: Builder): PyObject {
       label: `default ${i + 1}`,
       target: intern(v, b),
     }))
+  } else if (ATTRIBUTE_KINDS.has(node.kind)) {
+    // An object's attributes, pointed at like a dict's values and labelled
+    // the way Python reaches them: `.name`.
+    elements = (node.attributes ?? []).map((a) => ({ label: `.${a.name}`, target: intern(a.value, b) }))
   } else if (node.kind === 'dict') {
     elements = (node.entries ?? []).map((e) => ({
       label: formatDecoded(decodeValue(e.key, b.heap)),
@@ -190,6 +206,44 @@ function buildReference(id: string, node: HeapNode, b: Builder): PyObject {
     repr: reprOf(node, elements),
     elements,
     partial,
+    ...(ATTRIBUTE_KINDS.has(node.kind) ? { holds: 'attributes' as const } : {}),
+  }
+}
+
+/**
+ * How Python prints a value that is not on the heap. The decoder is for
+ * grading and models only what a scenario can compare, so the kinds it
+ * leaves opaque, and an int too big for a double (which it keeps as a
+ * string, and which then printed in quotes), are written out here.
+ */
+function valueRepr(value: TraceValue, heap: HeapNode[]): string {
+  const v = value as Record<string, unknown>
+  switch (value.kind) {
+    case 'int':
+      return String(v.decimal)
+    case 'complex': {
+      const part = (x: unknown) => {
+        const f = x as { decimal?: string; special?: string } | undefined
+        if (!f) return NaN
+        if (f.special === 'Infinity') return Infinity
+        if (f.special === '-Infinity') return -Infinity
+        if (f.special === 'NaN') return NaN
+        return Number(f.decimal)
+      }
+      return pythonComplex(part(v.real), part(v.imag))
+    }
+    case 'bytes': {
+      if (typeof v.base64 !== 'string') return '<bytes>'
+      const raw = atob(v.base64)
+      return pythonBytes(Uint8Array.from(raw, (c) => c.charCodeAt(0)))
+    }
+    case 'range': {
+      const n = (x: unknown) => String((x as { decimal?: string } | undefined)?.decimal ?? '?')
+      const step = n(v.step)
+      return step === '1' ? `range(${n(v.start)}, ${n(v.stop)})` : `range(${n(v.start)}, ${n(v.stop)}, ${step})`
+    }
+    default:
+      return formatDecoded(decodeValue(value, heap))
   }
 }
 
@@ -197,6 +251,8 @@ function buildReference(id: string, node: HeapNode, b: Builder): PyObject {
  *  than their whole contents — the contents are the elements, and the
  *  panel shows those by pointing at them. */
 function reprOf(node: HeapNode, elements: Element[] | null): string {
+  if (node.kind === 'instance') return `${node.type_name} object`
+  if (node.kind === 'class') return `class ${String(node.qualname ?? node.type_name)}`
   if (elements === null || node.kind === 'function') {
     if (node.kind === 'function') {
       return `${node.type_name ?? 'function'} ${node.qualname ?? ''}`.trim()

@@ -41,6 +41,7 @@ import {
   SLIDE,
   SLIDE_MS,
   slotLabel,
+  LABEL_CHAR,
   spread,
   svgTransformOf,
   swing,
@@ -80,6 +81,11 @@ type Props = {
    * 15–17). Every scope's binding of a marked name is marked.
    */
   marked?: readonly string[] | undefined
+  /** This picture is not the next step after the last one (the scrubber
+   *  jumped): no comings and goings are shown. A departing card lingers so
+   *  one line's change can be watched; after a jump across many lines,
+   *  every card that left lingered at once, on top of the new picture. */
+  jumped?: boolean | undefined
 }
 
 /** Screen pixels of memory off an edge before the pane says so: a card's
@@ -109,7 +115,7 @@ type Swing = { from: string; box: Box | null; t0: number }
 
 const now = () => performance.now()
 
-export function MemoryGraph({ snapshot, handles, runKey, picked, onPick, fit = false, marked }: Props) {
+export function MemoryGraph({ snapshot, handles, runKey, picked, onPick, fit = false, marked, jumped = false }: Props) {
   const hostRef = useRef<HTMLDivElement | null>(null)
   const worldRef = useRef<HTMLDivElement | null>(null)
   const edgeLayerRef = useRef<SVGGElement | null>(null)
@@ -244,10 +250,12 @@ export function MemoryGraph({ snapshot, handles, runKey, picked, onPick, fit = f
         if (p >= 1 || !from) swings.current.delete(e.key)
         else b = lerpBox(from, b, p)
       }
-      const c = curve(a, b, cards)
-      path.setAttribute('d', c.d)
       const label = labelRefs.current.get(e.key)
-      if (label && e.label !== null) labels.push({ el: label, ...c.label, w: slotLabel(e.label).w })
+      // The label as drawn: slots sharing one arrow share one label.
+      const w = label && e.label !== null ? Math.ceil((label.textContent ?? '').length * LABEL_CHAR) : 0
+      const c = curve(a, b, cards, w)
+      path.setAttribute('d', c.d)
+      if (label && e.label !== null) labels.push({ el: label, ...c.label, w })
     }
     // And no label stands on another.
     const ys = spread(labels)
@@ -366,7 +374,8 @@ export function MemoryGraph({ snapshot, handles, runKey, picked, onPick, fit = f
     const t = now()
     // Comings and goings are shown only between two pictures of one run,
     // and never in a thumbnail or under reduced motion.
-    const moving = last.current !== null && !snap && !fit
+    const moving = last.current !== null && !snap && !fit && !jumped
+    if (jumped) setGhosts((g) => (g.length === 0 ? g : []))
     const left = new Map<string, Ghost>()
     for (const [id, b] of [...bodies.current]) {
       if (live.has(id)) continue
@@ -756,7 +765,7 @@ function Pill({
         className={`node name ${picked ? 'picked' : ''} ${dimmed ? 'dimmed' : ''} ${mark}`}
         data-testid={`node-${name}`}
       >
-        {scope !== 'global' && <span className="scope">{scope}</span>}
+        {scope !== 'global' && <span className="scope">{scope.replace(/#(\d+)$/, ' $1')}</span>}
         {name}
       </button>
     )

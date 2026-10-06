@@ -62,6 +62,7 @@ npm run test:lessons  # every lesson-<id> journey
 npm run test:reading | test:practice | test:workbench   # one area each
 npm run test:browser -- lesson-decide                    # or any one spec file
 npm run test:audit    # every collection item played in the page with the key's answers (slow, opt-in)
+npm run test:stress   # the sandbox under ~23 programs: output vs CPython, memory drawn clean (opt-in, ~4 min)
 npm run collection    # regenerate content/collection/generated/ from the markdown
 ```
 
@@ -111,6 +112,7 @@ that set to about one per area so it stays under a minute.
 | `src/ui/Split.tsx` | draggable, keyboard-operable gutters; sizes remembered in localStorage |
 | `src/app/Workbench.tsx` | the wiring: owns the run, the steps, the index, the snapshot |
 | `src/app/Sandbox.tsx` | `#/code`, the sandbox: the v2 editor on the left, memory on the right, nothing else. A run opens on step 0 and is walked by hand (scrubber or step buttons); an edit puts the run away. `#/sandbox` is v1's first level, not this |
+| `src/console/` | the sandbox's program console, ported from PLP (`partlywhole/plp` `app/console.mjs`): `store.ts` (the transcript, the truth; each chunk knows its step), `lineDiscipline.ts` (typing to `input()`, pure), `terminal.ts` (xterm.js, a view replayed from the store). `ui/ProgramConsole.tsx` mounts it. See invariant 28 |
 | `src/collab/` | shared rooms ([docs/COLLAB.md](docs/COLLAB.md)): `room.ts` (Automerge doc `{code, run}` + presence), `trace.ts` (a run packed for the room, shape-checked on the way in), `editor.ts` (sync plugin and peers' carets), `useRoom.ts`, `RoomBar.tsx`. Lazily loaded: solo players never fetch Automerge |
 | `content/roadmap.ts` | the levels, grouped into units, in play order. The only place the order lives |
 | `src/progress/progress.ts` | which levels are finished (localStorage) and what that unlocks. One of the **two stored things** — see invariant 19 |
@@ -502,3 +504,14 @@ that set to about one per area so it stays under a minute.
    the same evidence. Its questions are drawn with the room's seed
    (`lessonFor`). A wipe the lesson makes itself is an event too, made by
    one peer (`Room.leads`). See [docs/COLLAB.md](docs/COLLAB.md).
+28. **The program console's store is the truth; the terminal is a view.**
+   The sandbox's console (`src/console/`, PLP's, on xterm.js) keeps every
+   chunk a run said, with the step it arrived at, and draws by replaying
+   them: a step shows what had been said by then, the end shows all of it,
+   and the same chunks always draw the same screen. Nothing is read back
+   from the screen. With live input the engine's echo is off and an
+   answer typed to `input()` enters the transcript once, when the engine
+   has taken it (`echo`). Output is written to the terminal as records
+   arrive, never through React state (invariant 6). After a run it shows
+   the whole run, as PLP's does, and follows the step shown once the run
+   is walked. A shared run carries its chunks, typed answers included.

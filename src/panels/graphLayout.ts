@@ -216,8 +216,10 @@ const LABEL_OFF = 4
  *  its larger (picked) size, 12px, so a picked label never outgrows its
  *  gap — which it straddles, centred. */
 export const LABEL_CHAR = 7.3
-/** Longest slot label drawn whole. */
-const LABEL_MAX = 12
+/** Longest slot label drawn whole: enough for two attributes sharing one
+ *  arrow (`.left, .right`), short of a key long enough to push the grid
+ *  across the pane. */
+const LABEL_MAX = 16
 
 /** A slot label as drawn — cut short past `LABEL_MAX` characters — and
  *  the room it needs. */
@@ -279,7 +281,7 @@ const plain = (ax: number, ex: number) => {
  *
  * A collection that holds itself gets a loop over its own top.
  */
-export function curve(a: Box, b: Box, obstacles: Box[] = []): Curve {
+export function curve(a: Box, b: Box, obstacles: Box[] = [], labelW = 0): Curve {
   const ax = a.x + a.w / 2
 
   if (a === b || (a.x === b.x && a.y === b.y)) {
@@ -299,13 +301,27 @@ export function curve(a: Box, b: Box, obstacles: Box[] = []): Curve {
   const c1x = ax + reach
   const c2x = forward ? ex - reach : Math.max(ax, ex) + reach
   const d = `M ${ax} ${a.y} C ${c1x} ${a.y} ${c2x} ${b.y} ${ex} ${b.y}`
-  const label = {
-    x: cubic(ax, c1x, c2x, ex, LABEL_T),
-    y: cubic(a.y, a.y, b.y, b.y, LABEL_T) - LABEL_OFF,
-    anchor: 'middle' as const,
+  const at = (t: number) => ({ x: cubic(ax, c1x, c2x, ex, t), y: cubic(a.y, a.y, b.y, b.y, t) - LABEL_OFF, anchor: 'middle' as const })
+  // Halfway, unless that puts the label on a card: an arrow clear of every
+  // card can still pass close enough under one that its label, standing
+  // above the line, lands on it (an attribute's arrow skipping a column to
+  // a `None` further right). Then the nearest clear point, the source's
+  // side first, where the gap was sized for it.
+  let label = at(LABEL_T)
+  if (labelW > 0 && obstacles.length > 0 && forward) {
+    const onCard = (l: { x: number; y: number }) =>
+      obstacles.some((o) => l.x + labelW / 2 > o.x - o.w / 2 && l.x - labelW / 2 < o.x + o.w / 2 && l.y > o.y - o.h / 2 && l.y - LABEL_H < o.y + o.h / 2)
+    if (onCard(label)) {
+      const clear = LABEL_TRIES.map(at).find((l) => !onCard(l))
+      if (clear) label = clear
+    }
   }
   return { d, label }
 }
+
+/** Where else along an arrow its label may stand, nearest halfway first
+ *  and the source's side before the target's. */
+const LABEL_TRIES = [0.4, 0.6, 0.32, 0.68, 0.25, 0.75, 0.18]
 
 /**
  * A forward arrow routed round the cards in its way, or null when the

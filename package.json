@@ -20,7 +20,8 @@
     "test:workbench": "playwright test workbench",
     "test:audit": "AUDIT=1 playwright test tests/browser/collection-audit.spec.ts",
     "serve:subpath": "node scripts/serve-subpath.mjs",
-    "collection": "node scripts/collection.mjs"
+    "collection": "node scripts/collection.mjs",
+    "test:stress": "STRESS=1 playwright test sandbox-stress"
   },
   "dependencies": {
     "@automerge/automerge": "^3.5.0",
@@ -36,6 +37,8 @@
     "@fontsource/nunito": "^5.3.0",
     "@lezer/highlight": "^1.2.3",
     "@lezer/python": "^1.1.19",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },

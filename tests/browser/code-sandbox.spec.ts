@@ -21,20 +21,23 @@ test('a run opens on its first step and is walked by hand', { tag: '@smoke' }, a
   await api(page)(() => (window as unknown as { botgineer: Api }).botgineer.setProgram('x = 1\ny = x + 1\nprint(y)\n'))
   await page.getByTestId('run').click()
   await expect(page.getByTestId('step-label')).toHaveText(/^1 \/ \d+$/)
-  // Nothing has run yet: memory is empty and nothing is printed.
+  // Nothing has run yet: memory is empty. The console still shows the
+  // whole run just made, as PLP's does, until the run is walked.
   await expect(page.getByTestId('memory-empty')).toBeVisible()
-  await expect(page.getByTestId('transcript')).not.toContainText('2')
+  await expect(page.getByTestId('program-console')).toContainText('── program finished ──')
 
   // Step 1 is line 1 about to run: one press forward runs it.
   await expect(page.locator('.cm-line').first()).toHaveClass(/now|current/)
   await page.getByTestId('step-forward').click()
   await expect(page.locator('.node.name', { hasText: 'x' })).toBeVisible()
+  // Walked, the console shows what had been printed by this step: nothing.
+  await expect(page.getByTestId('program-console')).not.toContainText('program finished')
   expect(await page.evaluate(() => (window as unknown as { botgineer: { events: () => string[] } }).botgineer.events()[0])).toBe('line:__main__:1')
 
   await page.getByTestId('step-last').click()
   await expect(page.locator('.node.name', { hasText: 'y' })).toBeVisible()
-  await expect(page.getByTestId('transcript')).toContainText('2')
-  await expect(page.getByTestId('transcript')).toContainText('Done.')
+  await expect(page.getByTestId('program-console')).toContainText('2')
+  await expect(page.getByTestId('program-console')).toContainText('── program finished ──')
 
   await page.getByTestId('step-first').click()
   await expect(page.getByTestId('step-label')).toHaveText(/^1 \//)

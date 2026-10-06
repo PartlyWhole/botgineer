@@ -50,6 +50,7 @@ export function MemoryPanel({
   demo = false,
   note,
   sync,
+  jumped,
 }: {
   snapshot: MemorySnapshot
   /** Owned by the workbench, so every view that shows a handle shows the
@@ -73,6 +74,9 @@ export function MemoryPanel({
   note?: string | undefined
   /** In a shared room, picking is everyone's. */
   sync?: PickSync | null | undefined
+  /** Not the next step after the last: no comings and goings
+   *  (`MemoryGraph`'s `jumped`). */
+  jumped?: boolean | undefined
 }) {
   const [picked, setPickedHere] = useState<GraphPick>(null)
   // A pick made here is sent; one received is only shown. A card that is
@@ -142,6 +146,7 @@ export function MemoryPanel({
         picked={picked}
         onPick={setPicked}
         marked={marked}
+        jumped={jumped}
       />
       {demo && (
         <div className="memory-demo-frame" data-testid="memory-demo">
