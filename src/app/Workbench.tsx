@@ -77,6 +77,7 @@ import type { LessonEvent, LessonInput } from '../collab/room'
 import { RoomBar } from '../collab/RoomBar'
 import { setPeers, sharedEditor } from '../collab/editor'
 import { pageSeed } from '../../content/lessons/seed'
+import { useSyncedSize } from '../collab/sizes'
 
 /** What one call to the engine came back with. `output` is everything the
  *  whole program printed — replay included. Separating out the part the
@@ -129,6 +130,9 @@ export function Workbench({
   const [, rerender] = useReducer((x: number) => x + 1, 0)
 
   const [sceneW, setSceneW] = useRemembered('botgineer.wb.scene', 560)
+  const benchRef = useRef<HTMLElement | null>(null)
+  // In a shared room, the split moves on every screen (`collab/sizes`).
+  const setSceneShared = useSyncedSize('scene', setSceneW, () => benchRef.current?.offsetWidth ?? 0)
 
   const stepsRef = useRef<StepRecord[]>([])
   const followingRef = useRef(true)
@@ -1479,7 +1483,7 @@ export function Workbench({
   )
 
   return (
-    <main className="workbench" style={{ ['--scene-w' as string]: `${sceneW}px` }}>
+    <main className="workbench" ref={benchRef} style={{ ['--scene-w' as string]: `${sceneW}px` }}>
       <section className="pane scene-pane">
         <div className="pane-head">
           <span className="pane-title">Scene</span>
@@ -1537,7 +1541,7 @@ export function Workbench({
       <Gutter
         orientation="vertical"
         value={sceneW}
-        onChange={setSceneW}
+        onChange={setSceneShared}
         min={320}
         max={900}
         label="Resize the scene"

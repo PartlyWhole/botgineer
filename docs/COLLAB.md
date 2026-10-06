@@ -4,8 +4,9 @@ A learner can share the sandbox (`#/code`) or a v2 lesson with a helper:
 a parent, a teacher, a friend who knows more. In the sandbox both see the
 same program, the same run and the same step of it. In a lesson both are
 told the same line, asked the same question and shown the same robot,
-and either can answer. Whoever shares is the learner; whoever joins is a
-helper.
+and either can answer. Whoever shares is the learner and whoever joins is
+a helper, but nobody is labelled so on screen; the roles only decide who
+leads (`Room.leads`).
 
 This is PLP's collaboration (`partlywhole/plp`, `app/COLLAB.md`) ported to
 BotGineer's stack. PLP's document is the long version of most of the
@@ -44,6 +45,18 @@ Presence is not in the document. Who is here (a made-up name like
 "Plucky Otter", a colour, learner or helper), each caret, the step each
 person is looking at, the line being told, and the memory card picked
 travel as ephemeral messages, so dragging the scrubber is not history.
+
+**Resizing a pane resizes it for everyone** (`collab/sizes`): the scene,
+memory, the sandbox's code pane and the output. A size goes as a fraction
+of the space its gutter divides, since the screens differ, and a joiner
+takes up the room's layout.
+
+**Someone else's typing never moves your caret.** The sync plugin applies
+a peer's edit and then sets your caret mapped so that text typed exactly
+at it pushes it along; `keepCaret` drops that step, so CodeMirror's own
+mapping leaves the caret before text typed at it. Peers' carets are drawn
+the same way (`side: -1`), and each peer re-sends its caret after any
+edit, so a drawn caret never sits where the real one is not.
 
 **Picking a card in memory picks it for everyone** (`MemoryPanel`'s
 `sync`): the camera flies to it on every screen, and letting go lets go

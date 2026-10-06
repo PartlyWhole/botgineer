@@ -1475,11 +1475,6 @@
   box-shadow: 0 0 0 2px rgb(0 0 0 / 0.35);
 }
 
-.room-people .role {
-  color: var(--t-dim);
-  font-size: 11.5px;
-}
-
 .room-bar > button,
 .room-bar .room-hint {
   flex: none;
@@ -1487,14 +1482,13 @@
 }
 
 /* A phone: the people keep their dots and names, and scroll sideways if
-   there are many; the roles and the busy line give way. */
+   there are many; the names and the busy line give way. */
 .room-bar .room-count {
   display: none;
   color: var(--t-soft);
 }
 
 @media (max-width: 600px) {
-  .room-people .role,
   .room-people .who,
   .room-bar [data-testid='room-busy'] {
     display: none;

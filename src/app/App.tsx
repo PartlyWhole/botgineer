@@ -9,8 +9,9 @@
 import { useRuntime } from "../runtime/shared";
 import { LEVEL_ORDER, LEVEL_ORDER_V2 } from "../../content/roadmap";
 import { goToMap, hashWithoutRoom, roomInHash, useRoute } from "./router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRoom } from "../collab/useRoom";
+import { SizeSyncContext } from "../collab/sizes";
 import { SHOW_V1 } from "./versions";
 import { Workbench } from "./Workbench";
 import { Sandbox } from "./Sandbox";
@@ -41,6 +42,67 @@ export function App() {
   // waits for the room.
   const joining = roomInHash() !== null && !room && roomView.status !== "unreachable";
   const level = route.kind === "level" ? route.activity : null;
+
+  // In a room, a gutter dragged here is dragged everywhere (`collab/sizes`).
+  const sizeSync = useMemo(
+    () => (room ? { share: room.shareSize.bind(room), listen: room.onSize.bind(room) } : null),
+    [room],
+  );
+
+  /**
+   * Full screen: the bar along the top goes, and the room's strip with it,
+   * and the level is all there is. The browser is asked to go full screen
+   * too; where it will not (an iPhone), the bar still goes. A tab in the
+   * margin above the panes brings it back, and so does the browser's own
+   * way out (Esc), which the page hears as `fullscreenchange`. Nothing is
+   * stored: a reload is the ordinary page.
+   */
+  const [full, setFull] = useState(false);
+  const canFull = level !== null || route.kind === "code";
+  const browserFull = useRef(false);
+  const enterFull = () => {
+    setFull(true);
+    const el = document.documentElement;
+    if (el.requestFullscreen && !document.fullscreenElement) {
+      el.requestFullscreen()
+        .then(() => {
+          browserFull.current = true;
+        })
+        .catch(() => {});
+    }
+  };
+  const exitFull = () => {
+    setFull(false);
+    if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+  };
+  useEffect(() => {
+    const onChange = () => {
+      if (!document.fullscreenElement && browserFull.current) {
+        browserFull.current = false;
+        setFull(false);
+      }
+    };
+    document.addEventListener("fullscreenchange", onChange);
+    return () => document.removeEventListener("fullscreenchange", onChange);
+  }, []);
+  // Leaving the level (the map has no full screen) leaves full screen.
+  useEffect(() => {
+    if (!canFull && full) exitFull();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canFull, full]);
+  const fullButton = (
+    <button
+      type="button"
+      className="to-map to-full"
+      data-testid="full-screen"
+      onClick={enterFull}
+      aria-label="Full screen"
+      title="Full screen"
+    >
+      <FullIcon />
+      <span className="nav-word">Full screen</span>
+    </button>
+  );
   const number = level
     ? (level.version === 2 ? LEVEL_ORDER_V2 : LEVEL_ORDER).indexOf(level.id) + 1
     : 0;
@@ -51,7 +113,18 @@ export function App() {
       data-boot={boot.state}
       data-isolated={boot.state === "ready" && boot.isolated ? "yes" : "no"}
       data-route={route.kind}
+      data-full={full ? "yes" : undefined}
     >
+      {full && (
+        <button
+          type="button"
+          className="exit-full"
+          data-testid="exit-full-screen"
+          onClick={exitFull}
+          aria-label="Leave full screen"
+          title="Leave full screen"
+        />
+      )}
       <header className="topbar">
         <h1>
           <a href={SHOW_V1 ? "#/map" : "#/"} className="brand">
@@ -132,6 +205,7 @@ export function App() {
                 <span className="nav-word">Glossary</span>
               </a>
             )}
+            {route.kind === "code" && fullButton}
           </nav>
         )}
 
@@ -153,6 +227,7 @@ export function App() {
               <MapIcon />
               Map
             </button>
+            {fullButton}
           </nav>
         )}
       </header>
@@ -163,6 +238,7 @@ export function App() {
         </p>
       )}
 
+      <SizeSyncContext.Provider value={sizeSync}>
       {/* Remounting per activity keeps each one's run state its own. */}
       {joining && (level || route.kind === "code") ? (
         <main className="joining" data-testid="room-joining">
@@ -186,6 +262,7 @@ export function App() {
       ) : (
         <RoadmapScreen />
       )}
+      </SizeSyncContext.Provider>
     </div>
   );
 }
@@ -221,6 +298,19 @@ const CodeIcon = () => (
       fill="none"
       stroke="currentColor"
       strokeWidth="2.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
+const FullIcon = () => (
+  <svg viewBox="0 0 24 24" aria-hidden="true" width="16" height="16">
+    <path
+      d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.2"
       strokeLinecap="round"
       strokeLinejoin="round"
     />

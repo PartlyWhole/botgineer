@@ -31,7 +31,8 @@ import { EMPTY } from '../memory/model'
 import { CodeEditor, type EditorApi } from '../ui/CodeEditor'
 import type { LineMarks } from '../ui/editorLines'
 import { MemoryPanel } from '../panels/MemoryPanel'
-import { EditorTransport, OutputLog, type Transcript } from '../panels/RobotPanel'
+import { EditorTransport, ResizableOutput, type Transcript } from '../panels/RobotPanel'
+import { useSyncedSize } from '../collab/sizes'
 import { Gutter, useRemembered, useStacked } from '../ui/Split'
 import type { RoomView } from '../collab/useRoom'
 import { RoomBar } from '../collab/RoomBar'
@@ -62,6 +63,9 @@ export function Sandbox({ roomView }: { roomView: RoomView }) {
   const stacked = useStacked()
   const [codeW, setCodeW] = useRemembered('botgineer.sb.code', NaN)
   const codeRef = useRef<HTMLDivElement | null>(null)
+  const viewsRef = useRef<HTMLDivElement | null>(null)
+  // In a shared room, the split moves on every screen (`collab/sizes`).
+  const setCodeShared = useSyncedSize('code', setCodeW, () => viewsRef.current?.offsetWidth ?? 0)
   const editorRef = useRef<EditorApi | null>(null)
 
   const [program, setProgram] = useState(STARTER)
@@ -226,6 +230,7 @@ export function Sandbox({ roomView }: { roomView: RoomView }) {
     const api = {
       setProgram: (src: string) => editorRef.current?.replace(src),
       getProgram: () => editorRef.current?.read() ?? '',
+      selection: () => editorRef.current?.selection() ?? null,
       run: () => latest.current.run(),
       step: (i: number) => goTo(i),
       snapshot: () => latest.current.snapshot,
@@ -257,7 +262,7 @@ export function Sandbox({ roomView }: { roomView: RoomView }) {
           onShare={() => void roomView.share(editorRef.current?.read() ?? program)}
           busy={peerRunning ? `${peerRunning.name} is running the program…` : null}
         />
-        <div className="views">
+        <div className="views" ref={viewsRef}>
           <div className="sandbox-code" ref={codeRef}>
             <div className="view instrument" data-testid="instrument">
               <CodeEditor
@@ -284,14 +289,14 @@ export function Sandbox({ roomView }: { roomView: RoomView }) {
               onIndex={goTo}
               pulse={false}
             />
-            <OutputLog transcript={transcript} />
+            <ResizableOutput transcript={transcript} space={() => codeRef.current?.offsetHeight ?? 0} />
           </div>
           {!stacked && (
             <Gutter
               orientation="vertical"
               value={codeW}
               measure={() => codeRef.current?.offsetWidth ?? 520}
-              onChange={setCodeW}
+              onChange={setCodeShared}
               min={320}
               max={1100}
               label="Resize the editor"

@@ -2399,3 +2399,48 @@ button.tidy:hover {
   color: var(--ink-soft);
   font-size: 15px;
 }
+
+/* Full screen (`App`): no bar along the top, no room strip; the level is
+   all there is. The way back is a small tab in the margin above the
+   panes, where it covers nothing. */
+.app[data-full='yes'] .topbar,
+.app[data-full='yes'] .robot-panel .room-bar {
+  display: none;
+}
+
+.exit-full {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  z-index: 50;
+  width: 72px;
+  height: 12px;
+  margin-left: -36px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.exit-full::after {
+  content: '';
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  top: 3px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--line);
+  transition: background 120ms ease;
+}
+
+.exit-full:hover::after,
+.exit-full:focus-visible::after {
+  background: var(--brand);
+}
+
+.exit-full:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 1px;
+  border-radius: 6px;
+}

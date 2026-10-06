@@ -3,8 +3,9 @@
  * when alone; once shared, everyone here as a coloured dot with a name,
  * Copy link and Leave.
  *
- * The roles are said in words beside the names (learner, helper), because
- * a helper who joins needs to know whose session this is.
+ * Names only: who shared and who joined is the room's business (the
+ * learner leads, `Room.leads`), not something to label people with. In
+ * full screen the strip goes altogether (`App`).
  */
 import { useState } from 'react'
 import type { RoomView } from './useRoom'
@@ -61,7 +62,7 @@ export function RoomBar({ view, onShare, busy }: { view: RoomView; onShare: () =
           <li
             key={p.id}
             style={{ ['--peer' as string]: p.color }}
-            title={`${p.name}${p.you ? ' (you)' : ''}, ${p.role}`}
+            title={`${p.name}${p.you ? ' (you)' : ''}`}
             data-testid="room-person"
           >
             <span className="dot" aria-hidden="true" />
@@ -69,7 +70,6 @@ export function RoomBar({ view, onShare, busy }: { view: RoomView; onShare: () =
               {p.name}
               {p.you ? ' (you)' : ''}
             </span>
-            <span className="role">{p.role}</span>
           </li>
         ))}
       </ul>

@@ -31,7 +31,8 @@ async function pair(page: Page) {
 
 test('a helper joins, edits, and both walk the learner\'s run step by step', { tag: '@smoke' }, async ({ page }) => {
   const { helper, relay } = await pair(page)
-  await expect(helper.getByTestId('room-bar')).toContainText('helper')
+  // Names only: nobody is labelled learner or helper.
+  await expect(helper.getByTestId('room-bar')).not.toContainText(/helper|learner/)
 
   // The joiner adopts the learner's program; an edit from either reaches both.
   expect(await call<string>(helper, 'return b.getProgram()')).toBe(await call<string>(page, 'return b.getProgram()'))
@@ -97,4 +98,91 @@ test("nobody may run while another's run is going", async ({ page }) => {
   await expect(helper.getByTestId('run')).toBeDisabled()
   await expect.poll(() => call<number>(helper, 'return b.state().steps'), { timeout: 30_000 }).toBeGreaterThan(100)
   await expect(helper.getByTestId('run')).toBeEnabled()
+})
+
+/** Where a peer's caret is drawn: how many characters of its line come
+ *  before it. */
+const peerCaretColumn = (page: Page) =>
+  page.evaluate(() => {
+    const caret = document.querySelector('.cm-peer-caret')
+    const line = caret?.closest('.cm-line')
+    if (!caret || !line) return null
+    const r = document.createRange()
+    r.setStart(line, 0)
+    r.setEndBefore(caret)
+    return r.toString().replace(/\u200b/g, '').length
+  })
+
+test("a peer's caret is drawn where it really is, whoever types", async ({ page }) => {
+  const { helper } = await pair(page)
+  await call(helper, "b.setProgram('x = 1\\n')")
+  await expect.poll(() => call<string>(page, 'return b.getProgram()')).toBe('x = 1\n')
+  // The helper's caret at the end of line 1, placed by the End key and
+  // then by a click: the two lean different ways.
+  const own = () => call<{ head: number }>(helper, 'return b.selection()').then((s) => s.head)
+  for (const place of ['key', 'click'] as const) {
+    if (place === 'key') {
+      await helper.locator('.cm-content').click()
+      await helper.keyboard.press('ControlOrMeta+Home')
+      await helper.keyboard.press('End')
+    } else {
+      const line = helper.locator('.cm-line').first()
+      const box = (await line.boundingBox())!
+      await helper.mouse.click(box.x + box.width - 4, box.y + box.height / 2)
+    }
+    await expect.poll(() => peerCaretColumn(page)).toBe(await own())
+    // The learner types exactly there, and before it. Someone else's
+    // typing never moves your caret: the helper's stays before the "+2".
+    const at = await own()
+    await page.locator('.cm-content').click()
+    await page.keyboard.press('ControlOrMeta+Home')
+    for (let i = 0; i < at; i++) await page.keyboard.press('ArrowRight')
+    await page.keyboard.type('+2')
+    await page.keyboard.press('Home')
+    await page.keyboard.type('#')
+    await expect.poll(() => call<string>(helper, 'return b.getProgram()')).toMatch(/^#.*\+2/)
+    expect(await own()).toBe(at + 1)
+    // Drawn here where it is there, at once and after the peer's re-send.
+    expect(await peerCaretColumn(page)).toBe(await own())
+    await page.waitForTimeout(400)
+    expect(await peerCaretColumn(page)).toBe(await own())
+    await call(helper, "b.setProgram('x = 1\\n')")
+    await expect.poll(() => call<string>(page, 'return b.getProgram()')).toBe('x = 1\n')
+  }
+})
+
+test('resizing a pane resizes it for everyone; the output has its own gutter', async ({ page }) => {
+  const { helper } = await pair(page)
+  const width = (p: Page) => p.locator('.sandbox-code').evaluate((el) => Math.round(el.getBoundingClientRect().width))
+  const outputH = (p: Page) => p.getByTestId('transcript').evaluate((el) => Math.round(el.getBoundingClientRect().height))
+  const drag = async (p: Page, label: string, dx: number, dy: number) => {
+    const g = p.getByRole('separator', { name: label })
+    const box = (await g.boundingBox())!
+    await p.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+    await p.mouse.down()
+    await p.mouse.move(box.x + box.width / 2 + dx, box.y + box.height / 2 + dy, { steps: 8 })
+    await p.mouse.up()
+  }
+  const before = await width(page)
+  await drag(helper, 'Resize the editor', 120, 0)
+  const after = await width(helper)
+  expect(after).toBeGreaterThan(before + 60)
+  await expect.poll(() => width(page)).toBeGreaterThan(after - 4)
+  await expect.poll(() => width(page)).toBeLessThan(after + 4)
+
+  const out = await outputH(page)
+  await drag(page, 'Resize the output', 0, -80)
+  await expect.poll(() => outputH(page)).toBeGreaterThan(out + 50)
+  await expect.poll(() => outputH(helper)).toBeGreaterThan(out + 50)
+})
+
+test('full screen: no bar along the top, no room strip, and a way back', async ({ page }) => {
+  await pair(page)
+  await page.getByTestId('full-screen').click()
+  await expect(page.locator('.topbar')).toBeHidden()
+  await expect(page.getByTestId('room-bar')).toBeHidden()
+  await expect(page.getByTestId('instrument')).toBeVisible()
+  await page.getByTestId('exit-full-screen').click()
+  await expect(page.locator('.topbar')).toBeVisible()
+  await expect(page.getByTestId('room-bar')).toBeVisible()
 })

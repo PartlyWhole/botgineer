@@ -9,3 +9,6 @@ export type { DocHandle, PeerId, AutomergeUrl } from '@automerge/automerge-repo'
 export { WebSocketClientAdapter } from '@automerge/automerge-repo-network-websocket'
 export { BroadcastChannelNetworkAdapter } from '@automerge/automerge-repo-network-broadcastchannel'
 export { automergeSyncPlugin } from '@automerge/automerge-codemirror'
+// Not re-exported by the package's index: marks the plugin's own
+// transactions (`collab/editor`).
+export { reconcileAnnotationType } from '@automerge/automerge-codemirror/dist/plugin.js'

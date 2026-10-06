@@ -87,6 +87,9 @@ type PresenceState = {
   beat: { key: string; at: number; n: number } | null
   /** The memory card picked (`MemoryPanel`), in which view of memory. */
   pick: { view: string; pick: unknown; n: number } | null
+  /** Pane sizes, each a fraction of the space it divides (`collab/sizes`),
+   *  and which one moved last. */
+  size: { sizes: Record<string, number>; key: string; n: number } | null
 }
 
 const NAME_ADJ = ['Plucky', 'Zesty', 'Nimble', 'Cheery', 'Snazzy', 'Bouncy', 'Dapper', 'Breezy', 'Sunny', 'Funky']
@@ -135,6 +138,12 @@ export class Room {
   private pickListeners = new Set<(view: string, pick: unknown) => void>()
   private seenPick = new Map<string, number>()
   private pickN = 0
+  private sizeListeners = new Set<(key: string, frac: number) => void>()
+  private seenSize = new Map<string, number>()
+  private sizes: Record<string, number> = {}
+  private sizeN = 0
+  private sizeTimer: ReturnType<typeof setTimeout> | null = null
+  private sizeKey = ''
   private seenBeat = new Map<string, number>()
   private beatN = 0
   private eventN = 0
@@ -215,7 +224,7 @@ export class Room {
   private start() {
     const presence = new this.lib.Presence<PresenceState, RoomDoc>({ handle: this.handle })
     presence.start({
-      initialState: { user: { name: this.me.name, color: this.me.color, role: this.me.role }, cursor: null, step: null, beat: null, pick: null },
+      initialState: { user: { name: this.me.name, color: this.me.color, role: this.me.role }, cursor: null, step: null, beat: null, pick: null, size: null },
       heartbeatMs: 5000,
       peerTtlMs: 15_000,
     })
@@ -358,6 +367,26 @@ export class Room {
     return () => this.pickListeners.delete(fn)
   }
 
+  /** Tells the others a pane was resized: `frac` of the space it divides.
+   *  A drag sends many; at most one goes every 40 ms, and the last always. */
+  shareSize(key: string, frac: number): void {
+    if (!Number.isFinite(frac)) return
+    this.sizes[key] = frac
+    this.sizeKey = key
+    if (this.sizeTimer !== null) return
+    this.sizeTimer = setTimeout(() => {
+      this.sizeTimer = null
+      if (this.presence?.running) this.presence.broadcast('size', { sizes: { ...this.sizes }, key: this.sizeKey, n: ++this.sizeN })
+    }, CURSOR_MS)
+  }
+
+  /** Called when another peer resizes a pane; on first hearing from a peer,
+   *  for every pane it has sized, so a joiner takes up the room's layout. */
+  onSize(fn: (key: string, frac: number) => void): () => void {
+    this.sizeListeners.add(fn)
+    return () => this.sizeListeners.delete(fn)
+  }
+
   /** Tells the others which step of `runId` this peer is looking at. */
   shareStep(runId: string, index: number): void {
     this.presence?.broadcast('step', { runId, index, n: ++this.stepN })
@@ -412,6 +441,18 @@ export class Room {
           for (const fn of this.beatListeners) fn(b.key, b.at)
         }
       }
+      const z = p.value?.size
+      if (z && typeof z.n === 'number' && z.sizes && typeof z.sizes === 'object') {
+        const seen = this.seenSize.get(p.peerId)
+        if (seen === undefined || seen < z.n) {
+          this.seenSize.set(p.peerId, z.n)
+          const keys = seen === undefined ? Object.keys(z.sizes) : [z.key]
+          for (const key of keys) {
+            const frac = z.sizes[key]
+            if (typeof frac === 'number' && frac > 0 && frac < 1) for (const fn of this.sizeListeners) fn(key, frac)
+          }
+        }
+      }
       const k = p.value?.pick
       if (k && typeof k.n === 'number' && typeof k.view === 'string') {
         if ((this.seenPick.get(p.peerId) ?? -1) < k.n) {
@@ -462,6 +503,8 @@ export class Room {
     this.stepListeners.clear()
     this.beatListeners.clear()
     this.pickListeners.clear()
+    this.sizeListeners.clear()
+    if (this.sizeTimer) clearTimeout(this.sizeTimer)
     try {
       void this.repo.shutdown()
     } catch {

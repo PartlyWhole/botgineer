@@ -136,6 +136,8 @@ export type EditorApi = {
   focus: () => void
   /** Dispatches state effects: a shared room's carets (`collab/editor`). */
   effects: (effects: StateEffect<unknown>[]) => void
+  /** Where the caret is: for tests of a shared room's carets. */
+  selection: () => { anchor: number; head: number; assoc: number }
 }
 
 /* -------------------------------------------------------------------- */
@@ -641,6 +643,10 @@ export function CodeEditor({
         if (!playerRef.current) view.focus()
       },
       effects: (effects) => view.dispatch({ effects }),
+      selection: () => {
+        const { anchor, head, assoc } = view.state.selection.main
+        return { anchor, head, assoc }
+      },
     })
     return () => {
       view.destroy()

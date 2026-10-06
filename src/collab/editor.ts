@@ -10,7 +10,7 @@
  * It stays under the caret at no opacity, so hovering the caret still says
  * whose it is. Text another peer typed is never highlighted.
  */
-import { StateEffect, StateField, type Extension, type Range } from '@codemirror/state'
+import { EditorState, StateEffect, StateField, type Extension, type Range } from '@codemirror/state'
 import { Decoration, EditorView, WidgetType, type DecorationSet } from '@codemirror/view'
 import type { Peer, Room } from './room'
 
@@ -67,7 +67,9 @@ function decorate(doc: { length: number }, peers: readonly Peer[]): DecorationSe
         }).range(Math.min(anchor, head), Math.max(anchor, head)),
       )
     }
-    out.push(Decoration.widget({ widget: new Caret(p.name, p.color, p.announcedAt), side: 1 }).range(head))
+    // `side: -1`: text typed exactly at a peer's caret goes after it, the
+    // caret staying put, as it does on the peer's own screen (`keepCaret`).
+    out.push(Decoration.widget({ widget: new Caret(p.name, p.color, p.announcedAt), side: -1 }).range(head))
   }
   return Decoration.set(out, true)
 }
@@ -83,13 +85,30 @@ const peersField = StateField.define<DecorationSet>({
   provide: (f) => EditorView.decorations.from(f),
 })
 
+/**
+ * Someone else's typing never moves your caret. The sync plugin applies a
+ * peer's edit and then sets the caret itself, mapped so that text inserted
+ * exactly at it pushes it along: type where your partner's caret is and
+ * theirs was carried with your text. Without that last step, CodeMirror's
+ * own mapping (with the edit) leaves a caret before text inserted at it,
+ * and every other edit moves it just the same.
+ */
+function keepCaret(room: Room): Extension {
+  const ours = room.lib.reconcileAnnotationType
+  return EditorState.transactionFilter.of((tr) => (tr.annotation(ours) !== undefined && !tr.docChanged && tr.selection ? [] : tr))
+}
+
 /** Everything the editor needs for `room`. Build it once per room. */
 export function sharedEditor(room: Room): Extension {
   return [
     room.lib.automergeSyncPlugin({ handle: room.handle, path: ['code'] }),
+    keepCaret(room),
     peersField,
     EditorView.updateListener.of((u) => {
-      if (!u.selectionSet && !u.focusChanged) return
+      // A peer's edit moves this caret too (the text before it changed), so
+      // say where it is now: the others still hold where it was, and would
+      // draw it there.
+      if (!u.selectionSet && !u.focusChanged && !u.docChanged) return
       const { anchor, head } = u.state.selection.main
       room.shareCursor(anchor, head)
     }),

@@ -22,6 +22,7 @@ import { runKeyHint } from '../ui/editorLines'
 import type { Demo } from '../ui/demo'
 import { RobotConsole, type Exchange } from '../ui/RobotConsole'
 import { Gutter, STACKED, useRemembered } from '../ui/Split'
+import { useSyncedSize } from '../collab/sizes'
 
 export type Transcript =
   | { kind: 'out'; text: string }
@@ -138,6 +139,10 @@ export function RobotPanel({
     reading ? 220 : talking ? NaN : 280,
   )
   const memoryRef = useRef<HTMLDivElement | null>(null)
+  const viewsRef = useRef<HTMLDivElement | null>(null)
+  const panelRef = useRef<HTMLDivElement | null>(null)
+  // In a shared room, dragging this gutter drags everyone's (`collab/sizes`).
+  const setMemoryShared = useSyncedSize('memory', setMemoryH, () => viewsRef.current?.offsetHeight ?? 0)
   // Memory's Undo and Wipe sit in its top corner, so a beat pointing at
   // them needs memory on screen just the same.
   useMemoryInView(focus === 'memory' || focus === 'memory-tools', memoryRef)
@@ -145,6 +150,7 @@ export function RobotPanel({
   return (
     <div
       className="robot-panel"
+      ref={panelRef}
       data-testid="robot-panel"
       data-mode={mode}
       data-busy={busy ? 'yes' : 'no'}
@@ -161,6 +167,7 @@ export function RobotPanel({
           of it, and it is the same snapshot either way. */}
       <div
         className="views"
+        ref={viewsRef}
         style={Number.isFinite(memoryH) ? { ['--memory-h' as string]: `${memoryH}px` } : undefined}
       >
         <div
@@ -208,7 +215,7 @@ export function RobotPanel({
           orientation="horizontal"
           value={memoryH}
           measure={() => memoryRef.current?.offsetHeight ?? 280}
-          onChange={setMemoryH}
+          onChange={setMemoryShared}
           min={120}
           max={talking ? 900 : 620}
           invert
@@ -318,7 +325,7 @@ export function RobotPanel({
       )}
 
       {!talking && !reading && look === 'v2' ? (
-        <OutputLog transcript={transcript} />
+        <ResizableOutput transcript={transcript} space={() => panelRef.current?.offsetHeight ?? 0} />
       ) : !talking && (!reading || total > 0) && (
         <div className="transcript" data-testid="transcript" aria-live="polite">
           {transcript.map((t, i) => (
@@ -482,14 +489,20 @@ function platformName(): string {
  * quiet stamp. Before any run it is an empty strip with a dim prompt
  * mark: the place output will land, shown rather than labelled.
  */
-export function OutputLog({ transcript }: { transcript: Transcript[] }) {
+export function OutputLog({ transcript, height }: { transcript: Transcript[]; height?: number | undefined }) {
   const ref = useRef<HTMLDivElement | null>(null)
   useEffect(() => {
     const el = ref.current
     if (el) el.scrollTop = el.scrollHeight
   }, [transcript])
   return (
-    <div className="transcript output-log" data-testid="transcript" aria-live="polite" ref={ref}>
+    <div
+      className="transcript output-log"
+      data-testid="transcript"
+      aria-live="polite"
+      ref={ref}
+      style={height !== undefined && Number.isFinite(height) ? { height } : undefined}
+    >
       {transcript.length === 0 ? (
         <span className="log-idle" aria-hidden="true">
           ›
@@ -502,6 +515,35 @@ export function OutputLog({ transcript }: { transcript: Transcript[] }) {
         ))
       )}
     </div>
+  )
+}
+
+/**
+ * The output log with a gutter above it, so it can be given more room for
+ * a program that prints a lot, or less for one that prints nothing. Its
+ * height is remembered, and shared in a room (`collab/sizes`). `space`
+ * measures the column it sits in.
+ */
+export function ResizableOutput({ transcript, space }: { transcript: Transcript[]; space: () => number }) {
+  const [h, setH] = useRemembered('botgineer.rp.output', 84)
+  const ref = useRef<HTMLDivElement | null>(null)
+  const set = useSyncedSize('output', setH, space)
+  return (
+    <>
+      <Gutter
+        orientation="horizontal"
+        value={h}
+        measure={() => ref.current?.offsetHeight ?? 84}
+        onChange={set}
+        min={36}
+        max={480}
+        invert
+        label="Resize the output"
+      />
+      <div ref={ref} className="output-wrap">
+        <OutputLog transcript={transcript} height={h} />
+      </div>
+    </>
   )
 }
 
