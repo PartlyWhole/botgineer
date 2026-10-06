@@ -41,9 +41,17 @@ One Automerge document per room. Its URL is the room's name and its key.
 ```
 
 Presence is not in the document. Who is here (a made-up name like
-"Plucky Otter", a colour, learner or helper), each caret, and the step
-each person is looking at travel as ephemeral messages, so dragging the
-scrubber is not history.
+"Plucky Otter", a colour, learner or helper), each caret, the step each
+person is looking at, the line being told, and the memory card picked
+travel as ephemeral messages, so dragging the scrubber is not history.
+
+**Picking a card in memory picks it for everyone** (`MemoryPanel`'s
+`sync`): the camera flies to it on every screen, and letting go lets go
+everywhere. A pick names the memory it was made in (the sandbox's, a
+lesson's robot, or the crow's demonstration), so it never lands on a
+different one, and it is shape-checked on arrival. A card not in this
+peer's memory yet is let go here only, not for everyone. Escape sends a
+let-go only when there was a pick, so Escape in the editor clears nothing.
 
 ## Rules
 

@@ -1467,6 +1467,16 @@ export function Workbench({
     [room],
   )
   const roomBusy = inRoom && pending > 1 ? 'Catching up…' : null
+  // Picking a card in memory picks it for everyone looking at the same
+  // memory: the robot's, or the crow's demonstration.
+  const robotPickSync = useMemo(
+    () => (room ? { view: `${activity.id}:robot`, send: (v: string, p: unknown) => room.sharePick(v, p), listen: room.onPick.bind(room) } : null),
+    [room, activity.id],
+  )
+  const demoPickSync = useMemo(
+    () => (room ? { view: `${activity.id}:demo`, send: (v: string, p: unknown) => room.sharePick(v, p), listen: room.onPick.bind(room) } : null),
+    [room, activity.id],
+  )
 
   return (
     <main className="workbench" style={{ ['--scene-w' as string]: `${sceneW}px` }}>
@@ -1557,6 +1567,7 @@ export function Workbench({
               handles={runMemory ? runHandles : demoSnapshot || notRun ? demoHandles : handles}
               runKey={runMemory ? `${activity.id}:run` : demoSnapshot || notRun ? `${activity.id}:demo` : runKey}
               demo={shownMemory !== null}
+              sync={inRoom && room ? (shownMemory !== null ? demoPickSync : robotPickSync) : null}
               note={notRun ? 'not run yet' : undefined}
               marked={marked}
               emptyText={

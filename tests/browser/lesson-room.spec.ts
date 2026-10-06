@@ -77,6 +77,9 @@ test('a console lesson: the helper catches up, then both answer in turn', { tag:
   await learner.evaluate(() => window.botgineer.skip())
   await expect(learner.getByTestId('takeaway')).toBeVisible()
   await expect(helper!.getByTestId('takeaway')).toBeVisible()
+  // Picking a card in memory picks it for both.
+  await helper!.locator('.node.name', { hasText: 'total' }).click()
+  await expect(learner.locator('.node.name.picked')).toHaveText(/total/)
 })
 
 test('an editor lesson: one shared program, run by either, judged for both', async ({ page: learner }) => {

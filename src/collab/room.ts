@@ -85,6 +85,8 @@ type PresenceState = {
   cursor: { anchor: number; head: number; n: number } | null
   step: { runId: string; index: number; n: number } | null
   beat: { key: string; at: number; n: number } | null
+  /** The memory card picked (`MemoryPanel`), in which view of memory. */
+  pick: { view: string; pick: unknown; n: number } | null
 }
 
 const NAME_ADJ = ['Plucky', 'Zesty', 'Nimble', 'Cheery', 'Snazzy', 'Bouncy', 'Dapper', 'Breezy', 'Sunny', 'Funky']
@@ -130,6 +132,9 @@ export class Room {
   private listeners = new Set<() => void>()
   private stepListeners = new Set<(runId: string, index: number) => void>()
   private beatListeners = new Set<(key: string, at: number) => void>()
+  private pickListeners = new Set<(view: string, pick: unknown) => void>()
+  private seenPick = new Map<string, number>()
+  private pickN = 0
   private seenBeat = new Map<string, number>()
   private beatN = 0
   private eventN = 0
@@ -210,7 +215,7 @@ export class Room {
   private start() {
     const presence = new this.lib.Presence<PresenceState, RoomDoc>({ handle: this.handle })
     presence.start({
-      initialState: { user: { name: this.me.name, color: this.me.color, role: this.me.role }, cursor: null, step: null, beat: null },
+      initialState: { user: { name: this.me.name, color: this.me.color, role: this.me.role }, cursor: null, step: null, beat: null, pick: null },
       heartbeatMs: 5000,
       peerTtlMs: 15_000,
     })
@@ -341,6 +346,18 @@ export class Room {
     return () => this.beatListeners.delete(fn)
   }
 
+  /** Tells the others which memory card this peer picked in `view` (null:
+   *  none). Shape-checked by whoever receives it (`MemoryPanel`). */
+  sharePick(view: string, pick: unknown): void {
+    this.presence?.broadcast('pick', { view, pick: pick ?? null, n: ++this.pickN })
+  }
+
+  /** Called when another peer picks a memory card, or lets one go. */
+  onPick(fn: (view: string, pick: unknown) => void): () => void {
+    this.pickListeners.add(fn)
+    return () => this.pickListeners.delete(fn)
+  }
+
   /** Tells the others which step of `runId` this peer is looking at. */
   shareStep(runId: string, index: number): void {
     this.presence?.broadcast('step', { runId, index, n: ++this.stepN })
@@ -395,6 +412,13 @@ export class Room {
           for (const fn of this.beatListeners) fn(b.key, b.at)
         }
       }
+      const k = p.value?.pick
+      if (k && typeof k.n === 'number' && typeof k.view === 'string') {
+        if ((this.seenPick.get(p.peerId) ?? -1) < k.n) {
+          this.seenPick.set(p.peerId, k.n)
+          for (const fn of this.pickListeners) fn(k.view, k.pick)
+        }
+      }
       const c = p.value?.cursor
       if (c && typeof c.n === 'number') {
         const seen = this.seenCursor.get(p.peerId)
@@ -437,6 +461,7 @@ export class Room {
     this.listeners.clear()
     this.stepListeners.clear()
     this.beatListeners.clear()
+    this.pickListeners.clear()
     try {
       void this.repo.shutdown()
     } catch {

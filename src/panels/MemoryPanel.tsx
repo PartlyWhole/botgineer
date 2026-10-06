@@ -14,11 +14,31 @@
  * owns everything else — including the description of what is selected,
  * which lives on the node itself rather than in prose underneath.
  */
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { MemorySnapshot, ObjectId } from '../memory/model'
 import { MemoryGraph, type GraphPick } from './MemoryGraph'
 import { CROW_NAME } from '../../content/cast'
 import { DemoTag } from '../ui/CrowTag'
+
+/** Picking shared with a room (`collab/room`): a card picked here is
+ *  picked on every peer's screen showing the same view of memory. */
+export type PickSync = {
+  /** Which memory this is (the robot's, the crow's demonstration): a pick
+   *  in one is never applied to another. */
+  view: string
+  send: (view: string, pick: GraphPick) => void
+  listen: (fn: (view: string, pick: unknown) => void) => () => void
+}
+
+/** A pick from another browser, if it is shaped like one. */
+function asPick(raw: unknown): GraphPick | undefined {
+  if (raw === null) return null
+  if (typeof raw !== 'object') return undefined
+  const r = raw as Record<string, unknown>
+  if (r.kind === 'object' && typeof r.id === 'string') return { kind: 'object', id: r.id }
+  if (r.kind === 'name' && typeof r.name === 'string' && typeof r.scope === 'string') return { kind: 'name', name: r.name, scope: r.scope }
+  return undefined
+}
 
 export function MemoryPanel({
   snapshot,
@@ -29,6 +49,7 @@ export function MemoryPanel({
   marked,
   demo = false,
   note,
+  sync,
 }: {
   snapshot: MemorySnapshot
   /** Owned by the workbench, so every view that shows a handle shows the
@@ -50,8 +71,30 @@ export function MemoryPanel({
   /** A word beside the crow's tag on that frame: `not run yet`, for the
    *  crow's program on show and not run, whose memory is empty. */
   note?: string | undefined
+  /** In a shared room, picking is everyone's. */
+  sync?: PickSync | null | undefined
 }) {
-  const [picked, setPicked] = useState<GraphPick>(null)
+  const [picked, setPickedHere] = useState<GraphPick>(null)
+  // A pick made here is sent; one received is only shown. A card that is
+  // not in this memory is cleared below by the same rule as ever.
+  const syncRef = useRef(sync)
+  syncRef.current = sync
+  const setPicked = useCallback((p: GraphPick) => {
+    setPickedHere(p)
+    const s = syncRef.current
+    s?.send(s.view, p)
+  }, [])
+  const pickedRef = useRef(picked)
+  pickedRef.current = picked
+  const view = sync?.view
+  const listen = sync?.listen
+  useEffect(() => {
+    if (!listen) return
+    return listen((v, raw) => {
+      const p = asPick(raw)
+      if (v === view && p !== undefined) setPickedHere(p)
+    })
+  }, [listen, view])
 
   const objectCount = Object.keys(snapshot.objects).length
 
@@ -63,12 +106,15 @@ export function MemoryPanel({
       picked.kind === 'object'
         ? !!snapshot.objects[picked.id]
         : snapshot.bindings.some((b) => b.name === picked.name && b.scope === picked.scope)
-    if (!alive) setPicked(null)
+    // Local only: the card may yet arrive here (a peer a line ahead).
+    if (!alive) setPickedHere(null)
   }, [picked, snapshot])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setPicked(null)
+      // Only a pick to let go of: Escape pressed in the editor must not
+      // clear what another peer picked.
+      if (e.key === 'Escape' && pickedRef.current !== null) setPicked(null)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)

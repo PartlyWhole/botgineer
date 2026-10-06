@@ -52,6 +52,13 @@ test('a helper joins, edits, and both walk the learner\'s run step by step', { t
   expect(await call<string[]>(page, 'return b.snapshot().bindings.map(x => x.name)')).toEqual(['x', 'y'])
   await expect(page.getByTestId('transcript')).toContainText('[1, 2, 3]')
 
+  // Picking a card picks it on both screens; letting go lets go on both.
+  await helper.locator('.node.name', { hasText: 'y' }).click()
+  await expect(page.getByTestId('memory')).toHaveAttribute('data-picked', 'yes')
+  await expect(page.locator('.node.name.picked')).toHaveText(/y/)
+  await page.locator('.node.object.picked, .node.name.picked').first().click()
+  await expect(helper.getByTestId('memory')).toHaveAttribute('data-picked', 'no')
+
   // One caret for the other peer, and none for yourself.
   await helper.locator('.cm-content').click()
   await expect(page.locator('.cm-peer-caret')).toHaveCount(1)

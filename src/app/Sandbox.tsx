@@ -156,6 +156,12 @@ export function Sandbox({ roomView }: { roomView: RoomView }) {
     [room],
   )
 
+  // Picking a card in memory picks it for everyone.
+  const pickSync = useMemo(
+    () => (room ? { view: 'sandbox', send: (v: string, p: unknown) => room.sharePick(v, p), listen: room.onPick.bind(room) } : null),
+    [room],
+  )
+
   // The others' carets, redrawn when one moves.
   const peerKey = JSON.stringify(roomView.peers)
   useEffect(() => {
@@ -297,6 +303,7 @@ export function Sandbox({ roomView }: { roomView: RoomView }) {
               snapshot={snapshot}
               handles={handles}
               runKey={`sandbox:${runSeq}`}
+              sync={pickSync}
               emptyText={
                 live && total > 0
                   ? shown === 0
