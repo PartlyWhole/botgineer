@@ -13,6 +13,12 @@ const base = process.env.VITE_BASE ?? '/'
 export default defineConfig({
   base,
   plugins: [react()],
+  // Which build this is: the commit, on a deploy. Peers in a shared room
+  // compare it, since two builds may not understand each other's messages
+  // (`collab/room`).
+  define: {
+    'import.meta.env.VITE_BUILD': JSON.stringify(process.env.GITHUB_SHA?.slice(0, 7) ?? 'dev'),
+  },
   resolve: {
     alias: [
       // Automerge's browser entry imports its .wasm as a module, which

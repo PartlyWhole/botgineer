@@ -9,7 +9,7 @@
  */
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 import { hashWithoutRoom, roomInHash } from '../app/router'
-import { Room, transportsFrom, type LessonRoom, type Peer } from './room'
+import { BUILD, Room, transportsFrom, type LessonRoom, type Peer } from './room'
 
 export type RoomStatus = 'solo' | 'connecting' | 'live' | 'unreachable'
 
@@ -39,6 +39,7 @@ export function useRoom(): RoomView {
     setStatus('live')
     // A test and debugging seam, like `window.botgineer`.
     ;(window as unknown as { __botgineerRoom?: Room }).__botgineerRoom = r
+    ;(window as unknown as { __botgineerBuild?: string }).__botgineerBuild = BUILD
   }, [])
 
   // Join the room the link carries, now and whenever the hash changes to one.

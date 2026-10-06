@@ -74,16 +74,25 @@ function decorate(doc: { length: number }, peers: readonly Peer[]): DecorationSe
   return Decoration.set(out, true)
 }
 
-const peersField = StateField.define<DecorationSet>({
-  create: () => Decoration.none,
-  update(set, tr) {
-    for (const e of tr.effects) if (e.is(setPeers)) return decorate(tr.state.doc, e.value)
-    // Remote text arriving before the caret that goes with it: the carets
-    // ride along with the edit until the next presence message.
-    return tr.docChanged ? set.map(tr.changes) : set
-  },
-  provide: (f) => EditorView.decorations.from(f),
-})
+/**
+ * The others' carets, for one room. The field is rebuilt whenever the
+ * room's extensions are attached again, which an editor lesson does after
+ * every program the crow shows (`CodeEditor`'s `attachShared`), so it
+ * starts from where everyone's caret is now, which the room knows: rebuilt
+ * empty, the carets were gone until someone moved theirs.
+ */
+function peersField(room: Room): Extension {
+  return StateField.define<DecorationSet>({
+    create: (state) => decorate(state.doc, room.peers()),
+    update(set, tr) {
+      for (const e of tr.effects) if (e.is(setPeers)) return decorate(tr.state.doc, e.value)
+      // Remote text arriving before the caret that goes with it: the carets
+      // ride along with the edit until the next presence message.
+      return tr.docChanged ? set.map(tr.changes) : set
+    },
+    provide: (f) => EditorView.decorations.from(f),
+  })
+}
 
 /**
  * Someone else's typing never moves your caret. The sync plugin applies a
@@ -103,6 +112,7 @@ export function sharedEditor(room: Room): Extension {
   return [
     room.lib.automergeSyncPlugin({ handle: room.handle, path: ['code'] }),
     keepCaret(room),
+    peersField(room),
     // Where this caret is from the start, before it is ever moved: everyone
     // in the room has one, at the top of the text until they click.
     ViewPlugin.define((view) => {
@@ -112,7 +122,6 @@ export function sharedEditor(room: Room): Extension {
       })
       return {}
     }),
-    peersField,
     EditorView.updateListener.of((u) => {
       // Only when this caret moves. Edits (anyone's) move the text around it,
       // not its place: it is sent as a place in the text (`Room.place`).

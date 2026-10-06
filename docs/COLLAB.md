@@ -67,6 +67,17 @@ caret naming text still on its way stays where it was last found. Every
 editor announces its caret on joining, so each person's shows from the
 start; after that, only moving it sends it.
 
+**Everyone should be on the same build.** Two builds may not read each
+other's messages (a caret sent as a place and read as an offset drew
+none). Each peer says its build (`BUILD`, the deploy's commit, from
+`vite.config.ts`) and the room strip tells everyone to reload when they
+differ. A caret sent as an offset, by a build before places, is still drawn.
+
+**Carets survive the crow's programs.** An editor lesson rebuilds the
+room's editor extensions after each program the crow shows; the carets'
+field starts from the room's own idea of where everyone is (`room.peers()`)
+rather than from none.
+
 **Picking a card in memory picks it for everyone** (`MemoryPanel`'s
 `sync`): the camera flies to it on every screen, and letting go lets go
 everywhere. A pick names the memory it was made in (the sandbox's, a

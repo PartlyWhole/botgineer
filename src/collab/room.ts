@@ -73,15 +73,20 @@ export type LessonRoom = { level: string; seed: number; events: LessonEvent[] }
 type RoomDoc = { code: string; run: SharedRun | null; level?: string; seed?: number; events?: LessonEvent[] }
 
 export type Me = { id: string; name: string; color: string; role: Role }
+
+/** This page's build (`vite.config.ts`): the commit, or `dev`. */
+export const BUILD: string = String(import.meta.env.VITE_BUILD ?? 'dev')
 export type Peer = Me & {
   cursor: { anchor: number; head: number } | null
   /** When the peer's name was last shown: on arrival, and when they move
    *  after a pause. */
   announcedAt: number
+  /** The peer's build, or null if it is too old to say. */
+  build: string | null
 }
 
 type PresenceState = {
-  user: { name: string; color: string; role: Role }
+  user: { name: string; color: string; role: Role; build?: string }
   /** Each end as "just after this character" (an Automerge cursor), or
    *  null for the start of the text: see `place`. */
   cursor: { anchor: string | null; head: string | null; n: number } | null
@@ -229,7 +234,7 @@ export class Room {
   private start() {
     const presence = new this.lib.Presence<PresenceState, RoomDoc>({ handle: this.handle })
     presence.start({
-      initialState: { user: { name: this.me.name, color: this.me.color, role: this.me.role }, cursor: null, step: null, beat: null, pick: null, size: null },
+      initialState: { user: { name: this.me.name, color: this.me.color, role: this.me.role, build: BUILD }, cursor: null, step: null, beat: null, pick: null, size: null },
       heartbeatMs: 5000,
       peerTtlMs: 15_000,
     })
@@ -295,6 +300,9 @@ export class Room {
    *  names a character not received yet. */
   private find(c: unknown): number | undefined {
     if (c === null) return 0
+    // A build before places sent an offset: right for its sender's text
+    // only, but better drawn than not.
+    if (typeof c === 'number' && Number.isInteger(c) && c >= 0) return c
     const doc = this.doc()
     if (typeof c !== 'string' || !doc) return undefined
     try {
@@ -321,13 +329,14 @@ export class Room {
           role: u.role === 'learner' ? 'learner' : 'helper',
           cursor: this.placeOf(p.peerId, c),
           announcedAt: this.seenCursor.get(p.peerId)?.announcedAt ?? 0,
+          build: typeof u.build === 'string' ? u.build.slice(0, 40) : null,
         } satisfies Peer
       })
   }
 
   /** A peer's caret in this text: found from its cursors, or where it was
    *  last found while one names text still on its way. */
-  private placeOf(peer: string, c: PresenceState['cursor'] | undefined): { anchor: number; head: number } | null {
+  private placeOf(peer: string, c: { anchor: unknown; head: unknown } | null | undefined): { anchor: number; head: number } | null {
     if (!c) return null
     const head = this.find(c.head)
     const anchor = this.find(c.anchor)
@@ -335,6 +344,14 @@ export class Room {
     const at = { anchor, head }
     this.placed.set(peer, at)
     return at
+  }
+
+  /** Those here on another build than this page's: they may not
+   *  understand each other (a caret sent one way and read another drew
+   *  none), and should reload. A build too old to say counts as other. */
+  otherBuilds(): Peer[] {
+    if (BUILD === 'dev') return []
+    return this.peers().filter((p) => p.build !== BUILD && p.build !== 'dev')
   }
 
   /** Who is driving a run in progress, if anyone is here doing so. */

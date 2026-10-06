@@ -74,6 +74,12 @@ export function RoomBar({ view, onShare, busy }: { view: RoomView; onShare: () =
         ))}
       </ul>
       <span className="room-count">{everyone.length} here</span>
+      {room && room.otherBuilds().length > 0 && (
+        <span className="room-hint warn" data-testid="room-versions" role="status">
+          {room.otherBuilds().map((p) => p.name).join(', ')} {room.otherBuilds().length === 1 ? 'has' : 'have'} a different
+          version of BotGineer. Everyone reload the page to see each other properly.
+        </span>
+      )}
       {busy && (
         <span className="room-hint" data-testid="room-busy">
           {busy}

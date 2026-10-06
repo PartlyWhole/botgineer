@@ -211,3 +211,16 @@ test('full screen: no bar along the top, no room strip, and a way back', async (
   await expect(page.locator('.topbar')).toBeVisible()
   await expect(page.getByTestId('room-bar')).toBeVisible()
 })
+
+test('peers on different builds are told to reload', async ({ page }) => {
+  const { helper } = await pair(page)
+  const build = await page.evaluate(() => (window as unknown as { __botgineerBuild: string }).__botgineerBuild)
+  test.skip(build === 'dev', 'a dev build compares with nothing (set GITHUB_SHA to build as a deploy does)')
+  await expect(page.getByTestId('room-versions')).toHaveCount(0)
+  // The helper claims an older build.
+  await helper.evaluate(() => {
+    const r = (window as unknown as { __botgineerRoom: { presence: { broadcast: (c: string, v: unknown) => void }; me: { name: string; color: string; role: string } } }).__botgineerRoom
+    r.presence.broadcast('user', { name: r.me.name, color: r.me.color, role: r.me.role, build: 'old0000' })
+  })
+  await expect(page.getByTestId('room-versions')).toContainText('reload')
+})

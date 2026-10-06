@@ -1414,6 +1414,13 @@
   color: var(--t-amber);
 }
 
+/* A notice to read, not a label: it wraps rather than pushing the rest off. */
+.room-bar > .room-hint.warn {
+  flex: 1 1 12em;
+  min-width: 0;
+  white-space: normal;
+}
+
 .robot-panel[data-look='v2'] .room-bar button {
   display: inline-flex;
   align-items: center;

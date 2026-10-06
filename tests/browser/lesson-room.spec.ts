@@ -90,6 +90,11 @@ test('an editor lesson: one shared program, run by either, judged for both', asy
   const lesson = ifLesson(SEED)
   for (const [i, step] of lesson.steps.slice(0, 4).entries()) {
     const by = i % 2 === 0 ? helper : learner
+    // At a question about the shared program, after whatever the crow
+    // showed in the editor, each still sees the other's caret. (A
+    // prediction keeps the crow's program up, which has no carets.)
+    await by.evaluate(() => window.botgineer.skip())
+    if (!step.choices) for (const p of [learner, helper]) await expect(p.locator('.cm-peer-caret'), `step ${i}`).toHaveCount(1)
     if (step.choices) {
       await by.evaluate(() => window.botgineer.skip())
       await by.getByTestId(`choice-${step.choices.answer}`).click()
