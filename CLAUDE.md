@@ -111,6 +111,7 @@ that set to about one per area so it stays under a minute.
 | `src/ui/Split.tsx` | draggable, keyboard-operable gutters; sizes remembered in localStorage |
 | `src/app/Workbench.tsx` | the wiring: owns the run, the steps, the index, the snapshot |
 | `src/app/Sandbox.tsx` | `#/code`, the sandbox: the v2 editor on the left, memory on the right, nothing else. A run opens on step 0 and is walked by hand (scrubber or step buttons); an edit puts the run away. `#/sandbox` is v1's first level, not this |
+| `src/collab/` | shared rooms ([docs/COLLAB.md](docs/COLLAB.md)): `room.ts` (Automerge doc `{code, run}` + presence), `trace.ts` (a run packed for the room, shape-checked on the way in), `editor.ts` (sync plugin and peers' carets), `useRoom.ts`, `RoomBar.tsx`. Lazily loaded: solo players never fetch Automerge |
 | `content/roadmap.ts` | the levels, grouped into units, in play order. The only place the order lives |
 | `src/progress/progress.ts` | which levels are finished (localStorage) and what that unlocks. One of the **two stored things** — see invariant 19 |
 | `src/roadmap/RoadmapScreen.tsx` | the home screen: a Duolingo-style winding path of levels, one unit per coloured stretch, the cast beside it |
@@ -486,3 +487,11 @@ that set to about one per area so it stays under a minute.
    keyframe replaces the placement for the length of the demonstration.
    The props slot paints behind the cast (no z-index), so a picture never
    covers a face.
+27. **A shared room replicates what one engine produced.** Whoever presses
+   Run runs Python; the others are shown that run's trace, never a run of
+   their own, which would differ for any program using `random`. The room
+   holds only the code and the last run; who is here, carets and the step
+   shown are ephemeral presence. A peer's trace is untrusted until
+   `collab/trace.ts` has checked it. A room link rides after the route
+   (`#/code&room=…`), and `#/code` alone is solo. See
+   [docs/COLLAB.md](docs/COLLAB.md).

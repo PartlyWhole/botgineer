@@ -15,6 +15,7 @@
  *   `#/code`          the sandbox: the editor and memory alone, to write,
  *                     run and step through (`#/sandbox` is v1's first level)
  *   `#/<level id>`    that level's workbench
+ *   `…&room=<url>`    any of these, in a shared room (`roomInHash`)
  *
  * Anything unrecognised is the map, which is always somewhere sensible to
  * land (the v2 map, for an unknown `v2-` id). A level's own hash still works whether or not the map shows it as
@@ -35,7 +36,8 @@ export type Route =
   | { kind: 'level'; activity: Activity }
 
 function read(): Route {
-  const id = window.location.hash.replace(/^#\/?/, '')
+  // A shared room rides after the route (`roomInHash`), and is not part of it.
+  const id = window.location.hash.replace(/^#\/?/, '').split('&')[0]!
   if (id === 'v2') return { kind: 'map2' }
   if (id === 'skills') return { kind: 'skills' }
   if (id === 'code') return { kind: 'code' }
@@ -78,6 +80,21 @@ export function goToMap(finished?: string, version?: 1 | 2): void {
   arrival = finished ?? null
   const v = version ?? (finished ? (activityById(finished)?.version ?? 1) : 1)
   window.location.hash = v === 2 ? '#/v2' : '#/map'
+}
+
+/**
+ * The shared room a link carries, after the route: `#/code&room=<url>`,
+ * with `&via=tabs` when the room uses only some transports
+ * (`collab/room`). Null when there is none.
+ */
+export function roomInHash(hash = window.location.hash): { url: string; via: string | null } | null {
+  const m = hash.match(/&room=(automerge:[A-Za-z0-9]+)(?:&via=([\w,]*))?$/)
+  return m ? { url: m[1]!, via: m[2] ?? null } : null
+}
+
+/** The current route's hash with no room on it. */
+export function hashWithoutRoom(hash = window.location.hash): string {
+  return hash.split('&')[0]!
 }
 
 export function useRoute(): Route {

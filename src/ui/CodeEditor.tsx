@@ -120,6 +120,10 @@ type Props = {
   /** v2: Mod-Enter and Shift-Enter. The caller decides whether a run is
    *  allowed; the editor only asks. */
   onRun?: (() => void) | undefined
+  /** A shared room (`collab/editor`): the room's text, adopted when the
+   *  room is entered, and the extensions that keep the editor in step with
+   *  it. Read and attached in one go, so no remote change falls between. */
+  shared?: { text: () => string; extension: Extension } | null | undefined
 }
 
 export type EditorApi = {
@@ -130,6 +134,8 @@ export type EditorApi = {
    *  for React to re-render with it. */
   read: () => string
   focus: () => void
+  /** Dispatches state effects: a shared room's carets (`collab/editor`). */
+  effects: (effects: StateEffect<unknown>[]) => void
 }
 
 /* -------------------------------------------------------------------- */
@@ -438,6 +444,8 @@ const editable = new Compartment()
 /** v2: a run in flight freezes the text but keeps the caret and focus, so
  *  Mod-Enter, a look at memory and typing on carry straight on. */
 const frozen = new Compartment()
+/** A shared room's extensions, attached when a room is entered. */
+const sharedSlot = new Compartment()
 
 /** The extensions both the player's document and the crow's wear. */
 function v2Shared(): Extension[] {
@@ -492,6 +500,7 @@ export function CodeEditor({
   onDemoTyped,
   readOnly = false,
   onRun,
+  shared = null,
 }: Props) {
   const v2 = look === 'v2'
   const hostRef = useRef<HTMLDivElement | null>(null)
@@ -562,6 +571,7 @@ export function CodeEditor({
           EditorView.lineWrapping,
           editable.of(EditorView.editable.of(true)),
           frozen.of(EditorState.readOnly.of(false)),
+          sharedSlot.of([]),
 
           // The preamble and the harness are readable and selectable, but
           // not editable. `changeFilter` returning ranges protects them
@@ -630,6 +640,7 @@ export function CodeEditor({
       focus: () => {
         if (!playerRef.current) view.focus()
       },
+      effects: (effects) => view.dispatch({ effects }),
     })
     return () => {
       view.destroy()
@@ -640,6 +651,20 @@ export function CodeEditor({
     // editor owns the text after mount and reports changes outward.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [head, tail, look])
+
+  // A shared room: take its text, then attach what keeps the two in step.
+  // The sync plugin starts from the room's text, so the editor must hold
+  // exactly that text the moment it is attached.
+  useEffect(() => {
+    const view = viewRef.current
+    if (!view) return
+    if (shared) {
+      const text = shared.text()
+      const { head: h, tail: tl } = boundsRef.current
+      if (view.state.doc.toString() !== h + text + tl) replaceSolution(view, h, tl, text)
+    }
+    view.dispatch({ effects: sharedSlot.reconfigure(shared ? shared.extension : []) })
+  }, [shared])
 
   // v1: the trace drives the highlight; the editor never drives the trace.
   useEffect(() => {
