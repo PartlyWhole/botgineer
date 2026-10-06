@@ -11,7 +11,7 @@
  * whose it is. Text another peer typed is never highlighted.
  */
 import { EditorState, StateEffect, StateField, type Extension, type Range } from '@codemirror/state'
-import { Decoration, EditorView, WidgetType, type DecorationSet } from '@codemirror/view'
+import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet } from '@codemirror/view'
 import type { Peer, Room } from './room'
 
 export const setPeers = StateEffect.define<readonly Peer[]>()
@@ -103,14 +103,25 @@ export function sharedEditor(room: Room): Extension {
   return [
     room.lib.automergeSyncPlugin({ handle: room.handle, path: ['code'] }),
     keepCaret(room),
+    // Where this caret is from the start, before it is ever moved: everyone
+    // in the room has one, at the top of the text until they click.
+    ViewPlugin.define((view) => {
+      room.shareCursor(() => {
+        const { anchor, head } = view.state.selection.main
+        return { anchor, head }
+      })
+      return {}
+    }),
     peersField,
     EditorView.updateListener.of((u) => {
-      // A peer's edit moves this caret too (the text before it changed), so
-      // say where it is now: the others still hold where it was, and would
-      // draw it there.
-      if (!u.selectionSet && !u.focusChanged && !u.docChanged) return
-      const { anchor, head } = u.state.selection.main
-      room.shareCursor(anchor, head)
+      // Only when this caret moves. Edits (anyone's) move the text around it,
+      // not its place: it is sent as a place in the text (`Room.place`).
+      if (!u.selectionSet && !u.focusChanged) return
+      const view = u.view
+      room.shareCursor(() => {
+        const { anchor, head } = view.state.selection.main
+        return { anchor, head }
+      })
     }),
   ]
 }

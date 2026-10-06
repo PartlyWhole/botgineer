@@ -25,7 +25,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { session, useRuntime } from '../runtime/shared'
 import type { StepRecord, TerminalRecord } from '../runtime/types'
-import { extractMemory, reachedBy, runOf } from '../memory/extract'
+import { extractMemory, isProgramStart, reachedBy, runOf } from '../memory/extract'
 import { useHandles } from '../memory/handles'
 import { EMPTY } from '../memory/model'
 import { CodeEditor, type EditorApi } from '../ui/CodeEditor'
@@ -106,7 +106,7 @@ export function Sandbox({ roomView }: { roomView: RoomView }) {
         source,
         options: OPTIONS,
         onRecord: (r) => {
-          if (r.kind === 'step') got.push(r)
+          if (r.kind === 'step' && !isProgramStart(r, got.length)) got.push(r)
         },
       })
       terminal = outcome.terminal
@@ -224,8 +224,8 @@ export function Sandbox({ roomView }: { roomView: RoomView }) {
   const traceLine = current?.location.module === '__main__' ? current.location.line : null
 
   // A small surface for the browser tests, like the workbench's.
-  const latest = useRef({ run, busy, shown, total, snapshot, done })
-  latest.current = { run, busy, shown, total, snapshot, done }
+  const latest = useRef({ run, busy, shown, total, snapshot, done, steps })
+  latest.current = { run, busy, shown, total, snapshot, done, steps }
   useEffect(() => {
     const api = {
       setProgram: (src: string) => editorRef.current?.replace(src),
@@ -234,6 +234,8 @@ export function Sandbox({ roomView }: { roomView: RoomView }) {
       run: () => latest.current.run(),
       step: (i: number) => goTo(i),
       snapshot: () => latest.current.snapshot,
+      /** Each step's event and line, for tests of what a step shows. */
+      events: () => latest.current.steps.map((s) => `${s.event}:${s.location.module}:${s.location.line}`),
       state: () => ({
         boot: boot.state,
         busy: latest.current.busy,

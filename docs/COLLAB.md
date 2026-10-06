@@ -54,9 +54,18 @@ takes up the room's layout.
 **Someone else's typing never moves your caret.** The sync plugin applies
 a peer's edit and then sets your caret mapped so that text typed exactly
 at it pushes it along; `keepCaret` drops that step, so CodeMirror's own
-mapping leaves the caret before text typed at it. Peers' carets are drawn
-the same way (`side: -1`), and each peer re-sends its caret after any
-edit, so a drawn caret never sits where the real one is not.
+mapping leaves the caret before text typed at it.
+
+**A caret is sent as a place in the text, not an offset** (`Room.place`):
+"just after this character", as an Automerge cursor, resolved by each
+receiver against the text it has (`Room.find`). An offset is only right for
+the text its sender had, so one arriving while you typed on drew the
+caret where it used to be: it jumped back and forth as you typed. Named
+after the character before it, text typed at a caret goes after it, the
+same as `keepCaret`, and peers' carets are drawn that way (`side: -1`). A
+caret naming text still on its way stays where it was last found. Every
+editor announces its caret on joining, so each person's shows from the
+start; after that, only moving it sends it.
 
 **Picking a card in memory picks it for everyone** (`MemoryPanel`'s
 `sync`): the camera flies to it on every screen, and letting go lets go

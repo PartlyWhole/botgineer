@@ -151,6 +151,31 @@ test("a peer's caret is drawn where it really is, whoever types", async ({ page 
   }
 })
 
+test("a peer's caret holds still while you type before it", async ({ page }) => {
+  const { helper } = await pair(page)
+  await call(helper, "b.setProgram('x = 1\\n')")
+  await expect.poll(() => call<string>(page, 'return b.getProgram()')).toBe('x = 1\n')
+  await helper.locator('.cm-content').click()
+  await helper.keyboard.press('ControlOrMeta+Home')
+  await helper.keyboard.press('End')
+  await expect.poll(() => peerCaretColumn(page)).toBe(5)
+  // Type steadily at the start of the line, as a person does, and look at
+  // the helper's caret after every key: it rides along with its text, one
+  // column a key, and never jumps back to where it was.
+  await page.locator('.cm-content').click()
+  await page.keyboard.press('ControlOrMeta+Home')
+  const seen: number[] = []
+  for (const ch of 'abcdefghijklmnopqrst') {
+    await page.keyboard.type(ch)
+    await page.waitForTimeout(35)
+    seen.push((await peerCaretColumn(page)) ?? -1)
+  }
+  expect(seen).toEqual(seen.map((_, i) => 6 + i))
+  await expect.poll(() => call<string>(helper, 'return b.getProgram()')).toBe('abcdefghijklmnopqrstx = 1\n')
+  await page.waitForTimeout(400)
+  expect(await peerCaretColumn(page)).toBe(25)
+})
+
 test('resizing a pane resizes it for everyone; the output has its own gutter', async ({ page }) => {
   const { helper } = await pair(page)
   const width = (p: Page) => p.locator('.sandbox-code').evaluate((el) => Math.round(el.getBoundingClientRect().width))

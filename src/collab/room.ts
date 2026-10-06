@@ -82,7 +82,9 @@ export type Peer = Me & {
 
 type PresenceState = {
   user: { name: string; color: string; role: Role }
-  cursor: { anchor: number; head: number; n: number } | null
+  /** Each end as "just after this character" (an Automerge cursor), or
+   *  null for the start of the text: see `place`. */
+  cursor: { anchor: string | null; head: string | null; n: number } | null
   step: { runId: string; index: number; n: number } | null
   beat: { key: string; at: number; n: number } | null
   /** The memory card picked (`MemoryPanel`), in which view of memory. */
@@ -155,7 +157,10 @@ export class Room {
   private cursorN = 0
   private stepN = 0
   private cursorTimer: ReturnType<typeof setTimeout> | null = null
-  private pendingCursor: { anchor: number; head: number } | null = null
+  private pendingCursor: (() => { anchor: number; head: number }) | null = null
+  /** Where each peer's caret was last placed, kept for a moment its
+   *  cursor names a character this document has not received yet. */
+  private placed = new Map<string, { anchor: number; head: number }>()
   private ticker: ReturnType<typeof setInterval> | null = null
   /** The run this peer is driving, if any. */
   myRun: string | null = null
@@ -267,6 +272,38 @@ export class Room {
     return here.map((p) => p.id).sort()[0] === this.me.id
   }
 
+  /**
+   * A caret's place in the shared text that survives everyone's typing:
+   * "just after this character", as an Automerge cursor, or null for the
+   * very start. An offset ("5") is only right for the text its sender had:
+   * one that arrived while you typed on drew their caret where it used to
+   * be, and it jumped back and forth as you typed. Named after the character
+   * *before* it, text typed exactly at a caret goes after the caret, which
+   * is how a peer's own caret behaves (`collab/editor` `keepCaret`).
+   */
+  private place(index: number): string | null {
+    const doc = this.doc()
+    if (!doc || index <= 0) return null
+    try {
+      return this.lib.getCursor(doc, ['code'], Math.min(index, doc.code.length) - 1, 'before')
+    } catch {
+      return null
+    }
+  }
+
+  /** Where a `place` is in the text this peer has now; undefined when it
+   *  names a character not received yet. */
+  private find(c: unknown): number | undefined {
+    if (c === null) return 0
+    const doc = this.doc()
+    if (typeof c !== 'string' || !doc) return undefined
+    try {
+      return this.lib.getCursorPosition(doc, ['code'], c) + 1
+    } catch {
+      return undefined
+    }
+  }
+
   /** Everyone else here now, oldest message first. */
   peers(): Peer[] {
     if (!this.presence) return []
@@ -282,10 +319,22 @@ export class Room {
           name: typeof u.name === 'string' ? u.name.slice(0, 40) : 'Someone',
           color,
           role: u.role === 'learner' ? 'learner' : 'helper',
-          cursor: c && Number.isInteger(c.anchor) && Number.isInteger(c.head) ? { anchor: c.anchor, head: c.head } : null,
+          cursor: this.placeOf(p.peerId, c),
           announcedAt: this.seenCursor.get(p.peerId)?.announcedAt ?? 0,
         } satisfies Peer
       })
+  }
+
+  /** A peer's caret in this text: found from its cursors, or where it was
+   *  last found while one names text still on its way. */
+  private placeOf(peer: string, c: PresenceState['cursor'] | undefined): { anchor: number; head: number } | null {
+    if (!c) return null
+    const head = this.find(c.head)
+    const anchor = this.find(c.anchor)
+    if (head === undefined || anchor === undefined) return this.placed.get(peer) ?? null
+    const at = { anchor, head }
+    this.placed.set(peer, at)
+    return at
   }
 
   /** Who is driving a run in progress, if anyone is here doing so. */
@@ -392,15 +441,20 @@ export class Room {
     this.presence?.broadcast('step', { runId, index, n: ++this.stepN })
   }
 
-  /** Tells the others where this peer's caret is, at most every 40 ms. */
-  shareCursor(anchor: number, head: number): void {
-    this.pendingCursor = { anchor, head }
+  /** Tells the others where this peer's caret is, at most every 40 ms.
+   *  `where` is read when it is sent: by then the editor and the shared
+   *  text agree (the sync plugin may not have taken the last key yet when
+   *  the caret moves), and a caret named against them is right. */
+  shareCursor(where: () => { anchor: number; head: number }): void {
+    this.pendingCursor = where
     if (this.cursorTimer !== null) return
     this.cursorTimer = setTimeout(() => {
       this.cursorTimer = null
-      const c = this.pendingCursor
+      const where = this.pendingCursor
       this.pendingCursor = null
-      if (c && this.presence?.running) this.presence.broadcast('cursor', { ...c, n: ++this.cursorN })
+      if (!where || !this.presence?.running) return
+      const { anchor, head } = where()
+      this.presence.broadcast('cursor', { anchor: this.place(anchor), head: this.place(head), n: ++this.cursorN })
     }, CURSOR_MS)
   }
 

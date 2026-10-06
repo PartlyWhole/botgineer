@@ -79,13 +79,15 @@ export function MemoryPanel({
   // not in this memory is cleared below by the same rule as ever.
   const syncRef = useRef(sync)
   syncRef.current = sync
+  const pickedRef = useRef(picked)
+  pickedRef.current = picked
   const setPicked = useCallback((p: GraphPick) => {
+    // Letting go of nothing changes nothing, and tells nobody.
+    if (p === null && pickedRef.current === null) return
     setPickedHere(p)
     const s = syncRef.current
     s?.send(s.view, p)
   }, [])
-  const pickedRef = useRef(picked)
-  pickedRef.current = picked
   const view = sync?.view
   const listen = sync?.listen
   useEffect(() => {

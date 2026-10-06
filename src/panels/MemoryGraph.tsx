@@ -590,8 +590,14 @@ export function MemoryGraph({ snapshot, handles, runKey, picked, onPick, fit = f
       data-testid="graph"
       data-picked={pickedId ?? ''}
       onPointerDown={(e) => {
-        // A press on the background clears the selection.
-        if (e.target === hostRef.current) onPick(null)
+        // A press anywhere but a card or a control lets go: the selection,
+        // and the focus a picked card kept. Only a press on the host itself
+        // used to count, and the arrows' layer and the grid cover most of it.
+        const t = e.target as Element
+        if (t.closest('.node, button')) return
+        const focused = document.activeElement
+        if (focused instanceof HTMLElement && hostRef.current?.contains(focused)) focused.blur()
+        onPick(null)
       }}
     >
       <svg className="edges" aria-hidden="true">

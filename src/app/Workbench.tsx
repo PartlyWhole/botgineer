@@ -22,7 +22,7 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { session, useRuntime } from '../runtime/shared'
 import type { StepRecord, TerminalRecord } from '../runtime/types'
-import { extractMemory, reachedBy, runEvidence, runOf, thought, type RunEvidence } from '../memory/extract'
+import { extractMemory, isProgramStart, reachedBy, runEvidence, runOf, thought, type RunEvidence } from '../memory/extract'
 import { useHandles } from '../memory/handles'
 import { EMPTY, type MemorySnapshot } from '../memory/model'
 import { buildProgram, isExpression, type Entry } from '../repl/program'
@@ -204,6 +204,7 @@ export function Workbench({
   /** A v2 editor lesson is judged on its runs, as a console lesson is on
    *  its lines: what memory a run *left*, not where the scrubber is. */
   const judgedOnRuns = activity.mode === 'editor' && activity.version === 2 && activity.lesson !== undefined
+  const walkedFromLine1 = activity.mode === 'editor' && activity.version === 2
 
   /**
    * Runs one program to completion.
@@ -247,6 +248,9 @@ export function Workbench({
           options: activity.options,
           onRecord: (r) => {
             if (r.kind !== 'step') return
+            // A v2 editor run is walked a step at a time from line 1
+            // (`isProgramStart`).
+            if (walkedFromLine1 && isProgramStart(r, stepsRef.current.length)) return
             stepsRef.current.push(r)
             const { stdout_delta: out, stderr_delta: err } = r.output
             output += out + err

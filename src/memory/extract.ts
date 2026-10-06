@@ -422,3 +422,14 @@ export function reachedBy(steps: readonly StepRecord[], at: number): { ran: numb
   }
   return { ran, current }
 }
+
+/**
+ * Whether a step is the program starting: the engine's \`call\` into the
+ * module, before line 1. Nothing has run and no line is about to, so a run
+ * walked a step at a time drops it: its first step is line 1 about to run,
+ * and the first press of forward runs line 1. Kept, the first press only
+ * moved onto line 1 (an off-by-one the learner sees).
+ */
+export function isProgramStart(step: StepRecord, index: number): boolean {
+  return index === 0 && step.event === 'call' && step.location.module === '__main__'
+}

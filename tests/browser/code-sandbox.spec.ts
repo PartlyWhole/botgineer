@@ -25,9 +25,11 @@ test('a run opens on its first step and is walked by hand', { tag: '@smoke' }, a
   await expect(page.getByTestId('memory-empty')).toBeVisible()
   await expect(page.getByTestId('transcript')).not.toContainText('2')
 
-  await page.getByTestId('step-forward').click()
+  // Step 1 is line 1 about to run: one press forward runs it.
+  await expect(page.locator('.cm-line').first()).toHaveClass(/now|current/)
   await page.getByTestId('step-forward').click()
   await expect(page.locator('.node.name', { hasText: 'x' })).toBeVisible()
+  expect(await page.evaluate(() => (window as unknown as { botgineer: { events: () => string[] } }).botgineer.events()[0])).toBe('line:__main__:1')
 
   await page.getByTestId('step-last').click()
   await expect(page.locator('.node.name', { hasText: 'y' })).toBeVisible()
@@ -44,4 +46,15 @@ test('editing the program puts the run away', async ({ page }) => {
   await expect(page.getByTestId('step-label')).toHaveText(/^1 \//)
   await api(page)(() => (window as unknown as { botgineer: Api }).botgineer.setProgram('z = 3\n'))
   await expect(page.getByTestId('step-label')).toHaveText('—')
+})
+
+test('a press on empty memory lets go of the card picked', async ({ page }) => {
+  await openSandbox(page)
+  await page.getByTestId('run').click()
+  await page.getByTestId('step-last').click()
+  await page.locator('.node.name', { hasText: 'backpack' }).click()
+  await expect(page.getByTestId('memory')).toHaveAttribute('data-picked', 'yes')
+  const box = (await page.getByTestId('graph').boundingBox())!
+  await page.mouse.click(box.x + box.width - 30, box.y + box.height - 30)
+  await expect(page.getByTestId('memory')).toHaveAttribute('data-picked', 'no')
 })
